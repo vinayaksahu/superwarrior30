@@ -1,69 +1,510 @@
-import Image from "next/image";
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { formatCurrency } from "@/lib/utils";
+import {
+  TrendingUp,
+  ShieldCheck,
+  Award,
+  BookOpen,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  Lock,
+  GitBranch,
+  PlayCircle,
+  HelpCircle,
+  BarChart3,
+  Flame,
+  Zap,
+} from "lucide-react";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  // Fetch real published courses with safe fallback
+  let featuredCourses: Array<{
+    id: string;
+    slug: string;
+    title: string;
+    shortDescription: string | null;
+    price: number | string | { toString(): string };
+    compareAtPrice: number | string | { toString(): string } | null;
+    difficulty: string;
+    _count: { modules: number };
+  }> = [];
+
+  try {
+    featuredCourses = await prisma.course.findMany({
+      where: { status: "PUBLISHED" },
+      orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+      take: 3,
+      include: {
+        _count: { select: { modules: true } },
+      },
+    });
+  } catch (err) {
+    console.warn("Could not load featured courses at build time:", err);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
+      {/* 1. Header Navigation */}
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex items-center space-x-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md">
+              SW
+            </span>
+            <span className="text-lg font-extrabold tracking-tight">
+              Super Warrior <span className="text-primary">30</span>
+            </span>
+          </Link>
+
+          <nav className="hidden items-center gap-6 md:flex">
+            <Link
+              href="/courses"
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Courses
+            </Link>
+            <Link
+              href="/about"
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
             >
-              Learning
-            </a>{" "}
-            center.
+              About
+            </Link>
+            <Link
+              href="/faq"
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+            >
+              FAQ
+            </Link>
+            <Link
+              href="/contact"
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+            >
+              Contact
+            </Link>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground px-3 py-1.5"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/register"
+              className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
+            >
+              Get Started
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. Hero Section: Terminal Aesthetic */}
+      <section className="relative overflow-hidden pt-20 pb-24 md:pt-28 md:pb-36 border-b border-border/40">
+        {/* Glow & Grid background */}
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,hsl(var(--primary)/0.18),transparent_70%)]" />
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="mx-auto max-w-4xl text-center space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Professional Trading Mentorship & Masterclasses</span>
+            </div>
+
+            <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl">
+              Master the Markets with{" "}
+              <span className="bg-gradient-to-r from-primary via-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                Institutional Precision
+              </span>
+            </h1>
+
+            <p className="mx-auto max-w-2xl text-base text-muted-foreground md:text-lg leading-relaxed">
+              Step into the mindset of professional price-action traders. Structured video masterclasses, 
+              curated strategies, and systematic risk management designed to elevate your trading execution.
+            </p>
+
+            <div className="pt-2 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link
+                href="/courses"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-8 text-sm font-bold text-primary-foreground shadow-xl transition-all hover:bg-primary/90"
+              >
+                <BookOpen className="h-4 w-4" />
+                Explore Courses
+              </Link>
+              <Link
+                href="/register"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-8 text-sm font-bold shadow transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Join Academy
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Core Pillars / Benefits */}
+      <section className="border-b border-border/40 bg-muted/20 py-16">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                icon: BarChart3,
+                title: "Pure Price Action",
+                desc: "Decode market microstructure and candlestick dynamics without lagging indicators.",
+              },
+              {
+                icon: ShieldCheck,
+                title: "Risk-First Framework",
+                desc: "Strict position sizing and mathematical risk-to-reward models that protect capital.",
+              },
+              {
+                icon: PlayCircle,
+                title: "Structured Video Lessons",
+                desc: "HD chaptered video breakdowns with companion study guides and PDF cheat sheets.",
+              },
+              {
+                icon: GitBranch,
+                title: "Affiliate Growth Network",
+                desc: "Earn multi-tier referral commissions as you share your education with fellow traders.",
+              },
+            ].map((pillar) => (
+              <div
+                key={pillar.title}
+                className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm space-y-3 transition-all hover:border-primary/40 hover:shadow-md"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <pillar.icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold text-foreground text-base">{pillar.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{pillar.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Featured Masterclasses */}
+      <section className="py-20 border-b border-border/40">
+        <div className="container mx-auto px-4 sm:px-6 space-y-12">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
+                <Flame className="h-4 w-4" />
+                <span>Featured Curriculum</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground mt-1">
+                Trading Masterclasses
+              </h2>
+            </div>
+
+            <Link
+              href="/courses"
+              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+            >
+              Browse All Courses
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {featuredCourses.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-12 text-center text-xs text-muted-foreground">
+              New masterclasses are currently being scheduled. Check back shortly.
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {featuredCourses.map((course) => {
+                const discount =
+                  course.compareAtPrice && Number(course.compareAtPrice) > Number(course.price)
+                    ? Math.round(
+                        ((Number(course.compareAtPrice) - Number(course.price)) /
+                          Number(course.compareAtPrice)) *
+                          100
+                      )
+                    : null;
+
+                return (
+                  <div
+                    key={course.id}
+                    className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all hover:border-primary/40 hover:shadow-lg group"
+                  >
+                    <div className="space-y-4">
+                      {/* Image / Thumbnail placeholder */}
+                      <div className="relative aspect-video w-full bg-muted/60 overflow-hidden flex items-center justify-center border-b border-border/60">
+                        <PlayCircle className="h-12 w-12 text-muted-foreground/30 group-hover:text-primary/70 transition-colors" />
+                        <span className="absolute top-3 left-3 rounded-md bg-background/90 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-primary border border-border/60 backdrop-blur-sm">
+                          {course.difficulty}
+                        </span>
+                        {discount && (
+                          <span className="absolute top-3 right-3 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white">
+                            {discount}% OFF
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="p-5 space-y-2">
+                        <h3 className="font-bold text-foreground text-base group-hover:text-primary transition-colors line-clamp-1">
+                          {course.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                          {course.shortDescription || "Comprehensive video trading course."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 pt-0">
+                      <div className="flex items-center justify-between border-t border-border/60 pt-4">
+                        <div>
+                          <span className="text-lg font-extrabold text-foreground">
+                            {formatCurrency(Number(course.price))}
+                          </span>
+                          {course.compareAtPrice && (
+                            <span className="ml-2 text-xs text-muted-foreground line-through">
+                              {formatCurrency(Number(course.compareAtPrice))}
+                            </span>
+                          )}
+                        </div>
+
+                        <Link
+                          href={`/courses/${course.slug}`}
+                          className="inline-flex items-center gap-1 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all"
+                        >
+                          View Details
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 5. 3-Step Methodology */}
+      <section className="py-20 bg-muted/20 border-b border-border/40">
+        <div className="container mx-auto px-4 sm:px-6 space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground">
+              The Super Warrior 30 Methodology
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              A structured roadmap from raw price charts to disciplined market execution
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-3">
+            {[
+              {
+                step: "01",
+                title: "Deconstruct Market Structure",
+                desc: "Identify liquidity pools, order flow dynamics, and key institutional support/resistance levels.",
+              },
+              {
+                step: "02",
+                title: "Execute High-Probability Setups",
+                desc: "Filter market noise with predefined entry triggers, stop placements, and tiered take-profit targets.",
+              },
+              {
+                step: "03",
+                title: "Scale Psychology & Capital",
+                desc: "Master emotional detachment, trade journaling, and capital management for sustainable long-term trading.",
+              },
+            ].map((m) => (
+              <div
+                key={m.step}
+                className="relative rounded-2xl border border-border bg-card p-6 shadow-sm space-y-3"
+              >
+                <span className="text-3xl font-black text-primary/20 font-mono block">
+                  {m.step}
+                </span>
+                <h3 className="font-bold text-foreground text-base">{m.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{m.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. Referral Affiliate Section */}
+      <section className="py-20 border-b border-border/40">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="rounded-3xl border border-primary/30 bg-gradient-to-br from-card via-card to-primary/10 p-8 sm:p-12 shadow-xl">
+            <div className="grid gap-8 lg:grid-cols-2 items-center">
+              <div className="space-y-4">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary">
+                  <GitBranch className="h-3.5 w-3.5" />
+                  <span>Affiliate Partnership Program</span>
+                </div>
+                <h2 className="text-3xl font-extrabold text-foreground sm:text-4xl">
+                  Learn with Us. Share with Peers. <br />
+                  <span className="text-primary">Earn Multi-Tier Commissions.</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                  Every enrolled student receives a unique referral code. Earn automated commission payouts
+                  directly to your wallet whenever peers join through your invitation.
+                </p>
+                <div className="pt-2">
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-primary-foreground shadow-lg hover:bg-primary/90 transition-all"
+                  >
+                    Join Referral Program
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
+                  <p className="text-2xl font-extrabold text-primary">Tier 1</p>
+                  <p className="text-xs font-semibold text-foreground">Direct Referrals</p>
+                  <p className="text-[11px] text-muted-foreground">Highest payout rate</p>
+                </div>
+                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
+                  <p className="text-2xl font-extrabold text-emerald-500">Multi-Tier</p>
+                  <p className="text-xs font-semibold text-foreground">Network Depth</p>
+                  <p className="text-[11px] text-muted-foreground">Earnings down the tree</p>
+                </div>
+                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
+                  <p className="text-2xl font-extrabold text-amber-500">₹ INR</p>
+                  <p className="text-xs font-semibold text-foreground">Direct Bank Payouts</p>
+                  <p className="text-[11px] text-muted-foreground">Fast UPI & IMPS transfers</p>
+                </div>
+                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
+                  <p className="text-2xl font-extrabold text-sky-500">100%</p>
+                  <p className="text-xs font-semibold text-foreground">Transparent Ledger</p>
+                  <p className="text-[11px] text-muted-foreground">Real-time audit tracking</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. FAQ Accordion Section */}
+      <section className="py-20 border-b border-border/40">
+        <div className="container mx-auto px-4 sm:px-6 max-w-3xl space-y-8">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Everything you need to know about course access, streaming, and affiliate payouts
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {[
+              {
+                q: "How do I access course videos and PDFs after purchase?",
+                a: "Access is unlocked automatically the moment your payment is verified. You can stream videos and download cheat sheets anytime from your student dashboard.",
+              },
+              {
+                q: "Are the courses suitable for complete beginners?",
+                a: "Yes. Our curriculum begins with market structure and candlestick fundamentals before advancing to complex multi-timeframe trade setups.",
+              },
+              {
+                q: "How does the multi-level referral program work?",
+                a: "When you share your unique referral link, you earn commissions on direct course enrollments, as well as downstream affiliate tiers configured on the platform.",
+              },
+              {
+                q: "What payment methods are supported for withdrawals?",
+                a: "You can request wallet withdrawals directly to your Indian bank account via UPI or NEFT/IMPS bank transfer with a minimum threshold of ₹500.",
+              },
+            ].map((faq) => (
+              <details
+                key={faq.q}
+                className="group rounded-2xl border border-border bg-card p-5 transition-colors open:border-primary/40"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-foreground">
+                  <span>{faq.q}</span>
+                  <span className="transition-transform group-open:rotate-180">↓</span>
+                </summary>
+                <p className="mt-3 text-xs text-muted-foreground leading-relaxed border-t border-border/40 pt-3">
+                  {faq.a}
+                </p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 8. Conversion CTA */}
+      <section className="py-20 border-b border-border/40 bg-gradient-to-b from-background to-muted/20">
+        <div className="container mx-auto px-4 sm:px-6 text-center max-w-2xl space-y-6">
+          <h2 className="text-3xl sm:text-4xl font-black text-foreground">
+            Ready to Transform Your Trading Journey?
+          </h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Join hundreds of ambitious traders mastering the markets through structured price-action education.
           </p>
+          <div className="flex justify-center gap-3">
+            <Link
+              href="/register"
+              className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-8 text-xs font-bold text-primary-foreground shadow-xl hover:bg-primary/90 transition-all"
+            >
+              Get Started Now
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* 9. Footer */}
+      <footer className="bg-card py-12 text-xs text-muted-foreground">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4 border-b border-border pb-8">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
+                  SW
+                </span>
+                <span className="font-bold text-foreground text-sm">Super Warrior 30</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Elite trading masterclasses and affiliate education ecosystem.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-foreground mb-3 text-xs">Curriculum</h4>
+              <ul className="space-y-2">
+                <li><Link href="/courses" className="hover:text-foreground">All Masterclasses</Link></li>
+                <li><Link href="/about" className="hover:text-foreground">Methodology</Link></li>
+                <li><Link href="/faq" className="hover:text-foreground">Student FAQ</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-foreground mb-3 text-xs">Support</h4>
+              <ul className="space-y-2">
+                <li><Link href="/contact" className="hover:text-foreground">Contact Desk</Link></li>
+                <li><Link href="/refund-policy" className="hover:text-foreground">Refund Policy</Link></li>
+                <li><Link href="/login" className="hover:text-foreground">Student Portal</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-foreground mb-3 text-xs">Legal & Compliance</h4>
+              <ul className="space-y-2">
+                <li><Link href="/terms" className="hover:text-foreground">Terms of Service</Link></li>
+                <li><Link href="/privacy" className="hover:text-foreground">Privacy Policy</Link></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="pt-8 flex flex-wrap items-center justify-between gap-4 text-[11px]">
+            <p>© {new Date().getFullYear()} Super Warrior 30. All rights reserved.</p>
+            <p className="text-muted-foreground/70">
+              Disclaimer: Educational content only. Trading financial markets involves risk.
+            </p>
+          </div>
         </div>
-      </main>
+      </footer>
     </div>
   );
 }

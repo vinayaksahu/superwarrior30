@@ -1,0 +1,274 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { saveReferralSettingsAction } from "@/server/actions/referral.actions";
+import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
+
+interface ReferralLevelItem {
+  id?: string;
+  level: number;
+  commissionPercentage: number;
+  isEnabled: boolean;
+}
+
+interface ReferralSettingsFormProps {
+  initialEnabled: boolean;
+  initialLevels: ReferralLevelItem[];
+}
+
+export function ReferralSettingsForm({
+  initialEnabled,
+  initialLevels,
+}: ReferralSettingsFormProps) {
+  const [isReferralEnabled, setIsReferralEnabled] = useState(initialEnabled);
+  const [levels, setLevels] = useState<ReferralLevelItem[]>(
+    initialLevels.length > 0
+      ? initialLevels
+      : [
+          { level: 1, commissionPercentage: 10, isEnabled: true },
+          { level: 2, commissionPercentage: 5, isEnabled: true },
+          { level: 3, commissionPercentage: 3, isEnabled: true },
+        ]
+  );
+  const [isPending, startTransition] = useTransition();
+
+  const handleAddLevel = () => {
+    const nextLevelNumber = levels.length > 0 ? Math.max(...levels.map((l) => l.level)) + 1 : 1;
+    setLevels([
+      ...levels,
+      { level: nextLevelNumber, commissionPercentage: 2, isEnabled: true },
+    ]);
+  };
+
+  const handleRemoveLevel = (index: number) => {
+    if (levels.length <= 1) {
+      toast.error("You must have at least one level configured.");
+      return;
+    }
+    const updated = levels.filter((_, i) => i !== index);
+    // Re-index levels sequentially
+    const reindexed = updated.map((l, i) => ({ ...l, level: i + 1 }));
+    setLevels(reindexed);
+  };
+
+  const handleLevelChange = (
+    index: number,
+    field: "commissionPercentage" | "isEnabled",
+    value: number | boolean
+  ) => {
+    const updated = [...levels];
+    if (field === "commissionPercentage") {
+      updated[index].commissionPercentage = Math.max(0, Math.min(100, Number(value)));
+    } else {
+      updated[index].isEnabled = Boolean(value);
+    }
+    setLevels(updated);
+  };
+
+  const totalCommission = levels
+    .filter((l) => l.isEnabled)
+    .reduce((sum, l) => sum + l.commissionPercentage, 0);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (totalCommission > 100) {
+      toast.error("Total enabled commission cannot exceed 100%");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await saveReferralSettingsAction({
+          isReferralEnabled,
+          levels,
+        });
+
+        if (res.success) {
+          toast.success("Referral program settings saved successfully!");
+        } else {
+          toast.error(res.message || "Failed to save referral settings");
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Error saving settings";
+        toast.error(msg);
+      }
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl">
+      {/* Global Toggle Card */}
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Referral Program Status</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Enable or disable multi-level referral commission generation system-wide
+            </p>
+          </div>
+
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              checked={isReferralEnabled}
+              onChange={(e) => setIsReferralEnabled(e.target.checked)}
+              className="peer sr-only"
+            />
+            <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-border after:bg-background after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
+          </label>
+        </div>
+
+        {!isReferralEnabled && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-500 font-medium">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>
+              The referral program is currently disabled. No new referral commissions will be generated on course purchases.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Multi-Level Config Table */}
+      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden space-y-4 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Commission Tiers & Levels</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Configure dynamic payout percentages for each tier in the referral closure tree
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAddLevel}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20"
+          >
+            <Plus className="h-4 w-4" />
+            Add Tier (Level {levels.length + 1})
+          </button>
+        </div>
+
+        {/* Levels list */}
+        <div className="space-y-3">
+          {levels.map((lvl, index) => (
+            <div
+              key={lvl.level}
+              className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4 transition-colors ${
+                lvl.isEnabled
+                  ? "border-border/80 bg-background/60"
+                  : "border-border/40 bg-muted/20 opacity-60"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary font-mono">
+                  L{lvl.level}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    Level {lvl.level}{" "}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {lvl.level === 1
+                        ? "(Direct Referrer)"
+                        : lvl.level === 2
+                        ? "(Grandparent)"
+                        : `(${lvl.level} Steps Up)`}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Payout on referred student purchases
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                {/* Commission % Input */}
+                <div className="flex items-center gap-2">
+                  <div className="relative w-28">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      disabled={!lvl.isEnabled}
+                      value={lvl.commissionPercentage}
+                      onChange={(e) =>
+                        handleLevelChange(index, "commissionPercentage", Number(e.target.value))
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-background pl-3 pr-7 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                </div>
+
+                {/* Level Toggle */}
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lvl.isEnabled}
+                    onChange={(e) =>
+                      handleLevelChange(index, "isEnabled", e.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                  />
+                  <span>Enabled</span>
+                </label>
+
+                {/* Remove button */}
+                <button
+                  type="button"
+                  disabled={levels.length <= 1}
+                  onClick={() => handleRemoveLevel(index)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+                  title="Remove Level"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Total Commission summary */}
+        <div className="rounded-xl border border-border/80 bg-muted/20 p-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div>
+            <span className="font-semibold text-foreground">Total Configured Commission:</span>
+            <p className="text-xs text-muted-foreground">
+              Sum of payouts across all active upline levels per sale
+            </p>
+          </div>
+          <div className="text-right">
+            <span
+              className={`text-xl font-extrabold ${
+                totalCommission > 50 ? "text-amber-500" : "text-primary"
+              }`}
+            >
+              {totalCommission.toFixed(1)}%
+            </span>
+            {totalCommission > 50 && (
+              <p className="text-[11px] text-amber-500 flex items-center gap-1 justify-end">
+                <ShieldAlert className="h-3 w-3" />
+                High commission payout
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50"
+        >
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {isPending ? "Saving..." : "Save Referral Configuration"}
+        </button>
+      </div>
+    </form>
+  );
+}
