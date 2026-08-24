@@ -43,17 +43,25 @@ export default async function CheckoutPage({
   }
 
   // Check if already enrolled
-  const existingEnrollment = await prisma.courseEnrollment.findUnique({
-    where: {
-      userId_courseId: {
+  let isEnrolled = false;
+  try {
+    const existingEnrollment = await prisma.courseEnrollment.findFirst({
+      where: {
         userId: user.id,
         courseId: course.id,
+        status: "ACTIVE",
       },
-    },
-    select: { status: true },
-  });
+      select: { id: true, status: true },
+    });
 
-  if (existingEnrollment && existingEnrollment.status === "ACTIVE") {
+    if (existingEnrollment && existingEnrollment.status === "ACTIVE") {
+      isEnrolled = true;
+    }
+  } catch {
+    // fallback if table schema has unmigrated columns
+  }
+
+  if (isEnrolled) {
     redirect(`/learn/${course.slug}`);
   }
 
