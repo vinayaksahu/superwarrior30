@@ -6,226 +6,414 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    // 1. Create Super Admin User
+    // Step 1: Create all PostgreSQL tables and enums if they do not exist
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'STUDENT');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'DEACTIVATED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "CourseStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "DifficultyLevel" AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "LessonContentType" AS ENUM ('VIDEO', 'PDF', 'TEXT');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "EnrollmentStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'EXPIRED', 'REVOKED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "LessonProgressStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PAID', 'FAILED', 'CANCELLED', 'REFUNDED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "DiscountType" AS ENUM ('PERCENTAGE', 'FIXED_AMOUNT');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "CommissionStatus" AS ENUM ('PENDING', 'AVAILABLE', 'CANCELLED', 'PAID_OUT');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "WalletTxType" AS ENUM ('CREDIT_COMMISSION', 'DEBIT_WITHDRAWAL', 'ADJUSTMENT');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "WalletTxStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REVERSED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "WithdrawalStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'COMPLETED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "users" (
+        "id" TEXT PRIMARY KEY,
+        "email" TEXT UNIQUE NOT NULL,
+        "passwordHash" TEXT NOT NULL,
+        "name" TEXT,
+        "phone" TEXT,
+        "avatarUrl" TEXT,
+        "role" "UserRole" NOT NULL DEFAULT 'STUDENT',
+        "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
+        "referralCode" TEXT UNIQUE NOT NULL,
+        "tokenVersion" INTEGER NOT NULL DEFAULT 1,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "referral_levels" (
+        "id" TEXT PRIMARY KEY,
+        "level" INTEGER UNIQUE NOT NULL,
+        "commissionRate" DECIMAL(5,4) NOT NULL,
+        "isEnabled" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "referral_relationships" (
+        "id" TEXT PRIMARY KEY,
+        "referrerId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+        "referredId" TEXT UNIQUE NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "referral_closures" (
+        "id" TEXT PRIMARY KEY,
+        "ancestorId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "descendantId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "depth" INTEGER NOT NULL,
+        UNIQUE ("ancestorId", "descendantId")
+      );
+
+      CREATE TABLE IF NOT EXISTS "courses" (
+        "id" TEXT PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "slug" TEXT UNIQUE NOT NULL,
+        "shortDescription" TEXT,
+        "fullDescription" TEXT,
+        "thumbnailKey" TEXT,
+        "price" DECIMAL(12,2) NOT NULL,
+        "compareAtPrice" DECIMAL(12,2),
+        "status" "CourseStatus" NOT NULL DEFAULT 'DRAFT',
+        "isFeatured" BOOLEAN NOT NULL DEFAULT false,
+        "isReferralEligible" BOOLEAN NOT NULL DEFAULT true,
+        "difficulty" "DifficultyLevel" NOT NULL DEFAULT 'BEGINNER',
+        "totalDuration" INTEGER NOT NULL DEFAULT 0,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "modules" (
+        "id" TEXT PRIMARY KEY,
+        "courseId" TEXT NOT NULL REFERENCES "courses"("id") ON DELETE CASCADE,
+        "title" TEXT NOT NULL,
+        "position" INTEGER NOT NULL,
+        "isPublished" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE ("courseId", "position")
+      );
+
+      CREATE TABLE IF NOT EXISTS "lessons" (
+        "id" TEXT PRIMARY KEY,
+        "moduleId" TEXT NOT NULL REFERENCES "modules"("id") ON DELETE CASCADE,
+        "title" TEXT NOT NULL,
+        "slug" TEXT NOT NULL,
+        "position" INTEGER NOT NULL,
+        "contentType" "LessonContentType" NOT NULL DEFAULT 'VIDEO',
+        "textContent" TEXT,
+        "videoKey" TEXT,
+        "pdfKey" TEXT,
+        "durationSec" INTEGER NOT NULL DEFAULT 0,
+        "isFreePreview" BOOLEAN NOT NULL DEFAULT false,
+        "isPublished" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE ("moduleId", "position"),
+        UNIQUE ("moduleId", "slug")
+      );
+
+      CREATE TABLE IF NOT EXISTS "course_enrollments" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "courseId" TEXT NOT NULL REFERENCES "courses"("id") ON DELETE CASCADE,
+        "orderId" TEXT,
+        "status" "EnrollmentStatus" NOT NULL DEFAULT 'ACTIVE',
+        "progressPercentage" DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+        "enrolledAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "completedAt" TIMESTAMP(3),
+        UNIQUE ("userId", "courseId")
+      );
+
+      CREATE TABLE IF NOT EXISTS "lesson_progress" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "lessonId" TEXT NOT NULL REFERENCES "lessons"("id") ON DELETE CASCADE,
+        "status" "LessonProgressStatus" NOT NULL DEFAULT 'NOT_STARTED',
+        "watchTimeSeconds" INTEGER NOT NULL DEFAULT 0,
+        "completedAt" TIMESTAMP(3),
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE ("userId", "lessonId")
+      );
+
+      CREATE TABLE IF NOT EXISTS "orders" (
+        "id" TEXT PRIMARY KEY,
+        "orderNumber" TEXT UNIQUE NOT NULL,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "couponId" TEXT,
+        "status" "OrderStatus" NOT NULL DEFAULT 'PENDING',
+        "currency" TEXT NOT NULL DEFAULT 'INR',
+        "subtotalAmount" DECIMAL(12,2) NOT NULL,
+        "discountAmount" DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        "taxAmount" DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        "totalAmount" DECIMAL(12,2) NOT NULL,
+        "paymentProvider" TEXT,
+        "paymentId" TEXT,
+        "metadata" JSONB,
+        "paidAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "order_items" (
+        "id" TEXT PRIMARY KEY,
+        "orderId" TEXT NOT NULL REFERENCES "orders"("id") ON DELETE CASCADE,
+        "courseId" TEXT REFERENCES "courses"("id") ON DELETE SET NULL,
+        "itemTitle" TEXT NOT NULL,
+        "unitPrice" DECIMAL(12,2) NOT NULL,
+        "quantity" INTEGER NOT NULL DEFAULT 1,
+        "totalPrice" DECIMAL(12,2) NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "coupons" (
+        "id" TEXT PRIMARY KEY,
+        "code" TEXT UNIQUE NOT NULL,
+        "discountType" "DiscountType" NOT NULL,
+        "discountValue" DECIMAL(12,2) NOT NULL,
+        "minOrderAmount" DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        "maxDiscountAmount" DECIMAL(12,2),
+        "startDate" TIMESTAMP(3) NOT NULL,
+        "endDate" TIMESTAMP(3) NOT NULL,
+        "usageLimit" INTEGER,
+        "perUserLimit" INTEGER NOT NULL DEFAULT 1,
+        "usageCount" INTEGER NOT NULL DEFAULT 0,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "coupon_courses" (
+        "id" TEXT PRIMARY KEY,
+        "couponId" TEXT NOT NULL REFERENCES "coupons"("id") ON DELETE CASCADE,
+        "courseId" TEXT NOT NULL REFERENCES "courses"("id") ON DELETE CASCADE,
+        UNIQUE ("couponId", "courseId")
+      );
+
+      CREATE TABLE IF NOT EXISTS "coupon_redemptions" (
+        "id" TEXT PRIMARY KEY,
+        "couponId" TEXT NOT NULL REFERENCES "coupons"("id") ON DELETE RESTRICT,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "orderId" TEXT NOT NULL REFERENCES "orders"("id") ON DELETE CASCADE,
+        "discountApplied" DECIMAL(12,2) NOT NULL,
+        "redeemedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE ("couponId", "orderId")
+      );
+
+      CREATE TABLE IF NOT EXISTS "order_commission_snapshots" (
+        "id" TEXT PRIMARY KEY,
+        "orderId" TEXT UNIQUE NOT NULL REFERENCES "orders"("id") ON DELETE CASCADE,
+        "baseAmount" DECIMAL(12,2) NOT NULL,
+        "planSnapshot" JSONB NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "referral_commission_records" (
+        "id" TEXT PRIMARY KEY,
+        "snapshotId" TEXT NOT NULL REFERENCES "order_commission_snapshots"("id") ON DELETE CASCADE,
+        "orderId" TEXT NOT NULL REFERENCES "orders"("id") ON DELETE CASCADE,
+        "beneficiaryId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+        "level" INTEGER NOT NULL,
+        "rateApplied" DECIMAL(5,4) NOT NULL,
+        "commissionAmount" DECIMAL(12,2) NOT NULL,
+        "status" "CommissionStatus" NOT NULL DEFAULT 'PENDING',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE ("orderId", "beneficiaryId", "level")
+      );
+
+      CREATE TABLE IF NOT EXISTS "wallets" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT UNIQUE NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+        "availableBalance" DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        "pendingBalance" DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        "totalEarned" DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        "totalWithdrawn" DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        "version" INTEGER NOT NULL DEFAULT 1,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "wallet_transactions" (
+        "id" TEXT PRIMARY KEY,
+        "walletId" TEXT NOT NULL REFERENCES "wallets"("id") ON DELETE RESTRICT,
+        "type" "WalletTxType" NOT NULL,
+        "status" "WalletTxStatus" NOT NULL DEFAULT 'COMPLETED',
+        "amount" DECIMAL(12,2) NOT NULL,
+        "balanceBefore" DECIMAL(12,2) NOT NULL,
+        "balanceAfter" DECIMAL(12,2) NOT NULL,
+        "description" TEXT,
+        "referenceType" TEXT,
+        "referenceId" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "withdrawals" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+        "amount" DECIMAL(12,2) NOT NULL,
+        "paymentMethod" TEXT NOT NULL,
+        "paymentDetails" JSONB NOT NULL,
+        "status" "WithdrawalStatus" NOT NULL DEFAULT 'PENDING',
+        "adminNote" TEXT,
+        "processedAt" TIMESTAMP(3),
+        "processedBy" TEXT,
+        "transactionRef" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "tokenHash" TEXT UNIQUE NOT NULL,
+        "expiresAt" TIMESTAMP(3) NOT NULL,
+        "usedAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "site_settings" (
+        "id" TEXT PRIMARY KEY,
+        "key" TEXT UNIQUE NOT NULL,
+        "value" TEXT NOT NULL,
+        "type" TEXT NOT NULL DEFAULT 'string',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "audit_logs" (
+        "id" TEXT PRIMARY KEY,
+        "actorId" TEXT,
+        "actorEmail" TEXT,
+        "actorRole" TEXT,
+        "action" TEXT NOT NULL,
+        "entityType" TEXT NOT NULL,
+        "entityId" TEXT NOT NULL,
+        "oldValues" JSONB,
+        "newValues" JSONB,
+        "ipAddress" VARCHAR(45),
+        "userAgent" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Step 2: Create Super Admin User
     const adminPassword = await hashPassword("Admin@123");
-    const admin = await prisma.user.upsert({
-      where: { email: "admin@superwarrior30.com" },
-      update: {},
-      create: {
-        email: "admin@superwarrior30.com",
-        name: "Super Admin",
-        passwordHash: adminPassword,
-        role: "ADMIN",
-        referralCode: "ADMIN001",
-        tokenVersion: 1,
-      },
-    });
+    const adminId = "usr_admin_001";
+    
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "users" ("id", "email", "name", "passwordHash", "role", "status", "referralCode", "tokenVersion", "createdAt", "updatedAt")
+      VALUES ('${adminId}', 'admin@superwarrior30.com', 'Super Admin', '${adminPassword}', 'ADMIN', 'ACTIVE', 'ADMIN001', 1, NOW(), NOW())
+      ON CONFLICT ("email") DO UPDATE SET "passwordHash" = '${adminPassword}', "role" = 'ADMIN';
 
-    await prisma.wallet.upsert({
-      where: { userId: admin.id },
-      update: {},
-      create: { userId: admin.id },
-    });
+      INSERT INTO "wallets" ("id", "userId", "availableBalance", "pendingBalance", "totalEarned", "totalWithdrawn", "version", "createdAt", "updatedAt")
+      VALUES ('wlt_admin_001', '${adminId}', 0.00, 0.00, 0.00, 0.00, 1, NOW(), NOW())
+      ON CONFLICT ("userId") DO NOTHING;
+    `);
 
-    // 2. Create Sample Students
-    const studentPassword = await hashPassword("Student@123");
-    const studentA = await prisma.user.upsert({
-      where: { email: "student.a@example.com" },
-      update: {},
-      create: {
-        email: "student.a@example.com",
-        name: "Rahul Sharma",
-        passwordHash: studentPassword,
-        role: "STUDENT",
-        referralCode: "RAHUL001",
-        tokenVersion: 1,
-      },
-    });
-    await prisma.wallet.upsert({
-      where: { userId: studentA.id },
-      update: {},
-      create: { userId: studentA.id },
-    });
+    // Step 3: Create Sample Referral Levels
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "referral_levels" ("id", "level", "commissionRate", "isEnabled", "createdAt", "updatedAt")
+      VALUES 
+        ('lvl_1', 1, 0.1000, true, NOW(), NOW()),
+        ('lvl_2', 2, 0.0500, true, NOW(), NOW()),
+        ('lvl_3', 3, 0.0300, true, NOW(), NOW())
+      ON CONFLICT ("level") DO UPDATE SET "commissionRate" = EXCLUDED."commissionRate";
+    `);
 
-    const studentB = await prisma.user.upsert({
-      where: { email: "student.b@example.com" },
-      update: {},
-      create: {
-        email: "student.b@example.com",
-        name: "Priya Patel",
-        passwordHash: studentPassword,
-        role: "STUDENT",
-        referralCode: "PRIYA001",
-        tokenVersion: 1,
-      },
-    });
-    await prisma.wallet.upsert({
-      where: { userId: studentB.id },
-      update: {},
-      create: { userId: studentB.id },
-    });
+    // Step 4: Create Sample Courses
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "courses" ("id", "title", "slug", "shortDescription", "fullDescription", "price", "compareAtPrice", "status", "isFeatured", "difficulty", "totalDuration", "createdAt", "updatedAt")
+      VALUES 
+        ('crs_001', 'Trading Fundamentals Masterclass', 'trading-fundamentals-masterclass', 'Master the basics of stock market trading with proven strategies.', 'Complete institutional trading masterclass from market structure to chart execution.', 4999.00, 9999.00, 'PUBLISHED', true, 'BEGINNER', 18000, NOW(), NOW()),
+        ('crs_002', 'Advanced Technical Analysis', 'advanced-technical-analysis', 'Deep dive into chart patterns, order flow, and advanced trading setups.', 'Institutional price action patterns and Fibonacci liquidity strategies.', 7999.00, 14999.00, 'PUBLISHED', true, 'ADVANCED', 28800, NOW(), NOW())
+      ON CONFLICT ("slug") DO NOTHING;
 
-    // Referral chain
-    await prisma.referralRelationship.upsert({
-      where: { referredId: studentB.id },
-      update: {},
-      create: {
-        referrerId: studentA.id,
-        referredId: studentB.id,
-      },
-    });
+      INSERT INTO "modules" ("id", "courseId", "title", "position", "isPublished", "createdAt", "updatedAt")
+      VALUES 
+        ('mod_001', 'crs_001', 'Introduction & Setup', 1, true, NOW(), NOW()),
+        ('mod_002', 'crs_001', 'Price Action & Execution', 2, true, NOW(), NOW())
+      ON CONFLICT ("courseId", "position") DO NOTHING;
 
-    const existingClosure = await prisma.referralClosure.findUnique({
-      where: {
-        ancestorId_descendantId: {
-          ancestorId: studentA.id,
-          descendantId: studentB.id,
-        },
-      },
-    });
-    if (!existingClosure) {
-      await prisma.referralClosure.create({
-        data: {
-          ancestorId: studentA.id,
-          descendantId: studentB.id,
-          depth: 1,
-        },
-      });
-    }
+      INSERT INTO "lessons" ("id", "moduleId", "title", "slug", "position", "contentType", "durationSec", "isFreePreview", "isPublished", "videoKey", "createdAt", "updatedAt")
+      VALUES 
+        ('lsn_001', 'mod_001', 'Welcome to Trading - Free Preview', 'welcome-to-trading', 1, 'VIDEO', 600, true, true, 'sample-video.mp4', NOW(), NOW()),
+        ('lsn_002', 'mod_001', 'Market Structure & Setup', 'market-structure-setup', 2, 'VIDEO', 1200, false, true, 'sample-video.mp4', NOW(), NOW()),
+        ('lsn_003', 'mod_002', 'Orderflow Strategies', 'orderflow-strategies', 1, 'VIDEO', 1500, false, true, 'sample-video.mp4', NOW(), NOW())
+      ON CONFLICT ("moduleId", "position") DO NOTHING;
+    `);
 
-    // 3. Create Referral Levels
-    const levels = [
-      { level: 1, commissionRate: 0.10, isEnabled: true },
-      { level: 2, commissionRate: 0.05, isEnabled: true },
-      { level: 3, commissionRate: 0.03, isEnabled: true },
-    ];
-
-    for (const lvl of levels) {
-      await prisma.referralLevel.upsert({
-        where: { level: lvl.level },
-        update: { commissionRate: lvl.commissionRate, isEnabled: lvl.isEnabled },
-        create: lvl,
-      });
-    }
-
-    // 4. Create Sample Courses
-    const courses = [
-      {
-        title: "Trading Fundamentals Masterclass",
-        slug: "trading-fundamentals-masterclass",
-        shortDescription: "Master the basics of stock market trading with proven strategies and real-world examples.",
-        fullDescription:
-          "This comprehensive course covers everything you need to know to start your trading journey. From understanding market structures and reading charts to executing your first trade with confidence.",
-        price: 4999,
-        compareAtPrice: 9999,
-        status: "PUBLISHED" as const,
-        isFeatured: true,
-        difficulty: "BEGINNER" as const,
-        totalDuration: 18000,
-      },
-      {
-        title: "Advanced Technical Analysis",
-        slug: "advanced-technical-analysis",
-        shortDescription: "Deep dive into chart patterns, indicators, and advanced trading setups.",
-        fullDescription:
-          "Take your trading to the next level with advanced chart patterns, Fibonacci levels, Elliott Wave theory, and custom indicator strategies used by professional traders.",
-        price: 7999,
-        compareAtPrice: 14999,
-        status: "PUBLISHED" as const,
-        isFeatured: true,
-        difficulty: "ADVANCED" as const,
-        totalDuration: 28800,
-      },
-    ];
-
-    for (const courseData of courses) {
-      const course = await prisma.course.upsert({
-        where: { slug: courseData.slug },
-        update: {},
-        create: courseData,
-      });
-
-      // Modules & Lessons
-      const modules = [
-        { title: "Introduction & Setup", position: 1 },
-        { title: "Price Action & Strategies", position: 2 },
-      ];
-
-      for (const moduleData of modules) {
-        const existingModule = await prisma.module.findUnique({
-          where: {
-            courseId_position: {
-              courseId: course.id,
-              position: moduleData.position,
-            },
-          },
-        });
-
-        if (!existingModule) {
-          const mod = await prisma.module.create({
-            data: {
-              courseId: course.id,
-              ...moduleData,
-            },
-          });
-
-          await prisma.lesson.createMany({
-            data: [
-              {
-                moduleId: mod.id,
-                title: `${moduleData.title} - Video Lecture`,
-                slug: `${moduleData.title.toLowerCase().replace(/[^a-z0-9]/g, "-")}-video`,
-                position: 1,
-                contentType: "VIDEO",
-                durationSec: 600,
-                isFreePreview: moduleData.position === 1,
-                videoKey: "courses/sample-video.mp4",
-              },
-              {
-                moduleId: mod.id,
-                title: `${moduleData.title} - Study Guide`,
-                slug: `${moduleData.title.toLowerCase().replace(/[^a-z0-9]/g, "-")}-doc`,
-                position: 2,
-                contentType: "PDF",
-                durationSec: 0,
-                isFreePreview: false,
-                pdfKey: "courses/sample-doc.pdf",
-              },
-            ],
-          });
-        }
-      }
-    }
-
-    // 5. Site Settings
-    const settings = [
-      { key: "site_name", value: "Super Warrior 30", type: "string" },
-      { key: "site_tagline", value: "Institutional Price Action Mentorship", type: "string" },
-      { key: "currency", value: "INR", type: "string" },
-      { key: "referral_enabled", value: "true", type: "boolean" },
-      { key: "min_withdrawal_amount", value: "500", type: "number" },
-      { key: "instructor_name", value: "Vinayak Sahu", type: "string" },
-    ];
-
-    for (const s of settings) {
-      await prisma.siteSetting.upsert({
-        where: { key: s.key },
-        update: { value: s.value },
-        create: s,
-      });
-    }
+    // Step 5: Site Settings
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "site_settings" ("id", "key", "value", "type", "createdAt", "updatedAt")
+      VALUES 
+        ('stg_001', 'site_name', 'Super Warrior 30', 'string', NOW(), NOW()),
+        ('stg_002', 'site_tagline', 'Institutional Price Action Mentorship', 'string', NOW(), NOW()),
+        ('stg_003', 'currency', 'INR', 'string', NOW(), NOW()),
+        ('stg_004', 'referral_enabled', 'true', 'boolean', NOW(), NOW()),
+        ('stg_005', 'min_withdrawal_amount', '500', 'number', NOW(), NOW()),
+        ('stg_006', 'instructor_name', 'Vinayak Sahu', 'string', NOW(), NOW())
+      ON CONFLICT ("key") DO NOTHING;
+    `);
 
     return NextResponse.json({
       success: true,
-      message: "Database initialized and seeded successfully!",
-      credentials: {
-        admin: { email: "admin@superwarrior30.com", password: "Admin@123" },
-        studentA: { email: "student.a@example.com", password: "Student@123" },
-        studentB: { email: "student.b@example.com", password: "Student@123" },
+      message: "Database tables created and Super Admin account initialized successfully! You can now login.",
+      loginUrl: "https://www.superwarrior30.com/login",
+      adminCredentials: {
+        email: "admin@superwarrior30.com",
+        password: "Admin@123",
       },
     });
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : "Initialization failed";
+    const errorMsg = error instanceof Error ? error.message : "Initialization error";
     return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
   }
 }
