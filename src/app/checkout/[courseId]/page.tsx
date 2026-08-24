@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/server/dal/auth";
 import { getSystemPaymentMethodsAction } from "@/server/actions/payment-method.actions";
 import { ManualCheckoutClient } from "@/components/checkout/manual-checkout-client";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function CheckoutPage({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = await params;
+  await ensureDatabaseSchemaSync();
   const user = await getCurrentUser();
 
   if (!user) {

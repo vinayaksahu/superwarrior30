@@ -3,50 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/server/dal/auth";
 import { generateOrderNumber } from "@/lib/utils";
 import { Prisma } from "@/generated/prisma";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 
 export const dynamic = "force-dynamic";
 
-async function ensureRequiredColumns() {
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3);`);
-  } catch {
-    // ignore
-  }
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "progressPercent" INTEGER DEFAULT 0;`);
-  } catch {
-    // ignore
-  }
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP(3);`);
-  } catch {
-    // ignore
-  }
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentRef" TEXT;`);
-  } catch {
-    // ignore
-  }
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentProof" JSONB;`);
-  } catch {
-    // ignore
-  }
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);`);
-  } catch {
-    // ignore
-  }
-  try {
-    await prisma.$executeRawUnsafe(`ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedBy" TEXT;`);
-  } catch {
-    // ignore
-  }
-}
-
 export async function POST(req: Request) {
   try {
-    await ensureRequiredColumns();
+    await ensureDatabaseSchemaSync();
 
     const user = await getCurrentUser();
     if (!user) {
