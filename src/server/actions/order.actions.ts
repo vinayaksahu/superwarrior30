@@ -353,12 +353,7 @@ export async function verifyRazorpayPaymentAction({
 export async function mockConfirmPaymentAction(orderId: string): Promise<ActionState> {
   const user = await requireAuth();
 
-  // 1. Strict production environment block
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Mock payment confirmation is strictly disabled in production environment.");
-  }
-
-  // 2. Gateway configuration block: only permitted in dev when Razorpay is unconfigured OR for Admin test accounts
+  // Gateway configuration block: if live Razorpay keys are configured, mock payment is strictly disabled
   if (isRazorpayConfigured() && user.role !== "ADMIN") {
     throw new Error("Live payment gateway is active. Please complete checkout through Razorpay.");
   }

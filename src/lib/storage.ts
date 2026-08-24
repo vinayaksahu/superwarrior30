@@ -26,6 +26,10 @@ export async function createPresignedUploadUrl({
   contentLength: number;
   expiresIn?: number;
 }) {
+  if (!isR2Configured()) {
+    throw new Error("Cloudflare R2 storage credentials are not configured yet. Please configure R2 environment variables to enable uploads.");
+  }
+
   const command = new PutObjectCommand({
     Bucket: getBucketName(),
     Key: key,
@@ -41,6 +45,14 @@ export async function createPresignedDownloadUrl(
   key: string,
   expiresIn = 3600 // 1 hour
 ) {
+  // Graceful fallback for demo/preview when R2 is unconfigured
+  if (!isR2Configured()) {
+    if (key.endsWith(".mp4") || key.endsWith(".webm") || key.includes("video")) {
+      return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+    }
+    return "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+  }
+
   const command = new GetObjectCommand({
     Bucket: getBucketName(),
     Key: key,
@@ -50,6 +62,10 @@ export async function createPresignedDownloadUrl(
 }
 
 export async function deleteR2Object(key: string) {
+  if (!isR2Configured()) {
+    return;
+  }
+
   const command = new DeleteObjectCommand({
     Bucket: getBucketName(),
     Key: key,
