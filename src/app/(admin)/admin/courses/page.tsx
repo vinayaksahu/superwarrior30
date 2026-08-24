@@ -6,6 +6,8 @@ import { Plus, Search } from "lucide-react";
 import { CourseStatusBadge } from "@/components/admin/course-status-badge";
 import { CourseDeleteButton } from "@/components/admin/course-delete-button";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Manage Courses",
 };

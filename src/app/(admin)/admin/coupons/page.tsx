@@ -6,6 +6,8 @@ import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
 import { Tag, Plus, Search, Calendar, Users, CheckCircle2, Clock } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Coupon Management",
 };

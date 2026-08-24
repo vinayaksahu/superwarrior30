@@ -6,6 +6,8 @@ import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
 import { ArrowDownToLine, Clock, CheckCircle2, Search, IndianRupee } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Withdrawals Management",
 };

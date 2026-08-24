@@ -6,6 +6,8 @@ import { requireAdmin } from "@/server/dal/auth";
 import { Search, ShoppingCart } from "lucide-react";
 import { AdminOrderActions } from "@/components/admin/admin-order-actions";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Manage Orders",
 };

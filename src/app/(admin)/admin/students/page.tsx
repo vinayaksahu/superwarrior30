@@ -5,6 +5,8 @@ import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
 import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Students Directory",
 };

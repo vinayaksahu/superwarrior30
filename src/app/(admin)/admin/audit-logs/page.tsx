@@ -4,6 +4,8 @@ import { getAdminAuditLogsAction } from "@/server/actions/admin.actions";
 import { requireAdmin } from "@/server/dal/auth";
 import { ScrollText, Search, ShieldAlert, Clock, User, ArrowRight } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Platform Audit Logs",
 };

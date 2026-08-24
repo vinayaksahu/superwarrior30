@@ -5,6 +5,8 @@ import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
 import { Settings, Users, GitBranch, IndianRupee, Clock, Search, Trophy, ArrowRight } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Referral Program Management",
 };

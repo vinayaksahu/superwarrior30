@@ -473,39 +473,50 @@ export async function getAdminOrdersAction({
 } = {}) {
   await requireAdmin();
 
-  const where: Prisma.OrderWhereInput = {};
-  if (status && status !== "all") {
-    where.status = status as Prisma.EnumOrderStatusFilter;
-  }
-  if (search) {
-    where.OR = [
-      { orderNumber: { contains: search, mode: "insensitive" } },
-      { user: { email: { contains: search, mode: "insensitive" } } },
-      { user: { name: { contains: search, mode: "insensitive" } } },
-    ];
-  }
+  try {
+    const where: Prisma.OrderWhereInput = {};
+    if (status && status !== "all") {
+      where.status = status as Prisma.EnumOrderStatusFilter;
+    }
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search, mode: "insensitive" } },
+        { user: { email: { contains: search, mode: "insensitive" } } },
+        { user: { name: { contains: search, mode: "insensitive" } } },
+      ];
+    }
 
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        items: true,
-      },
-    }),
-    prisma.order.count({ where }),
-  ]);
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          items: true,
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
 
-  return {
-    data: orders,
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-  };
+    return {
+      data: orders || [],
+      total: total || 0,
+      page,
+      pageSize,
+      totalPages: Math.ceil((total || 0) / pageSize),
+    };
+  } catch (error) {
+    console.error("Error fetching admin orders:", error);
+    return {
+      data: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 0,
+    };
+  }
 }
 
 // ==========================================
