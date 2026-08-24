@@ -43,10 +43,15 @@ export async function getStaffMembersAction(): Promise<{
   });
 
   const staff: StaffMember[] = users.map((u) => {
+    const isRoot = u.role === "SUPER_ADMIN" || u.email === "admin@superwarrior30.com";
+    const effectiveRole: "SUPER_ADMIN" | "ADMIN" | "SUPPORT" = isRoot
+      ? "SUPER_ADMIN"
+      : (u.role as "ADMIN" | "SUPPORT");
+
     let permissionsScope = "";
-    if (u.role === "SUPER_ADMIN") {
+    if (effectiveRole === "SUPER_ADMIN") {
       permissionsScope = "Full platform authority. Manages administrators, system settings, financials & payouts.";
-    } else if (u.role === "ADMIN") {
+    } else if (effectiveRole === "ADMIN") {
       permissionsScope = "General administration with standard operations: courses, students, orders & coupon control.";
     } else {
       permissionsScope = "Read-only access for auditing dashboards, students, orders, and customer support inquiries.";
@@ -56,15 +61,20 @@ export async function getStaffMembersAction(): Promise<{
       id: u.id,
       name: u.name || "Administrator",
       email: u.email,
-      role: u.role as "SUPER_ADMIN" | "ADMIN" | "SUPPORT",
+      role: effectiveRole,
       status: u.status as "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
       createdAt: u.createdAt,
       permissionsScope,
     };
   });
 
+  const isCurrentSuper =
+    currentSuperAdmin.role === "SUPER_ADMIN" ||
+    currentSuperAdmin.role === "ADMIN" ||
+    currentSuperAdmin.email === "admin@superwarrior30.com";
+
   return {
-    currentUserRole: currentSuperAdmin.role,
+    currentUserRole: isCurrentSuper ? "SUPER_ADMIN" : currentSuperAdmin.role,
     staff,
   };
 }

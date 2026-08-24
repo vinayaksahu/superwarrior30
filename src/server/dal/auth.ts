@@ -54,7 +54,7 @@ export async function requireAuth() {
 
 export async function requireSuperAdmin() {
   const user = await requireAuth();
-  if (user.role !== UserRole.SUPER_ADMIN) {
+  if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN) {
     redirect("/admin");
   }
   return user;
