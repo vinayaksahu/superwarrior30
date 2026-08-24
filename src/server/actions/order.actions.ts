@@ -438,26 +438,37 @@ export async function getUserOrdersAction({
 } = {}) {
   const user = await requireAuth();
 
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: {
-        items: true,
-      },
-    }),
-    prisma.order.count({ where: { userId: user.id } }),
-  ]);
+  try {
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          items: true,
+        },
+      }),
+      prisma.order.count({ where: { userId: user.id } }),
+    ]);
 
-  return {
-    data: orders,
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-  };
+    return {
+      data: orders || [],
+      total: total || 0,
+      page,
+      pageSize,
+      totalPages: Math.ceil((total || 0) / pageSize),
+    };
+  } catch (error) {
+    console.error("Error fetching user orders:", error);
+    return {
+      data: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 0,
+    };
+  }
 }
 
 export async function getAdminOrdersAction({

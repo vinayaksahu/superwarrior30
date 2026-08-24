@@ -296,47 +296,52 @@ export async function updateLessonProgressAction({
 export async function getUserEnrolledCoursesAction() {
   const user = await requireAuth();
 
-  const enrollments = await prisma.courseEnrollment.findMany({
-    where: {
-      userId: user.id,
-      status: "ACTIVE",
-    },
-    orderBy: { enrolledAt: "desc" },
-    include: {
-      course: {
-        include: {
-          modules: {
-            where: { isPublished: true },
-            select: {
-              id: true,
-              lessons: {
-                where: { isPublished: true },
-                select: { id: true },
+  try {
+    const enrollments = await prisma.courseEnrollment.findMany({
+      where: {
+        userId: user.id,
+        status: "ACTIVE",
+      },
+      orderBy: { enrolledAt: "desc" },
+      include: {
+        course: {
+          include: {
+            modules: {
+              where: { isPublished: true },
+              select: {
+                id: true,
+                lessons: {
+                  where: { isPublished: true },
+                  select: { id: true },
+                },
               },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  return enrollments.map((enr) => {
-    const totalLessons = enr.course.modules.reduce(
-      (sum, m) => sum + m.lessons.length,
-      0
-    );
+    return (enrollments || []).map((enr) => {
+      const totalLessons = (enr.course?.modules || []).reduce(
+        (sum, m) => sum + (m.lessons?.length || 0),
+        0
+      );
 
-    return {
-      enrollmentId: enr.id,
-      courseId: enr.courseId,
-      courseTitle: enr.course.title,
-      courseSlug: enr.course.slug,
-      shortDescription: enr.course.shortDescription,
-      difficulty: enr.course.difficulty,
-      progressPercentage: Number(enr.progressPercentage),
-      totalLessons,
-      enrolledAt: enr.enrolledAt,
-      completedAt: enr.completedAt,
-    };
-  });
+      return {
+        enrollmentId: enr.id,
+        courseId: enr.courseId,
+        courseTitle: enr.course?.title || "Course",
+        courseSlug: enr.course?.slug || "course",
+        shortDescription: enr.course?.shortDescription || "",
+        difficulty: enr.course?.difficulty || "BEGINNER",
+        progressPercentage: Number(enr.progressPercentage || 0),
+        totalLessons,
+        enrolledAt: enr.enrolledAt,
+        completedAt: enr.completedAt,
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching enrolled courses:", error);
+    return [];
+  }
 }
