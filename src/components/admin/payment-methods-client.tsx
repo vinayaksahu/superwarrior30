@@ -18,7 +18,8 @@ import {
   X,
   Upload,
   Image as ImageIcon,
-  ExternalLink,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   type PaymentMethodItem,
@@ -40,6 +41,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
   const [activeModal, setActiveModal] = useState<"UPI" | "BANK" | "CRYPTO" | null>(null);
   const [editingMethod, setEditingMethod] = useState<PaymentMethodItem | null>(null);
   const [customQrUrl, setCustomQrUrl] = useState<string>("");
+  const [deleteTarget, setDeleteTarget] = useState<PaymentMethodItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [actionMessage, setActionMessage] = useState<{ success: boolean; text: string } | null>(null);
 
@@ -66,13 +68,13 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Are you sure you want to remove this payment method?")) return;
+  const handleConfirmDelete = (id: string) => {
     startTransition(async () => {
       const res = await deletePaymentMethodAction(id);
       if (res.success) {
         setMethods((prev) => prev.filter((m) => m.id !== id));
-        setActionMessage({ success: true, text: res.message || "Method deleted" });
+        setActionMessage({ success: true, text: res.message || "Method deleted successfully" });
+        setDeleteTarget(null);
       } else {
         setActionMessage({ success: false, text: res.message || "Failed to delete" });
       }
@@ -460,7 +462,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                 </button>
 
                 <button
-                  onClick={() => handleDelete(method.id)}
+                  onClick={() => setDeleteTarget(method)}
                   disabled={isPending}
                   className="inline-flex items-center gap-1 rounded-lg p-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
                   title="Delete Method"
@@ -472,6 +474,46 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
           </div>
         ))}
       </div>
+
+      {/* Modern Web App Confirmation Dialog for Deletion */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-destructive/15 text-destructive">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Remove Payment Method</h3>
+                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-foreground/80 leading-relaxed bg-background/80 p-3.5 rounded-xl border border-border/50">
+              Are you sure you want to permanently remove <strong className="text-foreground">{deleteTarget.title}</strong>? Students will no longer be able to choose this payment option during checkout.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => handleConfirmDelete(deleteTarget.id)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-destructive px-4 py-2 text-xs font-bold text-destructive-foreground shadow hover:bg-destructive/90 transition-all cursor-pointer"
+              >
+                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Yes, Delete Method
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Dialog for Adding / Editing Payment Method */}
       {activeModal && (
@@ -669,7 +711,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                       <button
                         type="button"
                         onClick={() => setCustomQrUrl("")}
-                        className="text-[10px] text-destructive hover:underline"
+                        className="text-[10px] text-destructive hover:underline cursor-pointer"
                       >
                         Reset to Auto
                       </button>
