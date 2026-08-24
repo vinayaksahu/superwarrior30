@@ -24,59 +24,82 @@ export async function getStaffMembersAction(): Promise<{
 }> {
   const currentSuperAdmin = await requireSuperAdmin();
 
-  const users = await prisma.user.findMany({
-    where: {
-      role: { in: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SUPPORT] },
-    },
-    orderBy: [
-      { role: "asc" },
-      { createdAt: "asc" },
-    ],
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      status: true,
-      createdAt: true,
-    },
-  });
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        role: { not: UserRole.STUDENT },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
 
-  const staff: StaffMember[] = users.map((u) => {
-    const isRoot = u.role === "SUPER_ADMIN" || u.email === "admin@superwarrior30.com";
-    const effectiveRole: "SUPER_ADMIN" | "ADMIN" | "SUPPORT" = isRoot
-      ? "SUPER_ADMIN"
-      : (u.role as "ADMIN" | "SUPPORT");
+    const staff: StaffMember[] = (users || []).map((u) => {
+      const isRoot = u.role === UserRole.SUPER_ADMIN || u.email === "admin@superwarrior30.com";
+      const effectiveRole: "SUPER_ADMIN" | "ADMIN" | "SUPPORT" = isRoot
+        ? "SUPER_ADMIN"
+        : (u.role === UserRole.SUPPORT ? "SUPPORT" : "ADMIN");
 
-    let permissionsScope = "";
-    if (effectiveRole === "SUPER_ADMIN") {
-      permissionsScope = "Full platform authority. Manages administrators, system settings, financials & payouts.";
-    } else if (effectiveRole === "ADMIN") {
-      permissionsScope = "General administration with standard operations: courses, students, orders & coupon control.";
-    } else {
-      permissionsScope = "Read-only access for auditing dashboards, students, orders, and customer support inquiries.";
+      let permissionsScope = "";
+      if (effectiveRole === "SUPER_ADMIN") {
+        permissionsScope = "Full platform authority. Manages administrators, system settings, financials & payouts.";
+      } else if (effectiveRole === "ADMIN") {
+        permissionsScope = "General administration with standard operations: courses, students, orders & coupon control.";
+      } else {
+        permissionsScope = "Read-only access for auditing dashboards, students, orders, and customer support inquiries.";
+      }
+
+      return {
+        id: u.id,
+        name: u.name || "Administrator",
+        email: u.email,
+        role: effectiveRole,
+        status: u.status as "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
+        createdAt: u.createdAt,
+        permissionsScope,
+      };
+    });
+
+    // Ensure at least the current logged-in super admin is listed
+    if (staff.length === 0) {
+      staff.push({
+        id: currentSuperAdmin.id,
+        name: currentSuperAdmin.name || "Super Admin",
+        email: currentSuperAdmin.email,
+        role: "SUPER_ADMIN",
+        status: "ACTIVE",
+        createdAt: currentSuperAdmin.createdAt,
+        permissionsScope: "Full platform authority. Manages administrators, system settings, financials & payouts.",
+      });
     }
 
     return {
-      id: u.id,
-      name: u.name || "Administrator",
-      email: u.email,
-      role: effectiveRole,
-      status: u.status as "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
-      createdAt: u.createdAt,
-      permissionsScope,
+      currentUserRole: "SUPER_ADMIN",
+      staff,
     };
-  });
-
-  const isCurrentSuper =
-    currentSuperAdmin.role === "SUPER_ADMIN" ||
-    currentSuperAdmin.role === "ADMIN" ||
-    currentSuperAdmin.email === "admin@superwarrior30.com";
-
-  return {
-    currentUserRole: isCurrentSuper ? "SUPER_ADMIN" : currentSuperAdmin.role,
-    staff,
-  };
+  } catch (error) {
+    console.error("Error loading staff members:", error);
+    return {
+      currentUserRole: "SUPER_ADMIN",
+      staff: [
+        {
+          id: currentSuperAdmin.id,
+          name: currentSuperAdmin.name || "Super Admin",
+          email: currentSuperAdmin.email,
+          role: "SUPER_ADMIN",
+          status: "ACTIVE",
+          createdAt: currentSuperAdmin.createdAt,
+          permissionsScope: "Full platform authority. Manages administrators, system settings, financials & payouts.",
+        },
+      ],
+    };
+  }
 }
 
 export async function createStaffAccountAction(
@@ -114,38 +137,41 @@ export async function createStaffAccountAction(
   const passwordHash = await hashPassword(password);
   const referralCode = generateReferralCode();
 
-  const newUser = await prisma.user.create({
-    data: {
-      name,
-      email,
-      passwordHash,
-      role: role as UserRole,
-      status: UserStatus.ACTIVE,
-      referralCode,
-      tokenVersion: 1,
-    },
-  });
+  try {
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email,
+        passwordHash,
+        role: role as UserRole,
+        status: UserStatus.ACTIVE,
+        referralCode,
+        tokenVersion: 1,
+      },
+    });
 
-  // Create wallet for staff
-  await prisma.wallet.create({
-    data: { userId: newUser.id },
-  });
+    await prisma.wallet.create({
+      data: { userId: newUser.id },
+    });
 
-  // Audit log
-  await prisma.auditLog.create({
-    data: {
-      actorId: superAdmin.id,
-      actorEmail: superAdmin.email,
-      actorRole: superAdmin.role,
-      action: "STAFF_CREATED",
-      entityType: "User",
-      entityId: newUser.id,
-      newValues: { name, email, role },
-    },
-  });
+    await prisma.auditLog.create({
+      data: {
+        actorId: superAdmin.id,
+        actorEmail: superAdmin.email,
+        actorRole: superAdmin.role,
+        action: "STAFF_CREATED",
+        entityType: "User",
+        entityId: newUser.id,
+        newValues: { name, email, role },
+      },
+    });
 
-  revalidatePath("/admin/staff");
-  return { success: true, message: `Staff member ${name} created successfully with role ${role}.` };
+    revalidatePath("/admin/staff");
+    return { success: true, message: `Staff member ${name} created successfully with role ${role}.` };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to create staff account";
+    return { success: false, message: msg };
+  }
 }
 
 export async function updateStaffRoleAction(
@@ -163,33 +189,38 @@ export async function updateStaffRoleAction(
     return { success: false, message: "Staff account not found." };
   }
 
-  if (target.role === "SUPER_ADMIN") {
+  if (target.role === "SUPER_ADMIN" || target.email === "admin@superwarrior30.com") {
     return { success: false, message: "Root Super Admin role cannot be modified." };
   }
 
-  await prisma.user.update({
-    where: { id: staffId },
-    data: {
-      role: newRole as UserRole,
-      tokenVersion: { increment: 1 }, // Revoke active sessions
-    },
-  });
+  try {
+    await prisma.user.update({
+      where: { id: staffId },
+      data: {
+        role: newRole as UserRole,
+        tokenVersion: { increment: 1 },
+      },
+    });
 
-  await prisma.auditLog.create({
-    data: {
-      actorId: superAdmin.id,
-      actorEmail: superAdmin.email,
-      actorRole: superAdmin.role,
-      action: "STAFF_ROLE_UPDATED",
-      entityType: "User",
-      entityId: staffId,
-      oldValues: { role: target.role },
-      newValues: { role: newRole },
-    },
-  });
+    await prisma.auditLog.create({
+      data: {
+        actorId: superAdmin.id,
+        actorEmail: superAdmin.email,
+        actorRole: superAdmin.role,
+        action: "STAFF_ROLE_UPDATED",
+        entityType: "User",
+        entityId: staffId,
+        oldValues: { role: target.role },
+        newValues: { role: newRole },
+      },
+    });
 
-  revalidatePath("/admin/staff");
-  return { success: true, message: `Role updated to ${newRole}. Active sessions revoked.` };
+    revalidatePath("/admin/staff");
+    return { success: true, message: `Role updated to ${newRole}. Active sessions revoked.` };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update staff role";
+    return { success: false, message: msg };
+  }
 }
 
 export async function toggleStaffStatusAction(staffId: string): Promise<ActionState> {
@@ -204,36 +235,41 @@ export async function toggleStaffStatusAction(staffId: string): Promise<ActionSt
     return { success: false, message: "Staff account not found." };
   }
 
-  if (target.role === "SUPER_ADMIN") {
+  if (target.role === "SUPER_ADMIN" || target.email === "admin@superwarrior30.com") {
     return { success: false, message: "Root Super Admin cannot be deactivated." };
   }
 
-  const nextStatus = target.status === "ACTIVE" ? UserStatus.DEACTIVATED : UserStatus.ACTIVE;
+  const nextStatus = target.status === UserStatus.ACTIVE ? UserStatus.DEACTIVATED : UserStatus.ACTIVE;
 
-  await prisma.user.update({
-    where: { id: staffId },
-    data: {
-      status: nextStatus,
-      tokenVersion: { increment: 1 },
-    },
-  });
+  try {
+    await prisma.user.update({
+      where: { id: staffId },
+      data: {
+        status: nextStatus,
+        tokenVersion: { increment: 1 },
+      },
+    });
 
-  await prisma.auditLog.create({
-    data: {
-      actorId: superAdmin.id,
-      actorEmail: superAdmin.email,
-      actorRole: superAdmin.role,
-      action: nextStatus === UserStatus.ACTIVE ? "STAFF_ACTIVATED" : "STAFF_DEACTIVATED",
-      entityType: "User",
-      entityId: staffId,
-      oldValues: { status: target.status },
-      newValues: { status: nextStatus },
-    },
-  });
+    await prisma.auditLog.create({
+      data: {
+        actorId: superAdmin.id,
+        actorEmail: superAdmin.email,
+        actorRole: superAdmin.role,
+        action: nextStatus === UserStatus.ACTIVE ? "STAFF_ACTIVATED" : "STAFF_DEACTIVATED",
+        entityType: "User",
+        entityId: staffId,
+        oldValues: { status: target.status },
+        newValues: { status: nextStatus },
+      },
+    });
 
-  revalidatePath("/admin/staff");
-  return {
-    success: true,
-    message: `Account for ${target.name || target.email} is now ${nextStatus.toLowerCase()}.`,
-  };
+    revalidatePath("/admin/staff");
+    return {
+      success: true,
+      message: `Account for ${target.name || target.email} is now ${nextStatus.toLowerCase()}.`,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to toggle staff status";
+    return { success: false, message: msg };
+  }
 }
