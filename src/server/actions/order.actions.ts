@@ -653,20 +653,25 @@ export async function submitManualPaymentOrderAction({
   success: boolean;
   orderId?: string;
   orderNumber?: string;
-  message?: string;
+  message: string;
   alreadyEnrolled?: boolean;
 }> {
-  const user = await requireAuth();
-
-  if (!utrRef || utrRef.trim().length < 4) {
-    return { success: false, message: "Please provide a valid UTR / Transaction Reference ID." };
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, message: "Please log in before submitting payment verification." };
   }
 
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
+  if (!utrRef || utrRef.trim().length < 4) {
+    return { success: false, message: "Please enter a valid UTR / Transaction Reference ID." };
+  }
+
+  const course = await prisma.course.findFirst({
+    where: {
+      OR: [{ id: courseId }, { slug: courseId }],
+    },
   });
 
-  if (!course || course.status !== "PUBLISHED") {
+  if (!course) {
     return { success: false, message: "Course not found or unavailable." };
   }
 
@@ -708,18 +713,6 @@ export async function submitManualPaymentOrderAction({
 
   const orderNumber = generateOrderNumber();
 
-  // 1. Ensure columns exist in DB
-  try {
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentRef" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentProof" JSONB;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedBy" TEXT;
-    `);
-  } catch {
-    // ignore
-  }
-
   const proofData = {
     paymentMethodId,
     paymentMethodTitle,
@@ -740,9 +733,9 @@ export async function submitManualPaymentOrderAction({
           couponId,
           status: "PENDING",
           currency: "INR",
-          subtotalAmount: course.price,
+          subtotalAmount: new Prisma.Decimal(Number(course.price).toFixed(2)),
           discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
-          taxAmount: 0.0,
+          taxAmount: new Prisma.Decimal("0.00"),
           totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
           paymentProvider: "MANUAL",
           paymentId: utrRef.trim(),
@@ -753,7 +746,7 @@ export async function submitManualPaymentOrderAction({
             create: {
               courseId: course.id,
               itemTitle: course.title,
-              unitPrice: course.price,
+              unitPrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
               quantity: 1,
               totalPrice: new Prisma.Decimal(finalPayable.toFixed(2)),
             },
@@ -769,9 +762,9 @@ export async function submitManualPaymentOrderAction({
           couponId,
           status: "PENDING",
           currency: "INR",
-          subtotalAmount: course.price,
+          subtotalAmount: new Prisma.Decimal(Number(course.price).toFixed(2)),
           discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
-          taxAmount: 0.0,
+          taxAmount: new Prisma.Decimal("0.00"),
           totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
           paymentProvider: "MANUAL",
           paymentId: utrRef.trim(),
@@ -780,7 +773,7 @@ export async function submitManualPaymentOrderAction({
             create: {
               courseId: course.id,
               itemTitle: course.title,
-              unitPrice: course.price,
+              unitPrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
               quantity: 1,
               totalPrice: new Prisma.Decimal(finalPayable.toFixed(2)),
             },
@@ -791,7 +784,6 @@ export async function submitManualPaymentOrderAction({
 
     revalidatePath("/admin/orders");
     revalidatePath("/orders");
-    revalidatePath(`/checkout/success/${order.id}`);
 
     return {
       success: true,

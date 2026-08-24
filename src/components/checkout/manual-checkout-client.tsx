@@ -263,18 +263,30 @@ export function ManualCheckoutClient({
                   </span>
                 </div>
 
-                {/* QR Code if exists */}
-                {selectedMethod.details.qrCodeUrl && (
+                {/* Dynamic QR Code */}
+                {(selectedMethod.details.qrCodeUrl || selectedMethod.details.upiId || selectedMethod.details.walletAddress) && (
                   <div className="flex flex-col items-center justify-center rounded-xl bg-background/80 p-5 border border-border/50 space-y-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={selectedMethod.details.qrCodeUrl}
+                      src={
+                        selectedMethod.details.qrCodeUrl ||
+                        (selectedMethod.type === "UPI"
+                          ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi%3A%2F%2Fpay%3Fpa%3D${encodeURIComponent(
+                              selectedMethod.details.upiId || "superwarrior30@upi"
+                            )}%26pn%3DSuperWarrior30`
+                          : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                              selectedMethod.details.walletAddress || ""
+                            )}`)
+                      }
                       alt={`${selectedMethod.title} QR`}
                       className="h-44 w-44 rounded-xl bg-white p-2 shadow-inner object-contain"
+                      loading="eager"
                     />
                     <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
                       <Sparkles className="h-3 w-3 text-primary" />
-                      Scan using GooglePay, PhonePe, Paytm or Banking App
+                      {selectedMethod.type === "CRYPTO"
+                        ? "Scan using Binance / Trust Wallet / Web3 App"
+                        : "Scan using GooglePay, PhonePe, Paytm or Banking App"}
                     </p>
                   </div>
                 )}
