@@ -9,11 +9,15 @@ export default async function AdminLayout({
 }) {
   const user = await requireAdmin();
 
+  // Check if primary admin
+  const isSuper = user.role === "SUPER_ADMIN" || user.email === "admin@superwarrior30.com";
+  const displayRole = isSuper ? "SUPER_ADMIN" : user.role;
+
   return (
     <div className="flex min-h-screen">
-      <AdminSidebar />
+      <AdminSidebar userRole={displayRole} userEmail={user.email} />
       <div className="flex flex-1 flex-col">
-        <AdminHeader user={user} />
+        <AdminHeader user={{ ...user, role: displayRole }} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

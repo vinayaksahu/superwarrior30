@@ -17,7 +17,9 @@ import {
   Wallet,
   ArrowDownToLine,
   Settings,
+  ShieldCheck,
   ScrollText,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,22 +31,37 @@ interface AdminHeaderProps {
   };
 }
 
-const sidebarLinks = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/courses", label: "Courses", icon: BookOpen },
-  { href: "/admin/students", label: "Students", icon: Users },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
-  { href: "/admin/coupons", label: "Coupons", icon: Tag },
-  { href: "/admin/referrals", label: "Referrals", icon: GitBranch },
-  { href: "/admin/wallet", label: "Wallet", icon: Wallet },
-  { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-  { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
+interface SidebarLink {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  allowedRoles: ("SUPER_ADMIN" | "ADMIN" | "SUPPORT")[];
+}
+
+const allSidebarLinks: SidebarLink[] = [
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
+  { href: "/admin/courses", label: "Courses", icon: BookOpen, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
+  { href: "/admin/students", label: "Students", icon: Users, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
+  { href: "/admin/orders", label: "Orders", icon: ShoppingCart, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
+  { href: "/admin/coupons", label: "Coupons", icon: Tag, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
+  { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
+  { href: "/admin/referrals", label: "Referrals", icon: GitBranch, allowedRoles: ["SUPER_ADMIN"] },
+  { href: "/admin/wallet", label: "Wallet", icon: Wallet, allowedRoles: ["SUPER_ADMIN"] },
+  { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck, allowedRoles: ["SUPER_ADMIN"] },
+  { href: "/admin/settings", label: "Settings", icon: Settings, allowedRoles: ["SUPER_ADMIN"] },
+  { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, allowedRoles: ["SUPER_ADMIN"] },
 ];
 
 export function AdminHeader({ user }: AdminHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+
+  const isSuper = user.role === "SUPER_ADMIN" || user.email === "admin@superwarrior30.com";
+  const effectiveRole = isSuper ? "SUPER_ADMIN" : (user.role as "ADMIN" | "SUPPORT");
+
+  const visibleLinks = allSidebarLinks.filter((link) =>
+    link.allowedRoles.includes(effectiveRole)
+  );
 
   return (
     <>
@@ -67,14 +84,24 @@ export function AdminHeader({ user }: AdminHeaderProps) {
             <p className="text-xs sm:text-sm font-semibold text-foreground">
               {user.name || user.email}
             </p>
-            <p className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider">
-              {user.role}
-            </p>
+            <div className="flex items-center justify-end gap-1 mt-0.5">
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                  isSuper
+                    ? "bg-destructive/15 text-destructive border border-destructive/30"
+                    : user.role === "ADMIN"
+                    ? "bg-primary/15 text-primary border border-primary/30"
+                    : "bg-sky-500/15 text-sky-400 border border-sky-500/30"
+                }`}
+              >
+                {effectiveRole}
+              </span>
+            </div>
           </div>
           <form action={logoutAction}>
             <button
               type="submit"
-              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="h-4 w-4" />
@@ -105,7 +132,7 @@ export function AdminHeader({ user }: AdminHeaderProps) {
             </div>
 
             <nav className="flex-1 space-y-1 overflow-y-auto">
-              {sidebarLinks.map((link) => {
+              {visibleLinks.map((link) => {
                 const isActive =
                   pathname === link.href ||
                   (link.href !== "/admin" && pathname.startsWith(link.href));
@@ -132,7 +159,7 @@ export function AdminHeader({ user }: AdminHeaderProps) {
               <form action={logoutAction}>
                 <button
                   type="submit"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
                 >
                   <LogOut className="h-4 w-4" />
                   Sign Out

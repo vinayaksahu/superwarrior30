@@ -14,36 +14,114 @@ import {
   Settings,
   ShieldCheck,
   ScrollText,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const sidebarLinks = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/courses", label: "Courses", icon: BookOpen },
-  { href: "/admin/students", label: "Students", icon: Users },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
-  { href: "/admin/coupons", label: "Coupons", icon: Tag },
-  { href: "/admin/referrals", label: "Referrals", icon: GitBranch },
-  { href: "/admin/wallet", label: "Wallet", icon: Wallet },
-  { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine },
-  { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-  { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
+interface SidebarLink {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  allowedRoles: ("SUPER_ADMIN" | "ADMIN" | "SUPPORT")[];
+}
+
+const allSidebarLinks: SidebarLink[] = [
+  {
+    href: "/admin",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/courses",
+    label: "Courses",
+    icon: BookOpen,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/students",
+    label: "Students",
+    icon: Users,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/orders",
+    label: "Orders",
+    icon: ShoppingCart,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/coupons",
+    label: "Coupons",
+    icon: Tag,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    href: "/admin/withdrawals",
+    label: "Withdrawals",
+    icon: ArrowDownToLine,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    href: "/admin/referrals",
+    label: "Referrals",
+    icon: GitBranch,
+    allowedRoles: ["SUPER_ADMIN"],
+  },
+  {
+    href: "/admin/wallet",
+    label: "Wallet",
+    icon: Wallet,
+    allowedRoles: ["SUPER_ADMIN"],
+  },
+  {
+    href: "/admin/staff",
+    label: "Admin Roles & Staff",
+    icon: ShieldCheck,
+    allowedRoles: ["SUPER_ADMIN"],
+  },
+  {
+    href: "/admin/settings",
+    label: "Settings",
+    icon: Settings,
+    allowedRoles: ["SUPER_ADMIN"],
+  },
+  {
+    href: "/admin/audit-logs",
+    label: "Audit Logs",
+    icon: ScrollText,
+    allowedRoles: ["SUPER_ADMIN"],
+  },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  userRole?: string;
+  userEmail?: string;
+}
+
+export function AdminSidebar({ userRole = "ADMIN", userEmail = "" }: AdminSidebarProps) {
   const pathname = usePathname();
+
+  const isSuper = userRole === "SUPER_ADMIN" || userEmail === "admin@superwarrior30.com";
+  const effectiveRole = isSuper ? "SUPER_ADMIN" : (userRole as "ADMIN" | "SUPPORT");
+
+  // Filter links based on role permissions
+  const visibleLinks = allSidebarLinks.filter((link) =>
+    link.allowedRoles.includes(effectiveRole)
+  );
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar-background lg:block">
       <div className="flex h-16 items-center border-b border-sidebar-border px-6">
         <Link href="/admin" className="flex items-center gap-2">
           <span className="text-xl font-bold text-sidebar-primary">SW30</span>
-          <span className="text-sm font-medium text-sidebar-foreground">Admin</span>
+          <span className="text-sm font-medium text-sidebar-foreground">
+            {isSuper ? "Super Admin" : "Staff Admin"}
+          </span>
         </Link>
       </div>
       <nav className="space-y-1 p-4">
-        {sidebarLinks.map((link) => {
+        {visibleLinks.map((link) => {
           const isActive =
             pathname === link.href ||
             (link.href !== "/admin" && pathname.startsWith(link.href));
