@@ -146,22 +146,26 @@ export function ManualCheckoutClient({
           proofNote: proofNote.trim(),
         });
 
-        if (res.success && res.orderId) {
+        if (res?.success && res?.orderId) {
           toast.success("Order submitted successfully!");
-          router.push(`/checkout/success/${res.orderId}`);
-        } else {
-          if (res.alreadyEnrolled) {
-            toast.info("You are already enrolled in this course!");
-            router.push(`/learn/${course.slug}`);
-            return;
-          }
-          setErrorMessage(res.message || "Failed to submit order.");
-          toast.error(res.message || "Submission failed");
+          // Use full client redirect to avoid React 19 transition race condition #441
+          window.location.href = `/checkout/success/${res.orderId}`;
+          return;
         }
+
+        if (res?.alreadyEnrolled) {
+          toast.info("You are already enrolled in this course!");
+          window.location.href = `/learn/${course.slug}`;
+          return;
+        }
+
+        const failMsg = typeof res?.message === "string" ? res.message : "Failed to submit order.";
+        setErrorMessage(failMsg);
+        toast.error(failMsg);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Error submitting order";
-        setErrorMessage(msg);
-        toast.error(msg);
+        const errMsg = err instanceof Error ? err.message : "Error submitting order";
+        setErrorMessage(errMsg);
+        toast.error(errMsg);
       }
     });
   };

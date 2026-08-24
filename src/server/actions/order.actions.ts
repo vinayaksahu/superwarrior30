@@ -708,41 +708,86 @@ export async function submitManualPaymentOrderAction({
 
   const orderNumber = generateOrderNumber();
 
+  // 1. Ensure columns exist in DB
   try {
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        userId: user.id,
-        couponId,
-        status: "PENDING",
-        currency: "INR",
-        subtotalAmount: course.price,
-        discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
-        taxAmount: 0.0,
-        totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
-        paymentProvider: "MANUAL",
-        paymentId: utrRef.trim(),
-        manualPaymentRef: utrRef.trim(),
-        manualPaymentProof: {
-          paymentMethodId,
-          paymentMethodTitle,
-          utrRef: utrRef.trim(),
-          proofNote: proofNote?.trim() || null,
-          submittedAt: new Date().toISOString(),
-          customerEmail: user.email,
-          customerName: user.name || "Student",
-        },
-        items: {
-          create: {
-            courseId: course.id,
-            itemTitle: course.title,
-            unitPrice: course.price,
-            quantity: 1,
-            totalPrice: new Prisma.Decimal(finalPayable.toFixed(2)),
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentRef" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentProof" JSONB;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedBy" TEXT;
+    `);
+  } catch {
+    // ignore
+  }
+
+  const proofData = {
+    paymentMethodId,
+    paymentMethodTitle,
+    utrRef: utrRef.trim(),
+    proofNote: proofNote?.trim() || null,
+    submittedAt: new Date().toISOString(),
+    customerEmail: user.email,
+    customerName: user.name || "Student",
+  };
+
+  try {
+    let order;
+    try {
+      order = await prisma.order.create({
+        data: {
+          orderNumber,
+          userId: user.id,
+          couponId,
+          status: "PENDING",
+          currency: "INR",
+          subtotalAmount: course.price,
+          discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
+          taxAmount: 0.0,
+          totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
+          paymentProvider: "MANUAL",
+          paymentId: utrRef.trim(),
+          manualPaymentRef: utrRef.trim(),
+          manualPaymentProof: proofData,
+          metadata: proofData,
+          items: {
+            create: {
+              courseId: course.id,
+              itemTitle: course.title,
+              unitPrice: course.price,
+              quantity: 1,
+              totalPrice: new Prisma.Decimal(finalPayable.toFixed(2)),
+            },
           },
         },
-      },
-    });
+      });
+    } catch {
+      // Fallback create without custom columns if DB schema is legacy
+      order = await prisma.order.create({
+        data: {
+          orderNumber,
+          userId: user.id,
+          couponId,
+          status: "PENDING",
+          currency: "INR",
+          subtotalAmount: course.price,
+          discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
+          taxAmount: 0.0,
+          totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
+          paymentProvider: "MANUAL",
+          paymentId: utrRef.trim(),
+          metadata: proofData,
+          items: {
+            create: {
+              courseId: course.id,
+              itemTitle: course.title,
+              unitPrice: course.price,
+              quantity: 1,
+              totalPrice: new Prisma.Decimal(finalPayable.toFixed(2)),
+            },
+          },
+        },
+      });
+    }
 
     revalidatePath("/admin/orders");
     revalidatePath("/orders");
@@ -754,11 +799,12 @@ export async function submitManualPaymentOrderAction({
       orderNumber: order.orderNumber,
       message: "Payment submitted successfully. Your order is pending verification.",
     };
-  } catch (error) {
-    console.error("Error submitting manual payment order:", error);
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to submit order. Please try again.";
+    console.error("Error submitting manual payment order:", errorMsg);
     return {
       success: false,
-      message: "Failed to submit order. Please try again or contact support.",
+      message: errorMsg,
     };
   }
 }
