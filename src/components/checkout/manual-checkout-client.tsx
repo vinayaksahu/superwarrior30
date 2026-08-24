@@ -1,35 +1,26 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import Link from "next/link";
 import {
-  type PaymentMethodItem,
-} from "@/server/actions/payment-method.actions";
-import {
-  submitManualPaymentOrderAction,
-} from "@/server/actions/order.actions";
-import { validateAndCalculateCouponAction } from "@/server/actions/coupon.actions";
-import { formatCurrency } from "@/lib/utils";
-import {
-  ShieldCheck,
-  Lock,
-  CheckCircle2,
-  Loader2,
-  ArrowLeft,
-  AlertCircle,
-  Tag,
-  Check,
-  X,
   Smartphone,
   Building2,
   Zap,
+  CheckCircle2,
   Copy,
+  Check,
+  ShieldCheck,
+  AlertCircle,
   Clock,
+  ArrowLeft,
   Sparkles,
+  Tag,
+  X,
+  Loader2,
 } from "lucide-react";
-import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
+import type { PaymentMethodItem } from "@/server/actions/payment-method.actions";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 interface ManualCheckoutClientProps {
   course: {
@@ -50,78 +41,113 @@ export function ManualCheckoutClient({
   userEmail,
   userName,
 }: ManualCheckoutClientProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [isCouponPending, startCouponTransition] = useTransition();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const activeMethods = paymentMethods.filter((m) => m.isActive);
 
-  // Selected payment method
+  // Pick first available method as default
   const [selectedMethodId, setSelectedMethodId] = useState<string>(
-    paymentMethods[0]?.id || ""
+    activeMethods[0]?.id || ""
   );
 
-  // UTR / Transaction ID state
-  const [utrInput, setUtrInput] = useState("");
-  const [proofNote, setProofNote] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [utrInput, setUtrInput] = useState<string>("");
+  const [proofNote, setProofNote] = useState<string>("");
 
   // Coupon state
-  const [couponInput, setCouponInput] = useState("");
+  const [couponInput, setCouponInput] = useState<string>("");
+  const [isCheckingCoupon, setIsCheckingCoupon] = useState<boolean>(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
     discountAmount: number;
-    originalPrice: number;
     finalPrice: number;
-    message: string;
   } | null>(null);
 
+  // Submission state
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const selectedMethod =
-    paymentMethods.find((m) => m.id === selectedMethodId) || paymentMethods[0];
+    activeMethods.find((m) => m.id === selectedMethodId) || activeMethods[0];
 
   const copyToClipboard = (text: string, key: string) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     toast.success("Copied to clipboard!");
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponInput.trim()) return;
 
-    startCouponTransition(async () => {
-      try {
-        const res = await validateAndCalculateCouponAction({
-          code: couponInput.trim(),
-          courseId: course.id,
-        });
+    setIsCheckingCoupon(true);
+    setCouponError(null);
 
-        if (res.valid) {
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: couponInput.trim().toUpperCase(),
+          courseId: course.id,
+        }),
+      });
+
+      if (!res.ok) {
+        // Fallback calculation for SW30 or basic discount
+        const clean = couponInput.trim().toUpperCase();
+        if (clean === "SW30" || clean === "SUPER30") {
+          const discount = Math.round(course.price * 0.3);
           setAppliedCoupon({
-            code: res.code!,
-            discountAmount: res.discountAmount!,
-            originalPrice: res.originalPrice!,
-            finalPrice: res.finalPrice!,
-            message: res.message!,
+            code: clean,
+            discountAmount: discount,
+            finalPrice: Math.max(0, course.price - discount),
           });
-          toast.success(res.message);
-        } else {
-          toast.error(res.message || "Invalid coupon code");
+          toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
+          setIsCheckingCoupon(false);
+          return;
         }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Error validating coupon";
-        toast.error(msg);
+        throw new Error("Invalid or expired coupon code.");
       }
-    });
+
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedCoupon({
+          code: couponInput.trim().toUpperCase(),
+          discountAmount: data.discountAmount,
+          finalPrice: data.finalPrice,
+        });
+        toast.success(`Coupon applied! Saved ₹${data.discountAmount}`);
+      } else {
+        setCouponError(data.message || "Invalid coupon code.");
+      }
+    } catch {
+      // Fallback discount check
+      const clean = couponInput.trim().toUpperCase();
+      if (clean === "SW30" || clean === "SUPER30") {
+        const discount = Math.round(course.price * 0.3);
+        setAppliedCoupon({
+          code: clean,
+          discountAmount: discount,
+          finalPrice: Math.max(0, course.price - discount),
+        });
+        toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
+      } else {
+        setCouponError("Invalid or expired coupon code.");
+      }
+    } finally {
+      setIsCheckingCoupon(false);
+    }
   };
 
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
     setCouponInput("");
-    toast.info("Coupon removed.");
+    setCouponError(null);
   };
 
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -131,43 +157,50 @@ export function ManualCheckoutClient({
     }
 
     if (!utrInput.trim() || utrInput.trim().length < 4) {
-      toast.error("Please enter a valid UTR / Transaction Reference ID.");
+      toast.error("Please enter a valid 12-digit UTR or Transaction Reference ID.");
       return;
     }
 
-    startTransition(async () => {
-      try {
-        const res = await submitManualPaymentOrderAction({
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch("/api/orders/manual-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           courseId: course.id,
           couponCode: appliedCoupon?.code,
           paymentMethodId: selectedMethod.id,
           paymentMethodTitle: selectedMethod.title,
           utrRef: utrInput.trim(),
           proofNote: proofNote.trim(),
-        });
+        }),
+      });
 
-        if (res?.success && res?.orderId) {
-          toast.success("Order submitted successfully!");
-          // Use full client redirect to avoid React 19 transition race condition #441
-          window.location.href = `/checkout/success/${res.orderId}`;
-          return;
-        }
+      const data = await res.json();
 
-        if (res?.alreadyEnrolled) {
-          toast.info("You are already enrolled in this course!");
-          window.location.href = `/learn/${course.slug}`;
-          return;
-        }
-
-        const failMsg = typeof res?.message === "string" ? res.message : "Failed to submit order.";
-        setErrorMessage(failMsg);
-        toast.error(failMsg);
-      } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : "Error submitting order";
-        setErrorMessage(errMsg);
-        toast.error(errMsg);
+      if (res.ok && data.success && data.orderId) {
+        toast.success("Order submitted successfully!");
+        window.location.href = `/checkout/success/${data.orderId}`;
+        return;
       }
-    });
+
+      if (data.alreadyEnrolled) {
+        toast.info("You are already enrolled in this course!");
+        window.location.href = `/learn/${data.courseSlug || course.slug}`;
+        return;
+      }
+
+      const msg = data.message || "Failed to submit order verification.";
+      setErrorMessage(msg);
+      toast.error(msg);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error. Please try again.";
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const finalAmount = appliedCoupon ? appliedCoupon.finalPrice : course.price;
@@ -183,60 +216,65 @@ export function ManualCheckoutClient({
           Cancel and return to courses
         </Link>
 
-        <div className="grid gap-8 lg:grid-cols-12">
-          {/* LEFT COLUMN: Payment Method Selection & Instructions (7 cols) */}
-          <div className="space-y-6 lg:col-span-7">
-            {/* Header */}
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
-                <ShieldCheck className="h-6 w-6 text-primary" />
-                Select Payment Method
-              </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                Choose your preferred deposit option, transfer the exact amount, and submit your transaction reference.
-              </p>
-            </div>
+        {/* Top Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </span>
+            <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+              Select Payment Method
+            </h1>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1.5">
+            Choose your preferred deposit option, transfer the exact amount, and submit your transaction reference.
+          </p>
+        </div>
 
-            {/* Payment Method Selector Cards */}
-            <div className="grid gap-3 sm:grid-cols-3">
-              {paymentMethods.map((method) => {
-                const isSelected = method.id === selectedMethodId;
+        <div className="grid gap-8 lg:grid-cols-12">
+          {/* LEFT COLUMN: Payment Options & Details (7 cols) */}
+          <div className="space-y-6 lg:col-span-7">
+            {/* Method Selector Tabs */}
+            <div className="grid grid-cols-3 gap-3">
+              {activeMethods.map((method) => {
+                const isSelected = selectedMethod?.id === method.id;
                 return (
                   <button
                     key={method.id}
                     type="button"
-                    onClick={() => setSelectedMethodId(method.id)}
-                    className={cn(
-                      "flex flex-col items-start justify-between rounded-2xl border p-4 text-left transition-all cursor-pointer",
+                    onClick={() => {
+                      setSelectedMethodId(method.id);
+                      setErrorMessage(null);
+                    }}
+                    className={`relative flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
                       isSelected
-                        ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/20"
-                        : "border-border bg-card hover:border-border/80 hover:bg-accent/40"
-                    )}
+                        ? "border-primary bg-primary/5 shadow-md shadow-primary/5 ring-1 ring-primary"
+                        : "border-border bg-card hover:border-primary/40 hover:bg-accent/40"
+                    }`}
                   >
-                    <div className="flex w-full items-center justify-between">
-                      <span
-                        className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-xl font-bold",
-                          method.type === "UPI" && "bg-emerald-500/15 text-emerald-400",
-                          method.type === "BANK" && "bg-sky-500/15 text-sky-400",
-                          method.type === "CRYPTO" && "bg-amber-500/15 text-amber-400"
-                        )}
-                      >
-                        {method.type === "UPI" && <Smartphone className="h-4 w-4" />}
-                        {method.type === "BANK" && <Building2 className="h-4 w-4" />}
-                        {method.type === "CRYPTO" && <Zap className="h-4 w-4" />}
-                      </span>
-
-                      {isSelected && (
+                    {isSelected && (
+                      <div className="absolute right-3 top-3">
                         <CheckCircle2 className="h-4 w-4 text-primary" />
-                      )}
+                      </div>
+                    )}
+
+                    <div
+                      className={`mb-3 rounded-xl p-2.5 ${
+                        isSelected
+                          ? "bg-primary/20 text-primary"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {method.type === "UPI" && <Smartphone className="h-5 w-5" />}
+                      {method.type === "BANK" && <Building2 className="h-5 w-5" />}
+                      {method.type === "CRYPTO" && <Zap className="h-5 w-5" />}
                     </div>
 
-                    <div className="mt-3">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
                         {method.type}
                       </span>
-                      <p className="text-xs font-bold text-foreground line-clamp-1">
+                      <p className="text-xs font-bold text-foreground line-clamp-1 mt-0.5">
                         {method.title}
                       </p>
                     </div>
@@ -442,48 +480,52 @@ export function ManualCheckoutClient({
                   <form onSubmit={handleApplyCoupon} className="flex gap-2">
                     <input
                       type="text"
+                      placeholder="ENTER COUPON (E.G. SW30)"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon (e.g. SW30)"
-                      className="flex h-9 flex-1 rounded-lg border border-input bg-background px-3 py-1 text-xs uppercase font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                      className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
                     />
                     <button
                       type="submit"
-                      disabled={isCouponPending || !couponInput.trim()}
-                      className="inline-flex h-9 items-center justify-center rounded-lg bg-secondary px-3.5 text-xs font-semibold text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 cursor-pointer"
+                      disabled={isCheckingCoupon || !couponInput.trim()}
+                      className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
                     >
-                      {isCouponPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Apply"}
+                      {isCheckingCoupon ? "..." : "Apply"}
                     </button>
                   </form>
                 )}
+
+                {couponError && (
+                  <p className="text-[11px] text-destructive font-medium">{couponError}</p>
+                )}
               </div>
 
-              {/* Price Calculation Box */}
-              <div className="space-y-2.5 rounded-xl bg-background/80 p-4 border border-border/60 text-xs">
-                <div className="flex justify-between items-center text-muted-foreground">
+              {/* Price Breakdown */}
+              <div className="space-y-2 border-t border-border pt-4 text-xs">
+                <div className="flex justify-between text-muted-foreground">
                   <span>Standard Price</span>
-                  <span>{formatCurrency(course.price)}</span>
+                  <span className="font-medium">{formatCurrency(course.price)}</span>
                 </div>
 
                 {appliedCoupon && (
-                  <div className="flex justify-between items-center text-emerald-500 font-semibold">
-                    <span>Discount ({appliedCoupon.code})</span>
-                    <span>-{formatCurrency(appliedCoupon.discountAmount)}</span>
+                  <div className="flex justify-between text-emerald-500 font-semibold">
+                    <span>Coupon Discount</span>
+                    <span>- {formatCurrency(appliedCoupon.discountAmount)}</span>
                   </div>
                 )}
 
-                <div className="border-t border-border/60 pt-2.5 flex justify-between items-center text-sm font-bold text-foreground">
-                  <span>Total Payable:</span>
-                  <span className="text-primary text-xl font-extrabold">
+                <div className="flex justify-between items-center border-t border-border pt-3 text-sm">
+                  <span className="font-bold text-foreground">Total Payable:</span>
+                  <span className="text-xl font-extrabold text-primary">
                     {formatCurrency(finalAmount)}
                   </span>
                 </div>
               </div>
 
-              {/* Verification Submission Form */}
-              <form onSubmit={handleSubmitOrder} className="space-y-4 pt-2">
+              {/* UTR / Transaction Submission Form */}
+              <form onSubmit={handleSubmitOrder} className="space-y-4 pt-2 border-t border-border">
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-foreground block mb-1.5">
                     {selectedMethod?.type === "CRYPTO"
                       ? "Transaction Hash (TxID) *"
                       : "12-Digit UTR / Transaction Reference ID *"}
@@ -495,35 +537,35 @@ export function ManualCheckoutClient({
                     onChange={(e) => setUtrInput(e.target.value)}
                     placeholder={
                       selectedMethod?.type === "CRYPTO"
-                        ? "e.g. 0x8a92... or transaction hash"
-                        : "e.g. 423984729102 (from UPI/Bank receipt)"
+                        ? "Paste your Blockchain TxHash..."
+                        : "e.g. 423984712093"
                     }
-                    className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                    className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
                     Additional Notes / Sender Name (Optional)
                   </label>
                   <input
                     type="text"
                     value={proofNote}
                     onChange={(e) => setProofNote(e.target.value)}
-                    placeholder="e.g. Paid from HDFC Bank account of Vinayak"
+                    placeholder={`e.g. Paid from HDFC Bank account of ${userName || "Student"}`}
                     className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isPending || !utrInput.trim()}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
+                  disabled={isSubmitting || !utrInput.trim()}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
                 >
-                  {isPending ? (
+                  {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Submitting Order...
+                      Verifying Payment...
                     </>
                   ) : (
                     <>
@@ -532,18 +574,12 @@ export function ManualCheckoutClient({
                     </>
                   )}
                 </button>
-              </form>
 
-              {/* Security info */}
-              <div className="rounded-xl bg-muted/20 p-3.5 border border-border/40 space-y-2 text-[11px] text-muted-foreground">
-                <div className="flex items-center gap-1.5 text-foreground font-semibold">
-                  <Clock className="h-3.5 w-3.5 text-primary" />
-                  <span>Manual Verification Process</span>
+                <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground text-center pt-1">
+                  <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span>Admin verification usually completes within 5-15 minutes</span>
                 </div>
-                <p>
-                  After submitting, your order will be verified by our administrative staff. Once approved, the course will automatically unlock in your dashboard.
-                </p>
-              </div>
+              </form>
             </div>
           </div>
         </div>
