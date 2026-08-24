@@ -14,6 +14,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Student Dashboard",
 };
@@ -21,20 +23,34 @@ export const metadata: Metadata = {
 export default async function StudentDashboardPage() {
   const user = await requireAuth();
 
-  const [enrolledCourses, wallet, referralCount] = await Promise.all([
-    getUserEnrolledCoursesAction(),
-    prisma.wallet.findUnique({
-      where: { userId: user.id },
-      select: {
-        availableBalance: true,
-        pendingBalance: true,
-        totalEarned: true,
-      },
-    }),
-    prisma.referralRelationship.count({
-      where: { referrerId: user.id },
-    }),
-  ]);
+  let enrolledCourses: Awaited<ReturnType<typeof getUserEnrolledCoursesAction>> = [];
+  let availableBalance = 0;
+  let totalEarned = 0;
+  let referralCount = 0;
+
+  try {
+    const [courses, wallet, referrals] = await Promise.all([
+      getUserEnrolledCoursesAction().catch(() => []),
+      prisma.wallet.findUnique({
+        where: { userId: user.id },
+        select: {
+          availableBalance: true,
+          pendingBalance: true,
+          totalEarned: true,
+        },
+      }),
+      prisma.referralRelationship.count({
+        where: { referrerId: user.id },
+      }).catch(() => 0),
+    ]);
+
+    enrolledCourses = courses || [];
+    availableBalance = Number(wallet?.availableBalance ?? 0);
+    totalEarned = Number(wallet?.totalEarned ?? 0);
+    referralCount = referrals || 0;
+  } catch (error) {
+    console.error("Error loading student dashboard:", error);
+  }
 
   const totalEnrolled = enrolledCourses.length;
   const completedCoursesCount = enrolledCourses.filter(
@@ -71,7 +87,7 @@ export default async function StudentDashboardPage() {
             <Wallet className="h-4 w-4 text-emerald-500" />
           </div>
           <p className="text-2xl font-extrabold text-foreground">
-            {formatCurrency(Number(wallet?.availableBalance || 0))}
+            {formatCurrency(availableBalance)}
           </p>
           <p className="text-[11px] text-muted-foreground">
             Ready for bank withdrawal
@@ -84,7 +100,7 @@ export default async function StudentDashboardPage() {
             <TrendingUp className="h-4 w-4 text-sky-500" />
           </div>
           <p className="text-2xl font-extrabold text-foreground">
-            {formatCurrency(Number(wallet?.totalEarned || 0))}
+            {formatCurrency(totalEarned)}
           </p>
           <p className="text-[11px] text-muted-foreground">
             Lifetime affiliate commissions

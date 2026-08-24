@@ -4,6 +4,8 @@ import { getPublicCoursesAction } from "@/server/actions/course.actions";
 import { formatCurrency } from "@/lib/utils";
 import { Search, Clock, BookOpen, Layers, Star, ArrowRight } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Trading Courses",
   description: "Explore our comprehensive library of professional stock market and derivatives trading courses.",

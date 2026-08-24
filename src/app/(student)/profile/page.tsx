@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { ProfileForms } from "@/components/student/profile-forms";
 import { User, Shield, KeyRound, Calendar } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "My Profile & Settings",
 };

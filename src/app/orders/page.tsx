@@ -4,6 +4,8 @@ import { getUserOrdersAction } from "@/server/actions/order.actions";
 import { formatCurrency } from "@/lib/utils";
 import { ShoppingCart, ArrowRight } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "My Order Invoices",
 };

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getUserEnrolledCoursesAction } from "@/server/actions/enrollment.actions";
 import { BookOpen, PlayCircle, Clock, CheckCircle2, ArrowRight } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "My Enrolled Courses",
 };

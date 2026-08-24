@@ -5,6 +5,8 @@ import { ReferralNetworkTree } from "@/components/student/referral-network-tree"
 import { formatCurrency } from "@/lib/utils";
 import { Users, IndianRupee, Clock, GitBranch } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Referrals & Network",
 };

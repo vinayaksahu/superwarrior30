@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { getStudentWalletAction } from "@/server/actions/wallet.actions";
 import { StudentWalletClient } from "@/components/student/student-wallet-client";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "My Wallet & Payouts",
 };
