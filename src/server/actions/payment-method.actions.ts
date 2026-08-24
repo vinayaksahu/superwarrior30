@@ -26,7 +26,7 @@ export interface PaymentMethodItem {
   createdAt: Date;
 }
 
-// Fallback seed methods in case database table is initializing
+// Fallback seed methods
 const fallbackPaymentMethods: PaymentMethodItem[] = [
   {
     id: "spm_upi_001",
@@ -76,9 +76,41 @@ const fallbackPaymentMethods: PaymentMethodItem[] = [
   },
 ];
 
+async function ensureSystemPaymentTable() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "system_payment_methods" (
+        "id" TEXT PRIMARY KEY,
+        "type" "PaymentMethodType" NOT NULL,
+        "title" TEXT NOT NULL,
+        "details" JSONB NOT NULL,
+        "instructions" TEXT,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch {
+    // ignore
+  }
+}
+
 export async function getSystemPaymentMethodsAction(
   includeInactive = false
 ): Promise<PaymentMethodItem[]> {
+  await ensureSystemPaymentTable();
+
   try {
     const where = includeInactive ? {} : { isActive: true };
     const methods = await prisma.systemPaymentMethod.findMany({
@@ -87,6 +119,24 @@ export async function getSystemPaymentMethodsAction(
     });
 
     if (!methods || methods.length === 0) {
+      // Auto-insert default methods
+      try {
+        for (const item of fallbackPaymentMethods) {
+          await prisma.systemPaymentMethod.create({
+            data: {
+              id: item.id,
+              type: item.type,
+              title: item.title,
+              details: item.details,
+              instructions: item.instructions,
+              isActive: item.isActive,
+            },
+          });
+        }
+      } catch {
+        // ignore conflict
+      }
+
       return includeInactive
         ? fallbackPaymentMethods
         : fallbackPaymentMethods.filter((m) => m.isActive);
@@ -113,7 +163,8 @@ export async function createPaymentMethodAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const admin = await requireSuperAdmin();
+  const admin = await requireAdmin();
+  await ensureSystemPaymentTable();
 
   const type = formData.get("type")?.toString() as "UPI" | "BANK" | "CRYPTO";
   const title = formData.get("title")?.toString().trim();
@@ -218,8 +269,104 @@ export async function createPaymentMethodAction(
   }
 }
 
+export async function updatePaymentMethodAction(
+  id: string,
+  formData: FormData
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  await ensureSystemPaymentTable();
+
+  const title = formData.get("title")?.toString().trim();
+  const instructions = formData.get("instructions")?.toString().trim() || null;
+  const existing = await prisma.systemPaymentMethod.findUnique({ where: { id } });
+
+  if (!existing) {
+    return { success: false, message: "Payment method not found." };
+  }
+
+  if (!title || title.length < 2) {
+    return { success: false, message: "Please provide a descriptive title." };
+  }
+
+  const currentDetails = (existing.details as Record<string, string>) || {};
+  const updatedDetails: Record<string, string> = { ...currentDetails };
+
+  if (existing.type === "UPI") {
+    const upiId = formData.get("upiId")?.toString().trim() || currentDetails.upiId;
+    const payeeName = formData.get("payeeName")?.toString().trim() || currentDetails.payeeName;
+    let qrCodeUrl = formData.get("qrCodeUrl")?.toString().trim() || currentDetails.qrCodeUrl;
+
+    if (upiId && !qrCodeUrl) {
+      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi://pay?pa=${encodeURIComponent(
+        upiId
+      )}&pn=${encodeURIComponent(payeeName || "Super Warrior 30")}`;
+    }
+
+    if (upiId) updatedDetails.upiId = upiId;
+    if (payeeName) updatedDetails.payeeName = payeeName;
+    if (qrCodeUrl) updatedDetails.qrCodeUrl = qrCodeUrl;
+  } else if (existing.type === "BANK") {
+    const bankName = formData.get("bankName")?.toString().trim();
+    const accountName = formData.get("accountName")?.toString().trim();
+    const accountNumber = formData.get("accountNumber")?.toString().trim();
+    const ifsc = formData.get("ifsc")?.toString().trim();
+    const branch = formData.get("branch")?.toString().trim();
+
+    if (bankName) updatedDetails.bankName = bankName;
+    if (accountName) updatedDetails.accountName = accountName;
+    if (accountNumber) updatedDetails.accountNumber = accountNumber;
+    if (ifsc) updatedDetails.ifsc = ifsc.toUpperCase();
+    if (branch !== undefined) updatedDetails.branch = branch || "";
+  } else if (existing.type === "CRYPTO") {
+    const network = formData.get("network")?.toString().trim();
+    const walletAddress = formData.get("walletAddress")?.toString().trim();
+    let qrCodeUrl = formData.get("qrCodeUrl")?.toString().trim();
+
+    if (walletAddress && !qrCodeUrl) {
+      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+        walletAddress
+      )}`;
+    }
+
+    if (network) updatedDetails.network = network;
+    if (walletAddress) updatedDetails.walletAddress = walletAddress;
+    if (qrCodeUrl) updatedDetails.qrCodeUrl = qrCodeUrl;
+  }
+
+  try {
+    await prisma.systemPaymentMethod.update({
+      where: { id },
+      data: {
+        title,
+        details: updatedDetails,
+        instructions,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: admin.id,
+        actorEmail: admin.email,
+        actorRole: admin.role,
+        action: "PAYMENT_METHOD_UPDATED",
+        entityType: "SystemPaymentMethod",
+        entityId: id,
+        newValues: { title, details: updatedDetails },
+      },
+    });
+
+    revalidatePath("/admin/payment-methods");
+    revalidatePath("/checkout");
+    return { success: true, message: `${title} updated successfully.` };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update payment method";
+    return { success: false, message: msg };
+  }
+}
+
 export async function togglePaymentMethodStatusAction(id: string): Promise<ActionState> {
-  const admin = await requireSuperAdmin();
+  const admin = await requireAdmin();
+  await ensureSystemPaymentTable();
 
   try {
     const existing = await prisma.systemPaymentMethod.findUnique({ where: { id } });
@@ -257,7 +404,8 @@ export async function togglePaymentMethodStatusAction(id: string): Promise<Actio
 }
 
 export async function deletePaymentMethodAction(id: string): Promise<ActionState> {
-  const admin = await requireSuperAdmin();
+  const admin = await requireAdmin();
+  await ensureSystemPaymentTable();
 
   try {
     await prisma.systemPaymentMethod.delete({ where: { id } });

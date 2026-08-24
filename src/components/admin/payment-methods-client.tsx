@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import {
   Zap,
   Building2,
   Smartphone,
   Plus,
   Trash2,
+  Edit2,
   Copy,
   Check,
   CheckCircle2,
@@ -15,11 +16,14 @@ import {
   Sparkles,
   ShieldCheck,
   X,
+  Upload,
+  Image as ImageIcon,
   ExternalLink,
 } from "lucide-react";
 import {
   type PaymentMethodItem,
   createPaymentMethodAction,
+  updatePaymentMethodAction,
   togglePaymentMethodStatusAction,
   deletePaymentMethodAction,
 } from "@/server/actions/payment-method.actions";
@@ -34,8 +38,12 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
   const [selectedTab, setSelectedTab] = useState<"ALL" | "CRYPTO" | "BANK" | "UPI">("ALL");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<"UPI" | "BANK" | "CRYPTO" | null>(null);
+  const [editingMethod, setEditingMethod] = useState<PaymentMethodItem | null>(null);
+  const [customQrUrl, setCustomQrUrl] = useState<string>("");
   const [isPending, startTransition] = useTransition();
   const [actionMessage, setActionMessage] = useState<{ success: boolean; text: string } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -72,18 +80,58 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
     });
   };
 
-  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleOpenCreate = (type: "UPI" | "BANK" | "CRYPTO") => {
+    setEditingMethod(null);
+    setCustomQrUrl("");
+    setActiveModal(type);
+  };
+
+  const handleOpenEdit = (method: PaymentMethodItem) => {
+    setEditingMethod(method);
+    setCustomQrUrl(method.details.qrCodeUrl || "");
+    setActiveModal(method.type);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload a valid image file (PNG, JPG, WEBP).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setCustomQrUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set("type", activeModal || "UPI");
+    if (customQrUrl) {
+      formData.set("qrCodeUrl", customQrUrl);
+    }
 
     startTransition(async () => {
-      const res = await createPaymentMethodAction(null, formData);
+      let res;
+      if (editingMethod) {
+        res = await updatePaymentMethodAction(editingMethod.id, formData);
+      } else {
+        res = await createPaymentMethodAction(null, formData);
+      }
+
       if (res.success) {
         setActiveModal(null);
+        setEditingMethod(null);
         window.location.reload();
       } else {
-        setActionMessage({ success: false, text: res.message || "Failed to create method" });
+        setActionMessage({ success: false, text: res.message || "Operation failed" });
       }
     });
   };
@@ -107,14 +155,14 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
             Deposit & Payout Payment Methods
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl">
-            Manage system deposit options and control active receiving payment methods (Crypto, Bank, UPI) enabled for students at checkout.
+            Manage system deposit options, upload QR codes, and control active receiving payment methods (Crypto, Bank, UPI) enabled for students at checkout.
           </p>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setActiveModal("CRYPTO")}
+            onClick={() => handleOpenCreate("CRYPTO")}
             className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-all cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5 text-amber-500" />
@@ -122,7 +170,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
           </button>
 
           <button
-            onClick={() => setActiveModal("BANK")}
+            onClick={() => handleOpenCreate("BANK")}
             className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-all cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5 text-sky-500" />
@@ -130,7 +178,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
           </button>
 
           <button
-            onClick={() => setActiveModal("UPI")}
+            onClick={() => handleOpenCreate("UPI")}
             className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -270,11 +318,20 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
               </div>
 
               {/* QR Code Preview if available */}
-              {method.details.qrCodeUrl && (
+              {(method.details.qrCodeUrl || method.details.upiId || method.details.walletAddress) && (
                 <div className="flex justify-center py-2 bg-background/50 rounded-xl border border-border/40 p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={method.details.qrCodeUrl}
+                    src={
+                      method.details.qrCodeUrl ||
+                      (method.type === "UPI"
+                        ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=${encodeURIComponent(
+                            method.details.upiId || ""
+                          )}`
+                        : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                            method.details.walletAddress || ""
+                          )}`)
+                    }
                     alt={`${method.title} QR Code`}
                     className="h-36 w-36 rounded-lg object-contain bg-white p-1"
                   />
@@ -392,23 +449,34 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                 Added {new Date(method.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
               </span>
 
-              <button
-                onClick={() => handleDelete(method.id)}
-                disabled={isPending}
-                className="inline-flex items-center gap-1 rounded-lg p-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
-                title="Delete Method"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleOpenEdit(method)}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold bg-accent text-accent-foreground hover:bg-accent/80 transition-colors cursor-pointer"
+                  title="Edit Method"
+                >
+                  <Edit2 className="h-3 w-3" />
+                  Edit
+                </button>
+
+                <button
+                  onClick={() => handleDelete(method.id)}
+                  disabled={isPending}
+                  className="inline-flex items-center gap-1 rounded-lg p-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                  title="Delete Method"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Modal Dialog for Adding Payment Method */}
+      {/* Modal Dialog for Adding / Editing Payment Method */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150 my-8">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold">
@@ -417,19 +485,22 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                   {activeModal === "CRYPTO" && <Zap className="h-4 w-4" />}
                 </span>
                 <h2 className="text-lg font-bold text-foreground">
-                  Add {activeModal === "UPI" ? "UPI" : activeModal === "BANK" ? "Bank Transfer" : "Crypto"} Method
+                  {editingMethod ? "Edit" : "Add"} {activeModal === "UPI" ? "UPI" : activeModal === "BANK" ? "Bank Transfer" : "Crypto"} Method
                 </h2>
               </div>
 
               <button
-                onClick={() => setActiveModal(null)}
+                onClick={() => {
+                  setActiveModal(null);
+                  setEditingMethod(null);
+                }}
                 className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
                   Display Title *
@@ -438,6 +509,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                   name="title"
                   type="text"
                   required
+                  defaultValue={editingMethod?.title || ""}
                   placeholder={
                     activeModal === "UPI"
                       ? "e.g. PhonePe / GooglePay / Paytm UPI"
@@ -459,6 +531,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                       name="upiId"
                       type="text"
                       required
+                      defaultValue={editingMethod?.details?.upiId || ""}
                       placeholder="e.g. yourname@okaxis or business@upi"
                       className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                     />
@@ -470,18 +543,8 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                     <input
                       name="payeeName"
                       type="text"
+                      defaultValue={editingMethod?.details?.payeeName || ""}
                       placeholder="e.g. Super Warrior 30 Mentorship"
-                      className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                      Custom QR Code Image URL (Optional)
-                    </label>
-                    <input
-                      name="qrCodeUrl"
-                      type="url"
-                      placeholder="Leave blank to auto-generate dynamic UPI QR"
                       className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                     />
                   </div>
@@ -498,7 +561,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                       name="network"
                       type="text"
                       required
-                      defaultValue="BEP-20 (BNB Smart Chain)"
+                      defaultValue={editingMethod?.details?.network || "BEP-20 (BNB Smart Chain)"}
                       placeholder="e.g. BEP-20, TRC-20, Polygon"
                       className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                     />
@@ -511,19 +574,9 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                       name="walletAddress"
                       type="text"
                       required
+                      defaultValue={editingMethod?.details?.walletAddress || ""}
                       placeholder="e.g. 0x45127b42b72c3357d94bc3687fe6c..."
                       className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                      Custom QR Code Image URL (Optional)
-                    </label>
-                    <input
-                      name="qrCodeUrl"
-                      type="url"
-                      placeholder="Leave blank to auto-generate from wallet address"
-                      className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                     />
                   </div>
                 </>
@@ -540,6 +593,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                         name="bankName"
                         type="text"
                         required
+                        defaultValue={editingMethod?.details?.bankName || ""}
                         placeholder="e.g. HDFC Bank"
                         className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                       />
@@ -552,6 +606,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                         name="accountName"
                         type="text"
                         required
+                        defaultValue={editingMethod?.details?.accountName || ""}
                         placeholder="e.g. Super Warrior 30"
                         className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                       />
@@ -567,6 +622,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                         name="accountNumber"
                         type="text"
                         required
+                        defaultValue={editingMethod?.details?.accountNumber || ""}
                         placeholder="e.g. 50200084920192"
                         className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
                       />
@@ -579,6 +635,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                         name="ifsc"
                         type="text"
                         required
+                        defaultValue={editingMethod?.details?.ifsc || ""}
                         placeholder="e.g. HDFC0001234"
                         className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-bold uppercase text-foreground focus:border-primary focus:outline-none"
                       />
@@ -592,11 +649,73 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                     <input
                       name="branch"
                       type="text"
+                      defaultValue={editingMethod?.details?.branch || ""}
                       placeholder="e.g. Mumbai Main Branch"
                       className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                     />
                   </div>
                 </>
+              )}
+
+              {/* QR Code Upload & URL Section for UPI and Crypto */}
+              {(activeModal === "UPI" || activeModal === "CRYPTO") && (
+                <div className="space-y-3 rounded-xl border border-border/80 bg-background/50 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <QrCode className="h-3.5 w-3.5 text-primary" />
+                      QR Code (Custom Upload or Auto)
+                    </label>
+                    {customQrUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomQrUrl("")}
+                        className="text-[10px] text-destructive hover:underline"
+                      >
+                        Reset to Auto
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Device File Upload */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-input bg-card px-3.5 py-2 text-xs font-bold text-foreground hover:bg-accent transition-all cursor-pointer shadow-sm"
+                    >
+                      <Upload className="h-3.5 w-3.5 text-primary" />
+                      Upload QR Image from Device
+                    </button>
+
+                    {customQrUrl && (
+                      <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Image Loaded
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Preview if uploaded */}
+                  {customQrUrl && (
+                    <div className="flex items-center gap-3 pt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={customQrUrl}
+                        alt="QR Preview"
+                        className="h-16 w-16 rounded-lg border border-border bg-white p-1 object-contain"
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Custom QR code will be displayed to buyers during checkout.
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
 
               <div>
@@ -606,6 +725,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                 <textarea
                   name="instructions"
                   rows={2}
+                  defaultValue={editingMethod?.instructions || ""}
                   placeholder="e.g. Transfer exact amount and paste your 12-digit UTR/Reference ID."
                   className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
                 />
@@ -614,7 +734,10 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
                 <button
                   type="button"
-                  onClick={() => setActiveModal(null)}
+                  onClick={() => {
+                    setActiveModal(null);
+                    setEditingMethod(null);
+                  }}
                   className="rounded-xl border border-input px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent cursor-pointer"
                 >
                   Cancel
@@ -624,7 +747,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                   disabled={isPending}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
                 >
-                  {isPending ? "Saving..." : "Save Payment Method"}
+                  {isPending ? "Saving..." : editingMethod ? "Update Method" : "Save Payment Method"}
                 </button>
               </div>
             </form>
