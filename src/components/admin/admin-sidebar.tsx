@@ -12,6 +12,7 @@ import {
   Wallet,
   ArrowDownToLine,
   Settings,
+  ShieldCheck,
   ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ const sidebarLinks = [
   { href: "/admin/referrals", label: "Referrals", icon: GitBranch },
   { href: "/admin/wallet", label: "Wallet", icon: Wallet },
   { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine },
+  { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck },
   { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];

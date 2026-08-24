@@ -52,16 +52,33 @@ export async function requireAuth() {
   return user;
 }
 
+export async function requireSuperAdmin() {
+  const user = await requireAuth();
+  if (user.role !== UserRole.SUPER_ADMIN) {
+    redirect("/admin");
+  }
+  return user;
+}
+
 export async function requireAdmin() {
   const user = await requireAuth();
-  if (user.role !== UserRole.ADMIN) redirect("/dashboard");
+  const allowedAdminRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SUPPORT];
+  if (!allowedAdminRoles.includes(user.role)) {
+    redirect("/dashboard");
+  }
+  return user;
+}
+
+export async function requireAdminWrite() {
+  const user = await requireAuth();
+  const writeRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN];
+  if (!writeRoles.includes(user.role)) {
+    throw new Error("Action denied. Your staff account has read-only/support permissions.");
+  }
   return user;
 }
 
 export async function requireStudent() {
   const user = await requireAuth();
-  if (user.role !== UserRole.STUDENT && user.role !== UserRole.ADMIN) {
-    redirect("/login");
-  }
   return user;
 }

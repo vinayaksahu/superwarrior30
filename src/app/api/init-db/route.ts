@@ -344,14 +344,27 @@ export async function GET() {
       );
     `);
 
-    // Step 2: Create Super Admin User
+    // Step 2: Ensure UserRole enum has SUPER_ADMIN and SUPPORT
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPER_ADMIN';
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT';
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
+    // Step 3: Create / Upgrade Super Admin User
     const adminPassword = await hashPassword("Admin@123");
     const adminId = "usr_admin_001";
     
     await prisma.$executeRawUnsafe(`
       INSERT INTO "users" ("id", "email", "name", "passwordHash", "role", "status", "referralCode", "tokenVersion", "createdAt", "updatedAt")
-      VALUES ('${adminId}', 'admin@superwarrior30.com', 'Super Admin', '${adminPassword}', 'ADMIN', 'ACTIVE', 'ADMIN001', 1, NOW(), NOW())
-      ON CONFLICT ("email") DO UPDATE SET "passwordHash" = '${adminPassword}', "role" = 'ADMIN';
+      VALUES ('${adminId}', 'admin@superwarrior30.com', 'Super Admin', '${adminPassword}', 'SUPER_ADMIN', 'ACTIVE', 'ADMIN001', 1, NOW(), NOW())
+      ON CONFLICT ("email") DO UPDATE SET "role" = 'SUPER_ADMIN';
 
       INSERT INTO "wallets" ("id", "userId", "availableBalance", "pendingBalance", "totalEarned", "totalWithdrawn", "version", "createdAt", "updatedAt")
       VALUES ('wlt_admin_001', '${adminId}', 0.00, 0.00, 0.00, 0.00, 1, NOW(), NOW())
