@@ -14,86 +14,104 @@ import type { ActionState } from "@/types";
 export async function getAdminOverviewAction() {
   await requireAdmin();
 
-  const [
-    totalStudents,
-    totalCourses,
-    publishedCourses,
-    ordersAgg,
-    totalRevenueAgg,
-    pendingWithdrawalsAgg,
-    totalCommissionsAgg,
-    recentOrders,
-    recentStudents,
-  ] = await Promise.all([
-    prisma.user.count({ where: { role: "STUDENT" } }),
-    prisma.course.count(),
-    prisma.course.count({ where: { status: "PUBLISHED" } }),
-    prisma.order.count({ where: { status: "PAID" } }),
-    prisma.order.aggregate({
-      where: { status: "PAID" },
-      _sum: { totalAmount: true },
-    }),
-    prisma.withdrawal.aggregate({
-      where: { status: "PENDING" },
-      _count: { id: true },
-      _sum: { amount: true },
-    }),
-    prisma.referralCommissionRecord.aggregate({
-      where: { status: { not: "CANCELLED" } },
-      _sum: { commissionAmount: true },
-    }),
-    prisma.order.findMany({
-      take: 6,
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: { select: { name: true, email: true } },
-        items: { select: { itemTitle: true } },
-      },
-    }),
-    prisma.user.findMany({
-      take: 6,
-      where: { role: "STUDENT" },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        _count: { select: { enrollments: true, directReferrals: true } },
-      },
-    }),
-  ]);
-
-  return {
-    metrics: {
+  try {
+    const [
       totalStudents,
       totalCourses,
       publishedCourses,
-      paidOrdersCount: ordersAgg,
-      totalRevenue: Number(totalRevenueAgg._sum.totalAmount || 0),
-      pendingWithdrawalsCount: pendingWithdrawalsAgg._count.id,
-      pendingWithdrawalsAmount: Number(pendingWithdrawalsAgg._sum.amount || 0),
-      totalCommissionsPaidOrPending: Number(totalCommissionsAgg._sum.commissionAmount || 0),
-    },
-    recentOrders: recentOrders.map((o) => ({
-      id: o.id,
-      orderNumber: o.orderNumber,
-      studentName: o.user.name || "Student",
-      studentEmail: o.user.email,
-      courseTitle: o.items[0]?.itemTitle || "Course",
-      totalAmount: Number(o.totalAmount),
-      status: o.status,
-      createdAt: o.createdAt,
-    })),
-    recentStudents: recentStudents.map((s) => ({
-      id: s.id,
-      name: s.name || "Student",
-      email: s.email,
-      coursesCount: s._count.enrollments,
-      referralsCount: s._count.directReferrals,
-      createdAt: s.createdAt,
-    })),
-  };
+      ordersAgg,
+      totalRevenueAgg,
+      pendingWithdrawalsAgg,
+      totalCommissionsAgg,
+      recentOrders,
+      recentStudents,
+    ] = await Promise.all([
+      prisma.user.count({ where: { role: "STUDENT" } }),
+      prisma.course.count(),
+      prisma.course.count({ where: { status: "PUBLISHED" } }),
+      prisma.order.count({ where: { status: "PAID" } }),
+      prisma.order.aggregate({
+        where: { status: "PAID" },
+        _sum: { totalAmount: true },
+      }),
+      prisma.withdrawal.aggregate({
+        where: { status: "PENDING" },
+        _count: { id: true },
+        _sum: { amount: true },
+      }),
+      prisma.referralCommissionRecord.aggregate({
+        where: { status: { not: "CANCELLED" } },
+        _sum: { commissionAmount: true },
+      }),
+      prisma.order.findMany({
+        take: 6,
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { name: true, email: true } },
+          items: { select: { itemTitle: true } },
+        },
+      }),
+      prisma.user.findMany({
+        take: 6,
+        where: { role: "STUDENT" },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+          _count: { select: { enrollments: true, directReferrals: true } },
+        },
+      }),
+    ]);
+
+    return {
+      metrics: {
+        totalStudents: totalStudents || 0,
+        totalCourses: totalCourses || 0,
+        publishedCourses: publishedCourses || 0,
+        paidOrdersCount: ordersAgg || 0,
+        totalRevenue: Number(totalRevenueAgg?._sum?.totalAmount || 0),
+        pendingWithdrawalsCount: pendingWithdrawalsAgg?._count?.id || 0,
+        pendingWithdrawalsAmount: Number(pendingWithdrawalsAgg?._sum?.amount || 0),
+        totalCommissionsPaidOrPending: Number(totalCommissionsAgg?._sum?.commissionAmount || 0),
+      },
+      recentOrders: (recentOrders || []).map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        studentName: o.user?.name || "Student",
+        studentEmail: o.user?.email || "Unknown",
+        courseTitle: o.items?.[0]?.itemTitle || "Course",
+        totalAmount: Number(o.totalAmount || 0),
+        status: o.status,
+        createdAt: o.createdAt,
+      })),
+      recentStudents: (recentStudents || []).map((s) => ({
+        id: s.id,
+        name: s.name || "Student",
+        email: s.email,
+        coursesCount: s._count?.enrollments || 0,
+        referralsCount: s._count?.directReferrals || 0,
+        createdAt: s.createdAt,
+      })),
+    };
+  } catch (error) {
+    console.error("Error loading admin overview metrics:", error);
+    return {
+      metrics: {
+        totalStudents: 0,
+        totalCourses: 0,
+        publishedCourses: 0,
+        paidOrdersCount: 0,
+        totalRevenue: 0,
+        pendingWithdrawalsCount: 0,
+        pendingWithdrawalsAmount: 0,
+        totalCommissionsPaidOrPending: 0,
+      },
+      recentOrders: [],
+      recentStudents: [],
+    };
+  }
 }
 
 // ==========================================

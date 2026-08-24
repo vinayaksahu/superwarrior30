@@ -14,6 +14,8 @@ import {
   Plus,
 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Admin Executive Dashboard",
 };
