@@ -14,6 +14,7 @@ import {
   Settings,
   ShieldCheck,
   ScrollText,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,12 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/withdrawals",
     label: "Withdrawals",
     icon: ArrowDownToLine,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    href: "/admin/payment-methods",
+    label: "Payment Methods",
+    icon: CreditCard,
     allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {

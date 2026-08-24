@@ -342,6 +342,64 @@ export async function GET() {
         "userAgent" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+
+      DO $$ BEGIN
+        CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "system_payment_methods" (
+        "id" TEXT PRIMARY KEY,
+        "type" "PaymentMethodType" NOT NULL,
+        "title" TEXT NOT NULL,
+        "details" JSONB NOT NULL,
+        "instructions" TEXT,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentRef" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentProof" JSONB;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedBy" TEXT;
+    `);
+
+    // Step 1.5: Seed default UPI and Crypto Payment Methods if table is empty
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "system_payment_methods" ("id", "type", "title", "details", "instructions", "isActive", "createdAt", "updatedAt")
+      VALUES 
+        (
+          'spm_upi_001',
+          'UPI',
+          'GooglePay / PhonePe / Paytm UPI',
+          '{"upiId":"superwarrior30@upi","payeeName":"Super Warrior 30 Mentorship","qrCodeUrl":"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi://pay?pa=superwarrior30@upi&pn=SuperWarrior30"}',
+          'Scan the QR code or send payment to the UPI ID. After completing payment, enter the 12-digit UTR / Reference Number below.',
+          true,
+          NOW(),
+          NOW()
+        ),
+        (
+          'spm_crypto_001',
+          'CRYPTO',
+          'USDT (BEP-20 / BNB Smart Chain)',
+          '{"network":"BEP-20 (BNB Smart Chain)","walletAddress":"0x45127b42b72c3357d94bc3687fe6c813a1a9e99a","qrCodeUrl":"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=0x45127b42b72c3357d94bc3687fe6c813a1a9e99a"}',
+          'Send exact USDT amount via BEP-20 network to the deposit address. Paste your transaction hash (TxID) below.',
+          true,
+          NOW(),
+          NOW()
+        ),
+        (
+          'spm_bank_001',
+          'BANK',
+          'Direct IMPS / NEFT Bank Transfer',
+          '{"bankName":"HDFC Bank","accountName":"Super Warrior 30 Trading Institute","accountNumber":"50200084920192","ifsc":"HDFC0001234","branch":"Mumbai Main Branch"}',
+          'Transfer exact amount via IMPS/NEFT/RTGS. Enter the bank transfer reference/UTR number below.',
+          true,
+          NOW(),
+          NOW()
+        )
+      ON CONFLICT ("id") DO NOTHING;
     `);
 
     // Step 2: Ensure UserRole enum has SUPER_ADMIN and SUPPORT

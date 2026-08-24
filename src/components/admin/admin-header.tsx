@@ -19,6 +19,7 @@ import {
   Settings,
   ShieldCheck,
   ScrollText,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ const allSidebarLinks: SidebarLink[] = [
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/coupons", label: "Coupons", icon: Tag, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
   { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
+  { href: "/admin/payment-methods", label: "Payment Methods", icon: CreditCard, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
   { href: "/admin/referrals", label: "Referrals", icon: GitBranch, allowedRoles: ["SUPER_ADMIN"] },
   { href: "/admin/wallet", label: "Wallet", icon: Wallet, allowedRoles: ["SUPER_ADMIN"] },
   { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck, allowedRoles: ["SUPER_ADMIN"] },

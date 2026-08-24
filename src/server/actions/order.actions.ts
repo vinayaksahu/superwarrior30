@@ -630,3 +630,239 @@ export async function adminRefundOrderAction(orderId: string): Promise<ActionSta
     return { success: true, message: "Order refunded and course enrollment revoked." };
   });
 }
+
+// ==========================================
+// 6. MANUAL PAYMENT SUBMISSION & APPROVAL
+// ==========================================
+
+export async function submitManualPaymentOrderAction({
+  courseId,
+  couponCode,
+  paymentMethodId,
+  paymentMethodTitle,
+  utrRef,
+  proofNote,
+}: {
+  courseId: string;
+  couponCode?: string;
+  paymentMethodId: string;
+  paymentMethodTitle: string;
+  utrRef: string;
+  proofNote?: string;
+}): Promise<{
+  success: boolean;
+  orderId?: string;
+  orderNumber?: string;
+  message?: string;
+  alreadyEnrolled?: boolean;
+}> {
+  const user = await requireAuth();
+
+  if (!utrRef || utrRef.trim().length < 4) {
+    return { success: false, message: "Please provide a valid UTR / Transaction Reference ID." };
+  }
+
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+  });
+
+  if (!course || course.status !== "PUBLISHED") {
+    return { success: false, message: "Course not found or unavailable." };
+  }
+
+  // Check enrollment
+  const existingEnrollment = await prisma.courseEnrollment.findUnique({
+    where: {
+      userId_courseId: {
+        userId: user.id,
+        courseId: course.id,
+      },
+    },
+  });
+
+  if (existingEnrollment && existingEnrollment.status === "ACTIVE") {
+    return {
+      success: false,
+      alreadyEnrolled: true,
+      message: "You are already enrolled in this course.",
+    };
+  }
+
+  // Coupon handling
+  let couponId: string | null = null;
+  let discountAmount = 0.0;
+  let finalPayable = Number(course.price);
+
+  if (couponCode && couponCode.trim().length > 0) {
+    const couponRes = await validateAndCalculateCouponAction({
+      code: couponCode,
+      courseId: course.id,
+    });
+
+    if (couponRes.valid && couponRes.couponId) {
+      couponId = couponRes.couponId;
+      discountAmount = couponRes.discountAmount;
+      finalPayable = couponRes.finalPrice;
+    }
+  }
+
+  const orderNumber = generateOrderNumber();
+
+  try {
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        userId: user.id,
+        couponId,
+        status: "PENDING",
+        currency: "INR",
+        subtotalAmount: course.price,
+        discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
+        taxAmount: 0.0,
+        totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
+        paymentProvider: "MANUAL",
+        paymentId: utrRef.trim(),
+        manualPaymentRef: utrRef.trim(),
+        manualPaymentProof: {
+          paymentMethodId,
+          paymentMethodTitle,
+          utrRef: utrRef.trim(),
+          proofNote: proofNote?.trim() || null,
+          submittedAt: new Date().toISOString(),
+          customerEmail: user.email,
+          customerName: user.name || "Student",
+        },
+        items: {
+          create: {
+            courseId: course.id,
+            itemTitle: course.title,
+            unitPrice: course.price,
+            quantity: 1,
+            totalPrice: new Prisma.Decimal(finalPayable.toFixed(2)),
+          },
+        },
+      },
+    });
+
+    revalidatePath("/admin/orders");
+    revalidatePath("/orders");
+    revalidatePath(`/checkout/success/${order.id}`);
+
+    return {
+      success: true,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      message: "Payment submitted successfully. Your order is pending verification.",
+    };
+  } catch (error) {
+    console.error("Error submitting manual payment order:", error);
+    return {
+      success: false,
+      message: "Failed to submit order. Please try again or contact support.",
+    };
+  }
+}
+
+export async function approveManualOrderPaymentAction(orderId: string): Promise<ActionState> {
+  const admin = await requireAdmin();
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true, user: true },
+  });
+
+  if (!order) {
+    return { success: false, message: "Order not found." };
+  }
+
+  if (order.status === "PAID") {
+    return { success: false, message: "This order is already marked as Paid." };
+  }
+
+  try {
+    await fulfillOrderPayment({
+      orderId,
+      provider: "MANUAL_ADMIN_APPROVED",
+      paymentId: order.manualPaymentRef || order.paymentId || "MANUAL_VERIFIED",
+      metadata: {
+        approvedBy: admin.email,
+        approvedAt: new Date().toISOString(),
+        manualPaymentRef: order.manualPaymentRef,
+      },
+    });
+
+    // Update approved fields on order
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        approvedAt: new Date(),
+        approvedBy: admin.email,
+      },
+    });
+
+    revalidatePath("/admin/orders");
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/courses");
+    revalidatePath("/orders");
+
+    return {
+      success: true,
+      message: `Order #${order.orderNumber} approved! Student is now enrolled and commissions distributed.`,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to approve manual payment";
+    return { success: false, message: msg };
+  }
+}
+
+export async function rejectManualOrderPaymentAction(
+  orderId: string,
+  reason?: string
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+  });
+
+  if (!order) return { success: false, message: "Order not found." };
+  if (order.status === "PAID") {
+    return { success: false, message: "Cannot reject an order that is already Paid. Use Refund instead." };
+  }
+
+  try {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "FAILED",
+        cancelledAt: new Date(),
+        metadata: {
+          rejectedBy: admin.email,
+          rejectedAt: new Date().toISOString(),
+          rejectionReason: reason || "Payment verification failed or invalid UTR.",
+        },
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: admin.id,
+        actorEmail: admin.email,
+        actorRole: admin.role,
+        action: "ORDER_PAYMENT_REJECTED",
+        entityType: "Order",
+        entityId: orderId,
+        newValues: { reason: reason || "Invalid UTR" },
+      },
+    });
+
+    revalidatePath("/admin/orders");
+    revalidatePath("/orders");
+    return { success: true, message: `Order #${order.orderNumber} rejected.` };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to reject order";
+    return { success: false, message: msg };
+  }
+}
+

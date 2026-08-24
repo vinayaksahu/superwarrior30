@@ -1,58 +1,66 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
-  adminCancelOrderAction,
+  approveManualOrderPaymentAction,
+  rejectManualOrderPaymentAction,
   adminRefundOrderAction,
-  mockConfirmPaymentAction,
 } from "@/server/actions/order.actions";
-import { CheckCircle2, XCircle, RotateCcw, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, Loader2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
 interface AdminOrderActionsProps {
   orderId: string;
   status: string;
   orderNumber: string;
+  manualPaymentRef?: string | null;
 }
 
 export function AdminOrderActions({
   orderId,
   status,
   orderNumber,
+  manualPaymentRef,
 }: AdminOrderActionsProps) {
   const [isPending, startTransition] = useTransition();
+  const [copied, setCopied] = useState(false);
 
-  const handleConfirmPaid = () => {
-    if (!confirm(`Mark order "${orderNumber}" as PAID and unlock enrollment?`)) return;
+  const handleApprove = () => {
+    const promptMsg = manualPaymentRef
+      ? `Approve payment for Order #${orderNumber} (UTR: ${manualPaymentRef})?\nThis will grant student instant access & distribute affiliate commissions.`
+      : `Mark Order #${orderNumber} as PAID and grant course access?`;
+
+    if (!confirm(promptMsg)) return;
 
     startTransition(async () => {
       try {
-        const res = await mockConfirmPaymentAction(orderId);
+        const res = await approveManualOrderPaymentAction(orderId);
         if (res.success) {
-          toast.success("Order marked as PAID and user enrolled!");
+          toast.success(res.message);
         } else {
-          toast.error(res.message || "Failed to update order");
+          toast.error(res.message || "Failed to approve payment");
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Error confirming payment";
+        const msg = err instanceof Error ? err.message : "Error approving payment";
         toast.error(msg);
       }
     });
   };
 
-  const handleCancel = () => {
-    if (!confirm(`Cancel order "${orderNumber}"?`)) return;
+  const handleReject = () => {
+    const reason = prompt(`Reason for rejecting Order #${orderNumber}:`, "Invalid or unverified UTR reference number");
+    if (reason === null) return;
 
     startTransition(async () => {
       try {
-        const res = await adminCancelOrderAction(orderId);
+        const res = await rejectManualOrderPaymentAction(orderId, reason);
         if (res.success) {
-          toast.success("Order cancelled");
+          toast.success(res.message);
         } else {
-          toast.error(res.message || "Failed to cancel order");
+          toast.error(res.message || "Failed to reject order");
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Error cancelling order";
+        const msg = err instanceof Error ? err.message : "Error rejecting order";
         toast.error(msg);
       }
     });
@@ -76,30 +84,49 @@ export function AdminOrderActions({
     });
   };
 
+  const copyRef = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success("UTR copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="flex items-center justify-end gap-1.5">
+    <div className="flex items-center justify-end gap-2">
+      {manualPaymentRef && (
+        <button
+          type="button"
+          onClick={() => copyRef(manualPaymentRef)}
+          className="inline-flex items-center gap-1 rounded bg-muted/60 px-2 py-0.5 font-mono text-[10px] font-bold text-foreground hover:bg-muted"
+          title="Copy UTR / Reference ID"
+        >
+          {copied ? <Check className="h-2.5 w-2.5 text-emerald-500" /> : <Copy className="h-2.5 w-2.5" />}
+          UTR: {manualPaymentRef}
+        </button>
+      )}
+
       {status === "PENDING" && (
         <>
           <button
             type="button"
             disabled={isPending}
-            onClick={handleConfirmPaid}
-            className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-500 hover:bg-emerald-500/20 disabled:opacity-50"
-            title="Confirm payment and enroll student"
+            onClick={handleApprove}
+            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-xs font-bold text-black hover:bg-emerald-400 disabled:opacity-50 shadow-sm transition-all cursor-pointer"
+            title="Approve payment, unlock course & credit commissions"
           >
             {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-            Mark Paid
+            Approve Payment
           </button>
 
           <button
             type="button"
             disabled={isPending}
-            onClick={handleCancel}
-            className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive hover:bg-destructive/20 disabled:opacity-50"
-            title="Cancel pending order"
+            onClick={handleReject}
+            className="inline-flex items-center gap-1 rounded-lg bg-destructive/15 px-2 py-1 text-xs font-semibold text-destructive hover:bg-destructive/25 disabled:opacity-50 transition-colors cursor-pointer"
+            title="Reject unverified order"
           >
             <XCircle className="h-3.5 w-3.5" />
-            Cancel
+            Reject
           </button>
         </>
       )}
@@ -109,7 +136,7 @@ export function AdminOrderActions({
           type="button"
           disabled={isPending}
           onClick={handleRefund}
-          className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-2.5 py-1 text-xs font-semibold text-purple-400 hover:bg-purple-500/20 disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-lg bg-purple-500/15 px-2.5 py-1 text-xs font-semibold text-purple-400 hover:bg-purple-500/25 disabled:opacity-50 transition-colors cursor-pointer"
           title="Refund order and revoke course enrollment"
         >
           {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}

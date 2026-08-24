@@ -147,6 +147,7 @@ export default async function AdminOrdersPage({
                         orderId={order.id}
                         status={order.status}
                         orderNumber={order.orderNumber}
+                        manualPaymentRef={order.manualPaymentRef || order.paymentId}
                       />
                     </td>
                   </tr>
