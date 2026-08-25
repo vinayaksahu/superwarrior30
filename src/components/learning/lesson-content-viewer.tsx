@@ -98,28 +98,35 @@ export function LessonContentViewer({
     };
   }, [courseSlug, lessonId, isCompleted]);
 
-  const handleToggleComplete = () => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleToggleComplete = async () => {
     const newStatus = completed ? "IN_PROGRESS" : "COMPLETED";
+    setIsSaving(true);
 
-    startTransition(async () => {
-      try {
-        const res = await updateLessonProgressAction({
-          lessonId,
-          status: newStatus,
-        });
+    try {
+      const response = await fetch(`/api/lessons/${lessonId}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
 
-        if (res.success) {
-          setCompleted(!completed);
-          toast.success(!completed ? "Lesson marked complete!" : "Progress updated");
-          router.refresh();
-        } else {
-          toast.error(res.message || "Failed to update progress");
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Error saving progress";
-        toast.error(msg);
+      const res = await response.json().catch(() => ({}));
+
+      if (response.ok && res.success) {
+        setCompleted(!completed);
+        toast.success(!completed ? "Lesson marked complete!" : "Progress updated");
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to update progress");
       }
-    });
+    } catch (err: unknown) {
+      console.error("Progress save error:", err);
+      const msg = err instanceof Error ? err.message : "Error saving progress";
+      toast.error(msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleVideoEnded = () => {
@@ -177,7 +184,7 @@ export function LessonContentViewer({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            disabled={isPending}
+            disabled={isSaving}
             onClick={handleToggleComplete}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold shadow-sm transition-all cursor-pointer ${
               completed
@@ -185,7 +192,7 @@ export function LessonContentViewer({
                 : "bg-primary text-primary-foreground hover:bg-primary/90"
             }`}
           >
-            {isPending ? (
+            {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <CheckCircle2 className="h-4 w-4" />

@@ -51,11 +51,22 @@ export async function ensureDatabaseSchemaSync() {
     }
   }
 
-  // System payment methods table & enum
+  // Enums & Tables
   try {
     await prisma.$executeRawUnsafe(`
       DO $$ BEGIN
         CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "ProgressStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED');
       EXCEPTION WHEN duplicate_object THEN null;
       END $$;
     `);
@@ -74,6 +85,24 @@ export async function ensureDatabaseSchemaSync() {
         "isActive" BOOLEAN NOT NULL DEFAULT true,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "lesson_progress" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "lessonId" TEXT NOT NULL,
+        "status" "ProgressStatus" NOT NULL DEFAULT 'NOT_STARTED',
+        "watchTimeSeconds" INTEGER NOT NULL DEFAULT 0,
+        "lastPositionSeconds" INTEGER NOT NULL DEFAULT 0,
+        "completedAt" TIMESTAMP(3),
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "lesson_progress_userId_lessonId_key" UNIQUE ("userId", "lessonId")
       );
     `);
   } catch {
