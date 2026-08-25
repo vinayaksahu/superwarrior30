@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getEnrolledCourseContentAction } from "@/server/actions/enrollment.actions";
-import { CourseSidebar } from "@/components/learning/course-sidebar";
-import { LessonContentViewer } from "@/components/learning/lesson-content-viewer";
+import { CourseClassroomView } from "@/components/learning/course-classroom-view";
+
+export const dynamic = "force-dynamic";
 
 interface CourseLearnLessonProps {
   params: Promise<{ courseSlug: string; lessonId: string }>;
@@ -13,7 +14,7 @@ export async function generateMetadata({
 }: CourseLearnLessonProps): Promise<Metadata> {
   const { courseSlug } = await params;
   return {
-    title: `Learning | ${courseSlug.replace(/-/g, " ")} | Super Warrior 30`,
+    title: `Learning | ${courseSlug.replace(/-/g, " ")} | Rahul Trade Warrior Academy`,
   };
 }
 
@@ -48,30 +49,18 @@ export default async function CourseLearnLessonPage({
   const nextLessonId =
     currentIndex < flatLessons.length - 1 ? flatLessons[currentIndex + 1].id : undefined;
 
-  const isCompleted = progressMap[lessonId]?.status === "COMPLETED";
-
   return (
     <div className="min-h-screen bg-background">
-      <div className="flex flex-col lg:flex-row">
-        <CourseSidebar
-          courseSlug={course.slug}
-          courseTitle={course.title}
-          activeLessonId={lessonId}
-          modules={course.modules}
-          progressMap={progressMap}
-          progressPercentage={stats.progressPercentage}
-        />
-
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-          <LessonContentViewer
-            courseSlug={course.slug}
-            lessonId={lessonId}
-            isCompleted={isCompleted}
-            prevLessonId={prevLessonId}
-            nextLessonId={nextLessonId}
-          />
-        </main>
-      </div>
+      <CourseClassroomView
+        courseSlug={course.slug}
+        courseTitle={course.title}
+        activeLessonId={lessonId}
+        modules={course.modules}
+        initialProgressMap={progressMap}
+        initialProgressPercentage={stats.progressPercentage}
+        prevLessonId={prevLessonId}
+        nextLessonId={nextLessonId}
+      />
     </div>
   );
 }
