@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   BookOpen,
   CheckCircle2,
-  PlayCircle,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +23,9 @@ export default async function CourseLearnIndexPage({
   let contentData;
   try {
     contentData = await getEnrolledCourseContentAction(courseSlug);
-  } catch {
+  } catch (error) {
+    console.error("Enrollment check error:", error);
+    // If not enrolled or error, redirect to public course page
     redirect(`/courses/${courseSlug}`);
   }
 
@@ -32,8 +33,8 @@ export default async function CourseLearnIndexPage({
 
   // Find all published lessons in order
   const allLessons: { id: string }[] = [];
-  for (const mod of course.modules) {
-    for (const lesson of mod.lessons) {
+  for (const mod of course.modules || []) {
+    for (const lesson of mod.lessons || []) {
       allLessons.push({ id: lesson.id });
     }
   }
@@ -64,7 +65,7 @@ export default async function CourseLearnIndexPage({
         </Link>
 
         <div className="rounded-3xl border border-border bg-card p-8 shadow-2xl text-center space-y-6">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10 text-emerald-500 shadow-inner">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-amber-500/10 text-amber-400 shadow-inner border border-amber-500/20">
             <GraduationCap className="h-10 w-10" />
           </div>
 
@@ -78,7 +79,7 @@ export default async function CourseLearnIndexPage({
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
               {course.shortDescription ||
-                "Welcome to the mentorship program! You have full access to this course."}
+                "Welcome to the mentorship program! You have full lifetime access to this course."}
             </p>
           </div>
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, getCurrentUser } from "@/server/dal/auth";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { createPresignedDownloadUrl } from "@/lib/storage";
 import { SIGNED_URL_EXPIRY } from "@/lib/constants";
 import type { ActionState } from "@/types";
@@ -26,7 +27,21 @@ export async function checkUserEnrollment(courseId: string): Promise<boolean> {
       select: { status: true },
     });
 
-    return enrollment?.status === "ACTIVE";
+    if (enrollment?.status === "ACTIVE") return true;
+
+    // Check if user has a PAID order for this course
+    const paidOrder = await prisma.order.findFirst({
+      where: {
+        userId: user.id,
+        status: "PAID",
+        items: {
+          some: { courseId },
+        },
+      },
+      select: { id: true },
+    });
+
+    return !!paidOrder;
   } catch {
     return false;
   }
@@ -37,6 +52,7 @@ export async function checkUserEnrollment(courseId: string): Promise<boolean> {
 // ==========================================
 
 export async function getEnrolledCourseContentAction(courseSlug: string) {
+  await ensureDatabaseSchemaSync();
   const user = await requireAuth();
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
@@ -81,11 +97,63 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
       where: {
         userId: user.id,
         courseId: course.id,
-        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+        userId: true,
+        courseId: true,
+        status: true,
+        enrolledAt: true,
+        completedAt: true,
       },
     });
   } catch {
     // fallback
+  }
+
+  // Fallback: check if student has a PAID order for this course and auto-heal enrollment
+  if (!enrollment || enrollment.status !== "ACTIVE") {
+    try {
+      const paidOrder = await prisma.order.findFirst({
+        where: {
+          userId: user.id,
+          status: "PAID",
+          items: {
+            some: { courseId: course.id },
+          },
+        },
+        select: { id: true },
+      });
+
+      if (paidOrder || isAdmin) {
+        enrollment = await prisma.courseEnrollment.upsert({
+          where: {
+            userId_courseId: {
+              userId: user.id,
+              courseId: course.id,
+            },
+          },
+          create: {
+            userId: user.id,
+            courseId: course.id,
+            status: "ACTIVE",
+          },
+          update: {
+            status: "ACTIVE",
+          },
+          select: {
+            id: true,
+            userId: true,
+            courseId: true,
+            status: true,
+            enrolledAt: true,
+            completedAt: true,
+          },
+        });
+      }
+    } catch {
+      // ignore
+    }
   }
 
   if (!isAdmin && (!enrollment || enrollment.status !== "ACTIVE")) {
@@ -93,12 +161,22 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
   }
 
   // Step 3: Fetch Student's Lesson Progress
-  const progressRecords = await prisma.lessonProgress.findMany({
-    where: {
-      userId: user.id,
-      lesson: { module: { courseId: course.id } },
-    },
-  });
+  let progressRecords: Array<{ lessonId: string; status: string; watchTimeSeconds: number }> = [];
+  try {
+    progressRecords = await prisma.lessonProgress.findMany({
+      where: {
+        userId: user.id,
+        lesson: { module: { courseId: course.id } },
+      },
+      select: {
+        lessonId: true,
+        status: true,
+        watchTimeSeconds: true,
+      },
+    });
+  } catch {
+    progressRecords = [];
+  }
 
   const progressMap = new Map<string, { status: string; watchTimeSeconds: number }>();
   for (const p of progressRecords) {
