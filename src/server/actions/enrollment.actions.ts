@@ -14,19 +14,22 @@ import type { ActionState } from "@/types";
 export async function checkUserEnrollment(courseId: string): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) return false;
-  if (user.role === "ADMIN") return true;
+  if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") return true;
 
-  const enrollment = await prisma.courseEnrollment.findUnique({
-    where: {
-      userId_courseId: {
+  try {
+    const enrollment = await prisma.courseEnrollment.findFirst({
+      where: {
         userId: user.id,
         courseId,
+        status: "ACTIVE",
       },
-    },
-    select: { status: true },
-  });
+      select: { status: true },
+    });
 
-  return enrollment?.status === "ACTIVE";
+    return enrollment?.status === "ACTIVE";
+  } catch {
+    return false;
+  }
 }
 
 // ==========================================
@@ -35,7 +38,7 @@ export async function checkUserEnrollment(courseId: string): Promise<boolean> {
 
 export async function getEnrolledCourseContentAction(courseSlug: string) {
   const user = await requireAuth();
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
   // Step 1: Fetch Course
   const course = await prisma.course.findUnique({
@@ -72,14 +75,18 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
   }
 
   // Step 2: Verify Active Enrollment
-  const enrollment = await prisma.courseEnrollment.findUnique({
-    where: {
-      userId_courseId: {
+  let enrollment = null;
+  try {
+    enrollment = await prisma.courseEnrollment.findFirst({
+      where: {
         userId: user.id,
         courseId: course.id,
+        status: "ACTIVE",
       },
-    },
-  });
+    });
+  } catch {
+    // fallback
+  }
 
   if (!isAdmin && (!enrollment || enrollment.status !== "ACTIVE")) {
     throw new Error("Access denied. You are not enrolled in this course.");

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicCourseBySlugAction } from "@/server/actions/course.actions";
+import { checkUserEnrollment } from "@/server/actions/enrollment.actions";
 import { FreePreviewButton } from "@/components/courses/free-preview-modal";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -16,6 +17,7 @@ import {
   Lock,
   ArrowLeft,
   Share2,
+  PlayCircle,
 } from "lucide-react";
 
 interface CourseDetailPageProps {
@@ -46,6 +48,8 @@ export default async function CourseDetailPage({
   if (!course) {
     notFound();
   }
+
+  const isEnrolled = await checkUserEnrollment(course.id);
 
   const totalLessons = course.modules.reduce(
     (acc, m) => acc + m.lessons.length,
@@ -139,12 +143,22 @@ export default async function CourseDetailPage({
                   </div>
                 </div>
 
-                <Link
-                  href={`/checkout/${course.id}`}
-                  className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-[1.01]"
-                >
-                  Enroll Now
-                </Link>
+                {isEnrolled ? (
+                  <Link
+                    href={`/learn/${course.slug}`}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 text-sm font-bold text-black shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400"
+                  >
+                    <PlayCircle className="h-5 w-5" />
+                    Start / Continue Learning
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/checkout/${course.id}`}
+                    className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-[1.01]"
+                  >
+                    Enroll Now
+                  </Link>
+                )}
 
                 <div className="space-y-3 border-t border-border pt-4 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
