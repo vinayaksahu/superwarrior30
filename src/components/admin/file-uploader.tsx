@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { getPresignedUploadUrlAction } from "@/server/actions/upload.actions";
 import { UploadCloud, CheckCircle2, AlertCircle, Loader2, FileIcon, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,58 +51,62 @@ export function FileUploader({
     if (!file) return;
 
     setFileName(file.name);
-    setStatus("requesting");
-    setProgress(0);
+    setStatus("uploading");
+    setProgress(10);
     setErrorMessage(null);
 
     try {
-      // 1. Get presigned upload URL from Server Action
-      const { uploadUrl, key } = await getPresignedUploadUrlAction({
-        filename: file.name,
-        mimeType: file.type,
-        size: file.size,
-        category,
-        courseId,
-        moduleId,
-        lessonId,
-      });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", category);
+      formData.append("courseId", courseId);
+      if (moduleId) formData.append("moduleId", moduleId);
+      if (lessonId) formData.append("lessonId", lessonId);
 
-      setStatus("uploading");
-
-      // 2. Direct upload to R2 via XMLHttpRequest with progress tracking
-      await new Promise<void>((resolve, reject) => {
+      // Direct REST API Upload with progress tracking
+      const uploadPromise = new Promise<{ success: boolean; key: string; error?: string }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadUrl);
-        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.open("POST", "/api/upload");
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 90);
+            const percent = Math.round((event.loaded / event.total) * 85) + 10;
             setProgress(percent);
           }
         };
 
         xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setProgress(95);
-            resolve();
-          } else {
-            reject(new Error(`Upload failed with HTTP status ${xhr.status}`));
+          try {
+            const json = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300 && json.success) {
+              setProgress(95);
+              resolve(json);
+            } else {
+              reject(new Error(json.error || `Upload failed with status ${xhr.status}`));
+            }
+          } catch {
+            reject(new Error(`Server returned unexpected response (${xhr.status})`));
           }
         };
 
-        xhr.onerror = () => reject(new Error("Network error during direct R2 upload"));
-        xhr.send(file);
+        xhr.onerror = () => reject(new Error("Network error during file upload"));
+        xhr.send(formData);
       });
 
-      // 3. Complete database update
+      const res = await uploadPromise;
+
+      if (!res.success || !res.key) {
+        throw new Error(res.error || "File upload failed");
+      }
+
       setStatus("saving");
-      await onUploadComplete(key);
+      await onUploadComplete(res.key);
 
       setProgress(100);
       setStatus("completed");
       toast.success(`${label} uploaded successfully!`);
     } catch (err: unknown) {
+      console.error("Upload error:", err);
       const msg = err instanceof Error ? err.message : "Failed to upload file";
       setStatus("error");
       setErrorMessage(msg);
@@ -128,7 +131,7 @@ export function FileUploader({
         accept={defaultAccept}
         className="hidden"
         onChange={handleFileChange}
-        disabled={status === "requesting" || status === "uploading" || status === "saving"}
+        disabled={status === "uploading" || status === "saving"}
       />
 
       <div className="flex flex-col items-center justify-center text-center">
@@ -137,7 +140,7 @@ export function FileUploader({
             <CheckCircle2 className="h-6 w-6 text-emerald-500" />
           ) : status === "error" ? (
             <AlertCircle className="h-6 w-6 text-destructive" />
-          ) : status === "requesting" || status === "uploading" || status === "saving" ? (
+          ) : status === "uploading" || status === "saving" ? (
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           ) : currentKey ? (
             <FileIcon className="h-6 w-6 text-primary" />
@@ -147,9 +150,7 @@ export function FileUploader({
         </div>
 
         <p className="text-sm font-semibold text-foreground">
-          {status === "requesting"
-            ? "Preparing upload..."
-            : status === "uploading"
+          {status === "uploading"
             ? `Uploading (${progress}%)...`
             : status === "saving"
             ? "Saving file..."
@@ -165,7 +166,9 @@ export function FileUploader({
         {currentKey && status === "idle" && (
           <div className="mt-2 flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
             <FileIcon className="h-3.5 w-3.5 text-primary" />
-            <span className="max-w-[200px] truncate font-mono">{currentKey.split("/").pop()}</span>
+            <span className="max-w-[200px] truncate font-mono">
+              {currentKey.startsWith("data:") ? "Uploaded Document (Ready)" : currentKey.split("/").pop()}
+            </span>
           </div>
         )}
 
@@ -193,7 +196,7 @@ export function FileUploader({
             <button
               type="button"
               onClick={resetUpload}
-              className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+              className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
               Upload Different File
@@ -201,9 +204,9 @@ export function FileUploader({
           ) : (
             <button
               type="button"
-              disabled={status === "requesting" || status === "uploading" || status === "saving"}
+              disabled={status === "uploading" || status === "saving"}
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
             >
               <UploadCloud className="h-3.5 w-3.5" />
               {currentKey ? "Replace File" : "Choose File"}

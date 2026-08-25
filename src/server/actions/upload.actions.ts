@@ -15,74 +15,80 @@ export async function getPresignedUploadUrlAction(input: {
   moduleId?: string;
   lessonId?: string;
 }) {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const validated = uploadSchema.parse({
-    filename: input.filename,
-    mimeType: input.mimeType,
-    size: input.size,
-    category: input.category,
-  });
+    const validated = uploadSchema.parse({
+      filename: input.filename,
+      mimeType: input.mimeType,
+      size: input.size,
+      category: input.category,
+    });
 
-  // Validate MIME type based on category
-  const allowedTypes = (() => {
-    switch (validated.category) {
-      case "video":
-        return ALLOWED_MIME_TYPES.VIDEO as readonly string[];
-      case "pdf":
-        return ALLOWED_MIME_TYPES.PDF as readonly string[];
-      case "thumbnail":
-      case "image":
-        return ALLOWED_MIME_TYPES.IMAGE as readonly string[];
+    // Validate MIME type based on category
+    const allowedTypes = (() => {
+      switch (validated.category) {
+        case "video":
+          return ALLOWED_MIME_TYPES.VIDEO as readonly string[];
+        case "pdf":
+          return ALLOWED_MIME_TYPES.PDF as readonly string[];
+        case "thumbnail":
+        case "image":
+          return ALLOWED_MIME_TYPES.IMAGE as readonly string[];
+      }
+    })();
+
+    if (!allowedTypes.includes(validated.mimeType)) {
+      return {
+        success: false,
+        error: `Invalid file type: ${validated.mimeType}. Allowed: ${allowedTypes.join(", ")}`,
+      };
     }
-  })();
 
-  if (!allowedTypes.includes(validated.mimeType)) {
-    throw new Error(
-      `Invalid file type: ${validated.mimeType}. Allowed: ${allowedTypes.join(", ")}`
-    );
-  }
+    // Validate file size based on category
+    const maxSize = (() => {
+      switch (validated.category) {
+        case "video":
+          return MAX_FILE_SIZES.VIDEO;
+        case "pdf":
+          return MAX_FILE_SIZES.PDF;
+        case "thumbnail":
+          return MAX_FILE_SIZES.THUMBNAIL;
+        case "image":
+          return MAX_FILE_SIZES.IMAGE;
+      }
+    })();
 
-  // Validate file size based on category
-  const maxSize = (() => {
-    switch (validated.category) {
-      case "video":
-        return MAX_FILE_SIZES.VIDEO;
-      case "pdf":
-        return MAX_FILE_SIZES.PDF;
-      case "thumbnail":
-        return MAX_FILE_SIZES.THUMBNAIL;
-      case "image":
-        return MAX_FILE_SIZES.IMAGE;
+    if (validated.size > maxSize) {
+      const maxMB = Math.round(maxSize / (1024 * 1024));
+      return { success: false, error: `File too large. Maximum size: ${maxMB}MB` };
     }
-  })();
 
-  if (validated.size > maxSize) {
-    const maxMB = Math.round(maxSize / (1024 * 1024));
-    throw new Error(`File too large. Maximum size: ${maxMB}MB`);
+    // Build secure R2 key path
+    const ext = validated.filename.split(".").pop()?.toLowerCase() || "bin";
+    const uniqueId = crypto.randomUUID();
+
+    let key: string;
+    if (validated.category === "thumbnail") {
+      key = `courses/${input.courseId}/thumbnail-${uniqueId}.${ext}`;
+    } else if (validated.category === "video" && input.lessonId) {
+      key = `courses/${input.courseId}/lessons/${input.lessonId}/video-${uniqueId}.${ext}`;
+    } else if (validated.category === "pdf" && input.lessonId) {
+      key = `courses/${input.courseId}/lessons/${input.lessonId}/doc-${uniqueId}.${ext}`;
+    } else {
+      key = `courses/${input.courseId}/files/${uniqueId}.${ext}`;
+    }
+
+    const { uploadUrl } = await createPresignedUploadUrl({
+      key,
+      contentType: validated.mimeType,
+      contentLength: validated.size,
+      expiresIn: SIGNED_URL_EXPIRY.UPLOAD,
+    });
+
+    return { success: true, uploadUrl, key };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to generate presigned upload URL";
+    return { success: false, error: msg };
   }
-
-  // Build secure R2 key path
-  const ext = validated.filename.split(".").pop()?.toLowerCase() || "bin";
-  const uniqueId = crypto.randomUUID();
-
-  let key: string;
-  if (validated.category === "thumbnail") {
-    key = `courses/${input.courseId}/thumbnail-${uniqueId}.${ext}`;
-  } else if (validated.category === "video" && input.lessonId) {
-    key = `courses/${input.courseId}/lessons/${input.lessonId}/video-${uniqueId}.${ext}`;
-  } else if (validated.category === "pdf" && input.lessonId) {
-    key = `courses/${input.courseId}/lessons/${input.lessonId}/doc-${uniqueId}.${ext}`;
-  } else {
-    key = `courses/${input.courseId}/files/${uniqueId}.${ext}`;
-  }
-
-  const { uploadUrl } = await createPresignedUploadUrl({
-    key,
-    contentType: validated.mimeType,
-    contentLength: validated.size,
-    expiresIn: SIGNED_URL_EXPIRY.UPLOAD,
-  });
-
-  return { uploadUrl, key };
 }

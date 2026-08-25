@@ -45,6 +45,13 @@ export async function createPresignedDownloadUrl(
   key: string,
   expiresIn = 3600 // 1 hour
 ) {
+  if (!key) return null;
+
+  // Support direct base64 data URIs and external URLs
+  if (key.startsWith("data:") || key.startsWith("http://") || key.startsWith("https://")) {
+    return key;
+  }
+
   // Graceful fallback for demo/preview when R2 is unconfigured
   if (!isR2Configured()) {
     if (key.endsWith(".mp4") || key.endsWith(".webm") || key.includes("video")) {
