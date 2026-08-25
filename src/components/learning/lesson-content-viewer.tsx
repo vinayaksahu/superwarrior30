@@ -15,9 +15,8 @@ import {
   ChevronLeft,
   Loader2,
   AlertCircle,
-  ExternalLink,
-  Download,
-  Maximize2,
+  ShieldAlert,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,6 +49,23 @@ export function LessonContentViewer({
   const [completed, setCompleted] = useState(isCompleted);
   const [isPending, startTransition] = useTransition();
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Anti-Piracy Keyboard & Screenshot Protection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent Print, Save, Inspect shortcuts
+      if (
+        (e.ctrlKey && (e.key === "p" || e.key === "s" || e.key === "u" || e.key === "S" || e.key === "P")) ||
+        e.key === "PrintScreen"
+      ) {
+        e.preventDefault();
+        toast.error("Content is copyright protected. Downloading and printing are disabled.");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -133,34 +149,32 @@ export function LessonContentViewer({
     );
   }
 
-  const pdfStreamUrl = `/api/lessons/${lessonId}/pdf`;
+  // PDF URL with toolbar and download controls explicitly disabled
+  const pdfStreamUrl = `/api/lessons/${lessonId}/pdf#toolbar=0&navpanes=0&scrollbar=1`;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div
+      className="space-y-6 max-w-4xl mx-auto select-none"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {/* Title & Actions Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
-            {mediaData.title}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-foreground">
+              {mediaData.title}
+            </h1>
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+              <Lock className="h-2.5 w-2.5" />
+              PROTECTED
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground mt-1 capitalize font-medium">
             Format: {mediaData.contentType.toLowerCase()}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {mediaData.contentType === "PDF" && (
-            <a
-              href={pdfStreamUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-input bg-card px-3.5 py-2 text-xs font-bold text-foreground shadow-sm hover:bg-accent transition-all cursor-pointer"
-            >
-              <ExternalLink className="h-3.5 w-3.5 text-primary" />
-              Open PDF in New Tab
-            </a>
-          )}
-
           <button
             type="button"
             disabled={isPending}
@@ -182,7 +196,15 @@ export function LessonContentViewer({
       </div>
 
       {/* Main Media Player Container */}
-      <div className="rounded-2xl border border-border bg-black/95 shadow-2xl overflow-hidden">
+      <div
+        className="relative rounded-2xl border border-border bg-black/95 shadow-2xl overflow-hidden"
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {/* Anti-Piracy Watermark Badge */}
+        <div className="pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-2 py-1 text-[10px] font-mono text-white/40 backdrop-blur-sm">
+          Protected • Rahul Trade Warrior Academy
+        </div>
+
         {mediaData.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
             <div className="aspect-video w-full">
@@ -190,10 +212,11 @@ export function LessonContentViewer({
                 ref={videoRef}
                 src={mediaData.signedUrl}
                 controls
-                controlsList="nodownload"
+                controlsList="nodownload noplaybackrate"
+                disablePictureInPicture
                 onContextMenu={(e) => e.preventDefault()}
                 onEnded={handleVideoEnded}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-contain select-none"
               />
             </div>
           ) : (
@@ -203,48 +226,23 @@ export function LessonContentViewer({
             </div>
           )
         ) : mediaData.contentType === "PDF" ? (
-          <div className="w-full flex flex-col bg-background">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b border-border text-xs text-muted-foreground">
+          <div className="w-full flex flex-col bg-background select-none">
+            <div className="flex items-center justify-between px-4 py-2 bg-muted/40 border-b border-border text-xs text-muted-foreground">
               <span className="font-semibold text-foreground flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" />
+                <FileText className="h-4 w-4 text-amber-400" />
                 {mediaData.title}
               </span>
-              <a
-                href={pdfStreamUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline font-bold"
-              >
-                <Maximize2 className="h-3.5 w-3.5" />
-                Fullscreen View
-              </a>
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                Read-Only Document Viewer
+              </span>
             </div>
 
-            <div className="h-[750px] w-full bg-slate-900/50">
-              <object
-                data={`${pdfStreamUrl}#toolbar=1&navpanes=0`}
-                type="application/pdf"
-                className="h-full w-full"
-              >
-                <iframe
-                  src={`${pdfStreamUrl}#toolbar=1`}
-                  className="h-full w-full border-0"
-                  title={mediaData.title}
-                >
-                  <div className="p-8 text-center space-y-4">
-                    <p className="text-sm text-foreground">PDF preview not supported by this browser.</p>
-                    <a
-                      href={pdfStreamUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download / Open PDF
-                    </a>
-                  </div>
-                </iframe>
-              </object>
+            <div className="h-[750px] w-full bg-neutral-900 overflow-hidden relative">
+              <iframe
+                src={pdfStreamUrl}
+                className="h-full w-full border-0 pointer-events-auto"
+                title={mediaData.title}
+              />
             </div>
           </div>
         ) : (
