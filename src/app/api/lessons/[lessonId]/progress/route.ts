@@ -41,32 +41,59 @@ export async function POST(
     const courseId = lesson.module.courseId;
 
     // 1. Update or create lesson progress with self-healing ID
+    let isSaved = false;
     try {
-      await prisma.lessonProgress.upsert({
-        where: {
-          userId_lessonId: {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "lesson_progress" ("id", "userId", "lessonId", "status", "watchTimeSeconds", "lastPositionSeconds", "completedAt", "updatedAt")
+         VALUES ($1, $2, $3, $4::"ProgressStatus", $5, $6, $7, NOW())
+         ON CONFLICT ("userId", "lessonId")
+         DO UPDATE SET
+           "status" = EXCLUDED."status",
+           "watchTimeSeconds" = EXCLUDED."watchTimeSeconds",
+           "lastPositionSeconds" = EXCLUDED."lastPositionSeconds",
+           "completedAt" = EXCLUDED."completedAt",
+           "updatedAt" = NOW();`,
+        crypto.randomUUID(),
+        user.id,
+        lessonId,
+        status,
+        watchTimeSeconds,
+        lastPositionSeconds,
+        status === "COMPLETED" ? new Date() : null
+      );
+      isSaved = true;
+    } catch (sqlErr) {
+      console.warn("SQL upsert fallback attempt:", sqlErr);
+    }
+
+    if (!isSaved) {
+      try {
+        await prisma.lessonProgress.upsert({
+          where: {
+            userId_lessonId: {
+              userId: user.id,
+              lessonId,
+            },
+          },
+          update: {
+            status,
+            watchTimeSeconds,
+            lastPositionSeconds,
+            completedAt: status === "COMPLETED" ? new Date() : null,
+          },
+          create: {
+            id: crypto.randomUUID(),
             userId: user.id,
             lessonId,
+            status,
+            watchTimeSeconds,
+            lastPositionSeconds,
+            completedAt: status === "COMPLETED" ? new Date() : null,
           },
-        },
-        update: {
-          status,
-          watchTimeSeconds,
-          lastPositionSeconds,
-          completedAt: status === "COMPLETED" ? new Date() : null,
-        },
-        create: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          lessonId,
-          status,
-          watchTimeSeconds,
-          lastPositionSeconds,
-          completedAt: status === "COMPLETED" ? new Date() : null,
-        },
-      });
-    } catch (upsertErr) {
-      console.warn("LessonProgress upsert warning:", upsertErr);
+        });
+      } catch (upsertErr) {
+        console.error("LessonProgress upsert error:", upsertErr);
+      }
     }
 
     // 2. Recalculate Course Enrollment progress percentage
@@ -82,13 +109,12 @@ export async function POST(
           where: {
             userId: user.id,
             status: "COMPLETED",
-            lesson: { module: { courseId }, isPublished: true },
           },
         }),
       ]);
 
       const progressPercentage =
-        totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+        totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
       await prisma.courseEnrollment.updateMany({
         where: {
