@@ -1,21 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/login-form";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 export const metadata: Metadata = {
-  title: "Log In",
+  title: "Log In | Rahul Trade Warrior Academy",
 };
 
 export default function LoginPage() {
   return (
     <div className="space-y-6">
-      <div className="space-y-2 text-center">
-        <Link href="/" className="inline-block">
-          <span className="text-2xl font-bold text-primary">SW30</span>
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-        <p className="text-sm text-muted-foreground">
-          Enter your credentials to access your account
+      <div className="space-y-3 text-center flex flex-col items-center">
+        <BrandLogo href="/" size="lg" />
+        <h1 className="text-2xl font-black tracking-tight text-foreground pt-2">Welcome Back</h1>
+        <p className="text-xs text-muted-foreground">
+          Enter your credentials to access your student dashboard
         </p>
       </div>
       <LoginForm />

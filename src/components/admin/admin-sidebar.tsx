@@ -119,12 +119,22 @@ export function AdminSidebar({ userRole = "ADMIN", userEmail = "" }: AdminSideba
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar-background lg:block">
-      <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-        <Link href="/admin" className="flex items-center gap-2">
-          <span className="text-xl font-bold text-sidebar-primary">SW30</span>
-          <span className="text-sm font-medium text-sidebar-foreground">
-            {isSuper ? "Super Admin" : "Staff Admin"}
-          </span>
+      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
+        <Link href="/admin" className="flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="h-9 w-9 rounded-full object-contain border border-amber-500/40 bg-black shrink-0 shadow"
+          />
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs font-black tracking-tight text-foreground">
+              TRADE <span className="text-amber-400">WARRIOR</span>
+            </span>
+            <span className="text-[9px] font-bold text-amber-500/80 uppercase">
+              {isSuper ? "Super Admin" : "Staff Admin"}
+            </span>
+          </div>
         </Link>
       </div>
       <nav className="space-y-1 p-4">

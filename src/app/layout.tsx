@@ -11,11 +11,23 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Super Warrior 30 | Premium Trading Education",
-    template: "%s | Super Warrior 30",
+    default: "Rahul Trade Warrior Academy | Super Warrior 30",
+    template: "%s | Rahul Trade Warrior Academy",
   },
   description:
-    "Master the art of trading with professional courses, expert guidance, and proven strategies.",
+    "Master professional trading with Rahul Trade Warrior Academy. Learn | Trade | Earn with expert mentorship and proven trading systems.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/logo.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png" },
+      { url: "/logo.png" },
+    ],
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -24,12 +36,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`}>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className={`${inter.className} antialiased bg-background text-foreground`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
-          enableSystem
+          forcedTheme="dark"
           disableTransitionOnChange
         >
           {children}

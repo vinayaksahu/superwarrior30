@@ -50,13 +50,21 @@ export function StudentHeader({ user }: StudentHeaderProps) {
               <Menu className="h-5 w-5" />
             </button>
 
-            <Link href="/dashboard" className="flex items-center space-x-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
-                SW
-              </span>
-              <span className="text-base font-bold tracking-tight hidden sm:inline-block">
-                Super Warrior 30
-              </span>
+            <Link href="/dashboard" className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="Rahul Trade Warrior Academy"
+                className="h-8 w-8 rounded-full object-contain border border-amber-500/40 bg-black shrink-0 shadow"
+              />
+              <div className="flex flex-col leading-none">
+                <span className="text-xs font-black tracking-tight text-foreground">
+                  TRADE <span className="text-amber-400">WARRIOR</span>
+                </span>
+                <span className="text-[8px] font-bold text-muted-foreground uppercase">
+                  Student Portal
+                </span>
+              </div>
             </Link>
           </div>
 
@@ -95,10 +103,13 @@ export function StudentHeader({ user }: StudentHeaderProps) {
           <div className="relative flex w-72 flex-col bg-card border-r border-border p-5 shadow-2xl z-50">
             <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
-                  SW
-                </span>
-                <span className="text-sm font-bold text-foreground">Student Portal</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logo.png"
+                  alt="Logo"
+                  className="h-7 w-7 rounded-full object-contain border border-amber-500/40 bg-black shrink-0"
+                />
+                <span className="text-xs font-black text-foreground">TRADE WARRIOR</span>
               </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}

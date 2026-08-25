@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -51,14 +52,7 @@ export default async function HomePage() {
       {/* 1. Header Navigation */}
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center space-x-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md">
-              SW
-            </span>
-            <span className="text-lg font-extrabold tracking-tight">
-              Super Warrior <span className="text-primary">30</span>
-            </span>
-          </Link>
+          <BrandLogo href="/" size="md" />
 
           <nav className="hidden items-center gap-6 md:flex">
             <Link
@@ -459,14 +453,9 @@ export default async function HomePage() {
         <div className="container mx-auto px-4 sm:px-6">
           <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4 border-b border-border pb-8">
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
-                  SW
-                </span>
-                <span className="font-bold text-foreground text-sm">Super Warrior 30</span>
-              </div>
+              <BrandLogo href="/" size="sm" />
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Elite trading masterclasses and affiliate education ecosystem.
+                Elite trading masterclasses and affiliate mentorship ecosystem.
               </p>
             </div>
 
