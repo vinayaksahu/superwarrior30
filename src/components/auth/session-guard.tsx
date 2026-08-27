@@ -31,7 +31,6 @@ export function SessionGuard() {
   });
 
   const isCheckingRef = useRef(false);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const isPublicPage =
     pathname === "/" ||
@@ -39,19 +38,12 @@ export function SessionGuard() {
     PUBLIC_AND_AUTH_PATHS.some((p) => pathname.startsWith(p));
 
   const handleSignoutAndRedirect = useCallback(() => {
-    // Clear countdown interval
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-    }
     const r = modalState.reason ? `?reason=${modalState.reason.toLowerCase()}` : "";
     window.location.href = `/api/auth/signout${r}`;
   }, [modalState.reason]);
 
   const checkSessionStatus = useCallback(async () => {
-    // Don't run check if modal is already open or currently checking
-    if (modalState.isOpen || isCheckingRef.current) return;
-    // Skip checking on purely public or auth pages
-    if (isPublicPage) return;
+    if (modalState.isOpen || isCheckingRef.current || isPublicPage) return;
 
     try {
       isCheckingRef.current = true;
@@ -65,26 +57,11 @@ export function SessionGuard() {
       const data = await res.json();
 
       if (data.authenticated === false && data.reason) {
-        // Detected terminated/displaced session!
         setModalState({
           isOpen: true,
           reason: data.reason,
           countdown: 5,
         });
-
-        // Start 5-second countdown timer to auto-redirect
-        let count = 5;
-        countdownIntervalRef.current = setInterval(() => {
-          count -= 1;
-          setModalState((prev) => ({ ...prev, countdown: count }));
-          if (count <= 0) {
-            if (countdownIntervalRef.current) {
-              clearInterval(countdownIntervalRef.current);
-            }
-            const r = data.reason ? `?reason=${data.reason.toLowerCase()}` : "";
-            window.location.href = `/api/auth/signout${r}`;
-          }
-        }, 1000);
       }
     } catch {
       // Ignore network errors
@@ -93,14 +70,13 @@ export function SessionGuard() {
     }
   }, [isPublicPage, modalState.isOpen]);
 
+  // Periodic heartbeat polling and window focus listeners
   useEffect(() => {
-    // Initial check on mount and when navigating routes
+    if (modalState.isOpen) return;
+
     checkSessionStatus();
+    const interval = setInterval(checkSessionStatus, 4000);
 
-    // Check periodically every 5 seconds
-    const interval = setInterval(checkSessionStatus, 5000);
-
-    // Check immediately when user focuses the tab or unlocks phone
     const handleFocus = () => checkSessionStatus();
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -115,11 +91,27 @@ export function SessionGuard() {
       clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
     };
-  }, [checkSessionStatus]);
+  }, [checkSessionStatus, modalState.isOpen]);
+
+  // Reliable countdown timer when modal opens
+  useEffect(() => {
+    if (!modalState.isOpen) return;
+
+    const timer = setInterval(() => {
+      setModalState((prev) => {
+        if (prev.countdown <= 1) {
+          clearInterval(timer);
+          const r = prev.reason ? `?reason=${prev.reason.toLowerCase()}` : "";
+          window.location.href = `/api/auth/signout${r}`;
+          return { ...prev, countdown: 0 };
+        }
+        return { ...prev, countdown: prev.countdown - 1 };
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [modalState.isOpen]);
 
   if (!modalState.isOpen) return null;
 
@@ -140,21 +132,21 @@ export function SessionGuard() {
           )}
         </div>
 
-        {/* Title and Description */}
+        {/* Title and Description in English */}
         <div className="space-y-2">
           <h2 className="text-xl font-black tracking-tight text-foreground">
             {isDisplaced
               ? "Logged In on Another Device"
               : isBlocked
               ? "Account Security Lock"
-              : "Session Expired / Terminated"}
+              : "Session Terminated"}
           </h2>
           <p className="text-xs text-muted-foreground leading-relaxed px-2">
             {isDisplaced
-              ? "Aapka account dusre device me login ho gaya hai. Security rules ke mutabik 1 time me sirf 1 device par login allowed hai. Is device se aapka session logout kar diya gaya hai."
+              ? "You have been logged in from another device. For security purposes, only 1 active device session is permitted at a time. Your session on this device has been terminated."
               : isBlocked
-              ? "Aapka account security limit exceed hone ki wajah se block kar diya gaya hai. Please administrator se contact karein."
-              : "Aapka session admin dwara revoke kar diya gaya hai. Please dubara login karein."}
+              ? "Your account has been locked due to exceeding the allowed device limit. Please contact the administrator for assistance."
+              : "Your session has been revoked by the administrator. Please log in again to continue."}
           </p>
         </div>
 
@@ -163,7 +155,7 @@ export function SessionGuard() {
           <span className="h-2 w-2 rounded-full bg-destructive animate-ping" />
           <span>
             Redirecting to login in{" "}
-            <strong className="text-destructive font-black">
+            <strong className="text-destructive font-black tabular-nums">
               {modalState.countdown}s
             </strong>
           </span>

@@ -18,15 +18,15 @@ export function LoginForm() {
       const reason = params.get("reason");
       if (reason === "displaced") {
         setUrlNotice(
-          "Aapka account dusre device me login hua tha, isliye is device se session logout ho gaya hai."
+          "Your account was logged in from another device. This session has been terminated."
         );
       } else if (reason === "revoked") {
         setUrlNotice(
-          "Aapka session admin dwara revoke kar diya gaya hai. Dubara login karein."
+          "Your session was revoked by the administrator. Please log in again."
         );
       } else if (reason === "blocked") {
         setUrlNotice(
-          "Security limit exceed hone ki wajah se account lock kiya gaya hai. Admin se sampark karein."
+          "Your account has been locked due to security limits. Please contact support."
         );
       }
     }
