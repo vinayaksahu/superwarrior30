@@ -2,13 +2,13 @@ import type { NextConfig } from "next";
 
 const cspHeader = `
   default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://iframe.mediadelivery.net;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' blob: data: https://*.r2.cloudflarestorage.com;
+  img-src 'self' blob: data: https://*.b-cdn.net https://*.bunnycdn.com https://*.r2.cloudflarestorage.com;
   font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.r2.cloudflarestorage.com https://*.upstash.io;
-  media-src 'self' blob: data: https://*.r2.cloudflarestorage.com;
-  frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com;
+  connect-src 'self' https://video.bunnycdn.com https://*.b-cdn.net https://*.bunnycdn.com https://*.mediadelivery.net https://api.razorpay.com https://checkout.razorpay.com https://*.upstash.io;
+  media-src 'self' blob: data: https://*.b-cdn.net https://*.bunnycdn.com https://*.mediadelivery.net;
+  frame-src 'self' https://iframe.mediadelivery.net https://*.mediadelivery.net https://checkout.razorpay.com https://api.razorpay.com;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
