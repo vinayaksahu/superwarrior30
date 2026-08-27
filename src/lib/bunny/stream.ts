@@ -50,13 +50,15 @@ export async function createBunnyVideo(title: string): Promise<BunnyVideoUploadR
  */
 export async function createDirectVideoUploadAuth(
   title: string,
-  expiresInSec: number = 3600
+  fileSize: number,
+  expiresInSec: number = 7200
 ): Promise<{
   videoId: string;
   libraryId: string;
   expirationTime: number;
   signature: string;
   endpoint: string;
+  uploadUrl: string;
 }> {
   if (!isBunnyStreamConfigured()) {
     throw new Error("Bunny Stream is not configured. Set BUNNY_STREAM_LIBRARY_ID and BUNNY_STREAM_API_KEY.");
@@ -77,12 +79,40 @@ export async function createDirectVideoUploadAuth(
     .update(`${libraryId}${apiKey}${expirationTime}${videoId}`)
     .digest("hex");
 
+  // 4. Initialize TUS session directly from server to obtain absolute upload location
+  let uploadUrl = "https://video.bunnycdn.com/tusupload";
+  try {
+    const initRes = await fetch("https://video.bunnycdn.com/tusupload", {
+      method: "POST",
+      headers: {
+        "Tus-Resumable": "1.0.0",
+        "Upload-Length": String(fileSize),
+        AuthorizationSignature: signature,
+        AuthorizationExpire: String(expirationTime),
+        VideoId: videoId,
+        LibraryId: String(libraryId),
+      },
+    });
+
+    if (initRes.ok || initRes.status === 201) {
+      const location = initRes.headers.get("location");
+      if (location) {
+        uploadUrl = location.startsWith("http")
+          ? location
+          : `https://video.bunnycdn.com${location}`;
+      }
+    }
+  } catch (initErr) {
+    console.warn("Could not pre-initialize TUS session on server, fallback to endpoint:", initErr);
+  }
+
   return {
     videoId,
     libraryId,
     expirationTime,
     signature,
     endpoint: "https://video.bunnycdn.com/tusupload",
+    uploadUrl,
   };
 }
 

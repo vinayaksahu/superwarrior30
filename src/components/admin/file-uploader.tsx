@@ -170,7 +170,7 @@ export function FileUploader({
         throw new Error(authData.error || "Failed to authorize video upload to Bunny Stream.");
       }
 
-      const { videoId, libraryId, expirationTime, signature, endpoint } = authData;
+      const { videoId, libraryId, expirationTime, signature, endpoint, uploadUrl } = authData;
 
       // Step 2: Direct browser-to-Bunny TUS upload (supports multi-GB chunked & resumable upload)
       setStatus("uploading");
@@ -178,8 +178,7 @@ export function FileUploader({
       lastBytesRef.current = 0;
 
       await new Promise<void>((resolve, reject) => {
-        const upload = new tus.Upload(file, {
-          endpoint,
+        const tusOptions: tus.UploadOptions = {
           retryDelays: [0, 1000, 3000, 5000, 10000],
           chunkSize: 5 * 1024 * 1024, // 5MB chunks for optimal browser throughput
           removeFingerprintOnSuccess: true,
@@ -227,8 +226,16 @@ export function FileUploader({
           onSuccess: () => {
             resolve();
           },
-        });
+        };
 
+        // If server pre-initialized upload session, upload directly to the specific uploadUrl
+        if (uploadUrl && uploadUrl.startsWith("https://video.bunnycdn.com/tusupload/")) {
+          tusOptions.uploadUrl = uploadUrl;
+        } else {
+          tusOptions.endpoint = endpoint || "https://video.bunnycdn.com/tusupload";
+        }
+
+        const upload = new tus.Upload(file, tusOptions);
         tusUploadRef.current = upload;
         upload.start();
       });
