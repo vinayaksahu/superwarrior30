@@ -75,13 +75,11 @@ export const getCurrentUser = cache(async () => {
 export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
-    try {
-      const cookieStore = await cookies();
-      cookieStore.delete(SESSION_COOKIE_NAME);
-    } catch {
-      // Ignore if cookies cannot be modified in read-only phase
-    }
-    redirect("/login");
+    // Redirect to API route handler which CAN delete the session cookie.
+    // Server Components cannot mutate cookies, so cookies().delete() fails silently here.
+    // The API route clears the stale cookie and redirects to /login, breaking the
+    // middleware redirect loop (middleware sees valid JWT → /dashboard → requireAuth → /login → repeat).
+    redirect("/api/auth/signout");
   }
   return user;
 }
