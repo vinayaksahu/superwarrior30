@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
-import { isR2Configured, r2 } from "@/lib/r2";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
+import { isBunnyStorageConfigured, uploadToBunnyStorage } from "@/lib/bunny";
 
+/**
+ * POST /api/upload
+ *
+ * Handles PDF documents, course thumbnails, and image uploads directly to Bunny Storage + Bunny CDN.
+ * NOTE: Videos use Direct-to-Bunny TUS upload (/api/bunny/create-upload) and do NOT pass through this endpoint.
+ */
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -19,7 +24,6 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     const category = (formData.get("category") as string) || "pdf";
     const courseId = formData.get("courseId") as string;
-    const moduleId = formData.get("moduleId") as string | null;
     const lessonId = formData.get("lessonId") as string | null;
 
     if (!file) {
@@ -29,84 +33,72 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Videos MUST use direct TUS upload to Bunny Stream to bypass server body limits
+    if (category === "video") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Video files must be uploaded directly to Bunny Stream via Direct TUS Upload (/api/bunny/create-upload).",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!isBunnyStorageConfigured()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Bunny Storage is not configured. Please set BUNNY_STORAGE_ZONE, BUNNY_STORAGE_PASSWORD, and BUNNY_CDN_HOSTNAME in environment variables.",
+        },
+        { status: 503 }
+      );
+    }
+
     const filename = file.name;
     const ext = filename.split(".").pop()?.toLowerCase() || "bin";
     const uniqueId = crypto.randomUUID();
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    let key: string;
+    let storagePath: string;
     if (category === "thumbnail") {
-      key = `courses/${courseId}/thumbnail-${uniqueId}.${ext}`;
-    } else if (category === "video" && lessonId) {
-      key = `courses/${courseId}/lessons/${lessonId}/video-${uniqueId}.${ext}`;
+      storagePath = `courses/${courseId}/thumbnail-${uniqueId}.${ext}`;
     } else if (category === "pdf" && lessonId) {
-      key = `courses/${courseId}/lessons/${lessonId}/doc-${uniqueId}.${ext}`;
+      storagePath = `courses/${courseId}/lessons/${lessonId}/doc-${uniqueId}.${ext}`;
     } else {
-      key = `courses/${courseId}/files/${uniqueId}.${ext}`;
+      storagePath = `courses/${courseId}/files/${uniqueId}.${ext}`;
     }
 
-    // 1. Upload to Cloudflare R2 if configured
-    if (isR2Configured()) {
-      try {
-        const bucket = process.env.R2_BUCKET_NAME || "superwarrior30";
-        await r2.send(
-          new PutObjectCommand({
-            Bucket: bucket,
-            Key: key,
-            Body: buffer,
-            ContentType: file.type || (category === "pdf" ? "application/pdf" : "application/octet-stream"),
-          })
-        );
-      } catch (r2Err: unknown) {
-        console.error("Cloudflare R2 PutObject error:", r2Err);
-        // Fallback to base64 data URL for PDFs/images if R2 fails
-        if (category === "pdf" || category === "thumbnail" || category === "image") {
-          key = `data:${file.type || "application/pdf"};base64,${buffer.toString("base64")}`;
-        } else {
-          return NextResponse.json(
-            { success: false, error: "Cloudflare R2 storage error. Please verify R2 credentials in environment variables." },
-            { status: 500 }
-          );
-        }
-      }
-    } else {
-      // If R2 is not configured: store PDF/image as base64 data URI for instant zero-config availability
-      if (category === "pdf" || category === "thumbnail" || category === "image") {
-        key = `data:${file.type || "application/pdf"};base64,${buffer.toString("base64")}`;
-      } else {
-        key = `demo-video-${uniqueId}.${ext}`;
-      }
-    }
+    const contentType = file.type || (category === "pdf" ? "application/pdf" : "image/jpeg");
+    const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
 
-    // If lessonId is present, auto-update lesson record
-    if (lessonId) {
+    // Auto-update lesson record with Bunny CDN URL if applicable
+    if (lessonId && category === "pdf") {
       try {
-        if (category === "pdf") {
-          await prisma.lesson.update({
-            where: { id: lessonId },
-            data: { pdfKey: key },
-          });
-        } else if (category === "video") {
-          await prisma.lesson.update({
-            where: { id: lessonId },
-            data: { videoKey: key },
-          });
-        }
+        await prisma.lesson.update({
+          where: { id: lessonId },
+          data: {
+            bunnyCdnUrl: result.cdnUrl,
+            mediaProvider: "BUNNY",
+          },
+        });
       } catch (dbErr) {
-        console.warn("Could not auto-update lesson record:", dbErr);
+        console.warn("Could not auto-update lesson with Bunny CDN URL:", dbErr);
       }
     }
 
     return NextResponse.json({
       success: true,
-      key,
+      key: storagePath,
+      bunnyVideoId: null,
+      cdnUrl: result.cdnUrl,
+      provider: "BUNNY",
       filename,
       category,
-      message: `${filename} uploaded successfully!`,
+      message: `${filename} uploaded to Bunny CDN!`,
     });
   } catch (error: unknown) {
-    console.error("Upload API Error:", error);
+    console.error("Bunny Storage Upload API Error:", error);
     const msg = error instanceof Error ? error.message : "Internal upload server error";
     return NextResponse.json(
       { success: false, error: msg },

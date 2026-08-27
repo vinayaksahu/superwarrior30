@@ -162,6 +162,7 @@ model Course {
   shortDescription String?
   fullDescription  String?         @db.Text
   thumbnailKey     String?         // R2 key for thumbnail
+  thumbnailCdnUrl  String?         // Bunny CDN URL for thumbnail
   price            Decimal         @db.Decimal(12, 2)
   compareAtPrice   Decimal?        @db.Decimal(12, 2)
   status           CourseStatus    @default(DRAFT)
@@ -208,6 +209,9 @@ model Lesson {
   contentType   LessonContentType @default(VIDEO)
   videoKey      String?           // R2 key for video
   pdfKey        String?           // R2 key for PDF
+  bunnyVideoId  String?           // Bunny Stream video GUID
+  bunnyCdnUrl   String?           // Bunny CDN URL for PDF/image
+  mediaProvider String?           // "R2" | "BUNNY" (null = R2)
   textContent   String?           @db.Text
   durationSec   Int               @default(0)
   isFreePreview Boolean           @default(false)

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, getCurrentUser } from "@/server/dal/auth";
 import { courseSchema, moduleSchema, lessonSchema } from "@/lib/validations/course.schema";
 import { slugify } from "@/lib/utils";
-import { deleteR2Object, createPresignedDownloadUrl } from "@/lib/storage";
+import { deleteR2Object, createPresignedDownloadUrl, getMediaUrl, getThumbnailUrl, deleteMediaAssets, deleteThumbnailAssets } from "@/lib/storage";
 import { PAGINATION, SIGNED_URL_EXPIRY } from "@/lib/constants";
 import type { ActionState } from "@/types";
 
@@ -231,27 +231,34 @@ export async function updateCourseAction(
 
 export async function updateCourseThumbnailAction(
   courseId: string,
-  thumbnailKey: string
+  thumbnailKey: string,
+  cdnUrl?: string | null,
+  provider?: string | null
 ): Promise<ActionState> {
   await requireAdmin();
 
-  // Delete old thumbnail if exists
+  // Delete old thumbnail if exists (both R2 and Bunny)
   const course = await prisma.course.findUnique({
     where: { id: courseId },
-    select: { thumbnailKey: true },
+    select: { thumbnailKey: true, thumbnailCdnUrl: true },
   });
 
-  if (course?.thumbnailKey) {
-    try {
-      await deleteR2Object(course.thumbnailKey);
-    } catch {
-      // Old file may already be deleted
-    }
+  if (course) {
+    await deleteThumbnailAssets(course);
+  }
+
+  const updateData: Record<string, unknown> = {};
+  if (provider === "BUNNY" && cdnUrl) {
+    updateData.thumbnailCdnUrl = cdnUrl;
+    updateData.thumbnailKey = null; // clear R2 key
+  } else {
+    updateData.thumbnailKey = thumbnailKey;
+    updateData.thumbnailCdnUrl = null; // clear Bunny URL
   }
 
   await prisma.course.update({
     where: { id: courseId },
-    data: { thumbnailKey },
+    data: updateData,
   });
 
   revalidatePath(`/admin/courses/${courseId}`);
@@ -266,7 +273,7 @@ export async function deleteCourseAction(courseId: string): Promise<ActionState>
     include: {
       _count: { select: { enrollments: true } },
       modules: {
-        include: { lessons: { select: { videoKey: true, pdfKey: true } } },
+        include: { lessons: { select: { videoKey: true, pdfKey: true, bunnyVideoId: true, bunnyCdnUrl: true, mediaProvider: true } } },
       },
     },
   });
@@ -276,18 +283,13 @@ export async function deleteCourseAction(courseId: string): Promise<ActionState>
     return { success: false, message: "Cannot delete a course with active enrollments." };
   }
 
-  // Delete R2 objects
-  const keysToDelete: string[] = [];
-  if (course.thumbnailKey) keysToDelete.push(course.thumbnailKey);
+  // Delete all media assets (R2 + Bunny) for thumbnail and all lessons
+  await deleteThumbnailAssets(course);
   for (const mod of course.modules) {
     for (const lesson of mod.lessons) {
-      if (lesson.videoKey) keysToDelete.push(lesson.videoKey);
-      if (lesson.pdfKey) keysToDelete.push(lesson.pdfKey);
+      await deleteMediaAssets(lesson);
     }
   }
-
-  // Delete files in parallel (best effort)
-  await Promise.allSettled(keysToDelete.map((key) => deleteR2Object(key)));
 
   await prisma.course.delete({ where: { id: courseId } });
 
@@ -384,19 +386,16 @@ export async function deleteModuleAction(moduleId: string): Promise<ActionState>
   const mod = await prisma.module.findUnique({
     where: { id: moduleId },
     include: {
-      lessons: { select: { videoKey: true, pdfKey: true } },
+      lessons: { select: { videoKey: true, pdfKey: true, bunnyVideoId: true, bunnyCdnUrl: true, mediaProvider: true } },
     },
   });
 
   if (!mod) return { success: false, message: "Module not found." };
 
-  // Delete lesson files from R2
-  const keysToDelete: string[] = [];
+  // Delete lesson files from R2 and Bunny
   for (const lesson of mod.lessons) {
-    if (lesson.videoKey) keysToDelete.push(lesson.videoKey);
-    if (lesson.pdfKey) keysToDelete.push(lesson.pdfKey);
+    await deleteMediaAssets(lesson);
   }
-  await Promise.allSettled(keysToDelete.map((key) => deleteR2Object(key)));
 
   await prisma.module.delete({ where: { id: moduleId } });
 
@@ -570,7 +569,10 @@ export async function updateLessonAction(
 export async function updateLessonFileAction(
   lessonId: string,
   fileType: "video" | "pdf",
-  fileKey: string
+  fileKey: string,
+  bunnyVideoId?: string | null,
+  bunnyCdnUrl?: string | null,
+  provider?: string | null
 ): Promise<ActionState> {
   await requireAdmin();
 
@@ -580,19 +582,31 @@ export async function updateLessonFileAction(
   });
   if (!lesson) return { success: false, message: "Lesson not found." };
 
-  // Delete old file if exists
-  const oldKey = fileType === "video" ? lesson.videoKey : lesson.pdfKey;
-  if (oldKey) {
-    try {
-      await deleteR2Object(oldKey);
-    } catch {
-      // Old file may already be deleted
+  // Delete old assets (both R2 and Bunny)
+  await deleteMediaAssets(lesson);
+
+  const updateData: Record<string, unknown> = {
+    mediaProvider: provider || "BUNNY",
+  };
+
+  if (provider === "BUNNY") {
+    if (fileType === "video" && bunnyVideoId) {
+      updateData.bunnyVideoId = bunnyVideoId;
+      updateData.videoKey = null; // clear R2 key
+    }
+    if (fileType === "pdf" && bunnyCdnUrl) {
+      updateData.bunnyCdnUrl = bunnyCdnUrl;
+      updateData.pdfKey = null; // clear R2 key
+    }
+  } else {
+    if (fileType === "video") {
+      updateData.videoKey = fileKey;
+      updateData.bunnyVideoId = null;
+    } else {
+      updateData.pdfKey = fileKey;
+      updateData.bunnyCdnUrl = null;
     }
   }
-
-  const updateData = fileType === "video"
-    ? { videoKey: fileKey }
-    : { pdfKey: fileKey };
 
   await prisma.lesson.update({
     where: { id: lessonId },
@@ -612,11 +626,8 @@ export async function deleteLessonAction(lessonId: string): Promise<ActionState>
   });
   if (!lesson) return { success: false, message: "Lesson not found." };
 
-  // Delete files from R2
-  const keysToDelete: string[] = [];
-  if (lesson.videoKey) keysToDelete.push(lesson.videoKey);
-  if (lesson.pdfKey) keysToDelete.push(lesson.pdfKey);
-  await Promise.allSettled(keysToDelete.map((key) => deleteR2Object(key)));
+  // Delete files from R2 and Bunny
+  await deleteMediaAssets(lesson);
 
   const moduleId = lesson.moduleId;
   await prisma.lesson.delete({ where: { id: lessonId } });
@@ -821,6 +832,9 @@ export async function getLessonPreviewMediaUrlAction(lessonId: string) {
       contentType: true,
       videoKey: true,
       pdfKey: true,
+      bunnyVideoId: true,
+      bunnyCdnUrl: true,
+      mediaProvider: true,
       textContent: true,
       isFreePreview: true,
     },
@@ -834,19 +848,23 @@ export async function getLessonPreviewMediaUrlAction(lessonId: string) {
   }
 
   let signedUrl: string | null = null;
-  if (lesson.contentType === "VIDEO" && lesson.videoKey) {
-    signedUrl = await createPresignedDownloadUrl(lesson.videoKey, SIGNED_URL_EXPIRY.VIDEO);
-  } else if (lesson.contentType === "PDF" && lesson.pdfKey) {
-    signedUrl = await createPresignedDownloadUrl(lesson.pdfKey, SIGNED_URL_EXPIRY.PDF);
+  if (lesson.contentType === "VIDEO") {
+    signedUrl = await getMediaUrl(lesson, "video", SIGNED_URL_EXPIRY.VIDEO);
+  } else if (lesson.contentType === "PDF") {
+    signedUrl = await getMediaUrl(lesson, "pdf", SIGNED_URL_EXPIRY.PDF);
   }
 
   return {
     lesson,
     signedUrl,
+    provider: lesson.mediaProvider || "R2",
+    bunnyVideoId: lesson.bunnyVideoId,
   };
 }
 
-export async function getThumbnailSignedUrlAction(thumbnailKey: string) {
+export async function getThumbnailSignedUrlAction(thumbnailKey: string, thumbnailCdnUrl?: string | null) {
+  // Bunny CDN URL takes priority
+  if (thumbnailCdnUrl) return thumbnailCdnUrl;
   if (!thumbnailKey) return null;
   return createPresignedDownloadUrl(thumbnailKey, SIGNED_URL_EXPIRY.THUMBNAIL);
 }

@@ -17,6 +17,9 @@ interface LessonEditModalProps {
     contentType: "VIDEO" | "PDF" | "TEXT" | string;
     videoKey: string | null;
     pdfKey: string | null;
+    bunnyVideoId?: string | null;
+    bunnyCdnUrl?: string | null;
+    mediaProvider?: string | null;
     textContent: string | null;
     durationSec: number;
     isFreePreview: boolean;
@@ -37,17 +40,58 @@ export function LessonEditModal({
   );
   const [videoKey, setVideoKey] = useState<string | null>(lesson.videoKey);
   const [pdfKey, setPdfKey] = useState<string | null>(lesson.pdfKey);
+  const [bunnyVideoId, setBunnyVideoId] = useState<string | null>(lesson.bunnyVideoId || null);
+  const [bunnyCdnUrl, setBunnyCdnUrl] = useState<string | null>(lesson.bunnyCdnUrl || null);
   const [isPending, startTransition] = useTransition();
 
-  const handleVideoUploadComplete = async (key: string) => {
-    setVideoKey(key);
-    await updateLessonFileAction(lesson.id, "video", key);
+  const hasVideo = videoKey || bunnyVideoId;
+  const hasPdf = pdfKey || bunnyCdnUrl;
+
+  const handleVideoUploadComplete = async (result: {
+    key: string | null;
+    bunnyVideoId: string | null;
+    cdnUrl: string | null;
+    provider: "R2" | "BUNNY";
+  }) => {
+    if (result.provider === "BUNNY" && result.bunnyVideoId) {
+      setBunnyVideoId(result.bunnyVideoId);
+      setVideoKey(null);
+    } else if (result.key) {
+      setVideoKey(result.key);
+      setBunnyVideoId(null);
+    }
+    await updateLessonFileAction(
+      lesson.id,
+      "video",
+      result.key || "",
+      result.bunnyVideoId,
+      result.cdnUrl,
+      result.provider
+    );
     if (onRefresh) onRefresh();
   };
 
-  const handlePdfUploadComplete = async (key: string) => {
-    setPdfKey(key);
-    await updateLessonFileAction(lesson.id, "pdf", key);
+  const handlePdfUploadComplete = async (result: {
+    key: string | null;
+    bunnyVideoId: string | null;
+    cdnUrl: string | null;
+    provider: "R2" | "BUNNY";
+  }) => {
+    if (result.provider === "BUNNY" && result.cdnUrl) {
+      setBunnyCdnUrl(result.cdnUrl);
+      setPdfKey(null);
+    } else if (result.key) {
+      setPdfKey(result.key);
+      setBunnyCdnUrl(null);
+    }
+    await updateLessonFileAction(
+      lesson.id,
+      "pdf",
+      result.key || "",
+      result.bunnyVideoId,
+      result.cdnUrl,
+      result.provider
+    );
     if (onRefresh) onRefresh();
   };
 
@@ -138,12 +182,12 @@ export function LessonEditModal({
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   <Video className="h-4 w-4 text-primary" />
-                  Video File (Private Cloudflare R2)
+                  Video File (Bunny Stream)
                 </label>
-                {videoKey && (
+                {hasVideo && (
                   <span className="inline-flex items-center gap-1 text-xs text-emerald-500 font-medium">
                     <PlayCircle className="h-3.5 w-3.5" />
-                    Video Attached
+                    {bunnyVideoId ? "Bunny Stream (Active)" : "Video Attached"}
                   </span>
                 )}
               </div>
@@ -154,9 +198,10 @@ export function LessonEditModal({
                 moduleId={lesson.moduleId}
                 lessonId={lesson.id}
                 currentKey={videoKey}
+                currentBunnyVideoId={bunnyVideoId}
                 onUploadComplete={handleVideoUploadComplete}
                 label="Upload Video"
-                description="MP4 or WebM (Direct to private R2 storage, up to 500MB)"
+                description="MP4, WebM or MOV — Direct TUS upload to Bunny Stream for HD HLS playback (up to 2GB)"
               />
             </div>
           )}
@@ -167,12 +212,12 @@ export function LessonEditModal({
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-primary" />
-                  PDF Attachment (Private Cloudflare R2)
+                  PDF Attachment (Bunny CDN)
                 </label>
-                {pdfKey && (
+                {hasPdf && (
                   <span className="inline-flex items-center gap-1 text-xs text-emerald-500 font-medium">
                     <Eye className="h-3.5 w-3.5" />
-                    Document Attached
+                    {bunnyCdnUrl ? "Bunny CDN (Active)" : "Document Attached"}
                   </span>
                 )}
               </div>
@@ -185,7 +230,7 @@ export function LessonEditModal({
                 currentKey={pdfKey}
                 onUploadComplete={handlePdfUploadComplete}
                 label="Upload PDF Document"
-                description="Secure PDF cheatsheet or notes (Up to 50MB)"
+                description="Secure PDF cheatsheet or notes — delivered via Bunny CDN (up to 50MB)"
               />
             </div>
           )}

@@ -31,7 +31,7 @@ export async function GET(
       },
     });
 
-    if (!lesson || !lesson.pdfKey) {
+    if (!lesson || (!lesson.pdfKey && !lesson.bunnyCdnUrl)) {
       return new NextResponse("PDF not found for this lesson.", { status: 404 });
     }
 
@@ -61,9 +61,17 @@ export async function GET(
       }
     }
 
-    const pdfKey = lesson.pdfKey;
+    // 3. Handle Bunny CDN URL (redirect to CDN)
+    if (lesson.mediaProvider === "BUNNY" && lesson.bunnyCdnUrl) {
+      return NextResponse.redirect(lesson.bunnyCdnUrl);
+    }
 
-    // 3. Handle base64 data URI
+    const pdfKey = lesson.pdfKey;
+    if (!pdfKey) {
+      return new NextResponse("PDF not found for this lesson.", { status: 404 });
+    }
+
+    // 4. Handle base64 data URI
     if (pdfKey.startsWith("data:application/pdf;base64,")) {
       const base64Data = pdfKey.split(",")[1];
       const buffer = Buffer.from(base64Data, "base64");
@@ -77,7 +85,7 @@ export async function GET(
       });
     }
 
-    // 4. Handle Cloudflare R2 / S3
+    // 5. Handle Cloudflare R2 / S3
     if (isR2Configured()) {
       try {
         const bucket = process.env.R2_BUCKET_NAME || "superwarrior30";

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, getCurrentUser } from "@/server/dal/auth";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
-import { createPresignedDownloadUrl } from "@/lib/storage";
+import { createPresignedDownloadUrl, getMediaUrl } from "@/lib/storage";
 import { SIGNED_URL_EXPIRY } from "@/lib/constants";
 import type { ActionState } from "@/types";
 
@@ -273,12 +273,12 @@ export async function getEnrolledLessonMediaUrlAction({
     }
   }
 
-  // Step 3: Generate temporary signed URLs
+  // Step 3: Generate temporary signed/CDN URLs (R2 or Bunny)
   let signedUrl: string | null = null;
-  if (lesson.contentType === "VIDEO" && lesson.videoKey) {
-    signedUrl = await createPresignedDownloadUrl(lesson.videoKey, SIGNED_URL_EXPIRY.VIDEO);
-  } else if (lesson.contentType === "PDF" && lesson.pdfKey) {
-    signedUrl = await createPresignedDownloadUrl(lesson.pdfKey, SIGNED_URL_EXPIRY.PDF);
+  if (lesson.contentType === "VIDEO") {
+    signedUrl = await getMediaUrl(lesson, "video", SIGNED_URL_EXPIRY.VIDEO);
+  } else if (lesson.contentType === "PDF") {
+    signedUrl = await getMediaUrl(lesson, "pdf", SIGNED_URL_EXPIRY.PDF);
   }
 
   return {
@@ -288,6 +288,8 @@ export async function getEnrolledLessonMediaUrlAction({
     textContent: lesson.textContent,
     signedUrl,
     durationSec: lesson.durationSec,
+    provider: lesson.mediaProvider || "R2",
+    bunnyVideoId: lesson.bunnyVideoId,
   };
 }
 

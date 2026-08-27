@@ -1,94 +1,86 @@
 "use server";
 
 import { requireAdmin } from "@/server/dal/auth";
-import { createPresignedUploadUrl } from "@/lib/storage";
-import { uploadSchema } from "@/lib/validations/course.schema";
-import { MAX_FILE_SIZES, ALLOWED_MIME_TYPES, SIGNED_URL_EXPIRY } from "@/lib/constants";
-import crypto from "crypto";
+import { isBunnyStreamConfigured, createDirectVideoUploadAuth } from "@/lib/bunny";
+import { prisma } from "@/lib/prisma";
+import { BUNNY_MAX_VIDEO_SIZE } from "@/lib/constants";
 
-export async function getPresignedUploadUrlAction(input: {
+/**
+ * Server action to authorize direct browser-to-Bunny Stream TUS video uploads.
+ * Validates admin role, validates course/lesson, creates video entry on Bunny Stream,
+ * and generates a short-lived SHA-256 upload signature.
+ * Secrets never leave the server.
+ */
+export async function createBunnyDirectVideoUploadAction(input: {
+  title?: string;
   filename: string;
-  mimeType: string;
-  size: number;
-  category: "video" | "pdf" | "thumbnail" | "image";
+  fileSize: number;
   courseId: string;
-  moduleId?: string;
   lessonId?: string;
 }) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
+    if (!admin || (admin.role !== "ADMIN" && admin.role !== "SUPER_ADMIN")) {
+      return { success: false, error: "Unauthorized. Admin privileges required." };
+    }
 
-    const validated = uploadSchema.parse({
-      filename: input.filename,
-      mimeType: input.mimeType,
-      size: input.size,
-      category: input.category,
+    if (!isBunnyStreamConfigured()) {
+      return { success: false, error: "Bunny Stream is not configured in environment variables." };
+    }
+
+    const { title, filename, fileSize, courseId, lessonId } = input;
+
+    if (!courseId) {
+      return { success: false, error: "courseId is required." };
+    }
+
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, title: true },
     });
 
-    // Validate MIME type based on category
-    const allowedTypes = (() => {
-      switch (validated.category) {
-        case "video":
-          return ALLOWED_MIME_TYPES.VIDEO as readonly string[];
-        case "pdf":
-          return ALLOWED_MIME_TYPES.PDF as readonly string[];
-        case "thumbnail":
-        case "image":
-          return ALLOWED_MIME_TYPES.IMAGE as readonly string[];
-      }
-    })();
+    if (!course) {
+      return { success: false, error: "Course not found." };
+    }
 
-    if (!allowedTypes.includes(validated.mimeType)) {
+    if (lessonId) {
+      const lesson = await prisma.lesson.findUnique({
+        where: { id: lessonId },
+        include: { module: { select: { courseId: true } } },
+      });
+
+      if (!lesson || lesson.module.courseId !== courseId) {
+        return { success: false, error: "Lesson not found or does not belong to this course." };
+      }
+    }
+
+    // Validate video format
+    const ext = filename?.split(".").pop()?.toLowerCase();
+    const allowedVideoExtensions = ["mp4", "webm", "mov", "mkv", "avi", "m4v"];
+    if (!ext || !allowedVideoExtensions.includes(ext)) {
       return {
         success: false,
-        error: `Invalid file type: ${validated.mimeType}. Allowed: ${allowedTypes.join(", ")}`,
+        error: `Invalid video format (.${ext}). Allowed formats: ${allowedVideoExtensions.join(", ")}`,
       };
     }
 
-    // Validate file size based on category
-    const maxSize = (() => {
-      switch (validated.category) {
-        case "video":
-          return MAX_FILE_SIZES.VIDEO;
-        case "pdf":
-          return MAX_FILE_SIZES.PDF;
-        case "thumbnail":
-          return MAX_FILE_SIZES.THUMBNAIL;
-        case "image":
-          return MAX_FILE_SIZES.IMAGE;
-      }
-    })();
-
-    if (validated.size > maxSize) {
-      const maxMB = Math.round(maxSize / (1024 * 1024));
-      return { success: false, error: `File too large. Maximum size: ${maxMB}MB` };
+    // Validate size (up to 2GB)
+    if (fileSize <= 0 || fileSize > BUNNY_MAX_VIDEO_SIZE) {
+      return {
+        success: false,
+        error: `Video size must be between 1 byte and 2GB (current: ${(fileSize / (1024 * 1024)).toFixed(1)}MB).`,
+      };
     }
 
-    // Build secure R2 key path
-    const ext = validated.filename.split(".").pop()?.toLowerCase() || "bin";
-    const uniqueId = crypto.randomUUID();
+    const videoTitle = title || `${course.title} - ${filename}`;
+    const authData = await createDirectVideoUploadAuth(videoTitle, 7200);
 
-    let key: string;
-    if (validated.category === "thumbnail") {
-      key = `courses/${input.courseId}/thumbnail-${uniqueId}.${ext}`;
-    } else if (validated.category === "video" && input.lessonId) {
-      key = `courses/${input.courseId}/lessons/${input.lessonId}/video-${uniqueId}.${ext}`;
-    } else if (validated.category === "pdf" && input.lessonId) {
-      key = `courses/${input.courseId}/lessons/${input.lessonId}/doc-${uniqueId}.${ext}`;
-    } else {
-      key = `courses/${input.courseId}/files/${uniqueId}.${ext}`;
-    }
-
-    const { uploadUrl } = await createPresignedUploadUrl({
-      key,
-      contentType: validated.mimeType,
-      contentLength: validated.size,
-      expiresIn: SIGNED_URL_EXPIRY.UPLOAD,
-    });
-
-    return { success: true, uploadUrl, key };
+    return {
+      success: true,
+      ...authData,
+    };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to generate presigned upload URL";
+    const msg = err instanceof Error ? err.message : "Failed to authorize video upload";
     return { success: false, error: msg };
   }
 }

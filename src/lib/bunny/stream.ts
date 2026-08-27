@@ -1,0 +1,236 @@
+import "server-only";
+
+import crypto from "crypto";
+import { bunnyStreamConfig, isBunnyStreamConfigured } from "./config";
+import type { BunnyVideo, BunnyVideoUploadResult, VideoEncodingStatus } from "./types";
+import { mapBunnyStatusCode } from "./types";
+
+// ==========================================
+// Bunny Stream Service — Video Hosting & HLS
+// ==========================================
+
+const STREAM_HEADERS = () => ({
+  accept: "application/json",
+  "content-type": "application/json",
+  AccessKey: bunnyStreamConfig.apiKey,
+});
+
+/**
+ * Create a new video entry in Bunny Stream library.
+ * This must be called BEFORE uploading the video file.
+ */
+export async function createBunnyVideo(title: string): Promise<BunnyVideoUploadResult> {
+  if (!isBunnyStreamConfigured()) {
+    throw new Error("Bunny Stream is not configured. Set BUNNY_STREAM_LIBRARY_ID and BUNNY_STREAM_API_KEY.");
+  }
+
+  const res = await fetch(`${bunnyStreamConfig.baseUrl}/videos`, {
+    method: "POST",
+    headers: STREAM_HEADERS(),
+    body: JSON.stringify({ title }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "Unknown error");
+    throw new Error(`Bunny Stream: Failed to create video (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  return {
+    guid: data.guid,
+    title: data.title,
+    status: data.status,
+  };
+}
+
+/**
+ * Creates a Bunny Stream video entry and generates a secure, short-lived Upload Signature
+ * allowing the browser client to upload video chunks directly to Bunny via TUS.
+ * NEVER returns the Bunny API key to the client.
+ */
+export async function createDirectVideoUploadAuth(
+  title: string,
+  expiresInSec: number = 3600
+): Promise<{
+  videoId: string;
+  libraryId: string;
+  expirationTime: number;
+  signature: string;
+  endpoint: string;
+}> {
+  if (!isBunnyStreamConfigured()) {
+    throw new Error("Bunny Stream is not configured. Set BUNNY_STREAM_LIBRARY_ID and BUNNY_STREAM_API_KEY.");
+  }
+
+  // 1. Create the video entry in Bunny Stream Library
+  const videoEntry = await createBunnyVideo(title);
+  const videoId = videoEntry.guid;
+  const libraryId = bunnyStreamConfig.libraryId;
+  const apiKey = bunnyStreamConfig.apiKey;
+
+  // 2. Generate short-lived expiration timestamp (in seconds)
+  const expirationTime = Math.floor(Date.now() / 1000) + expiresInSec;
+
+  // 3. Generate SHA256 upload signature: SHA256(library_id + api_key + expiration_time + video_id)
+  const signature = crypto
+    .createHash("sha256")
+    .update(`${libraryId}${apiKey}${expirationTime}${videoId}`)
+    .digest("hex");
+
+  return {
+    videoId,
+    libraryId,
+    expirationTime,
+    signature,
+    endpoint: "https://video.bunnycdn.com/tusupload",
+  };
+}
+
+/**
+ * Upload a video file to an existing Bunny Stream video entry.
+ * Uses the direct PUT upload method.
+ */
+export async function uploadVideoToBunny(
+  guid: string,
+  fileBuffer: Buffer
+): Promise<void> {
+  if (!isBunnyStreamConfigured()) {
+    throw new Error("Bunny Stream is not configured.");
+  }
+
+  const res = await fetch(
+    `${bunnyStreamConfig.baseUrl}/videos/${guid}`,
+    {
+      method: "PUT",
+      headers: {
+        AccessKey: bunnyStreamConfig.apiKey,
+        "content-type": "application/octet-stream",
+      },
+      body: new Uint8Array(fileBuffer),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "Unknown error");
+    throw new Error(`Bunny Stream: Failed to upload video (${res.status}): ${errText}`);
+  }
+}
+
+/**
+ * Get video metadata and encoding status from Bunny Stream.
+ */
+export async function getVideoStatus(guid: string): Promise<VideoEncodingStatus> {
+  if (!isBunnyStreamConfigured()) {
+    throw new Error("Bunny Stream is not configured.");
+  }
+
+  const res = await fetch(
+    `${bunnyStreamConfig.baseUrl}/videos/${guid}`,
+    {
+      method: "GET",
+      headers: STREAM_HEADERS(),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Bunny Stream: Failed to get video status (${res.status})`);
+  }
+
+  const data: BunnyVideo = await res.json();
+  const status = mapBunnyStatusCode(data.status);
+
+  return {
+    guid: data.guid,
+    status,
+    encodeProgress: data.encodeProgress || 0,
+    isReady: status === "FINISHED",
+    durationSec: Math.round(data.length || 0),
+    width: data.width || 0,
+    height: data.height || 0,
+  };
+}
+
+/**
+ * Generate a token-authenticated playback URL for a Bunny Stream video.
+ * Uses SHA256 HMAC token authentication for secure delivery.
+ *
+ * Returns the direct HLS manifest URL with token auth, OR
+ * the embed iframe URL if preferred.
+ */
+export function getSecurePlaybackUrl(
+  guid: string,
+  expiresInSec: number = 3600,
+  format: "hls" | "embed" = "embed"
+): string {
+  if (!isBunnyStreamConfigured()) {
+    throw new Error("Bunny Stream is not configured.");
+  }
+
+  if (format === "embed") {
+    // Bunny's built-in embed player with token auth
+    const apiKey = bunnyStreamConfig.apiKey;
+    const libraryId = bunnyStreamConfig.libraryId;
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresInSec;
+
+    // Token = SHA256(apiKey + guid + expiresAt)
+    const tokenString = `${apiKey}${guid}${expiresAt}`;
+    const token = crypto
+      .createHash("sha256")
+      .update(tokenString)
+      .digest("hex");
+
+    return `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?token=${token}&expires=${expiresAt}`;
+  }
+
+  // Direct HLS URL (no built-in token auth, relies on referer/CDN settings)
+  return `${bunnyStreamConfig.hlsBaseUrl}/${guid}/playlist.m3u8`;
+}
+
+/**
+ * Delete a video from Bunny Stream.
+ */
+export async function deleteBunnyVideo(guid: string): Promise<void> {
+  if (!isBunnyStreamConfigured()) return;
+
+  const res = await fetch(
+    `${bunnyStreamConfig.baseUrl}/videos/${guid}`,
+    {
+      method: "DELETE",
+      headers: STREAM_HEADERS(),
+    }
+  );
+
+  if (!res.ok && res.status !== 404) {
+    console.error(`Bunny Stream: Failed to delete video ${guid} (${res.status})`);
+  }
+}
+
+/**
+ * List all videos in the Bunny Stream library (admin use).
+ */
+export async function listBunnyVideos(
+  page: number = 1,
+  itemsPerPage: number = 25
+): Promise<{ items: BunnyVideo[]; totalItems: number }> {
+  if (!isBunnyStreamConfigured()) {
+    return { items: [], totalItems: 0 };
+  }
+
+  const res = await fetch(
+    `${bunnyStreamConfig.baseUrl}/videos?page=${page}&itemsPerPage=${itemsPerPage}&orderBy=date`,
+    {
+      method: "GET",
+      headers: STREAM_HEADERS(),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Bunny Stream: Failed to list videos (${res.status})`);
+  }
+
+  const data = await res.json();
+  return {
+    items: data.items || [],
+    totalItems: data.totalItems || 0,
+  };
+}

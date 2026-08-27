@@ -48,10 +48,11 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
     }
   };
 
-  const handleThumbnailUpload = async (key: string) => {
-    setThumbnailKey(key);
+  const handleThumbnailUpload = async (result: { key: string | null; bunnyVideoId: string | null; cdnUrl: string | null; provider: "R2" | "BUNNY" }) => {
+    const newKey = result.key || result.cdnUrl || "";
+    setThumbnailKey(newKey);
     if (isEdit && course?.id) {
-      await updateCourseThumbnailAction(course.id, key);
+      await updateCourseThumbnailAction(course.id, result.key || "", result.cdnUrl, result.provider);
     }
   };
 
