@@ -112,8 +112,12 @@ export async function getMediaUrl(
   type: "video" | "pdf",
   expiresIn?: number
 ): Promise<string | null> {
-  // Bunny provider path
-  if (lesson.mediaProvider === "BUNNY") {
+  // Bunny provider path (handles both explicit BUNNY provider and existing bunny fields)
+  if (
+    lesson.mediaProvider === "BUNNY" ||
+    Boolean(lesson.bunnyVideoId) ||
+    Boolean(lesson.bunnyCdnUrl)
+  ) {
     if (type === "video" && lesson.bunnyVideoId) {
       if (!isBunnyStreamConfigured()) {
         console.error("Lesson has Bunny video but Bunny Stream is not configured");
@@ -130,7 +134,7 @@ export async function getMediaUrl(
     }
   }
 
-  // R2 fallback (default for existing content)
+  // R2 fallback (only for legacy content where Bunny fields are absent)
   const key = type === "video" ? lesson.videoKey : lesson.pdfKey;
   if (!key) return null;
 
@@ -166,7 +170,49 @@ export async function getThumbnailUrl(
 }
 
 /**
- * Delete media assets for a lesson (handles both R2 and Bunny).
+ * Delete a specific media asset (video or PDF) for a lesson.
+ */
+export async function deleteLessonMediaAsset(
+  lesson: {
+    videoKey?: string | null;
+    pdfKey?: string | null;
+    bunnyVideoId?: string | null;
+    bunnyCdnUrl?: string | null;
+  },
+  type: "video" | "pdf"
+): Promise<void> {
+  const deleteOps: Promise<unknown>[] = [];
+
+  if (type === "video") {
+    if (lesson.videoKey) {
+      deleteOps.push(deleteR2Object(lesson.videoKey).catch(() => {}));
+    }
+    if (lesson.bunnyVideoId) {
+      const { deleteBunnyVideo } = await import("./bunny/stream");
+      deleteOps.push(deleteBunnyVideo(lesson.bunnyVideoId).catch(() => {}));
+    }
+  } else if (type === "pdf") {
+    if (lesson.pdfKey) {
+      deleteOps.push(deleteR2Object(lesson.pdfKey).catch(() => {}));
+    }
+    if (lesson.bunnyCdnUrl) {
+      try {
+        const { deleteFromBunnyStorage, bunnyCdnConfig } = await import("./bunny");
+        if (lesson.bunnyCdnUrl.startsWith(bunnyCdnConfig.baseUrl)) {
+          const path = lesson.bunnyCdnUrl.replace(bunnyCdnConfig.baseUrl + "/", "");
+          deleteOps.push(deleteFromBunnyStorage(path).catch(() => {}));
+        }
+      } catch {
+        // Bunny not configured, skip
+      }
+    }
+  }
+
+  await Promise.allSettled(deleteOps);
+}
+
+/**
+ * Delete all media assets for a lesson (handles both R2 and Bunny).
  */
 export async function deleteMediaAssets(lesson: {
   mediaProvider?: string | null;
@@ -175,35 +221,10 @@ export async function deleteMediaAssets(lesson: {
   bunnyVideoId?: string | null;
   bunnyCdnUrl?: string | null;
 }): Promise<void> {
-  const deleteOps: Promise<unknown>[] = [];
-
-  // Delete R2 objects
-  if (lesson.videoKey) {
-    deleteOps.push(deleteR2Object(lesson.videoKey).catch(() => {}));
-  }
-  if (lesson.pdfKey) {
-    deleteOps.push(deleteR2Object(lesson.pdfKey).catch(() => {}));
-  }
-
-  // Delete Bunny assets
-  if (lesson.bunnyVideoId) {
-    const { deleteBunnyVideo } = await import("./bunny/stream");
-    deleteOps.push(deleteBunnyVideo(lesson.bunnyVideoId).catch(() => {}));
-  }
-  if (lesson.bunnyCdnUrl) {
-    // Extract path from CDN URL and delete from storage
-    try {
-      const { deleteFromBunnyStorage, bunnyCdnConfig } = await import("./bunny");
-      if (lesson.bunnyCdnUrl.startsWith(bunnyCdnConfig.baseUrl)) {
-        const path = lesson.bunnyCdnUrl.replace(bunnyCdnConfig.baseUrl + "/", "");
-        deleteOps.push(deleteFromBunnyStorage(path).catch(() => {}));
-      }
-    } catch {
-      // Bunny not configured, skip
-    }
-  }
-
-  await Promise.allSettled(deleteOps);
+  await Promise.allSettled([
+    deleteLessonMediaAsset(lesson, "video"),
+    deleteLessonMediaAsset(lesson, "pdf"),
+  ]);
 }
 
 /**

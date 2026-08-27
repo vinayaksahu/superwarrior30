@@ -239,7 +239,7 @@ export async function getEnrolledLessonMediaUrlAction({
   lessonId: string;
 }) {
   const user = await requireAuth();
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
   // Step 1: Fetch lesson and verify parent course hierarchy (IDOR check)
   const lesson = await prisma.lesson.findUnique({
@@ -281,6 +281,11 @@ export async function getEnrolledLessonMediaUrlAction({
     signedUrl = await getMediaUrl(lesson, "pdf", SIGNED_URL_EXPIRY.PDF);
   }
 
+  const isBunny =
+    lesson.mediaProvider === "BUNNY" ||
+    Boolean(lesson.bunnyVideoId) ||
+    Boolean(lesson.bunnyCdnUrl);
+
   return {
     lessonId: lesson.id,
     title: lesson.title,
@@ -288,7 +293,7 @@ export async function getEnrolledLessonMediaUrlAction({
     textContent: lesson.textContent,
     signedUrl,
     durationSec: lesson.durationSec,
-    provider: lesson.mediaProvider || "R2",
+    provider: isBunny ? "BUNNY" : (lesson.mediaProvider || "R2"),
     bunnyVideoId: lesson.bunnyVideoId,
   };
 }

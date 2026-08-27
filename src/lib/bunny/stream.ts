@@ -160,30 +160,21 @@ export async function getVideoStatus(guid: string): Promise<VideoEncodingStatus>
  */
 export function getSecurePlaybackUrl(
   guid: string,
-  expiresInSec: number = 3600,
+  _expiresInSec: number = 3600,
   format: "hls" | "embed" = "embed"
 ): string {
   if (!isBunnyStreamConfigured()) {
     throw new Error("Bunny Stream is not configured.");
   }
 
+  const libraryId = bunnyStreamConfig.libraryId;
+
   if (format === "embed") {
-    // Bunny's built-in embed player with token auth
-    const apiKey = bunnyStreamConfig.apiKey;
-    const libraryId = bunnyStreamConfig.libraryId;
-    const expiresAt = Math.floor(Date.now() / 1000) + expiresInSec;
-
-    // Token = SHA256(apiKey + guid + expiresAt)
-    const tokenString = `${apiKey}${guid}${expiresAt}`;
-    const token = crypto
-      .createHash("sha256")
-      .update(tokenString)
-      .digest("hex");
-
-    return `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?token=${token}&expires=${expiresAt}`;
+    // Generate clean, high-performance responsive Bunny Stream embed player URL
+    return `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
   }
 
-  // Direct HLS URL (no built-in token auth, relies on referer/CDN settings)
+  // Direct HLS URL
   return `${bunnyStreamConfig.hlsBaseUrl}/${guid}/playlist.m3u8`;
 }
 

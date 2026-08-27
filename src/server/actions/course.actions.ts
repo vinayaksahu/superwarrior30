@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, getCurrentUser } from "@/server/dal/auth";
 import { courseSchema, moduleSchema, lessonSchema } from "@/lib/validations/course.schema";
 import { slugify } from "@/lib/utils";
-import { deleteR2Object, createPresignedDownloadUrl, getMediaUrl, getThumbnailUrl, deleteMediaAssets, deleteThumbnailAssets } from "@/lib/storage";
+import { deleteR2Object, createPresignedDownloadUrl, getMediaUrl, getThumbnailUrl, deleteMediaAssets, deleteThumbnailAssets, deleteLessonMediaAsset } from "@/lib/storage";
 import { PAGINATION, SIGNED_URL_EXPIRY } from "@/lib/constants";
 import type { ActionState } from "@/types";
 
@@ -666,14 +666,15 @@ export async function updateLessonFileAction(
   });
   if (!lesson) return { success: false, message: "Lesson not found." };
 
-  // Delete old assets (both R2 and Bunny)
-  await deleteMediaAssets(lesson);
+  // Delete only the specific old asset being replaced (both R2 and Bunny)
+  await deleteLessonMediaAsset(lesson, fileType);
 
   const updateData: Record<string, unknown> = {
     mediaProvider: provider || "BUNNY",
   };
 
-  if (provider === "BUNNY") {
+  if (provider === "BUNNY" || bunnyVideoId || bunnyCdnUrl) {
+    updateData.mediaProvider = "BUNNY";
     if (fileType === "video" && bunnyVideoId) {
       updateData.bunnyVideoId = bunnyVideoId;
       updateData.videoKey = null; // clear R2 key

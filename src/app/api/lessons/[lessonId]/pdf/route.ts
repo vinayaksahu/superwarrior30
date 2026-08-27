@@ -62,7 +62,7 @@ export async function GET(
     }
 
     // 3. Handle Bunny CDN URL (redirect to CDN)
-    if (lesson.mediaProvider === "BUNNY" && lesson.bunnyCdnUrl) {
+    if (lesson.bunnyCdnUrl) {
       return NextResponse.redirect(lesson.bunnyCdnUrl);
     }
 
