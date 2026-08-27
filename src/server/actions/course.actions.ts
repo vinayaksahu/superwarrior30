@@ -38,57 +38,141 @@ export async function getCoursesAction({
     ];
   }
 
-  const [courses, total] = await Promise.all([
-    prisma.course.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: {
-        _count: {
-          select: {
-            modules: true,
-            enrollments: true,
+  try {
+    const [courses, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          _count: {
+            select: {
+              modules: true,
+              enrollments: true,
+            },
           },
         },
-      },
-    }),
-    prisma.course.count({ where }),
-  ]);
+      }),
+      prisma.course.count({ where }),
+    ]);
 
-  return {
-    data: courses,
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-  };
+    return {
+      data: courses,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  } catch (err: unknown) {
+    // If database columns are missing in Neon PostgreSQL, auto-migrate them on the fly
+    const errMsg = err instanceof Error ? err.message : "";
+    if (errMsg.includes("column") || errMsg.includes("does not exist")) {
+      try {
+        await prisma.$executeRawUnsafe(`
+          ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "thumbnailCdnUrl" TEXT;
+          ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyVideoId" TEXT;
+          ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyCdnUrl" TEXT;
+          ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "mediaProvider" TEXT DEFAULT 'BUNNY';
+        `);
+
+        // Retry query after self-healing migration
+        const [courses, total] = await Promise.all([
+          prisma.course.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            include: {
+              _count: {
+                select: {
+                  modules: true,
+                  enrollments: true,
+                },
+              },
+            },
+          }),
+          prisma.course.count({ where }),
+        ]);
+
+        return {
+          data: courses,
+          total,
+          page,
+          pageSize,
+          totalPages: Math.ceil(total / pageSize),
+        };
+      } catch (retryErr) {
+        console.error("Self-healing DB migration error in getCoursesAction:", retryErr);
+      }
+    }
+    throw err;
+  }
 }
 
 export async function getCourseByIdAction(id: string) {
   await requireAdmin();
 
-  const course = await prisma.course.findUnique({
-    where: { id },
-    include: {
-      modules: {
-        orderBy: { position: "asc" },
-        include: {
-          lessons: {
-            orderBy: { position: "asc" },
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id },
+      include: {
+        modules: {
+          orderBy: { position: "asc" },
+          include: {
+            lessons: {
+              orderBy: { position: "asc" },
+            },
+          },
+        },
+        _count: {
+          select: {
+            enrollments: true,
           },
         },
       },
-      _count: {
-        select: {
-          enrollments: true,
-        },
-      },
-    },
-  });
+    });
 
-  if (!course) throw new Error("Course not found");
-  return course;
+    if (!course) throw new Error("Course not found");
+    return course;
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : "";
+    if (errMsg.includes("column") || errMsg.includes("does not exist")) {
+      try {
+        await prisma.$executeRawUnsafe(`
+          ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "thumbnailCdnUrl" TEXT;
+          ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyVideoId" TEXT;
+          ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyCdnUrl" TEXT;
+          ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "mediaProvider" TEXT DEFAULT 'BUNNY';
+        `);
+
+        const course = await prisma.course.findUnique({
+          where: { id },
+          include: {
+            modules: {
+              orderBy: { position: "asc" },
+              include: {
+                lessons: {
+                  orderBy: { position: "asc" },
+                },
+              },
+            },
+            _count: {
+              select: {
+                enrollments: true,
+              },
+            },
+          },
+        });
+
+        if (!course) throw new Error("Course not found");
+        return course;
+      } catch (retryErr) {
+        console.error("Self-healing migration error in getCourseByIdAction:", retryErr);
+      }
+    }
+    throw err;
+  }
 }
 
 export async function createCourseAction(

@@ -363,6 +363,12 @@ export async function GET() {
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "manualPaymentProof" JSONB;
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "approvedBy" TEXT;
+
+      -- Bunny Media Columns Migration
+      ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "thumbnailCdnUrl" TEXT;
+      ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyVideoId" TEXT;
+      ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyCdnUrl" TEXT;
+      ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "mediaProvider" TEXT DEFAULT 'BUNNY';
     `);
 
     // Step 1.5: Seed default UPI and Crypto Payment Methods if table is empty
