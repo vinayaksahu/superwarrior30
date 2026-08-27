@@ -182,6 +182,8 @@ export function FileUploader({
           endpoint,
           retryDelays: [0, 1000, 3000, 5000, 10000],
           chunkSize: 5 * 1024 * 1024, // 5MB chunks for optimal browser throughput
+          removeFingerprintOnSuccess: true,
+          fingerprint: () => Promise.resolve(`bunny_${videoId}`),
           headers: {
             AuthorizationSignature: signature,
             AuthorizationExpire: String(expirationTime),
@@ -189,12 +191,21 @@ export function FileUploader({
             LibraryId: String(libraryId),
           },
           metadata: {
-            filename: file.name,
+            title: file.name,
             filetype: file.type || "video/mp4",
           },
           onError: (error) => {
             console.error("TUS Direct Video Upload Error:", error);
-            reject(new Error(error.message || "Direct video upload failed"));
+            const errStr = error.message || String(error);
+            if (errStr.includes("ProgressEvent") || errStr.includes("network")) {
+              reject(
+                new Error(
+                  "Connection to Bunny Stream CDN failed. If you have an AdBlocker or Brave Shield enabled, please allow video.bunnycdn.com or disable it for this page."
+                )
+              );
+            } else {
+              reject(new Error(errStr || "Direct video upload to Bunny Stream failed."));
+            }
           },
           onProgress: (bytesSent, bytesTotalSize) => {
             setBytesUploaded(bytesSent);
