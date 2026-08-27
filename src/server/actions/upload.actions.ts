@@ -73,7 +73,7 @@ export async function createBunnyDirectVideoUploadAction(input: {
     }
 
     const videoTitle = title || `${course.title} - ${filename}`;
-    const authData = await createDirectVideoUploadAuth(videoTitle, 7200);
+    const authData = await createDirectVideoUploadAuth(videoTitle, undefined, 7200);
 
     return {
       success: true,

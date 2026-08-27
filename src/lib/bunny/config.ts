@@ -9,10 +9,10 @@ import "server-only";
  */
 export const bunnyStreamConfig = {
   get libraryId(): string {
-    return process.env.BUNNY_STREAM_LIBRARY_ID || "";
+    return (process.env.BUNNY_STREAM_LIBRARY_ID || "").trim();
   },
   get apiKey(): string {
-    return process.env.BUNNY_STREAM_API_KEY || "";
+    return (process.env.BUNNY_STREAM_API_KEY || "").trim();
   },
   get baseUrl(): string {
     return `https://video.bunnycdn.com/library/${this.libraryId}`;
@@ -30,13 +30,13 @@ export const bunnyStreamConfig = {
  */
 export const bunnyStorageConfig = {
   get zone(): string {
-    return process.env.BUNNY_STORAGE_ZONE || "";
+    return (process.env.BUNNY_STORAGE_ZONE || "").trim();
   },
   get password(): string {
-    return process.env.BUNNY_STORAGE_PASSWORD || "";
+    return (process.env.BUNNY_STORAGE_PASSWORD || "").trim();
   },
   get hostname(): string {
-    return process.env.BUNNY_STORAGE_HOSTNAME || "storage.bunnycdn.com";
+    return (process.env.BUNNY_STORAGE_HOSTNAME || "storage.bunnycdn.com").trim();
   },
   get baseUrl(): string {
     return `https://${this.hostname}/${this.zone}`;
@@ -48,7 +48,7 @@ export const bunnyStorageConfig = {
  */
 export const bunnyCdnConfig = {
   get hostname(): string {
-    return process.env.BUNNY_CDN_HOSTNAME || "";
+    return (process.env.BUNNY_CDN_HOSTNAME || "").trim();
   },
   get baseUrl(): string {
     return `https://${this.hostname}`;
@@ -59,7 +59,7 @@ export const bunnyCdnConfig = {
  * Global Bunny API key (account-level, used for some management APIs)
  */
 export function getBunnyApiKey(): string {
-  return process.env.BUNNY_API_KEY || "";
+  return (process.env.BUNNY_API_KEY || "").trim();
 }
 
 /**
@@ -67,8 +67,8 @@ export function getBunnyApiKey(): string {
  */
 export function isBunnyStreamConfigured(): boolean {
   return Boolean(
-    process.env.BUNNY_STREAM_LIBRARY_ID &&
-    process.env.BUNNY_STREAM_API_KEY
+    bunnyStreamConfig.libraryId &&
+    bunnyStreamConfig.apiKey
   );
 }
 
@@ -77,9 +77,9 @@ export function isBunnyStreamConfigured(): boolean {
  */
 export function isBunnyStorageConfigured(): boolean {
   return Boolean(
-    process.env.BUNNY_STORAGE_ZONE &&
-    process.env.BUNNY_STORAGE_PASSWORD &&
-    process.env.BUNNY_CDN_HOSTNAME
+    bunnyStorageConfig.zone &&
+    bunnyStorageConfig.password &&
+    bunnyCdnConfig.hostname
   );
 }
 
