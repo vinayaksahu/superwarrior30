@@ -67,12 +67,12 @@ export function FileUploader({
     if (accept) return accept;
     switch (category) {
       case "video":
-        return "video/mp4,video/webm,video/quicktime";
+        return "video/mp4,video/webm,video/quicktime,video/x-matroska,video/mkv,video/avi,.mp4,.mkv,.webm,.mov,.avi,.m4v";
       case "pdf":
-        return "application/pdf";
+        return "application/pdf,.pdf";
       case "thumbnail":
       case "image":
-        return "image/jpeg,image/png,image/webp";
+        return "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
     }
   })();
 
@@ -191,7 +191,15 @@ export function FileUploader({
           },
           metadata: {
             title: file.name,
-            filetype: file.type || "video/mp4",
+            filetype:
+              file.type ||
+              (file.name.toLowerCase().endsWith(".mkv")
+                ? "video/x-matroska"
+                : file.name.toLowerCase().endsWith(".webm")
+                ? "video/webm"
+                : file.name.toLowerCase().endsWith(".mov")
+                ? "video/quicktime"
+                : "video/mp4"),
           },
           onError: (error) => {
             console.error("TUS Direct Video Upload Error:", error);

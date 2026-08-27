@@ -201,7 +201,7 @@ export function LessonEditModal({
                 currentBunnyVideoId={bunnyVideoId}
                 onUploadComplete={handleVideoUploadComplete}
                 label="Upload Video"
-                description="MP4, WebM or MOV — Direct TUS upload to Bunny Stream for HD HLS playback (up to 2GB)"
+                description="MP4, MKV, WebM, MOV or AVI — Direct TUS upload to Bunny Stream for HD HLS playback (up to 2GB)"
               />
             </div>
           )}

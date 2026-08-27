@@ -16,7 +16,15 @@ export const MAX_FILE_SIZES = {
 } as const;
 
 export const ALLOWED_MIME_TYPES = {
-  VIDEO: ["video/mp4", "video/webm"],
+  VIDEO: [
+    "video/mp4",
+    "video/webm",
+    "video/x-matroska",
+    "video/mkv",
+    "video/quicktime",
+    "video/x-msvideo",
+    "video/avi",
+  ],
   PDF: ["application/pdf"],
   IMAGE: ["image/jpeg", "image/png", "image/webp"],
 } as const;
