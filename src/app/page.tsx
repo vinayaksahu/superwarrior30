@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -82,6 +83,7 @@ export default async function HomePage() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link
               href="/login"
               className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground px-3 py-1.5"

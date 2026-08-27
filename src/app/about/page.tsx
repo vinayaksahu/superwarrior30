@@ -1,40 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PublicNavbar } from "@/components/shared/public-navbar";
 import { Award, ShieldCheck, Target, TrendingUp, BookOpen, ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "About Us — Super Warrior 30",
-  description: "Learn about Super Warrior 30, our institutional price-action methodology, and our mission to provide structured trading mentorship.",
+  title: "About Us — Rahul Trade Warrior Academy",
+  description: "Learn about Rahul Trade Warrior Academy, our institutional price-action methodology, and our mission to provide structured trading mentorship.",
 };
 
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b border-border/40 bg-background/90 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
-              SW
-            </span>
-            <span className="text-base font-bold">Super Warrior 30</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/courses" className="text-xs font-semibold text-muted-foreground hover:text-foreground">
-              Courses
-            </Link>
-            <Link href="/login" className="text-xs font-semibold text-muted-foreground hover:text-foreground">
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90"
-            >
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="py-16 md:py-24 border-b border-border/40 bg-muted/20">

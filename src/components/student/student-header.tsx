@@ -16,6 +16,7 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 interface StudentHeaderProps {
   user: {
@@ -68,14 +69,15 @@ export function StudentHeader({ user }: StudentHeaderProps) {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link
               href="/courses"
               className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground hidden sm:inline-block"
             >
               Browse Courses
             </Link>
-            <div className="text-right">
+            <ThemeToggle />
+            <div className="text-right hidden sm:block">
               <p className="text-xs font-bold text-foreground truncate max-w-[150px]">
                 {user.name || user.email.split("@")[0]}
               </p>
@@ -83,7 +85,7 @@ export function StudentHeader({ user }: StudentHeaderProps) {
             <form action={logoutAction}>
               <button
                 type="submit"
-                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive cursor-pointer"
                 title="Sign Out"
               >
                 <LogOut className="h-4 w-4" />

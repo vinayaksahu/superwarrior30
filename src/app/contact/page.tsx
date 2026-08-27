@@ -1,35 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PublicNavbar } from "@/components/shared/public-navbar";
 import { ContactForm } from "@/components/public/contact-form";
 import { Mail, Clock, MessageSquare, ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Contact Support Desk — Super Warrior 30",
-  description: "Get in touch with the Super Warrior 30 support team for enrollment queries or technical support.",
+  title: "Contact Support Desk — Rahul Trade Warrior Academy",
+  description: "Get in touch with the Rahul Trade Warrior Academy support team for enrollment queries or technical support.",
 };
 
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b border-border/40 bg-background/90 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
-              SW
-            </span>
-            <span className="text-base font-bold">Super Warrior 30</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/courses" className="text-xs font-semibold text-muted-foreground hover:text-foreground">
-              Courses
-            </Link>
-            <Link href="/login" className="text-xs font-semibold text-muted-foreground hover:text-foreground">
-              Sign In
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="py-16 border-b border-border/40 bg-muted/20">

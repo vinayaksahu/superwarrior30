@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getPublicCoursesAction } from "@/server/actions/course.actions";
 import { formatCurrency } from "@/lib/utils";
+import { PublicNavbar } from "@/components/shared/public-navbar";
 import { Search, Clock, BookOpen, Layers, Star, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function PublicCoursesPage({
 
   return (
     <div className="min-h-screen bg-background pb-20">
+      <PublicNavbar />
       {/* Top Banner / Header */}
       <div className="border-b border-border/40 bg-muted/20 py-12 md:py-16">
         <div className="container mx-auto px-4 max-w-6xl">

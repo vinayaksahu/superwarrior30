@@ -1,8 +1,10 @@
 "use client";
 
+import * as React from "react";
 import { useActionState } from "react";
+import { useTheme } from "next-themes";
 import { updateProfileAction, changePasswordAction } from "@/server/actions/profile.actions";
-import { Loader2, Save, KeyRound, User, Lock } from "lucide-react";
+import { Loader2, Save, KeyRound, User, Lock, Sun, Moon, Laptop } from "lucide-react";
 import type { ActionState } from "@/types";
 
 interface ProfileFormsProps {
@@ -186,13 +188,106 @@ export function ProfileForms({
           <button
             type="submit"
             disabled={isPasswordPending}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2 text-xs font-bold text-secondary-foreground shadow hover:bg-secondary/80 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2 text-xs font-bold text-secondary-foreground shadow hover:bg-secondary/80 disabled:opacity-50 cursor-pointer"
           >
             {isPasswordPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
             Update Password
           </button>
         </div>
       </form>
+
+      {/* 3. Theme & Appearance Settings Card */}
+      <div className="md:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <Sun className="h-4 w-4 text-amber-400" />
+            <h3 className="text-base font-bold text-foreground">Theme & Visual Appearance</h3>
+          </div>
+          <span className="text-[11px] font-semibold text-muted-foreground">
+            Saved automatically across sessions
+          </span>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Choose your preferred visual theme for the classroom player, dashboards, and trading materials.
+        </p>
+
+        <ThemeRadioSelector />
+      </div>
+    </div>
+  );
+}
+
+function ThemeRadioSelector() {
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  const currentTheme = theme || "dark";
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+      {/* Dark Theme Option */}
+      <button
+        type="button"
+        onClick={() => setTheme("dark")}
+        className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left cursor-pointer ${
+          currentTheme === "dark"
+            ? "border-amber-400 bg-amber-400/10 shadow-sm"
+            : "border-border bg-background hover:bg-muted"
+        }`}
+      >
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-900 border border-neutral-800 text-amber-400 shrink-0">
+          <Moon className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-xs font-bold text-foreground">Dark Obsidian</p>
+          <p className="text-[10px] text-muted-foreground">High contrast trading night mode</p>
+        </div>
+      </button>
+
+      {/* Light Theme Option */}
+      <button
+        type="button"
+        onClick={() => setTheme("light")}
+        className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left cursor-pointer ${
+          currentTheme === "light"
+            ? "border-amber-400 bg-amber-400/10 shadow-sm"
+            : "border-border bg-background hover:bg-muted"
+        }`}
+      >
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-slate-200 text-amber-500 shrink-0 shadow-sm">
+          <Sun className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-xs font-bold text-foreground">Light Clean</p>
+          <p className="text-[10px] text-muted-foreground">Bright crisp day mode</p>
+        </div>
+      </button>
+
+      {/* System Theme Option */}
+      <button
+        type="button"
+        onClick={() => setTheme("system")}
+        className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left cursor-pointer ${
+          currentTheme === "system"
+            ? "border-amber-400 bg-amber-400/10 shadow-sm"
+            : "border-border bg-background hover:bg-muted"
+        }`}
+      >
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted border border-border text-foreground shrink-0">
+          <Laptop className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-xs font-bold text-foreground">System Default</p>
+          <p className="text-[10px] text-muted-foreground">Matches your device preferences</p>
+        </div>
+      </button>
     </div>
   );
 }

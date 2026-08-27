@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PublicNavbar } from "@/components/shared/public-navbar";
 import { HelpCircle, BookOpen, ShieldCheck, Wallet, ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Frequently Asked Questions — Super Warrior 30",
+  title: "Frequently Asked Questions — Rahul Trade Warrior Academy",
   description: "Find answers regarding course access, video streaming, payments, referral payouts, and student support.",
 };
 
@@ -38,25 +39,21 @@ export default function FAQPage() {
           a: "Yes. If you have an active promotional coupon code, enter it during the checkout step before finalizing payment to receive an instant discount.",
         },
         {
-          q: "Where can I find invoices for my purchases?",
-          a: "All transaction receipts and order numbers are accessible inside your student dashboard under the Orders section.",
+          q: "Is GST invoice provided?",
+          a: "Yes, all orders generate an official tax invoice accessible directly from your Student Orders dashboard.",
         },
       ],
     },
     {
-      name: "Referral Program & Payouts",
+      name: "Affiliate & Referrals",
       faqs: [
         {
-          q: "How do I participate in the referral affiliate program?",
-          a: "Every registered student has a unique referral code and invitation link inside their dashboard under Referrals. Share this link with friends to earn multi-tier commissions.",
+          q: "How do referral commissions work?",
+          a: "When your friends or network enroll via your personalized affiliate link, you receive automated instant commission credited directly to your Wallet.",
         },
         {
-          q: "What is the minimum withdrawal amount for wallet commissions?",
-          a: "The minimum threshold to request a payout is ₹500. Payouts are transferred directly to your registered UPI ID or Indian bank account.",
-        },
-        {
-          q: "How long does a withdrawal take to process?",
-          a: "Withdrawal requests are reviewed and disbursed by our financial desk within 24 to 48 business hours.",
+          q: "How do I withdraw my earnings?",
+          a: "Navigate to your Wallet, enter your bank account details or UPI ID, and submit a withdrawal request for admin clearance.",
         },
       ],
     },
@@ -64,25 +61,7 @@ export default function FAQPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b border-border/40 bg-background/90 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
-              SW
-            </span>
-            <span className="text-base font-bold">Super Warrior 30</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/courses" className="text-xs font-semibold text-muted-foreground hover:text-foreground">
-              Courses
-            </Link>
-            <Link href="/login" className="text-xs font-semibold text-muted-foreground hover:text-foreground">
-              Sign In
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="py-16 border-b border-border/40 bg-muted/20">

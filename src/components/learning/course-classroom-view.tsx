@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 import {
   CheckCircle2,
   Circle,
@@ -261,23 +262,26 @@ export function CourseClassroomView({
           </button>
         </div>
 
-        <button
-          type="button"
-          disabled={isSaving}
-          onClick={handleToggleComplete}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow transition-all ${
-            isCurrentCompleted
-              ? "bg-emerald-500 text-black hover:bg-emerald-400"
-              : "bg-primary text-primary-foreground hover:bg-primary/90"
-          }`}
-        >
-          {isSaving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          )}
-          {isCurrentCompleted ? "Done ✓" : "Complete"}
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={handleToggleComplete}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow transition-all ${
+              isCurrentCompleted
+                ? "bg-emerald-500 text-black hover:bg-emerald-400"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            }`}
+          >
+            {isSaving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            )}
+            {isCurrentCompleted ? "Done ✓" : "Complete"}
+          </button>
+        </div>
       </div>
 
       {/* ========================================================
@@ -372,23 +376,26 @@ export function CourseClassroomView({
             </p>
           </div>
 
-          <button
-            type="button"
-            disabled={isSaving}
-            onClick={handleToggleComplete}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold shadow-lg transition-all cursor-pointer ${
-              isCurrentCompleted
-                ? "bg-emerald-500 text-black shadow-emerald-500/20 hover:bg-emerald-400"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
-            }`}
-          >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4" />
-            )}
-            {isCurrentCompleted ? "Completed ✓" : "Mark Complete"}
-          </button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={handleToggleComplete}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold shadow-lg transition-all cursor-pointer ${
+                isCurrentCompleted
+                  ? "bg-emerald-500 text-black shadow-emerald-500/20 hover:bg-emerald-400"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              }`}
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              {isCurrentCompleted ? "Completed ✓" : "Mark Complete"}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Header Title */}

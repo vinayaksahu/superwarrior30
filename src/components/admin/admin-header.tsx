@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 interface AdminHeaderProps {
   user: {
@@ -81,8 +82,9 @@ export function AdminHeader({ user }: AdminHeaderProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-right">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <ThemeToggle />
+          <div className="text-right hidden sm:block">
             <p className="text-xs sm:text-sm font-semibold text-foreground">
               {user.name || user.email}
             </p>

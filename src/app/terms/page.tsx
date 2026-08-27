@@ -1,26 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PublicNavbar } from "@/components/shared/public-navbar";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Super Warrior 30",
+  title: "Terms of Service — Rahul Trade Warrior Academy",
 };
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border/40 bg-background/90 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-xs">
-              SW
-            </span>
-            <span className="text-base font-bold">Super Warrior 30</span>
-          </Link>
-          <Link href="/courses" className="text-xs font-semibold text-muted-foreground hover:text-foreground">
-            Courses
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       <main className="container mx-auto px-4 py-16 max-w-3xl space-y-6 text-xs text-muted-foreground leading-relaxed">
         <h1 className="text-2xl font-bold text-foreground">Terms of Service</h1>
