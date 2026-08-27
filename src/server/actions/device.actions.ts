@@ -46,7 +46,7 @@ export async function getAdminDevicesAction({
     ];
   }
 
-  const [devices, total, totalBlockedStudents, totalActiveDevices] = await Promise.all([
+  const [devices, total, totalBlockedStudents, totalActiveDevices, totalRevokedDevices] = await Promise.all([
     prisma.userDevice.findMany({
       where,
       orderBy: { lastSeenAt: "desc" },
@@ -68,6 +68,7 @@ export async function getAdminDevicesAction({
     prisma.userDevice.count({ where }),
     prisma.user.count({ where: { status: "BLOCKED" } }),
     prisma.userDevice.count({ where: { isActive: true, revokedAt: null } }),
+    prisma.userDevice.count({ where: { revokedAt: { not: null } } }),
   ]);
 
   return {
@@ -79,6 +80,7 @@ export async function getAdminDevicesAction({
     stats: {
       totalBlockedStudents,
       totalActiveDevices,
+      totalRevokedDevices,
     },
   };
 }
@@ -157,6 +159,93 @@ export async function revokeDeviceAction(deviceId: string): Promise<ActionState>
   revalidatePath("/admin/devices");
   revalidatePath("/admin/students");
   return { success: true, message: `Device "${device.deviceName || "Unknown"}" revoked successfully.` };
+}
+
+// ==========================================
+// ADMIN: UNREVOKE / RESTORE DEVICE
+// ==========================================
+
+export async function unrevokeDeviceAction(deviceId: string): Promise<ActionState> {
+  const admin = await requireAdminWrite();
+
+  const device = await prisma.userDevice.findUnique({
+    where: { id: deviceId },
+    include: { user: true },
+  });
+
+  if (!device) return { success: false, message: "Device not found." };
+
+  await prisma.userDevice.update({
+    where: { id: deviceId },
+    data: {
+      revokedAt: null,
+      revokedBy: null,
+      lastSeenAt: new Date(),
+    },
+  });
+
+  // Audit log
+  await prisma.auditLog.create({
+    data: {
+      actorId: admin.id,
+      actorEmail: admin.email,
+      actorRole: admin.role,
+      action: "DEVICE_UNREVOKED",
+      entityType: "UserDevice",
+      entityId: device.id,
+      newValues: {
+        studentId: device.userId,
+        studentEmail: device.user.email,
+        deviceName: device.deviceName,
+        browser: device.browser,
+      },
+    },
+  });
+
+  revalidatePath("/admin/devices");
+  revalidatePath("/admin/students");
+  return { success: true, message: `Device "${device.deviceName || "Unknown"}" has been restored/unrevoked.` };
+}
+
+// ==========================================
+// ADMIN: DELETE DEVICE (FREE UP SLOT)
+// ==========================================
+
+export async function deleteDeviceAction(deviceId: string): Promise<ActionState> {
+  const admin = await requireAdminWrite();
+
+  const device = await prisma.userDevice.findUnique({
+    where: { id: deviceId },
+    include: { user: true },
+  });
+
+  if (!device) return { success: false, message: "Device not found." };
+
+  await prisma.userDevice.delete({
+    where: { id: deviceId },
+  });
+
+  // Audit log
+  await prisma.auditLog.create({
+    data: {
+      actorId: admin.id,
+      actorEmail: admin.email,
+      actorRole: admin.role,
+      action: "DEVICE_DELETED_SLOT_FREED",
+      entityType: "UserDevice",
+      entityId: device.id,
+      newValues: {
+        studentId: device.userId,
+        studentEmail: device.user.email,
+        deviceName: device.deviceName,
+        browser: device.browser,
+      },
+    },
+  });
+
+  revalidatePath("/admin/devices");
+  revalidatePath("/admin/students");
+  return { success: true, message: `Device removed. 1 device slot freed for ${device.user.email}.` };
 }
 
 // ==========================================

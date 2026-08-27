@@ -3,6 +3,8 @@
 import { useState } from "react";
 import {
   revokeDeviceAction,
+  unrevokeDeviceAction,
+  deleteDeviceAction,
   revokeAllStudentDevicesAction,
   unblockStudentAccountAction,
 } from "@/server/actions/device.actions";
@@ -16,6 +18,8 @@ import {
   CheckCircle2,
   X,
   AlertTriangle,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,7 +34,7 @@ interface ConfirmationModalProps {
   description: string;
   confirmText?: string;
   confirmVariant?: "destructive" | "warning" | "success" | "primary";
-  icon?: "power" | "shield" | "alert" | "rotate";
+  icon?: "power" | "shield" | "alert" | "rotate" | "trash" | "check";
   loading?: boolean;
 }
 
@@ -73,6 +77,8 @@ function ConfirmationModal({
               {icon === "alert" && <AlertTriangle className="h-5 w-5" />}
               {icon === "shield" && <ShieldCheck className="h-5 w-5" />}
               {icon === "rotate" && <RotateCcw className="h-5 w-5" />}
+              {icon === "trash" && <Trash2 className="h-5 w-5" />}
+              {icon === "check" && <CheckCircle2 className="h-5 w-5" />}
             </div>
             <div>
               <h3 className="text-base font-extrabold text-foreground">{title}</h3>
@@ -128,7 +134,7 @@ function ConfirmationModal({
 }
 
 // ==========================================
-// REVOKE DEVICE BUTTON WITH MODAL
+// DEVICE ROW ACTIONS (REVOKE / UNREVOKE / DELETE)
 // ==========================================
 export function RevokeDeviceButton({
   deviceId,
@@ -139,16 +145,10 @@ export function RevokeDeviceButton({
   deviceName: string;
   isRevoked: boolean;
 }) {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [revokeModalOpen, setRevokeModalOpen] = useState(false);
+  const [unrevokeModalOpen, setUnrevokeModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  if (isRevoked) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-destructive/80 bg-destructive/10 px-2 py-0.5 rounded-full border border-destructive/20">
-        Revoked
-      </span>
-    );
-  }
 
   const handleConfirmRevoke = async () => {
     setLoading(true);
@@ -156,7 +156,7 @@ export function RevokeDeviceButton({
       const res = await revokeDeviceAction(deviceId);
       if (res.success) {
         toast.success(res.message);
-        setModalOpen(false);
+        setRevokeModalOpen(false);
       } else {
         toast.error(res.message);
       }
@@ -167,21 +167,92 @@ export function RevokeDeviceButton({
     }
   };
 
+  const handleConfirmUnrevoke = async () => {
+    setLoading(true);
+    try {
+      const res = await unrevokeDeviceAction(deviceId);
+      if (res.success) {
+        toast.success(res.message);
+        setUnrevokeModalOpen(false);
+      } else {
+        toast.error(res.message);
+      }
+    } catch {
+      toast.error("Failed to unrevoke device.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    setLoading(true);
+    try {
+      const res = await deleteDeviceAction(deviceId);
+      if (res.success) {
+        toast.success(res.message);
+        setDeleteModalOpen(false);
+      } else {
+        toast.error(res.message);
+      }
+    } catch {
+      toast.error("Failed to delete device.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setModalOpen(true)}
-        className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 cursor-pointer"
-        title="Revoke active session for this device"
-      >
-        <PowerOff className="h-3 w-3" />
-        Revoke
-      </button>
+      <div className="flex items-center gap-1.5">
+        {isRevoked ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setUnrevokeModalOpen(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-400 transition-colors hover:bg-emerald-500/20 cursor-pointer"
+              title="Restore / Unrevoke this device"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Unrevoke
+            </button>
 
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-bold text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+              title="Delete device record and free up 1 device slot"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setRevokeModalOpen(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 cursor-pointer"
+              title="Revoke active session for this device"
+            >
+              <PowerOff className="h-3 w-3" />
+              Revoke
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-bold text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+              title="Delete device record and free up 1 device slot"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* 1. Revoke Modal */}
       <ConfirmationModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        isOpen={revokeModalOpen}
+        onClose={() => setRevokeModalOpen(false)}
         onConfirm={handleConfirmRevoke}
         loading={loading}
         title="Revoke Device Session"
@@ -189,6 +260,32 @@ export function RevokeDeviceButton({
         confirmText="Revoke Device"
         confirmVariant="destructive"
         icon="power"
+      />
+
+      {/* 2. Unrevoke / Restore Modal */}
+      <ConfirmationModal
+        isOpen={unrevokeModalOpen}
+        onClose={() => setUnrevokeModalOpen(false)}
+        onConfirm={handleConfirmUnrevoke}
+        loading={loading}
+        title="Unrevoke & Restore Device"
+        description={`Restore and unrevoke "${deviceName}"? This will clear the revoked status and allow the student to use this recognized device again upon login.`}
+        confirmText="Unrevoke Device"
+        confirmVariant="success"
+        icon="rotate"
+      />
+
+      {/* 3. Delete Device / Free Slot Modal */}
+      <ConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        loading={loading}
+        title="Remove Device & Free Slot"
+        description={`Permanently remove "${deviceName}" from this student's registered devices list? This will free up 1 slot so the student can register another device.`}
+        confirmText="Remove Device"
+        confirmVariant="destructive"
+        icon="trash"
       />
     </>
   );

@@ -141,7 +141,7 @@ export default async function AdminDevicesPage({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Revoked Devices
+              Revoked Devices ({data.stats.totalRevokedDevices})
             </Link>
           </div>
 
