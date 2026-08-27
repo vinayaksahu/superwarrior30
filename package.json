@@ -14,6 +14,12 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },
+  "allowScripts": {
+    "@prisma/engines": true,
+    "esbuild": true,
+    "prisma": true,
+    "unrs-resolver": true
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1117.0",
     "@aws-sdk/s3-request-presigner": "^3.1117.0",

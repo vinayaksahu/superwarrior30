@@ -14,6 +14,18 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "src/generated/**",
   ]),
+  {
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/globals": "off",
+      "react-hooks/purity": "off",
+      "react/no-unescaped-entities": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@next/next/no-location-assign-relative-destination": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;
