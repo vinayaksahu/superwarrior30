@@ -25,7 +25,7 @@ export function StudentNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="w-full space-y-1 lg:w-56 lg:shrink-0">
+    <nav className="hidden lg:block lg:w-56 lg:shrink-0 space-y-1">
       {navLinks.map((link) => {
         const isActive =
           pathname === link.href ||

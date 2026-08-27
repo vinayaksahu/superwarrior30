@@ -97,32 +97,56 @@ export function StudentHeader({ user }: StudentHeaderProps) {
 
       {/* Mobile Drawer */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className="fixed inset-0 z-50 flex lg:hidden animate-in fade-in duration-200">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="relative flex w-72 flex-col bg-card border-r border-border p-5 shadow-2xl z-50">
-            <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
-              <div className="flex items-center gap-2">
+          <div className="relative flex w-80 max-w-[85vw] flex-col bg-card border-r border-border p-6 shadow-2xl z-50 animate-in slide-in-from-left duration-250">
+            {/* Header / Brand */}
+            <div className="flex items-center justify-between border-b border-border/80 pb-4 mb-4">
+              <div className="flex items-center gap-2.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/logo.png"
                   alt="Logo"
-                  className="h-7 w-7 rounded-full object-contain border border-amber-500/40 bg-black shrink-0"
+                  className="h-9 w-9 rounded-full object-contain border border-amber-500/40 bg-black shrink-0 shadow-sm"
                 />
-                <span className="text-xs font-black text-foreground">TRADE WARRIOR</span>
+                <div className="flex flex-col leading-none">
+                  <span className="text-sm font-black tracking-tight text-foreground">
+                    TRADE <span className="text-amber-400">WARRIOR</span>
+                  </span>
+                  <span className="text-[9px] font-extrabold text-muted-foreground uppercase mt-0.5">
+                    Student Portal
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                className="rounded-xl p-2 text-muted-foreground hover:bg-muted active:scale-95 transition-all"
                 aria-label="Close navigation"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <nav className="flex-1 space-y-1 overflow-y-auto">
+            {/* Student Profile Overview */}
+            <div className="mb-5 rounded-2xl bg-muted/40 p-3.5 border border-border flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary font-black text-primary-foreground text-sm shadow-sm">
+                {(user.name || user.email)[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-foreground truncate">
+                  {user.name || "Student"}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate font-medium">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+
+            {/* Nav Links */}
+            <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1">
               {navLinks.map((link) => {
                 const isActive =
                   pathname === link.href ||
@@ -133,38 +157,39 @@ export function StudentHeader({ user }: StudentHeaderProps) {
                     href={link.href}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                      "flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-bold transition-all",
                       isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.01]"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground font-semibold"
                     )}
                   >
-                    <link.icon className="h-4 w-4" />
-                    {link.label}
+                    <link.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary-foreground" : "text-muted-foreground")} />
+                    <span>{link.label}</span>
                   </Link>
                 );
               })}
 
-              <div className="border-t border-border/60 pt-2 mt-2">
+              <div className="border-t border-border/80 pt-3 mt-3">
                 <Link
                   href="/courses"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
                 >
-                  <BookOpen className="h-4 w-4" />
-                  Browse Catalog
+                  <BookOpen className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  <span>Browse Catalog</span>
                 </Link>
               </div>
             </nav>
 
-            <div className="border-t border-border pt-4 mt-4">
+            {/* Logout Button */}
+            <div className="border-t border-border/80 pt-4 mt-4">
               <form action={logoutAction}>
                 <button
                   type="submit"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+                  className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-destructive/10 px-4 py-3 text-xs font-extrabold text-destructive hover:bg-destructive/20 active:scale-[0.98] transition-all cursor-pointer border border-destructive/20"
                 >
                   <LogOut className="h-4 w-4" />
-                  Sign Out
+                  <span>Sign Out</span>
                 </button>
               </form>
             </div>
