@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/shared/theme-provider";
+import { SessionGuard } from "@/components/auth/session-guard";
 import "./globals.css";
 
 const inter = Inter({
@@ -45,6 +46,7 @@ export default function RootLayout({
           disableTransitionOnChange={false}
         >
           {children}
+          <SessionGuard />
           <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>

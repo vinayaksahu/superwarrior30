@@ -14,7 +14,11 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE_NAME);
 
-  // Build absolute URL for redirect using the incoming request
+  // Build absolute URL for redirect using the incoming request and forward search params
   const loginUrl = new URL("/login", request.nextUrl.origin);
+  const reason = request.nextUrl.searchParams.get("reason");
+  if (reason) {
+    loginUrl.searchParams.set("reason", reason);
+  }
   return NextResponse.redirect(loginUrl);
 }
