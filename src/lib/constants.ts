@@ -1,5 +1,9 @@
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Super Warrior 30";
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+export const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://www.superwarrior30.com"
+    : "http://localhost:3000");
 
 export const SESSION_COOKIE_NAME = "sw30_session";
 export const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
