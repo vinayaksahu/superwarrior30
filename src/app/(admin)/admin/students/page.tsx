@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getAdminStudentsAction } from "@/server/actions/admin.actions";
 import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
+import { ForceLogoutButton } from "@/components/admin/admin-device-actions";
 import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -108,12 +109,20 @@ export default async function AdminStudentsPage({
                       })}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/admin/devices?search=${encodeURIComponent(student.email)}`}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/10 transition-colors"
-                      >
-                        Devices
-                      </Link>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          href={`/admin/devices?search=${encodeURIComponent(student.email)}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          Devices
+                        </Link>
+                        <ForceLogoutButton
+                          userId={student.id}
+                          userEmail={student.email}
+                          label="Session Out"
+                          size="xs"
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -370,10 +370,11 @@ export function StudentSecurityControls({
           <button
             type="button"
             onClick={() => setRevokeAllOpen(true)}
-            className="inline-flex items-center gap-1 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 cursor-pointer"
+            title="Force session out for this user from all devices"
           >
-            <Ban className="h-3.5 w-3.5" />
-            Revoke All Sessions
+            <PowerOff className="h-3.5 w-3.5" />
+            Session Out
           </button>
         )}
       </div>
@@ -404,15 +405,78 @@ export function StudentSecurityControls({
         icon="shield"
       />
 
-      {/* 3. Revoke All Sessions Modal */}
+      {/* 3. Revoke All Sessions / Session Out Modal */}
       <ConfirmationModal
         isOpen={revokeAllOpen}
         onClose={() => setRevokeAllOpen(false)}
         onConfirm={handleRevokeAll}
         loading={loading}
-        title="Revoke All Sessions"
-        description={`Are you sure you want to revoke ALL active sessions and devices for ${studentEmail}? The student will be immediately signed out from all laptops and phones.`}
-        confirmText="Revoke All Sessions"
+        title="Admin Force Logout / Session Out"
+        description={`Are you sure you want to force session out for ${studentEmail}? The user will be immediately logged out from all active browsers, laptops, and mobile devices.`}
+        confirmText="Force Session Out"
+        confirmVariant="destructive"
+        icon="alert"
+      />
+    </>
+  );
+}
+
+// ==========================================
+// STANDALONE FORCE LOGOUT / SESSION OUT BUTTON
+// ==========================================
+export function ForceLogoutButton({
+  userId,
+  userEmail,
+  label = "Session Out",
+  size = "sm",
+}: {
+  userId: string;
+  userEmail: string;
+  label?: string;
+  size?: "sm" | "xs";
+}) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleForceLogout = async () => {
+    setLoading(true);
+    try {
+      const res = await revokeAllStudentDevicesAction(userId);
+      if (res.success) {
+        toast.success(res.message);
+        setModalOpen(false);
+      } else {
+        toast.error(res.message);
+      }
+    } catch {
+      toast.error("Failed to force logout user.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setModalOpen(true)}
+        className={`inline-flex items-center gap-1 rounded-lg border border-border bg-card font-bold text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors cursor-pointer ${
+          size === "xs" ? "px-2 py-1 text-[10px]" : "px-2.5 py-1.5 text-xs"
+        }`}
+        title={`Force session out for ${userEmail}`}
+      >
+        <PowerOff className="h-3 w-3" />
+        {label}
+      </button>
+
+      <ConfirmationModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onConfirm={handleForceLogout}
+        loading={loading}
+        title="Admin Force Logout"
+        description={`Terminate active session for ${userEmail}? The user will be instantly logged out across all devices.`}
+        confirmText="Force Logout"
         confirmVariant="destructive"
         icon="alert"
       />

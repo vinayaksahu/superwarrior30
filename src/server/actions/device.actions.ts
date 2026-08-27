@@ -304,6 +304,63 @@ export async function revokeAllStudentDevicesAction(studentId: string): Promise<
 }
 
 // ==========================================
+// ADMIN: FORCE LOGOUT / SESSION OUT ANY USER
+// ==========================================
+
+export async function adminForceLogoutUserAction(userId: string): Promise<ActionState> {
+  const admin = await requireAdminWrite();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { devices: true },
+  });
+
+  if (!user) return { success: false, message: "User not found." };
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Mark all devices as inactive and revoked
+    await tx.userDevice.updateMany({
+      where: { userId },
+      data: {
+        isActive: false,
+        revokedAt: new Date(),
+        revokedBy: admin.id,
+      },
+    });
+
+    // 2. Increment tokenVersion to immediately kill all active JWT sessions
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    // 3. Audit log
+    await tx.auditLog.create({
+      data: {
+        actorId: admin.id,
+        actorEmail: admin.email,
+        actorRole: admin.role,
+        action: "ADMIN_FORCE_LOGOUT",
+        entityType: "User",
+        entityId: userId,
+        newValues: {
+          targetEmail: user.email,
+          targetRole: user.role,
+          revokedDevicesCount: user.devices.length,
+        },
+      },
+    });
+  });
+
+  revalidatePath("/admin/devices");
+  revalidatePath("/admin/students");
+  revalidatePath("/admin/staff");
+  return { success: true, message: `Session out successful. ${user.email} has been logged out from all devices.` };
+}
+
+// ==========================================
 // ADMIN: UNBLOCK STUDENT ACCOUNT
 // ==========================================
 
