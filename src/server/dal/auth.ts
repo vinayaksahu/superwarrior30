@@ -43,6 +43,32 @@ export const getCurrentUser = cache(async () => {
   // Session revocation check: if user's tokenVersion was incremented, invalidate session
   if (user.tokenVersion !== session.tokenVersion) return null;
 
+  // Device-level session revocation check (One Active Device enforcement & Revoked Device check)
+  if (session.deviceId) {
+    const device = await prisma.userDevice.findUnique({
+      where: { id: session.deviceId },
+      select: {
+        id: true,
+        userId: true,
+        isActive: true,
+        revokedAt: true,
+      },
+    });
+
+    // If device was revoked, displaced, or does not belong to user, invalidate session immediately
+    if (!device || device.userId !== user.id || !device.isActive || device.revokedAt !== null) {
+      return null;
+    }
+
+    // Async background update of lastSeenAt
+    prisma.userDevice
+      .update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      })
+      .catch(() => {});
+  }
+
   return user;
 });
 

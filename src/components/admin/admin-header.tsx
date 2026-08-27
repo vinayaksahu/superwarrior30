@@ -44,6 +44,7 @@ const allSidebarLinks: SidebarLink[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/courses", label: "Courses", icon: BookOpen, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/students", label: "Students", icon: Users, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
+  { href: "/admin/devices", label: "Device Security", icon: ShieldCheck, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/coupons", label: "Coupons", icon: Tag, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
   { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },

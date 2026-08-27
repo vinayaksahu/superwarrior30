@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireAuth } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileForms } from "@/components/student/profile-forms";
+import { StudentDevicesCard } from "@/components/student/student-devices-card";
 import { User, Shield, KeyRound, Calendar } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,9 @@ export default async function StudentProfilePage() {
         initialPhone={user.phone || ""}
         email={user.email}
       />
+
+      {/* Login Devices & Device Limit Card */}
+      <StudentDevicesCard />
     </div>
   );
 }

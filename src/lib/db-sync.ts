@@ -109,5 +109,51 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
+  // user_devices table for Session & Device Limit Security
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TYPE "UserStatus" ADD VALUE IF NOT EXISTS 'BLOCKED';
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "user_devices" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "deviceTokenHash" TEXT NOT NULL,
+        "deviceName" TEXT,
+        "browser" TEXT,
+        "operatingSystem" TEXT,
+        "userAgent" TEXT,
+        "lastIpAddress" TEXT,
+        "firstSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "lastLoginAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "revokedAt" TIMESTAMP(3),
+        "revokedBy" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "user_devices_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "user_devices_userId_deviceTokenHash_key" UNIQUE ("userId", "deviceTokenHash")
+      );
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "user_devices_userId_idx" ON "user_devices"("userId");
+      CREATE INDEX IF NOT EXISTS "user_devices_deviceTokenHash_idx" ON "user_devices"("deviceTokenHash");
+      CREATE INDEX IF NOT EXISTS "user_devices_userId_isActive_idx" ON "user_devices"("userId", "isActive");
+    `);
+  } catch {
+    // ignore
+  }
+
   isSynced = true;
 }

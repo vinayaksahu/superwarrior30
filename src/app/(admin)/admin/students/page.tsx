@@ -75,6 +75,7 @@ export default async function AdminStudentsPage({
                   <th className="px-4 py-3 font-medium text-right">Wallet Balance</th>
                   <th className="px-4 py-3 font-medium text-right">Total Earned</th>
                   <th className="px-4 py-3 font-medium">Joined Date</th>
+                  <th className="px-4 py-3 font-medium text-right">Security</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -105,6 +106,14 @@ export default async function AdminStudentsPage({
                         month: "short",
                         year: "numeric",
                       })}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/admin/devices?search=${encodeURIComponent(student.email)}`}
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        Devices
+                      </Link>
                     </td>
                   </tr>
                 ))}

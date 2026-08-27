@@ -22,6 +22,7 @@ enum UserStatus {
   ACTIVE
   SUSPENDED
   DEACTIVATED
+  BLOCKED
 }
 
 model User {
@@ -58,6 +59,9 @@ model User {
 
   // Withdrawals
   withdrawals Withdrawal[]
+
+  // Devices & Session Security
+  devices UserDevice[]
 
   // Password resets
   passwordResetTokens PasswordResetToken[]
@@ -605,4 +609,35 @@ model SystemPaymentMethod {
   updatedAt    DateTime          @updatedAt
 
   @@map("system_payment_methods")
+}
+
+// ==========================================
+// USER DEVICES & SESSION SECURITY
+// ==========================================
+
+model UserDevice {
+  id              String    @id @default(cuid())
+  userId          String
+  deviceTokenHash String
+  deviceName      String?
+  browser         String?
+  operatingSystem String?
+  userAgent       String?   @db.Text
+  lastIpAddress   String?
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  lastLoginAt     DateTime  @default(now())
+  isActive        Boolean   @default(true)
+  revokedAt       DateTime?
+  revokedBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceTokenHash])
+  @@index([userId])
+  @@index([deviceTokenHash])
+  @@index([userId, isActive])
+  @@map("user_devices")
 }
