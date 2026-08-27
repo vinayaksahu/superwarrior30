@@ -41,10 +41,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 2. Authenticated user trying to access auth pages
+  // 2. User accessing auth pages (login/register)
   if (session && isAuthRoute) {
+    // If redirected due to invalid/revoked session ("from" query present), clear stale cookie and show login
+    if (request.nextUrl.searchParams.has("from")) {
+      const response = NextResponse.next();
+      response.cookies.delete(SESSION_COOKIE_NAME);
+      return response;
+    }
     const destination =
-      session.role === "ADMIN" ? "/admin" : "/dashboard";
+      session.role === "ADMIN" || session.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
     return NextResponse.redirect(new URL(destination, request.nextUrl));
   }
 
