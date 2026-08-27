@@ -297,12 +297,20 @@ export async function loginAction(
 
   activeDeviceId = deviceCheckResult.deviceId;
 
-  // Create active JWT session
+  // Increment tokenVersion on every login to immediately invalidate ALL previous JWT sessions.
+  // This enforces the "1 active device at a time" rule at the JWT level — any other device's
+  // old JWT will have a stale tokenVersion and will be rejected by getCurrentUser().
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: { tokenVersion: { increment: 1 } },
+  });
+
+  // Create active JWT session with the NEW tokenVersion
   await createSession(
     user.id,
     user.email,
     user.role,
-    user.tokenVersion,
+    updatedUser.tokenVersion,
     activeDeviceId
   );
 
