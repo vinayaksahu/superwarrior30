@@ -201,13 +201,18 @@ export function FileUploader({
                 ? "video/quicktime"
                 : "video/mp4"),
           },
-          onError: (error) => {
+          onError: (error: any) => {
             console.error("TUS Direct Video Upload Error:", error);
-            const errStr = error.message || String(error);
-            if (errStr.includes("ProgressEvent") || errStr.includes("network")) {
+            const status = error?.originalResponse?.getStatus?.();
+            const body = error?.originalResponse?.getBody?.();
+            const errStr = error?.message || String(error);
+
+            if (status) {
+              reject(new Error(`Bunny Stream Error (HTTP ${status}): ${body || errStr}`));
+            } else if (errStr.includes("ProgressEvent")) {
               reject(
                 new Error(
-                  "Connection to Bunny Stream CDN failed. If you have an AdBlocker or Brave Shield enabled, please allow video.bunnycdn.com or disable it for this page."
+                  "Connection to Bunny Stream failed (Network/CORS). Please verify video.bunnycdn.com is accessible and any AdBlocker is disabled."
                 )
               );
             } else {
