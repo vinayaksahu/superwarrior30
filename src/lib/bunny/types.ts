@@ -55,7 +55,6 @@ export interface DirectVideoUploadAuth {
   expirationTime: number;
   signature: string;
   endpoint: string;
-  uploadUrl: string;
 }
 
 /**

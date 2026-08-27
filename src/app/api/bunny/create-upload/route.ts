@@ -96,8 +96,8 @@ export async function POST(req: NextRequest) {
 
     const videoTitle = title || `${course.title} - ${filename || "Lesson Video"}`;
 
-    // Create Bunny Stream video entry and generate temporary upload signature & pre-initialized uploadUrl
-    const authData = await createDirectVideoUploadAuth(videoTitle, fileSize || 1024, 7200); // 2 hours validity
+    // Create Bunny Stream video entry and generate temporary upload signature
+    const authData = await createDirectVideoUploadAuth(videoTitle, undefined, 7200); // 2 hours validity
 
     return NextResponse.json({
       success: true,
