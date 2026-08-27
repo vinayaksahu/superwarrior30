@@ -10,7 +10,10 @@ export const dynamic = "force-dynamic";
  * GET /api/auth/session-status
  *
  * Lightweight heartbeat endpoint for client-side session guard.
- * Checks whether the current browser's JWT session is still active and valid in the DB.
+ * Accurately distinguishes between:
+ * 1. DISPLACED: Another device logged in (single device rule)
+ * 2. ADMIN_LOGOUT: Admin explicitly performed Session Out or Revoke
+ * 3. BLOCKED: User account locked due to security limit
  */
 export async function GET() {
   try {
@@ -47,12 +50,10 @@ export async function GET() {
       return NextResponse.json({ authenticated: false, reason: "DEACTIVATED" });
     }
 
-    // Token version mismatch means another device logged in or admin forced logout
-    if (user.tokenVersion !== session.tokenVersion) {
-      return NextResponse.json({ authenticated: false, reason: "DISPLACED" });
-    }
+    // Check device state first to see if it was explicitly revoked by admin
+    let deviceRevoked = false;
+    let deviceInactive = false;
 
-    // Device-level check
     if (session.deviceId) {
       const device = await prisma.userDevice.findUnique({
         where: { id: session.deviceId },
@@ -64,16 +65,24 @@ export async function GET() {
       });
 
       if (!device || device.revokedAt !== null) {
-        return NextResponse.json({ authenticated: false, reason: "REVOKED" });
-      }
-
-      if (!device.isActive) {
-        return NextResponse.json({ authenticated: false, reason: "DISPLACED" });
+        deviceRevoked = true;
+      } else if (!device.isActive) {
+        deviceInactive = true;
       }
     }
 
+    // If device was revoked (Session Out / Revoke button), return ADMIN_LOGOUT
+    if (deviceRevoked) {
+      return NextResponse.json({ authenticated: false, reason: "ADMIN_LOGOUT" });
+    }
+
+    // If tokenVersion changed or device marked inactive without revoke, it was displaced by another device login
+    if (user.tokenVersion !== session.tokenVersion || deviceInactive) {
+      return NextResponse.json({ authenticated: false, reason: "DISPLACED" });
+    }
+
     return NextResponse.json({ authenticated: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ authenticated: false, error: "Internal error" }, { status: 500 });
   }
 }

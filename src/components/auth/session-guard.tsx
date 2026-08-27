@@ -22,7 +22,7 @@ export function SessionGuard() {
   const pathname = usePathname();
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
-    reason: "DISPLACED" | "REVOKED" | "BLOCKED" | "DEACTIVATED" | null;
+    reason: "DISPLACED" | "ADMIN_LOGOUT" | "REVOKED" | "BLOCKED" | "DEACTIVATED" | null;
     countdown: number;
   }>({
     isOpen: false,
@@ -116,6 +116,7 @@ export function SessionGuard() {
   if (!modalState.isOpen) return null;
 
   const isDisplaced = modalState.reason === "DISPLACED";
+  const isAdminLogout = modalState.reason === "ADMIN_LOGOUT" || modalState.reason === "REVOKED";
   const isBlocked = modalState.reason === "BLOCKED";
 
   return (
@@ -123,7 +124,9 @@ export function SessionGuard() {
       <div className="w-full max-w-md rounded-2xl border border-destructive/30 bg-card p-6 shadow-2xl space-y-6 text-center animate-in zoom-in-95 duration-200">
         {/* Icon Header */}
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/15 border border-destructive/30 text-destructive shadow-lg">
-          {isDisplaced ? (
+          {isAdminLogout ? (
+            <ShieldAlert className="h-8 w-8 text-destructive animate-pulse" />
+          ) : isDisplaced ? (
             <Smartphone className="h-8 w-8 animate-pulse" />
           ) : isBlocked ? (
             <ShieldAlert className="h-8 w-8 text-destructive animate-bounce" />
@@ -135,18 +138,22 @@ export function SessionGuard() {
         {/* Title and Description in English */}
         <div className="space-y-2">
           <h2 className="text-xl font-black tracking-tight text-foreground">
-            {isDisplaced
+            {isAdminLogout
+              ? "Session Terminated by Admin"
+              : isDisplaced
               ? "Logged In on Another Device"
               : isBlocked
               ? "Account Security Lock"
               : "Session Terminated"}
           </h2>
           <p className="text-xs text-muted-foreground leading-relaxed px-2">
-            {isDisplaced
+            {isAdminLogout
+              ? "Your active session has been terminated by the administrator. You have been safely logged out. Please log in again to continue."
+              : isDisplaced
               ? "You have been logged in from another device. For security purposes, only 1 active device session is permitted at a time. Your session on this device has been terminated."
               : isBlocked
               ? "Your account has been locked due to exceeding the allowed device limit. Please contact the administrator for assistance."
-              : "Your session has been revoked by the administrator. Please log in again to continue."}
+              : "Your session has ended. Please log in again to continue."}
           </p>
         </div>
 

@@ -20,9 +20,9 @@ export function LoginForm() {
         setUrlNotice(
           "Your account was logged in from another device. This session has been terminated."
         );
-      } else if (reason === "revoked") {
+      } else if (reason === "admin_logout" || reason === "revoked") {
         setUrlNotice(
-          "Your session was revoked by the administrator. Please log in again."
+          "Your session was terminated by the administrator. Please log in again."
         );
       } else if (reason === "blocked") {
         setUrlNotice(
