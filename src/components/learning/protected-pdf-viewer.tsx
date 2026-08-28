@@ -31,38 +31,47 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load PDF.js library dynamically from CDN
+  // Load PDF.js library dynamically with fallback
   useEffect(() => {
     let isCancelled = false;
+    let fallbackTimeout: NodeJS.Timeout;
 
     const loadPdfJs = async () => {
       const globalWindow = window as any;
 
-      if (!globalWindow.pdfjsLib) {
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-        script.async = true;
-
-        await new Promise<void>((resolve, reject) => {
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error("Failed to load PDF engine"));
-          document.head.appendChild(script);
-        });
-      }
-
-      if (globalWindow.pdfjsLib) {
-        globalWindow.pdfjsLib.GlobalWorkerOptions = globalWindow.pdfjsLib.GlobalWorkerOptions || {};
-        globalWindow.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-      }
-
-      if (isCancelled) return;
+      fallbackTimeout = setTimeout(() => {
+        if (!isCancelled && loading) {
+          console.warn("PDF.js loading timeout, falling back to embedded viewer");
+          setError("FALLBACK_IFRAME");
+          setLoading(false);
+        }
+      }, 4000);
 
       try {
+        if (!globalWindow.pdfjsLib) {
+          const script = document.createElement("script");
+          script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+          script.async = true;
+
+          await new Promise<void>((resolve, reject) => {
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("Failed to load PDF engine"));
+            document.head.appendChild(script);
+          });
+        }
+
+        if (globalWindow.pdfjsLib) {
+          globalWindow.pdfjsLib.GlobalWorkerOptions = globalWindow.pdfjsLib.GlobalWorkerOptions || {};
+          globalWindow.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        }
+
+        if (isCancelled) return;
+
         setLoading(true);
         setError(null);
 
-        // Fetch PDF as ArrayBuffer to bypass all mobile browser restrictions
+        // Fetch PDF as ArrayBuffer
         const response = await fetch(pdfUrl);
         if (!response.ok) throw new Error("Could not fetch document stream");
 
@@ -73,6 +82,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         const doc = await loadingTask.promise;
 
         if (!isCancelled) {
+          clearTimeout(fallbackTimeout);
           setPdfDoc(doc);
           setTotalPages(doc.numPages);
           setCurrentPage(1);
@@ -80,8 +90,9 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         }
       } catch (err: unknown) {
         if (!isCancelled) {
-          console.error("PDF.js render error:", err);
-          setError("Failed to load document on this device.");
+          clearTimeout(fallbackTimeout);
+          console.warn("PDF.js render fallback to iframe:", err);
+          setError("FALLBACK_IFRAME");
           setLoading(false);
         }
       }
@@ -91,6 +102,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
 
     return () => {
       isCancelled = true;
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
     };
   }, [pdfUrl]);
 
@@ -233,20 +245,30 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
           </div>
         )}
 
-        {error && (
-          <div className="flex flex-col items-center justify-center gap-3 py-14 text-center text-destructive">
-            <AlertCircle className="h-8 w-8" />
-            <p className="text-xs font-semibold">{error}</p>
-          </div>
-        )}
+        {error === "FALLBACK_IFRAME" ? (
+          <iframe
+            src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+            className="w-full h-[650px] border-0 rounded-lg bg-neutral-900"
+            title={title}
+          />
+        ) : (
+          <>
+            {error && (
+              <div className="flex flex-col items-center justify-center gap-3 py-14 text-center text-destructive">
+                <AlertCircle className="h-8 w-8" />
+                <p className="text-xs font-semibold">{error}</p>
+              </div>
+            )}
 
-        <canvas
-          ref={canvasRef}
-          className={`shadow-2xl rounded-lg bg-white transition-opacity duration-200 ${
-            loading ? "opacity-0" : "opacity-100"
-          }`}
-          style={{ maxWidth: "100%", height: "auto" }}
-        />
+            <canvas
+              ref={canvasRef}
+              className={`shadow-2xl rounded-lg bg-white transition-opacity duration-200 ${
+                loading ? "opacity-0" : "opacity-100"
+              }`}
+              style={{ maxWidth: "100%", height: "auto" }}
+            />
+          </>
+        )}
 
         {/* Security Watermark */}
         <div className="pointer-events-none absolute bottom-3 right-3 z-10 rounded bg-black/60 px-2 py-1 text-[9px] font-mono text-white/30 backdrop-blur-sm">

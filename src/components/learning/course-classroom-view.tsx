@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { getEnrolledLessonMediaUrlAction } from "@/server/actions/enrollment.actions";
 import {
   CheckCircle2,
   Circle,
@@ -70,6 +71,8 @@ export function CourseClassroomView({
     textContent: string | null;
     signedUrl: string | null;
     durationSec: number;
+    provider?: string;
+    bunnyVideoId?: string | null;
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -107,38 +110,37 @@ export function CourseClassroomView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch active lesson details
+  // Fetch real active lesson media details securely
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
 
-    let activeLessonTitle = "Lesson";
-    let activeLessonType = "PDF";
-    for (const m of modules) {
-      const l = m.lessons.find((item) => item.id === activeLessonId);
-      if (l) {
-        activeLessonTitle = l.title;
-        activeLessonType = l.contentType;
-        break;
+    async function fetchMedia() {
+      try {
+        const res = await getEnrolledLessonMediaUrlAction({
+          courseSlug,
+          lessonId: activeLessonId,
+        });
+        if (isMounted) {
+          setMediaData(res);
+          setLoading(false);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          const msg =
+            err instanceof Error ? err.message : "Failed to load lesson media";
+          toast.error(msg);
+          setLoading(false);
+        }
       }
     }
 
-    if (isMounted) {
-      setMediaData({
-        lessonId: activeLessonId,
-        title: activeLessonTitle,
-        contentType: activeLessonType,
-        textContent: null,
-        signedUrl: `/api/lessons/${activeLessonId}/pdf`,
-        durationSec: 0,
-      });
-      setLoading(false);
-    }
+    fetchMedia();
 
     return () => {
       isMounted = false;
     };
-  }, [activeLessonId, modules]);
+  }, [activeLessonId, courseSlug]);
 
   // Real-time instant toggle completion
   const handleToggleComplete = async () => {
@@ -413,22 +415,50 @@ export function CourseClassroomView({
         {loading ? (
           <div className="flex h-80 sm:h-96 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card">
             <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
-            <p className="text-xs text-muted-foreground">Loading lesson content...</p>
+            <p className="text-xs text-muted-foreground">Loading secure course media...</p>
           </div>
+        ) : mediaData?.contentType === "VIDEO" ? (
+          mediaData.signedUrl ? (
+            mediaData.provider === "BUNNY" || mediaData.bunnyVideoId ? (
+              /* Bunny Stream Responsive Embed Player */
+              <div className="relative rounded-2xl border border-border bg-black/95 shadow-2xl overflow-hidden aspect-video w-full">
+                <iframe
+                  src={mediaData.signedUrl}
+                  loading="lazy"
+                  className="h-full w-full border-0"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  title={mediaData.title}
+                />
+              </div>
+            ) : (
+              /* Legacy R2 HTML5 Player */
+              <div className="relative rounded-2xl border border-border bg-black/95 shadow-2xl overflow-hidden aspect-video w-full">
+                <video
+                  ref={videoRef}
+                  src={mediaData.signedUrl}
+                  controls
+                  controlsList="nodownload noplaybackrate"
+                  disablePictureInPicture
+                  onContextMenu={(e) => e.preventDefault()}
+                  onEnded={handleToggleComplete}
+                  className="h-full w-full object-contain select-none"
+                />
+              </div>
+            )
+          ) : (
+            <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 text-muted-foreground p-8 text-center bg-card rounded-2xl border border-border">
+              <AlertCircle className="h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium">Video stream is being processed or not yet uploaded.</p>
+            </div>
+          )
         ) : mediaData?.contentType === "PDF" ? (
           <ProtectedPdfViewer pdfUrl={pdfStreamUrl} title={mediaData.title} />
         ) : (
-          <div className="relative rounded-2xl border border-border bg-black/95 shadow-2xl overflow-hidden aspect-video w-full">
-            <video
-              ref={videoRef}
-              src={mediaData?.signedUrl || ""}
-              controls
-              controlsList="nodownload noplaybackrate"
-              disablePictureInPicture
-              onContextMenu={(e) => e.preventDefault()}
-              onEnded={handleToggleComplete}
-              className="h-full w-full object-contain select-none"
-            />
+          <div className="p-8 bg-card text-foreground rounded-2xl border border-border">
+            <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+              {mediaData?.textContent || "No text content available for this lesson."}
+            </div>
           </div>
         )}
 

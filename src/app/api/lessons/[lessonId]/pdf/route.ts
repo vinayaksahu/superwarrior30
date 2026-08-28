@@ -61,8 +61,24 @@ export async function GET(
       }
     }
 
-    // 3. Handle Bunny CDN URL (redirect to CDN)
+    // 3. Handle Bunny CDN URL (stream directly to prevent CORS issues)
     if (lesson.bunnyCdnUrl) {
+      try {
+        const cdnRes = await fetch(lesson.bunnyCdnUrl);
+        if (cdnRes.ok) {
+          const arrayBuffer = await cdnRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          return new NextResponse(buffer, {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
+              "Cache-Control": "public, max-age=3600",
+            },
+          });
+        }
+      } catch (streamErr) {
+        console.warn("Could not proxy Bunny CDN stream, redirecting:", streamErr);
+      }
       return NextResponse.redirect(lesson.bunnyCdnUrl);
     }
 

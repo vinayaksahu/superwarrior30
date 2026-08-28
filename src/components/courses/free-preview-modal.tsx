@@ -25,6 +25,8 @@ export function FreePreviewButton({
       textContent: string | null;
     };
     signedUrl: string | null;
+    provider?: string;
+    bunnyVideoId?: string | null;
   } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -83,16 +85,29 @@ export function FreePreviewButton({
                   <p className="text-sm text-muted-foreground">Generating secure preview stream...</p>
                 </div>
               ) : mediaData?.signedUrl && contentType === "VIDEO" ? (
-                <div className="aspect-video w-full rounded-lg overflow-hidden bg-black shadow-inner">
-                  <video
-                    src={mediaData.signedUrl}
-                    controls
-                    controlsList="nodownload"
-                    onContextMenu={(e) => e.preventDefault()}
-                    autoPlay
-                    className="h-full w-full object-contain"
-                  />
-                </div>
+                mediaData.provider === "BUNNY" || mediaData.bunnyVideoId ? (
+                  <div className="aspect-video w-full rounded-lg overflow-hidden bg-black shadow-inner">
+                    <iframe
+                      src={mediaData.signedUrl}
+                      loading="lazy"
+                      className="h-full w-full border-0"
+                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                      allowFullScreen
+                      title={lessonTitle}
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-video w-full rounded-lg overflow-hidden bg-black shadow-inner">
+                    <video
+                      src={mediaData.signedUrl}
+                      controls
+                      controlsList="nodownload"
+                      onContextMenu={(e) => e.preventDefault()}
+                      autoPlay
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                )
               ) : mediaData?.signedUrl && contentType === "PDF" ? (
                 <div className="h-[500px] w-full rounded-lg overflow-hidden border border-border">
                   <iframe

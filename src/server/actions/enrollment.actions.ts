@@ -78,6 +78,9 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
               isFreePreview: true,
               videoKey: true,
               pdfKey: true,
+              bunnyVideoId: true,
+              bunnyCdnUrl: true,
+              mediaProvider: true,
               textContent: true,
             },
           },
@@ -98,14 +101,6 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
         userId: user.id,
         courseId: course.id,
       },
-      select: {
-        id: true,
-        userId: true,
-        courseId: true,
-        status: true,
-        enrolledAt: true,
-        completedAt: true,
-      },
     });
   } catch {
     // fallback
@@ -118,14 +113,11 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
         where: {
           userId: user.id,
           status: "PAID",
-          items: {
-            some: { courseId: course.id },
-          },
+          items: { some: { courseId: course.id } },
         },
-        select: { id: true },
       });
 
-      if (paidOrder || isAdmin) {
+      if (paidOrder) {
         enrollment = await prisma.courseEnrollment.upsert({
           where: {
             userId_courseId: {
@@ -133,21 +125,11 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
               courseId: course.id,
             },
           },
+          update: { status: "ACTIVE" },
           create: {
             userId: user.id,
             courseId: course.id,
             status: "ACTIVE",
-          },
-          update: {
-            status: "ACTIVE",
-          },
-          select: {
-            id: true,
-            userId: true,
-            courseId: true,
-            status: true,
-            enrolledAt: true,
-            completedAt: true,
           },
         });
       }
@@ -156,73 +138,43 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
     }
   }
 
-  await ensureDatabaseSchemaSync();
-
-  // Step 3: Fetch Student's Lesson Progress
-  let progressRecords: Array<{ lessonId: string; status: string; watchTimeSeconds: number }> = [];
-  try {
-    progressRecords = await prisma.lessonProgress.findMany({
-      where: {
-        userId: user.id,
-      },
-      select: {
-        lessonId: true,
-        status: true,
-        watchTimeSeconds: true,
-      },
-    });
-  } catch (findErr) {
-    try {
-      const rawRows = await prisma.$queryRawUnsafe<
-        Array<{ lessonId: string; status: string; watchTimeSeconds: number }>
-      >(
-        `SELECT "lessonId", "status"::text as "status", "watchTimeSeconds" FROM "lesson_progress" WHERE "userId" = $1`,
-        user.id
-      );
-      progressRecords = rawRows || [];
-    } catch {
-      progressRecords = [];
-    }
+  if (!isAdmin && (!enrollment || enrollment.status !== "ACTIVE")) {
+    throw new Error("Access denied. Please purchase the course to view content.");
   }
 
-  const progressMap = new Map<string, { status: string; watchTimeSeconds: number }>();
-  for (const p of progressRecords) {
-    progressMap.set(p.lessonId, {
-      status: p.status,
-      watchTimeSeconds: p.watchTimeSeconds,
-    });
+  // Step 3: Fetch Progress
+  const progressRecords = await prisma.lessonProgress.findMany({
+    where: {
+      userId: user.id,
+      lesson: { module: { courseId: course.id } },
+    },
+    select: {
+      lessonId: true,
+      status: true,
+      watchTimeSeconds: true,
+    },
+  });
+
+  const progressMap: Record<string, { status: string; watchTimeSeconds: number }> = {};
+  for (const record of progressRecords) {
+    progressMap[record.lessonId] = {
+      status: record.status,
+      watchTimeSeconds: record.watchTimeSeconds,
+    };
   }
 
-  // Count total and completed lessons
-  let totalLessonsCount = 0;
-  let completedLessonsCount = 0;
-
-  for (const mod of course.modules) {
-    for (const lesson of mod.lessons) {
-      totalLessonsCount++;
-      if (progressMap.get(lesson.id)?.status === "COMPLETED") {
-        completedLessonsCount++;
-      }
-    }
-  }
-
-  const computedProgress =
-    totalLessonsCount > 0
-      ? Math.round((completedLessonsCount / totalLessonsCount) * 100)
-      : 0;
+  // Step 4: Calculate Stats
+  const totalLessons = course.modules.reduce((acc, mod) => acc + mod.lessons.length, 0);
+  const completedLessons = progressRecords.filter((p) => p.status === "COMPLETED").length;
+  const progressPercentage = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
   return {
     course,
-    enrollment: enrollment || {
-      status: "ACTIVE",
-      progressPercentage: computedProgress,
-      enrolledAt: new Date(),
-    },
-    progressMap: Object.fromEntries(progressMap),
+    progressMap,
     stats: {
-      totalLessonsCount,
-      completedLessonsCount,
-      progressPercentage: computedProgress,
+      totalLessons,
+      completedLessons,
+      progressPercentage,
     },
   };
 }
@@ -286,6 +238,11 @@ export async function getEnrolledLessonMediaUrlAction({
     Boolean(lesson.bunnyVideoId) ||
     Boolean(lesson.bunnyCdnUrl);
 
+  const detectedProvider = isBunny ? "BUNNY" : (lesson.mediaProvider || "R2");
+
+  // Safe server-side diagnostic logging (no secret tokens)
+  console.log(`[Playback Diagnostics] lessonId=${lesson.id} contentType=${lesson.contentType} mediaProvider=${lesson.mediaProvider} bunnyVideoId=${lesson.bunnyVideoId ? "[PRESENT]" : "[NULL]"} detectedProvider=${detectedProvider} signedUrlHostname=${signedUrl ? new URL(signedUrl).hostname : "null"}`);
+
   return {
     lessonId: lesson.id,
     title: lesson.title,
@@ -293,7 +250,7 @@ export async function getEnrolledLessonMediaUrlAction({
     textContent: lesson.textContent,
     signedUrl,
     durationSec: lesson.durationSec,
-    provider: isBunny ? "BUNNY" : (lesson.mediaProvider || "R2"),
+    provider: detectedProvider,
     bunnyVideoId: lesson.bunnyVideoId,
   };
 }
