@@ -48,6 +48,13 @@ export async function ensureDatabaseSchemaSync() {
     `ALTER TABLE "order_items" ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 1;`,
     `ALTER TABLE "order_items" ADD COLUMN IF NOT EXISTS "totalPrice" DECIMAL(12,2);`,
 
+    // referral_commission_records columns
+    `ALTER TABLE "referral_commission_records" ADD COLUMN IF NOT EXISTS "availableAt" TIMESTAMP(3);`,
+    `ALTER TABLE "referral_commission_records" ADD COLUMN IF NOT EXISTS "clearedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "referral_commission_records" ADD COLUMN IF NOT EXISTS "clearedById" TEXT;`,
+    `ALTER TABLE "referral_commission_records" ADD COLUMN IF NOT EXISTS "clearedReason" TEXT;`,
+    `CREATE INDEX IF NOT EXISTS "referral_commission_records_status_availableAt_idx" ON "referral_commission_records"("status", "availableAt");`,
+
     // users columns
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" TEXT DEFAULT 'STUDENT';`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kycStatus" TEXT DEFAULT 'NOT_SUBMITTED';`,
@@ -165,6 +172,36 @@ export async function ensureDatabaseSchemaSync() {
         CONSTRAINT "user_devices_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE,
         CONSTRAINT "user_devices_userId_deviceTokenHash_key" UNIQUE ("userId", "deviceTokenHash")
       );
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TYPE "CommissionStatus" ADD VALUE IF NOT EXISTS 'REVERSED';
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    // Backfill holding period for any existing pending commissions
+    await prisma.$executeRawUnsafe(`
+      UPDATE "referral_commission_records"
+      SET "availableAt" = "createdAt" + INTERVAL '7 days'
+      WHERE "availableAt" IS NULL AND "status" = 'PENDING';
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    // Backfill cleared timestamps for any existing available commissions
+    await prisma.$executeRawUnsafe(`
+      UPDATE "referral_commission_records"
+      SET "availableAt" = "createdAt", "clearedAt" = "updatedAt"
+      WHERE "availableAt" IS NULL AND "status" = 'AVAILABLE';
     `);
   } catch {
     // ignore

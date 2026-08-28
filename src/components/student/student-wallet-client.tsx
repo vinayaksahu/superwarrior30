@@ -22,6 +22,8 @@ interface StudentWalletClientProps {
     pendingBalance: number;
     totalEarned: number;
     totalWithdrawn: number;
+    nextClearanceDate?: Date | null;
+    earliestPendingAmount?: number;
   };
   activeWithdrawals: Array<{
     id: string;
@@ -90,7 +92,7 @@ export function StudentWalletClient({
           <p className="text-3xl font-extrabold text-foreground">
             {formatCurrency(wallet.availableBalance)}
           </p>
-          <p className="text-xs text-muted-foreground">Ready for instant withdrawal</p>
+          <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
         </div>
 
         {/* Pending Balance */}
@@ -102,7 +104,19 @@ export function StudentWalletClient({
           <p className="text-3xl font-extrabold text-amber-500">
             {formatCurrency(wallet.pendingBalance)}
           </p>
-          <p className="text-xs text-muted-foreground">Under clearance holding period</p>
+          <p className="text-xs text-muted-foreground">
+            {wallet.nextClearanceDate ? (
+              <span>
+                Clears on {new Date(wallet.nextClearanceDate).toLocaleDateString("en-IN", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            ) : (
+              "Under clearance holding period"
+            )}
+          </p>
         </div>
 
         {/* Total Earned */}
@@ -114,7 +128,7 @@ export function StudentWalletClient({
           <p className="text-3xl font-extrabold text-foreground">
             {formatCurrency(wallet.totalEarned)}
           </p>
-          <p className="text-xs text-muted-foreground">Cumulative lifetime earnings</p>
+          <p className="text-xs text-muted-foreground">Lifetime referral commissions</p>
         </div>
 
         {/* Total Withdrawn */}
@@ -126,7 +140,7 @@ export function StudentWalletClient({
           <p className="text-3xl font-extrabold text-foreground">
             {formatCurrency(wallet.totalWithdrawn)}
           </p>
-          <p className="text-xs text-muted-foreground">Disbursed to your accounts</p>
+          <p className="text-xs text-muted-foreground">Successfully paid</p>
         </div>
       </div>
 

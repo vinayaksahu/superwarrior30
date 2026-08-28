@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveReferralSettingsAction } from "@/server/actions/referral.actions";
-import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Clock, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReferralLevelItem {
@@ -14,14 +14,20 @@ interface ReferralLevelItem {
 
 interface ReferralSettingsFormProps {
   initialEnabled: boolean;
+  initialHoldingPeriodDays?: number;
+  initialMinWithdrawalAmount?: number;
   initialLevels: ReferralLevelItem[];
 }
 
 export function ReferralSettingsForm({
   initialEnabled,
+  initialHoldingPeriodDays = 7,
+  initialMinWithdrawalAmount = 500,
   initialLevels,
 }: ReferralSettingsFormProps) {
   const [isReferralEnabled, setIsReferralEnabled] = useState(initialEnabled);
+  const [holdingPeriodDays, setHoldingPeriodDays] = useState(initialHoldingPeriodDays);
+  const [minWithdrawalAmount, setMinWithdrawalAmount] = useState(initialMinWithdrawalAmount);
   const [levels, setLevels] = useState<ReferralLevelItem[]>(
     initialLevels.length > 0
       ? initialLevels
@@ -47,7 +53,6 @@ export function ReferralSettingsForm({
       return;
     }
     const updated = levels.filter((_, i) => i !== index);
-    // Re-index levels sequentially
     const reindexed = updated.map((l, i) => ({ ...l, level: i + 1 }));
     setLevels(reindexed);
   };
@@ -78,10 +83,22 @@ export function ReferralSettingsForm({
       return;
     }
 
+    if (holdingPeriodDays < 0 || holdingPeriodDays > 365) {
+      toast.error("Holding period days must be between 0 and 365 days");
+      return;
+    }
+
+    if (minWithdrawalAmount < 50 || minWithdrawalAmount > 100000) {
+      toast.error("Minimum withdrawal amount must be between ₹50 and ₹1,00,000");
+      return;
+    }
+
     startTransition(async () => {
       try {
         const res = await saveReferralSettingsAction({
           isReferralEnabled,
+          holdingPeriodDays,
+          minWithdrawalAmount,
           levels,
         });
 
@@ -128,6 +145,72 @@ export function ReferralSettingsForm({
             </span>
           </div>
         )}
+      </div>
+
+      {/* Financial Clearance & Payout Rules */}
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">Clearance & Payout Policy</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Configure holding maturity windows and student withdrawal limits
+          </p>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          {/* Holding Days */}
+          <div className="rounded-xl border border-border/80 bg-background p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-amber-500" />
+                Commission Holding Period
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="365"
+                step="1"
+                value={holdingPeriodDays}
+                onChange={(e) => setHoldingPeriodDays(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-14 text-sm font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                Days
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              New commissions stay in <strong>Pending Balance</strong> for {holdingPeriodDays} days before automatically moving to <strong>Available Balance</strong>.
+            </p>
+          </div>
+
+          {/* Min Withdrawal Amount */}
+          <div className="rounded-xl border border-border/80 bg-background p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <IndianRupee className="h-3.5 w-3.5 text-emerald-500" />
+                Minimum Payout Threshold
+              </label>
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                ₹
+              </span>
+              <input
+                type="number"
+                min="50"
+                max="100000"
+                step="50"
+                value={minWithdrawalAmount}
+                onChange={(e) => setMinWithdrawalAmount(Math.max(50, parseFloat(e.target.value) || 50))}
+                className="flex h-10 w-full rounded-lg border border-input bg-background pl-7 pr-3 text-sm font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Students must have at least <strong>₹{minWithdrawalAmount}</strong> in Available Balance to request a bank / UPI withdrawal.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Multi-Level Config Table */}

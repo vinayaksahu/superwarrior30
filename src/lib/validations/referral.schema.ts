@@ -12,6 +12,17 @@ export const referralLevelItemSchema = z.object({
 
 export const referralSettingsSchema = z.object({
   isReferralEnabled: z.coerce.boolean().default(true),
+  holdingPeriodDays: z.coerce
+    .number()
+    .int("Holding days must be an integer")
+    .min(0, "Holding period cannot be negative")
+    .max(365, "Holding period cannot exceed 365 days")
+    .default(7),
+  minWithdrawalAmount: z.coerce
+    .number()
+    .min(50, "Minimum withdrawal must be at least ₹50")
+    .max(100000, "Cannot exceed ₹1,00,000")
+    .default(500),
   levels: z.array(referralLevelItemSchema).min(1, "At least one referral level must be defined"),
 }).refine(
   (data) => {

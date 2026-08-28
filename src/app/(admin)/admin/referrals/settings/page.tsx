@@ -35,6 +35,8 @@ export default async function AdminReferralSettingsPage() {
 
       <ReferralSettingsForm
         initialEnabled={settings.isReferralEnabled}
+        initialHoldingPeriodDays={settings.holdingPeriodDays}
+        initialMinWithdrawalAmount={settings.minWithdrawalAmount}
         initialLevels={settings.levels}
       />
     </div>

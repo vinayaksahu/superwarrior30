@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireAdmin } from "@/server/dal/auth";
+import { requireAuth, requireAdmin, requireSuperAdmin, requireSuperAdminAction } from "@/server/dal/auth";
 import { referralSettingsSchema, type ReferralSettingsInput } from "@/lib/validations/referral.schema";
 import { PAGINATION, APP_URL } from "@/lib/constants";
 import type { ActionState } from "@/types";
 import { Prisma } from "@/generated/prisma";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 
 // ==========================================
 // 1. ADMIN REFERRAL SETTINGS
@@ -14,10 +15,17 @@ import { Prisma } from "@/generated/prisma";
 
 export async function getReferralSettingsAction() {
   await requireAdmin();
+  await ensureDatabaseSchemaSync();
 
-  const [globalSetting, levels] = await Promise.all([
+  const [globalSetting, holdingSetting, minWithdrawalSetting, levels] = await Promise.all([
     prisma.siteSetting.findUnique({
       where: { key: "referral_enabled" },
+    }),
+    prisma.siteSetting.findUnique({
+      where: { key: "referral_holding_days" },
+    }),
+    prisma.siteSetting.findUnique({
+      where: { key: "referral_min_withdrawal" },
     }),
     prisma.referralLevel.findMany({
       orderBy: { level: "asc" },
@@ -25,9 +33,13 @@ export async function getReferralSettingsAction() {
   ]);
 
   const isReferralEnabled = globalSetting ? globalSetting.value === "true" : true;
+  const holdingPeriodDays = holdingSetting ? parseInt(holdingSetting.value, 10) || 7 : 7;
+  const minWithdrawalAmount = minWithdrawalSetting ? parseFloat(minWithdrawalSetting.value) || 500 : 500;
 
   return {
     isReferralEnabled,
+    holdingPeriodDays,
+    minWithdrawalAmount,
     levels: levels.map((l) => ({
       id: l.id,
       level: l.level,
@@ -41,6 +53,7 @@ export async function saveReferralSettingsAction(
   data: ReferralSettingsInput
 ): Promise<ActionState> {
   const admin = await requireAdmin();
+  await ensureDatabaseSchemaSync();
 
   const validated = referralSettingsSchema.safeParse(data);
   if (!validated.success) {
@@ -51,10 +64,10 @@ export async function saveReferralSettingsAction(
     };
   }
 
-  const { isReferralEnabled, levels } = validated.data;
+  const { isReferralEnabled, holdingPeriodDays, minWithdrawalAmount, levels } = validated.data;
 
   await prisma.$transaction(async (tx) => {
-    // 1. Update global toggle
+    // 1. Update global settings
     await tx.siteSetting.upsert({
       where: { key: "referral_enabled" },
       update: { value: isReferralEnabled ? "true" : "false" },
@@ -62,6 +75,26 @@ export async function saveReferralSettingsAction(
         key: "referral_enabled",
         value: isReferralEnabled ? "true" : "false",
         type: "boolean",
+      },
+    });
+
+    await tx.siteSetting.upsert({
+      where: { key: "referral_holding_days" },
+      update: { value: holdingPeriodDays.toString() },
+      create: {
+        key: "referral_holding_days",
+        value: holdingPeriodDays.toString(),
+        type: "number",
+      },
+    });
+
+    await tx.siteSetting.upsert({
+      where: { key: "referral_min_withdrawal" },
+      update: { value: minWithdrawalAmount.toString() },
+      create: {
+        key: "referral_min_withdrawal",
+        value: minWithdrawalAmount.toString(),
+        type: "number",
       },
     });
 
@@ -93,6 +126,8 @@ export async function saveReferralSettingsAction(
         entityId: "global",
         newValues: {
           isReferralEnabled,
+          holdingPeriodDays,
+          minWithdrawalAmount,
           levels: levels.map((l) => ({
             level: l.level,
             percentage: l.commissionPercentage,
@@ -105,7 +140,9 @@ export async function saveReferralSettingsAction(
 
   revalidatePath("/admin/referrals");
   revalidatePath("/admin/referrals/settings");
+  revalidatePath("/admin/referrals/clearance");
   revalidatePath("/dashboard/referrals");
+  revalidatePath("/wallet");
 
   return { success: true, message: "Referral settings saved successfully." };
 }
@@ -143,13 +180,22 @@ export async function calculateAndCreateOrderCommissions(
     return;
   }
 
-  // 3. Check global referral toggle
-  const globalSetting = await tx.siteSetting.findUnique({
-    where: { key: "referral_enabled" },
-  });
+  // 3. Check global referral toggle and holding period
+  const [globalSetting, holdingSetting] = await Promise.all([
+    tx.siteSetting.findUnique({
+      where: { key: "referral_enabled" },
+    }),
+    tx.siteSetting.findUnique({
+      where: { key: "referral_holding_days" },
+    }),
+  ]);
+
   if (globalSetting && globalSetting.value === "false") {
     return;
   }
+
+  const holdingPeriodDays = holdingSetting ? parseInt(holdingSetting.value, 10) || 7 : 7;
+  const availableAt = new Date(Date.now() + holdingPeriodDays * 24 * 60 * 60 * 1000);
 
   // 4. Calculate referral-eligible base amount
   const eligibleItems = order.items.filter(
@@ -219,7 +265,7 @@ export async function calculateAndCreateOrderCommissions(
           commissionAmountNum.toFixed(2)
         );
 
-        // A. Create commission record with unique constraint protection
+        // A. Create commission record with unique constraint protection & availableAt
         const record = await tx.referralCommissionRecord.create({
           data: {
             snapshotId: snapshot.id,
@@ -229,10 +275,11 @@ export async function calculateAndCreateOrderCommissions(
             rateApplied: levelConfig.commissionRate,
             commissionAmount: commissionAmountDecimal,
             status: "PENDING",
+            availableAt,
           },
         });
 
-        // B. Update Beneficiary Wallet
+        // B. Update Beneficiary Wallet (pendingBalance and totalEarned increment)
         const beneficiaryWallet = await tx.wallet.upsert({
           where: { userId: matchingAncestor.ancestorId },
           update: {
@@ -253,13 +300,30 @@ export async function calculateAndCreateOrderCommissions(
           data: {
             walletId: beneficiaryWallet.id,
             type: "CREDIT_COMMISSION",
-            status: "COMPLETED",
+            status: "PENDING",
             amount: commissionAmountDecimal,
             balanceBefore: beneficiaryWallet.availableBalance,
             balanceAfter: beneficiaryWallet.availableBalance,
-            description: `Level ${levelConfig.level} referral commission from order ${order.orderNumber}`,
+            description: `Level ${levelConfig.level} referral commission from order ${order.orderNumber} (Pending clearance)`,
             referenceType: "COMMISSION",
             referenceId: record.id,
+          },
+        });
+
+        // D. Audit log
+        await tx.auditLog.create({
+          data: {
+            actorId: matchingAncestor.ancestorId,
+            action: "COMMISSION_CREATED",
+            entityType: "ReferralCommissionRecord",
+            entityId: record.id,
+            newValues: {
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+              amount: commissionAmountNum,
+              level: levelConfig.level,
+              availableAt: availableAt.toISOString(),
+            },
           },
         });
       }
@@ -268,26 +332,284 @@ export async function calculateAndCreateOrderCommissions(
 }
 
 // ==========================================
-// 3. REVERSAL ENGINE (FOR REFUNDS)
+// 3. AUTOMATIC & MANUAL COMMISSION CLEARANCE
+// ==========================================
+
+export async function processMaturedCommissionsAction(): Promise<{
+  success: boolean;
+  clearedCount: number;
+  totalAmount: number;
+  message: string;
+}> {
+  await ensureDatabaseSchemaSync();
+
+  const now = new Date();
+
+  // Find all pending commissions that have reached or passed their clearance availableAt date
+  const maturedCommissions = await prisma.referralCommissionRecord.findMany({
+    where: {
+      status: "PENDING",
+      availableAt: {
+        lte: now,
+      },
+    },
+    include: {
+      order: { select: { orderNumber: true } },
+      beneficiary: { select: { id: true, email: true } },
+    },
+  });
+
+  if (maturedCommissions.length === 0) {
+    return {
+      success: true,
+      clearedCount: 0,
+      totalAmount: 0,
+      message: "No matured commissions awaiting clearance.",
+    };
+  }
+
+  let totalAmountCleared = 0;
+  let clearedCount = 0;
+
+  for (const commission of maturedCommissions) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // 1. Mark commission as AVAILABLE
+        await tx.referralCommissionRecord.update({
+          where: { id: commission.id },
+          data: {
+            status: "AVAILABLE",
+            clearedAt: now,
+            clearedReason: "Matured after clearance holding period",
+          },
+        });
+
+        // 2. Fetch user wallet
+        const wallet = await tx.wallet.findUnique({
+          where: { userId: commission.beneficiaryId },
+        });
+
+        if (wallet) {
+          const balanceBefore = wallet.availableBalance;
+          const balanceAfter = wallet.availableBalance.plus(commission.commissionAmount);
+          const newPending = Prisma.Decimal.max(
+            0,
+            wallet.pendingBalance.minus(commission.commissionAmount)
+          );
+
+          await tx.wallet.update({
+            where: { id: wallet.id },
+            data: {
+              pendingBalance: newPending,
+              availableBalance: balanceAfter,
+            },
+          });
+
+          // 3. Record Wallet Transaction
+          await tx.walletTransaction.create({
+            data: {
+              walletId: wallet.id,
+              type: "CREDIT_COMMISSION",
+              status: "COMPLETED",
+              amount: commission.commissionAmount,
+              balanceBefore,
+              balanceAfter,
+              description: `Commission cleared and released to available balance (Order #${commission.order.orderNumber})`,
+              referenceType: "COMMISSION_RELEASE",
+              referenceId: commission.id,
+            },
+          });
+
+          // 4. Audit Log
+          await tx.auditLog.create({
+            data: {
+              actorId: commission.beneficiaryId,
+              actorEmail: commission.beneficiary.email,
+              action: "COMMISSION_RELEASED",
+              entityType: "ReferralCommissionRecord",
+              entityId: commission.id,
+              newValues: {
+                amount: Number(commission.commissionAmount),
+                orderNumber: commission.order.orderNumber,
+                clearedAt: now.toISOString(),
+              },
+            },
+          });
+        }
+      });
+
+      totalAmountCleared += Number(commission.commissionAmount);
+      clearedCount++;
+    } catch (err) {
+      console.error(`Error clearing commission ${commission.id}:`, err);
+    }
+  }
+
+  revalidatePath("/admin/referrals");
+  revalidatePath("/admin/referrals/clearance");
+  revalidatePath("/admin/wallet");
+  revalidatePath("/wallet");
+  revalidatePath("/dashboard/wallet");
+
+  return {
+    success: true,
+    clearedCount,
+    totalAmount: totalAmountCleared,
+    message: `Successfully cleared ${clearedCount} commission(s) totaling ₹${totalAmountCleared.toFixed(2)}.`,
+  };
+}
+
+export async function manualReleaseCommissionAction(
+  commissionId: string,
+  reason?: string
+): Promise<ActionState> {
+  const admin = await requireSuperAdminAction();
+  await ensureDatabaseSchemaSync();
+
+  const commission = await prisma.referralCommissionRecord.findUnique({
+    where: { id: commissionId },
+    include: {
+      order: { select: { orderNumber: true } },
+      beneficiary: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  if (!commission) {
+    return { success: false, message: "Commission record not found." };
+  }
+
+  if (commission.status !== "PENDING") {
+    return {
+      success: false,
+      message: `Commission is already in status "${commission.status}". Only PENDING commissions can be released.`,
+    };
+  }
+
+  const now = new Date();
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Update commission record to AVAILABLE with manual release tracking
+    await tx.referralCommissionRecord.update({
+      where: { id: commissionId },
+      data: {
+        status: "AVAILABLE",
+        clearedAt: now,
+        clearedById: admin.id,
+        clearedReason: reason?.trim() || "Early manual release by SUPER_ADMIN",
+      },
+    });
+
+    // 2. Adjust beneficiary wallet
+    const wallet = await tx.wallet.upsert({
+      where: { userId: commission.beneficiaryId },
+      update: {},
+      create: {
+        userId: commission.beneficiaryId,
+        availableBalance: new Prisma.Decimal(0.0),
+        pendingBalance: new Prisma.Decimal(0.0),
+        totalEarned: commission.commissionAmount,
+        totalWithdrawn: new Prisma.Decimal(0.0),
+      },
+    });
+
+    const balanceBefore = wallet.availableBalance;
+    const balanceAfter = wallet.availableBalance.plus(commission.commissionAmount);
+    const newPending = Prisma.Decimal.max(
+      0,
+      wallet.pendingBalance.minus(commission.commissionAmount)
+    );
+
+    await tx.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        pendingBalance: newPending,
+        availableBalance: balanceAfter,
+      },
+    });
+
+    // 3. Record Wallet Transaction
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: "CREDIT_COMMISSION",
+        status: "COMPLETED",
+        amount: commission.commissionAmount,
+        balanceBefore,
+        balanceAfter,
+        description: `Early manual release by SUPER_ADMIN for Order #${commission.order.orderNumber}${
+          reason ? `: ${reason}` : ""
+        }`,
+        referenceType: "COMMISSION_RELEASE",
+        referenceId: commission.id,
+      },
+    });
+
+    // 4. Audit Log
+    await tx.auditLog.create({
+      data: {
+        actorId: admin.id,
+        actorEmail: admin.email,
+        actorRole: admin.role,
+        action: "COMMISSION_MANUALLY_RELEASED",
+        entityType: "ReferralCommissionRecord",
+        entityId: commissionId,
+        newValues: {
+          amount: Number(commission.commissionAmount),
+          previousStatus: "PENDING",
+          newStatus: "AVAILABLE",
+          beneficiaryId: commission.beneficiaryId,
+          beneficiaryEmail: commission.beneficiary.email,
+          orderNumber: commission.order.orderNumber,
+          reason: reason?.trim() || "Manual release by SUPER_ADMIN",
+        },
+      },
+    });
+
+    revalidatePath("/admin/referrals");
+    revalidatePath("/admin/referrals/clearance");
+    revalidatePath("/admin/wallet");
+    revalidatePath("/wallet");
+    revalidatePath("/dashboard/wallet");
+
+    return {
+      success: true,
+      message: `Commission of ₹${Number(commission.commissionAmount).toFixed(
+        2
+      )} released to available balance for ${commission.beneficiary.name || commission.beneficiary.email}.`,
+    };
+  });
+}
+
+// ==========================================
+// 4. REVERSAL ENGINE (FOR REFUNDS / CANCELLATIONS)
 // ==========================================
 
 export async function reverseOrderCommissions(
   tx: Prisma.TransactionClient,
-  orderId: string
+  orderId: string,
+  reason?: string
 ) {
   // Find all active/pending commission records for this order
   const records = await tx.referralCommissionRecord.findMany({
     where: {
       orderId,
-      status: { in: ["PENDING", "AVAILABLE"] },
+      status: { in: ["PENDING", "AVAILABLE", "PAID_OUT"] },
+    },
+    include: {
+      order: { select: { orderNumber: true } },
     },
   });
 
   for (const record of records) {
-    // 1. Mark status as CANCELLED
+    const previousStatus = record.status;
+
+    // 1. Mark status as REVERSED
     await tx.referralCommissionRecord.update({
       where: { id: record.id },
-      data: { status: "CANCELLED" },
+      data: {
+        status: "REVERSED",
+        clearedReason: reason || "Order refunded or cancelled",
+      },
     });
 
     // 2. Adjust beneficiary wallet
@@ -297,43 +619,268 @@ export async function reverseOrderCommissions(
 
     if (wallet) {
       const deduction = record.commissionAmount;
-      const newPending = Prisma.Decimal.max(
-        0,
-        wallet.pendingBalance.minus(deduction)
-      );
-      const newTotal = Prisma.Decimal.max(
-        0,
-        wallet.totalEarned.minus(deduction)
-      );
 
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: {
-          pendingBalance: newPending,
-          totalEarned: newTotal,
-        },
-      });
+      if (previousStatus === "PENDING") {
+        const newPending = Prisma.Decimal.max(
+          0,
+          wallet.pendingBalance.minus(deduction)
+        );
+        const newTotal = Prisma.Decimal.max(
+          0,
+          wallet.totalEarned.minus(deduction)
+        );
 
-      // 3. Record reversal transaction
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: "ADJUSTMENT",
-          status: "COMPLETED",
-          amount: deduction.negated(),
-          balanceBefore: wallet.availableBalance,
-          balanceAfter: wallet.availableBalance,
-          description: `Reversal of Level ${record.level} commission for refunded order`,
-          referenceType: "COMMISSION_REVERSAL",
-          referenceId: record.id,
-        },
-      });
+        await tx.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            pendingBalance: newPending,
+            totalEarned: newTotal,
+          },
+        });
+      } else if (previousStatus === "AVAILABLE") {
+        const balanceBefore = wallet.availableBalance;
+        const balanceAfter = wallet.availableBalance.minus(deduction);
+        const newTotal = Prisma.Decimal.max(
+          0,
+          wallet.totalEarned.minus(deduction)
+        );
+
+        await tx.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            availableBalance: balanceAfter,
+            totalEarned: newTotal,
+          },
+        });
+
+        // Record reversal transaction
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: "ADJUSTMENT",
+            status: "COMPLETED",
+            amount: deduction.negated(),
+            balanceBefore,
+            balanceAfter,
+            description: `Reversal of Level ${record.level} commission for refunded order #${record.order.orderNumber}`,
+            referenceType: "COMMISSION_REVERSAL",
+            referenceId: record.id,
+          },
+        });
+      } else if (previousStatus === "PAID_OUT") {
+        // Commission was already withdrawn; decrement totalEarned and record clawback ledger transaction
+        const newTotal = Prisma.Decimal.max(
+          0,
+          wallet.totalEarned.minus(deduction)
+        );
+
+        await tx.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            totalEarned: newTotal,
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: "ADJUSTMENT",
+            status: "COMPLETED",
+            amount: deduction.negated(),
+            balanceBefore: wallet.availableBalance,
+            balanceAfter: wallet.availableBalance,
+            description: `Reversal / adjustment of paid commission for refunded order #${record.order.orderNumber}`,
+            referenceType: "COMMISSION_REVERSAL",
+            referenceId: record.id,
+          },
+        });
+      }
     }
   }
 }
 
 // ==========================================
-// 4. ADMIN REFERRAL DASHBOARD QUERIES
+// 5. ADMIN COMMISSION CLEARANCE DASHBOARD
+// ==========================================
+
+export async function getAdminCommissionClearanceAction({
+  page = 1,
+  pageSize = PAGINATION.DEFAULT_PAGE_SIZE,
+  filter = "all",
+  search,
+}: {
+  page?: number;
+  pageSize?: number;
+  filter?: "all" | "pending" | "ready" | "available" | "reversed";
+  search?: string;
+} = {}) {
+  await requireAdmin();
+  await ensureDatabaseSchemaSync();
+
+  // Run auto-clearance of matured commissions first
+  try {
+    await processMaturedCommissionsAction();
+  } catch (err) {
+    console.warn("Auto clearance check error:", err);
+  }
+
+  const now = new Date();
+
+  // Metrics
+  const [
+    totalCommissionsAgg,
+    pendingCommissionsAgg,
+    readyToClearAgg,
+    availableCommissionsAgg,
+    reversedCommissionsAgg,
+  ] = await Promise.all([
+    prisma.referralCommissionRecord.aggregate({
+      _sum: { commissionAmount: true },
+      _count: { id: true },
+      where: { status: { notIn: ["CANCELLED", "REVERSED"] } },
+    }),
+    prisma.referralCommissionRecord.aggregate({
+      _sum: { commissionAmount: true },
+      _count: { id: true },
+      where: { status: "PENDING" },
+    }),
+    prisma.referralCommissionRecord.aggregate({
+      _sum: { commissionAmount: true },
+      _count: { id: true },
+      where: {
+        status: "PENDING",
+        availableAt: { lte: now },
+      },
+    }),
+    prisma.referralCommissionRecord.aggregate({
+      _sum: { commissionAmount: true },
+      _count: { id: true },
+      where: { status: "AVAILABLE" },
+    }),
+    prisma.referralCommissionRecord.aggregate({
+      _sum: { commissionAmount: true },
+      _count: { id: true },
+      where: { status: { in: ["CANCELLED", "REVERSED"] } },
+    }),
+  ]);
+
+  // Filter building
+  const where: Prisma.ReferralCommissionRecordWhereInput = {};
+
+  if (filter === "pending") {
+    where.status = "PENDING";
+  } else if (filter === "ready") {
+    where.status = "PENDING";
+    where.availableAt = { lte: now };
+  } else if (filter === "available") {
+    where.status = "AVAILABLE";
+  } else if (filter === "reversed") {
+    where.status = { in: ["CANCELLED", "REVERSED"] };
+  }
+
+  if (search) {
+    where.OR = [
+      { beneficiary: { email: { contains: search, mode: "insensitive" } } },
+      { beneficiary: { name: { contains: search, mode: "insensitive" } } },
+      { beneficiary: { referralCode: { contains: search, mode: "insensitive" } } },
+      { order: { orderNumber: { contains: search, mode: "insensitive" } } },
+      { order: { user: { email: { contains: search, mode: "insensitive" } } } },
+      { order: { user: { name: { contains: search, mode: "insensitive" } } } },
+    ];
+  }
+
+  const [records, total] = await Promise.all([
+    prisma.referralCommissionRecord.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        beneficiary: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            referralCode: true,
+            wallet: { select: { availableBalance: true, pendingBalance: true } },
+          },
+        },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            user: { select: { id: true, name: true, email: true } },
+            items: { select: { itemTitle: true } },
+          },
+        },
+        clearedBy: {
+          select: { id: true, name: true, email: true },
+        },
+      },
+    }),
+    prisma.referralCommissionRecord.count({ where }),
+  ]);
+
+  return {
+    metrics: {
+      totalCount: totalCommissionsAgg._count.id,
+      totalAmount: Number(totalCommissionsAgg._sum.commissionAmount || 0),
+      pendingCount: pendingCommissionsAgg._count.id,
+      pendingAmount: Number(pendingCommissionsAgg._sum.commissionAmount || 0),
+      readyCount: readyToClearAgg._count.id,
+      readyAmount: Number(readyToClearAgg._sum.commissionAmount || 0),
+      availableCount: availableCommissionsAgg._count.id,
+      availableAmount: Number(availableCommissionsAgg._sum.commissionAmount || 0),
+      reversedCount: reversedCommissionsAgg._count.id,
+      reversedAmount: Number(reversedCommissionsAgg._sum.commissionAmount || 0),
+    },
+    records: records.map((r) => {
+      const isMatured = r.status === "PENDING" && r.availableAt && r.availableAt <= now;
+      let daysRemaining = 0;
+      if (r.status === "PENDING" && r.availableAt) {
+        const diffMs = r.availableAt.getTime() - now.getTime();
+        daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      }
+
+      return {
+        id: r.id,
+        orderId: r.order.id,
+        orderNumber: r.order.orderNumber,
+        orderAmount: Number(r.order.totalAmount),
+        orderStatus: r.order.status,
+        buyerName: r.order.user.name || "Student",
+        buyerEmail: r.order.user.email,
+        courseTitle: r.order.items.map((i) => i.itemTitle).filter(Boolean).join(", ") || "Course",
+        beneficiaryId: r.beneficiary.id,
+        beneficiaryName: r.beneficiary.name || "Affiliate",
+        beneficiaryEmail: r.beneficiary.email,
+        beneficiaryCode: r.beneficiary.referralCode,
+        beneficiaryAvailable: Number(r.beneficiary.wallet?.availableBalance || 0),
+        level: r.level,
+        ratePercentage: Number(r.rateApplied) * 100,
+        commissionAmount: Number(r.commissionAmount),
+        status: r.status,
+        availableAt: r.availableAt,
+        clearedAt: r.clearedAt,
+        clearedReason: r.clearedReason,
+        clearedByName: r.clearedBy?.name || r.clearedBy?.email || null,
+        isMatured,
+        daysRemaining,
+        createdAt: r.createdAt,
+      };
+    }),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+// ==========================================
+// 6. ADMIN REFERRAL DASHBOARD QUERIES
 // ==========================================
 
 export async function getAdminReferralDashboardAction({
@@ -350,6 +897,14 @@ export async function getAdminReferralDashboardAction({
   search?: string;
 } = {}) {
   await requireAdmin();
+  await ensureDatabaseSchemaSync();
+
+  // Run auto-clearance of matured commissions
+  try {
+    await processMaturedCommissionsAction();
+  } catch (err) {
+    console.warn("Auto clearance check error:", err);
+  }
 
   // Metrics aggregation
   const [
@@ -362,7 +917,7 @@ export async function getAdminReferralDashboardAction({
     prisma.referralRelationship.count(),
     prisma.referralCommissionRecord.aggregate({
       _sum: { commissionAmount: true },
-      where: { status: { not: "CANCELLED" } },
+      where: { status: { notIn: ["CANCELLED", "REVERSED"] } },
     }),
     prisma.referralCommissionRecord.aggregate({
       _sum: { commissionAmount: true },
@@ -376,7 +931,7 @@ export async function getAdminReferralDashboardAction({
       by: ["level"],
       _sum: { commissionAmount: true },
       _count: { id: true },
-      where: { status: { not: "CANCELLED" } },
+      where: { status: { notIn: ["CANCELLED", "REVERSED"] } },
       orderBy: { level: "asc" },
     }),
   ]);
@@ -478,14 +1033,22 @@ export async function getAdminReferralDashboardAction({
 }
 
 // ==========================================
-// 5. STUDENT REFERRAL DASHBOARD QUERIES
+// 7. STUDENT REFERRAL DASHBOARD QUERIES
 // ==========================================
 
 export async function getStudentReferralDashboardAction() {
   const user = await requireAuth();
+  await ensureDatabaseSchemaSync();
 
-  // 1. Fetch user's code & wallet
-  const [userData, directCount, levelStats, wallet] = await Promise.all([
+  // Run auto-clearance of matured commissions
+  try {
+    await processMaturedCommissionsAction();
+  } catch (err) {
+    console.warn("Auto clearance check error:", err);
+  }
+
+  // 1. Fetch user's code, wallet, direct count, level stats, and next clearance date
+  const [userData, directCount, levelStats, wallet, earliestPending] = await Promise.all([
     prisma.user.findUnique({
       where: { id: user.id },
       select: { referralCode: true },
@@ -502,9 +1065,14 @@ export async function getStudentReferralDashboardAction() {
     prisma.wallet.findUnique({
       where: { userId: user.id },
     }),
+    prisma.referralCommissionRecord.findFirst({
+      where: { beneficiaryId: user.id, status: "PENDING", availableAt: { not: null } },
+      orderBy: { availableAt: "asc" },
+      select: { availableAt: true, commissionAmount: true },
+    }),
   ]);
 
-  // 2. Fetch referred network tree (Sanitized: only safe display info, NO emails or secrets)
+  // 2. Fetch referred network tree
   const networkTree = await prisma.referralClosure.findMany({
     where: { ancestorId: user.id },
     orderBy: [{ depth: "asc" }, { descendant: { createdAt: "desc" } }],
@@ -546,6 +1114,8 @@ export async function getStudentReferralDashboardAction() {
       totalEarned: Number(wallet?.totalEarned || 0),
       pendingBalance: Number(wallet?.pendingBalance || 0),
       availableBalance: Number(wallet?.availableBalance || 0),
+      nextClearanceDate: earliestPending?.availableAt || null,
+      earliestPendingAmount: Number(earliestPending?.commissionAmount || 0),
       levelBreakdown: levelStats.map((l) => ({
         level: l.depth,
         count: l._count.descendantId,
@@ -553,7 +1123,6 @@ export async function getStudentReferralDashboardAction() {
     },
     network: networkTree.map((item) => {
       const name = item.descendant.name || "Student";
-      // Safe display: "John D."
       const parts = name.trim().split(" ");
       const safeName =
         parts.length > 1
@@ -576,6 +1145,7 @@ export async function getStudentReferralDashboardAction() {
       amount: Number(e.commissionAmount),
       status: e.status,
       createdAt: e.createdAt,
+      availableAt: e.availableAt,
     })),
   };
 }

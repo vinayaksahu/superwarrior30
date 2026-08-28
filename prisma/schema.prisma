@@ -69,6 +69,7 @@ model User {
   // Audit
   auditLogs AuditLog[] @relation("AuditActor")
   deletedCourses Course[] @relation("CourseDeletedBy")
+  clearedCommissions ReferralCommissionRecord[] @relation("CommissionsCleared")
 
   @@index([role])
   @@index([status])
@@ -432,6 +433,7 @@ enum CommissionStatus {
   AVAILABLE
   CANCELLED
   PAID_OUT
+  REVERSED
 }
 
 model OrderCommissionSnapshot {
@@ -456,16 +458,23 @@ model ReferralCommissionRecord {
   rateApplied      Decimal          @db.Decimal(5, 4)
   commissionAmount Decimal          @db.Decimal(12, 2)
   status           CommissionStatus @default(PENDING)
+  availableAt      DateTime?        // When commission holding period clears and becomes AVAILABLE
+  clearedAt        DateTime?        // Timestamp when transitioned to AVAILABLE
+  clearedById      String?          // SUPER_ADMIN user ID if manually released
+  clearedReason    String?          // Audit note or reason for clearance/release
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
   snapshot    OrderCommissionSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
   order       Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   beneficiary User                    @relation("UserCommissions", fields: [beneficiaryId], references: [id], onDelete: Restrict)
+  clearedBy   User?                   @relation("CommissionsCleared", fields: [clearedById], references: [id], onDelete: SetNull)
 
   @@unique([orderId, beneficiaryId, level])
   @@index([beneficiaryId, status])
+  @@index([status, availableAt])
   @@index([status])
+  @@index([createdAt])
   @@map("referral_commission_records")
 }
 

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireAdmin } from "@/server/dal/auth";
+import { requireAuth, requireAdmin, requireSuperAdminAction } from "@/server/dal/auth";
 import {
   withdrawalRequestSchema,
   adminWithdrawalActionSchema,
@@ -14,6 +14,8 @@ import {
 import { PAGINATION } from "@/lib/constants";
 import type { ActionState } from "@/types";
 import { Prisma } from "@/generated/prisma";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { processMaturedCommissionsAction } from "@/server/actions/referral.actions";
 
 // ==========================================
 // 1. STUDENT WALLET & TRANSACTIONS
@@ -27,6 +29,14 @@ export async function getStudentWalletAction({
   pageSize?: number;
 } = {}) {
   const user = await requireAuth();
+  await ensureDatabaseSchemaSync();
+
+  // Run auto-clearance for matured commissions
+  try {
+    await processMaturedCommissionsAction();
+  } catch (err) {
+    console.warn("Auto clearance check error:", err);
+  }
 
   // Upsert wallet for current user
   const wallet = await prisma.wallet.upsert({
@@ -41,7 +51,7 @@ export async function getStudentWalletAction({
     },
   });
 
-  const [transactions, totalTx, activeWithdrawals] = await Promise.all([
+  const [transactions, totalTx, activeWithdrawals, earliestPending] = await Promise.all([
     prisma.walletTransaction.findMany({
       where: { walletId: wallet.id },
       orderBy: { createdAt: "desc" },
@@ -58,6 +68,11 @@ export async function getStudentWalletAction({
       },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.referralCommissionRecord.findFirst({
+      where: { beneficiaryId: user.id, status: "PENDING", availableAt: { not: null } },
+      orderBy: { availableAt: "asc" },
+      select: { availableAt: true, commissionAmount: true },
+    }),
   ]);
 
   return {
@@ -67,6 +82,8 @@ export async function getStudentWalletAction({
       pendingBalance: Number(wallet.pendingBalance),
       totalEarned: Number(wallet.totalEarned),
       totalWithdrawn: Number(wallet.totalWithdrawn),
+      nextClearanceDate: earliestPending?.availableAt || null,
+      earliestPendingAmount: Number(earliestPending?.commissionAmount || 0),
     },
     activeWithdrawals: activeWithdrawals.map((w) => ({
       id: w.id,
@@ -129,6 +146,18 @@ export async function requestWithdrawalAction(
   const withdrawalAmountDecimal = new Prisma.Decimal(amount.toFixed(2));
 
   return await prisma.$transaction(async (tx) => {
+    // 0. Check dynamic minimum withdrawal threshold from settings
+    const minSetting = await tx.siteSetting.findUnique({
+      where: { key: "referral_min_withdrawal" },
+    });
+    const minAllowed = minSetting ? parseFloat(minSetting.value) || 500 : 500;
+    if (amount < minAllowed) {
+      return {
+        success: false,
+        message: `Minimum withdrawal payout request is ₹${minAllowed}.`,
+      };
+    }
+
     // 1. Check for active pending withdrawal
     const existingPending = await tx.withdrawal.findFirst({
       where: {
@@ -565,7 +594,7 @@ export async function getAdminWalletsAction({
 export async function adminAdjustWalletAction(
   data: AdminWalletAdjustmentInput
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdminAction();
 
   const validated = adminWalletAdjustmentSchema.safeParse(data);
   if (!validated.success) {
