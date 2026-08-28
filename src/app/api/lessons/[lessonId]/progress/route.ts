@@ -79,6 +79,7 @@ export async function POST(
         "Prisma primary upsert failed, executing SQL fallback:",
         primaryUpsertErr?.message
       );
+      // Attempt 1: ProgressStatus
       try {
         await prisma.$executeRawUnsafe(
           `INSERT INTO "lesson_progress" ("id", "userId", "lessonId", "status", "watchTimeSeconds", "lastPositionSeconds", "completedAt", "updatedAt")
@@ -98,9 +99,32 @@ export async function POST(
           completedAt ? completedAt.toISOString() : null
         );
         writeSucceeded = true;
-      } catch (sqlErr: any) {
-        console.error("Critical: Progress persistence failed completely:", sqlErr);
-        throw new Error(`Database persistence failed: ${sqlErr?.message || "Unknown error"}`);
+      } catch (sqlErr1: any) {
+        console.warn("SQL fallback with ProgressStatus failed, trying LessonProgressStatus:", sqlErr1?.message);
+        // Attempt 2: LessonProgressStatus (legacy enum)
+        try {
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO "lesson_progress" ("id", "userId", "lessonId", "status", "watchTimeSeconds", "lastPositionSeconds", "completedAt", "updatedAt")
+             VALUES (gen_random_uuid()::text, $1, $2, $3::"LessonProgressStatus", $4, $5, $6::timestamp, NOW())
+             ON CONFLICT ("userId", "lessonId")
+             DO UPDATE SET
+               "status" = EXCLUDED."status",
+               "watchTimeSeconds" = EXCLUDED."watchTimeSeconds",
+               "lastPositionSeconds" = EXCLUDED."lastPositionSeconds",
+               "completedAt" = EXCLUDED."completedAt",
+               "updatedAt" = NOW();`,
+            user.id,
+            lessonId,
+            status,
+            watchTimeSeconds,
+            lastPositionSeconds,
+            completedAt ? completedAt.toISOString() : null
+          );
+          writeSucceeded = true;
+        } catch (sqlErr2: any) {
+          console.error("Critical: Progress persistence failed completely:", sqlErr2);
+          throw new Error(`Database persistence failed: ${sqlErr2?.message || "Unknown error"}`);
+        }
       }
     }
 

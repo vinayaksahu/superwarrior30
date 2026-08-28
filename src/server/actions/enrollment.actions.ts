@@ -318,23 +318,43 @@ export async function updateLessonProgressAction({
       },
     });
   } catch {
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "lesson_progress" ("id", "userId", "lessonId", "status", "watchTimeSeconds", "lastPositionSeconds", "completedAt", "updatedAt")
-       VALUES (gen_random_uuid()::text, $1, $2, $3::"ProgressStatus", $4, $5, $6::timestamp, NOW())
-       ON CONFLICT ("userId", "lessonId")
-       DO UPDATE SET
-         "status" = EXCLUDED."status",
-         "watchTimeSeconds" = EXCLUDED."watchTimeSeconds",
-         "lastPositionSeconds" = EXCLUDED."lastPositionSeconds",
-         "completedAt" = EXCLUDED."completedAt",
-         "updatedAt" = NOW();`,
-      user.id,
-      lessonId,
-      status,
-      watchTimeSeconds,
-      lastPositionSeconds,
-      completedAt ? completedAt.toISOString() : null
-    );
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "lesson_progress" ("id", "userId", "lessonId", "status", "watchTimeSeconds", "lastPositionSeconds", "completedAt", "updatedAt")
+         VALUES (gen_random_uuid()::text, $1, $2, $3::"ProgressStatus", $4, $5, $6::timestamp, NOW())
+         ON CONFLICT ("userId", "lessonId")
+         DO UPDATE SET
+           "status" = EXCLUDED."status",
+           "watchTimeSeconds" = EXCLUDED."watchTimeSeconds",
+           "lastPositionSeconds" = EXCLUDED."lastPositionSeconds",
+           "completedAt" = EXCLUDED."completedAt",
+           "updatedAt" = NOW();`,
+        user.id,
+        lessonId,
+        status,
+        watchTimeSeconds,
+        lastPositionSeconds,
+        completedAt ? completedAt.toISOString() : null
+      );
+    } catch {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "lesson_progress" ("id", "userId", "lessonId", "status", "watchTimeSeconds", "lastPositionSeconds", "completedAt", "updatedAt")
+         VALUES (gen_random_uuid()::text, $1, $2, $3::"LessonProgressStatus", $4, $5, $6::timestamp, NOW())
+         ON CONFLICT ("userId", "lessonId")
+         DO UPDATE SET
+           "status" = EXCLUDED."status",
+           "watchTimeSeconds" = EXCLUDED."watchTimeSeconds",
+           "lastPositionSeconds" = EXCLUDED."lastPositionSeconds",
+           "completedAt" = EXCLUDED."completedAt",
+           "updatedAt" = NOW();`,
+        user.id,
+        lessonId,
+        status,
+        watchTimeSeconds,
+        lastPositionSeconds,
+        completedAt ? completedAt.toISOString() : null
+      );
+    }
   }
 
   // 2. Recalculate Course Enrollment progress percentage

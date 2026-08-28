@@ -83,6 +83,19 @@ export async function ensureDatabaseSchemaSync() {
 
   try {
     await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        ALTER TABLE "lesson_progress" ALTER COLUMN "status" DROP DEFAULT;
+        ALTER TABLE "lesson_progress" ALTER COLUMN "status" TYPE "ProgressStatus" USING ("status"::text::"ProgressStatus");
+        ALTER TABLE "lesson_progress" ALTER COLUMN "status" SET DEFAULT 'NOT_STARTED'::"ProgressStatus";
+      EXCEPTION WHEN others THEN null;
+      END $$;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "system_payment_methods" (
         "id" TEXT PRIMARY KEY,
         "type" "PaymentMethodType" NOT NULL,
