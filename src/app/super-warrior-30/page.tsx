@@ -38,6 +38,8 @@ export default async function SuperWarrior30FunnelPage({
     utm_medium?: string;
     utm_campaign?: string;
     utm_content?: string;
+    course?: string;
+    courseId?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -45,8 +47,9 @@ export default async function SuperWarrior30FunnelPage({
   const utmMedium = params.utm_medium;
   const utmCampaign = params.utm_campaign;
   const utmContent = params.utm_content;
+  const requestedCourse = params.course || params.courseId;
 
-  // Fetch the Super Warrior 30 course dynamically
+  // Fetch the target course dynamically based on URL param or Admin configured default
   let course: {
     id: string;
     title: string;
@@ -62,33 +65,80 @@ export default async function SuperWarrior30FunnelPage({
   } | null = null;
 
   try {
-    const raw = await prisma.course.findFirst({
-      where: {
-        OR: [
-          { slug: "super-warrior-30" },
-          { status: "PUBLISHED" },
-        ],
-      },
-      orderBy: [{ slug: "asc" }, { createdAt: "desc" }],
-      include: {
-        modules: {
-          where: { isPublished: true },
-          orderBy: { position: "asc" },
-          include: {
-            lessons: {
-              where: { isPublished: true },
-              orderBy: { position: "asc" },
-              select: {
-                id: true,
-                title: true,
-                contentType: true,
-                durationSec: true,
-              },
+    const courseInclude = {
+      modules: {
+        where: { isPublished: true },
+        orderBy: { position: "asc" as const },
+        include: {
+          lessons: {
+            where: { isPublished: true },
+            orderBy: { position: "asc" as const },
+            select: {
+              id: true,
+              title: true,
+              contentType: true,
+              durationSec: true,
             },
           },
         },
       },
-    });
+    };
+
+    let raw = null;
+
+    // 1. If explicit course specified in URL (e.g. ?course=sw30 or ?courseId=crs_123)
+    if (requestedCourse) {
+      raw = await prisma.course.findFirst({
+        where: {
+          OR: [{ id: requestedCourse }, { slug: requestedCourse }],
+          status: "PUBLISHED",
+          deletedAt: null,
+        },
+        include: courseInclude,
+      });
+    }
+
+    // 2. If not found, check Admin configured default funnel course in SiteSetting
+    if (!raw) {
+      const defaultSetting = await prisma.siteSetting.findUnique({
+        where: { key: "funnel_default_course_id" },
+      });
+
+      if (defaultSetting?.value) {
+        raw = await prisma.course.findFirst({
+          where: {
+            id: defaultSetting.value,
+            status: "PUBLISHED",
+            deletedAt: null,
+          },
+          include: courseInclude,
+        });
+      }
+    }
+
+    // 3. If not found, check for course with slug 'super-warrior-30'
+    if (!raw) {
+      raw = await prisma.course.findFirst({
+        where: {
+          slug: "super-warrior-30",
+          status: "PUBLISHED",
+          deletedAt: null,
+        },
+        include: courseInclude,
+      });
+    }
+
+    // 4. Fallback to latest published course
+    if (!raw) {
+      raw = await prisma.course.findFirst({
+        where: {
+          status: "PUBLISHED",
+          deletedAt: null,
+        },
+        orderBy: { createdAt: "desc" },
+        include: courseInclude,
+      });
+    }
 
     if (raw) {
       course = {

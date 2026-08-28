@@ -283,6 +283,20 @@ export async function getAdminFunnelAnalyticsAction() {
       orderBy: { _count: { id: "desc" } },
     });
 
+    // Campaign level breakdown (group by source + campaign)
+    const campaignStats = await prisma.lead.groupBy({
+      by: ["utmSource", "utmCampaign", "utmMedium"],
+      _count: { id: true },
+      where: {
+        OR: [
+          { utmSource: { not: null } },
+          { utmCampaign: { not: null } },
+        ],
+      },
+      orderBy: { _count: { id: "desc" } },
+      take: 20,
+    });
+
     return {
       funnel: {
         totalVisitors,
@@ -300,6 +314,12 @@ export async function getAdminFunnelAnalyticsAction() {
         stage: s.stage,
         count: s._count.id,
       })),
+      leadsByCampaign: campaignStats.map((c) => ({
+        source: c.utmSource || "direct",
+        campaign: c.utmCampaign || "general",
+        medium: c.utmMedium || "link",
+        count: c._count.id,
+      })),
     };
   } catch (error) {
     console.error("Error fetching funnel analytics:", error);
@@ -307,6 +327,79 @@ export async function getAdminFunnelAnalyticsAction() {
       funnel: { totalVisitors: 0, quizStarted: 0, quizCompleted: 0, courseViewed: 0, checkoutStarted: 0, purchased: 0 },
       leadsBySource: [],
       leadsByStage: [],
+      leadsByCampaign: [],
     };
+  }
+}
+
+// ==========================================
+// 6. ADMIN: FUNNEL COURSE CONFIGURATION
+// ==========================================
+
+export async function getFunnelCourseSettingsAction() {
+  await requireAdmin();
+  await ensureDatabaseSchemaSync();
+
+  try {
+    const [courses, setting] = await Promise.all([
+      prisma.course.findMany({
+        where: { deletedAt: null, status: "PUBLISHED" },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          price: true,
+          compareAtPrice: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.siteSetting.findUnique({
+        where: { key: "funnel_default_course_id" },
+      }),
+    ]);
+
+    return {
+      courses: courses.map((c) => ({
+        id: c.id,
+        title: c.title,
+        slug: c.slug,
+        price: Number(c.price),
+        compareAtPrice: c.compareAtPrice ? Number(c.compareAtPrice) : null,
+      })),
+      defaultCourseId: setting?.value || (courses.find((c) => c.slug === "super-warrior-30")?.id || courses[0]?.id || ""),
+    };
+  } catch (error) {
+    console.error("Error fetching funnel course settings:", error);
+    return { courses: [], defaultCourseId: "" };
+  }
+}
+
+export async function updateFunnelCourseSettingAction(courseId: string) {
+  const admin = await requireAdmin();
+  await ensureDatabaseSchemaSync();
+
+  if (!courseId) {
+    return { success: false, message: "Course ID is required." };
+  }
+
+  try {
+    await prisma.siteSetting.upsert({
+      where: { key: "funnel_default_course_id" },
+      update: { value: courseId },
+      create: { key: "funnel_default_course_id", value: courseId, type: "STRING" },
+    });
+
+    try {
+      const { revalidatePath } = await import("next/cache");
+      revalidatePath("/super-warrior-30");
+      revalidatePath("/admin/funnel");
+    } catch {
+      // ignore
+    }
+
+    return { success: true, message: "Funnel default course updated successfully." };
+  } catch (error) {
+    console.error("Error updating funnel course setting:", error);
+    return { success: false, message: "Failed to update funnel course setting." };
   }
 }
