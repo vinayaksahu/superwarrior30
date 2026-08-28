@@ -57,8 +57,11 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
   // Step 1: Fetch Course
-  const course = await prisma.course.findUnique({
-    where: { slug: courseSlug },
+  const course = await prisma.course.findFirst({
+    where: {
+      slug: courseSlug,
+      deletedAt: null,
+    },
     include: {
       modules: {
         where: { isPublished: true },
@@ -90,7 +93,7 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
   });
 
   if (!course) {
-    throw new Error("Course not found");
+    throw new Error("Course not found or currently unavailable.");
   }
 
   // Step 2: Verify Active Enrollment
@@ -200,14 +203,14 @@ export async function getEnrolledLessonMediaUrlAction({
     include: {
       module: {
         include: {
-          course: { select: { id: true, slug: true } },
+          course: { select: { id: true, slug: true, deletedAt: true } },
         },
       },
     },
   });
 
-  if (!lesson || lesson.module.course.slug !== courseSlug) {
-    throw new Error("Invalid lesson or course mismatch.");
+  if (!lesson || lesson.module.course.slug !== courseSlug || lesson.module.course.deletedAt !== null) {
+    throw new Error("Invalid lesson or course not available.");
   }
 
   // Step 2: Verify Enrollment or Free Preview
@@ -409,6 +412,7 @@ export async function getUserEnrolledCoursesAction() {
       where: {
         userId: user.id,
         status: "ACTIVE",
+        course: { deletedAt: null },
       },
       orderBy: { enrolledAt: "desc" },
       include: {

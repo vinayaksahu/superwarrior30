@@ -60,7 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Dynamic published course routes
   try {
     const courses = await prisma.course.findMany({
-      where: { status: "PUBLISHED" },
+      where: { status: "PUBLISHED", deletedAt: null },
       select: { slug: true, updatedAt: true },
     });
 

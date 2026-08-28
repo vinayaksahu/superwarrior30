@@ -86,8 +86,16 @@ export async function requireAuth() {
 
 export async function requireSuperAdmin() {
   const user = await requireAuth();
-  if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN) {
+  if (user.role !== UserRole.SUPER_ADMIN) {
     redirect("/admin");
+  }
+  return user;
+}
+
+export async function requireSuperAdminAction() {
+  const user = await requireAuth();
+  if (user.role !== UserRole.SUPER_ADMIN) {
+    throw new Error("Access Denied: Only SUPER_ADMIN can perform this action.");
   }
   return user;
 }

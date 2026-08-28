@@ -37,7 +37,7 @@ export default async function HomePage() {
 
   try {
     featuredCourses = await prisma.course.findMany({
-      where: { status: "PUBLISHED" },
+      where: { status: "PUBLISHED", deletedAt: null },
       orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
       take: 3,
       include: {

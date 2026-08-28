@@ -21,6 +21,11 @@ export async function ensureDatabaseSchemaSync() {
     `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "discountAmount" DECIMAL(12,2) DEFAULT 0.00;`,
     `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(12,2) DEFAULT 0.00;`,
 
+    // courses columns
+    `ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "deletedById" TEXT;`,
+    `CREATE INDEX IF NOT EXISTS "courses_deletedAt_idx" ON "courses"("deletedAt");`,
+
     // course_enrollments columns
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3);`,
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "progressPercent" INTEGER DEFAULT 0;`,

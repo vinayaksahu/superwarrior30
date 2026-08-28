@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCoursesAction } from "@/server/actions/course.actions";
+import { getCurrentUser } from "@/server/dal/auth";
 import { formatCurrency } from "@/lib/utils";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { CourseStatusBadge } from "@/components/admin/course-status-badge";
 import { CourseDeleteButton } from "@/components/admin/course-delete-button";
 
@@ -17,6 +18,8 @@ export default async function AdminCoursesPage({
 }: {
   searchParams: Promise<{ page?: string; status?: string; search?: string }>;
 }) {
+  const user = await getCurrentUser();
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const params = await searchParams;
   const page = parseInt(params.page || "1");
   const status = params.status || "all";
@@ -27,20 +30,31 @@ export default async function AdminCoursesPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
           <p className="text-muted-foreground">
             Manage your courses, modules, and lessons
           </p>
         </div>
-        <Link
-          href="/admin/courses/new"
-          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          New Course
-        </Link>
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && (
+            <Link
+              href="/admin/recycle-bin"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-card px-4 text-sm font-medium text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Trash2 className="h-4 w-4" />
+              Recycle Bin
+            </Link>
+          )}
+          <Link
+            href="/admin/courses/new"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            New Course
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -148,7 +162,8 @@ export default async function AdminCoursesPage({
                         <CourseDeleteButton
                           courseId={course.id}
                           courseTitle={course.title}
-                          hasEnrollments={course._count.enrollments > 0}
+                          isSuperAdmin={isSuperAdmin}
+                          enrollmentsCount={course._count.enrollments}
                         />
                       </div>
                     </td>

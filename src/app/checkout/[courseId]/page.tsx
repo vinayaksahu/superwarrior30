@@ -30,6 +30,7 @@ export default async function CheckoutPage({
     where: {
       OR: [{ id: courseId }, { slug: courseId }],
       status: "PUBLISHED",
+      deletedAt: null,
     },
     select: {
       id: true,

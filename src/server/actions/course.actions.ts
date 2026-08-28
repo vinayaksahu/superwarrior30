@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, getCurrentUser } from "@/server/dal/auth";
+import { requireAdmin, requireSuperAdmin, requireSuperAdminAction, getCurrentUser } from "@/server/dal/auth";
 import { courseSchema, moduleSchema, lessonSchema } from "@/lib/validations/course.schema";
 import { slugify } from "@/lib/utils";
 import { deleteR2Object, createPresignedDownloadUrl, getMediaUrl, getThumbnailUrl, deleteMediaAssets, deleteThumbnailAssets, deleteLessonMediaAsset } from "@/lib/storage";
@@ -27,7 +27,9 @@ export async function getCoursesAction({
 } = {}) {
   await requireAdmin();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {
+    deletedAt: null,
+  };
   if (status && status !== "all") {
     where.status = status;
   }
@@ -350,25 +352,209 @@ export async function updateCourseThumbnailAction(
   return { success: true, message: "Thumbnail updated." };
 }
 
-export async function deleteCourseAction(courseId: string): Promise<ActionState> {
-  const admin = await requireAdmin();
+// ==========================================
+// RECYCLE BIN & SOFT DELETE ACTIONS (SUPER_ADMIN ONLY)
+// ==========================================
+
+export async function getRecycleBinCoursesAction({
+  page = 1,
+  pageSize = PAGINATION.DEFAULT_PAGE_SIZE,
+  search,
+}: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+} = {}) {
+  await requireSuperAdmin();
+
+  const where: Record<string, unknown> = {
+    deletedAt: { not: null },
+  };
+
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" } },
+      { slug: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const [courses, total] = await Promise.all([
+    prisma.course.findMany({
+      where,
+      orderBy: { deletedAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        deletedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            modules: true,
+            enrollments: true,
+          },
+        },
+      },
+    }),
+    prisma.course.count({ where }),
+  ]);
+
+  return {
+    data: courses,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+export async function softDeleteCourseAction(courseId: string): Promise<ActionState> {
+  const admin = await requireSuperAdminAction();
+
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { id: true, title: true, slug: true, status: true, deletedAt: true },
+  });
+
+  if (!course) {
+    return { success: false, message: "Course not found." };
+  }
+
+  if (course.deletedAt) {
+    return { success: false, message: "Course is already in the Recycle Bin." };
+  }
+
+  const now = new Date();
+
+  await prisma.course.update({
+    where: { id: courseId },
+    data: {
+      deletedAt: now,
+      deletedById: admin.id,
+    },
+  });
+
+  // Audit Log
+  await prisma.auditLog.create({
+    data: {
+      actorId: admin.id,
+      actorEmail: admin.email,
+      actorRole: admin.role,
+      action: "COURSE_SOFT_DELETED",
+      entityType: "Course",
+      entityId: courseId,
+      oldValues: { title: course.title, slug: course.slug, status: course.status },
+      newValues: { deletedAt: now.toISOString(), deletedById: admin.id },
+    },
+  });
+
+  revalidatePath("/admin/courses");
+  revalidatePath("/admin/recycle-bin");
+  revalidatePath("/courses");
+  revalidatePath(`/courses/${course.slug}`);
+  revalidatePath("/dashboard/courses");
+
+  return { success: true, message: `"${course.title}" moved to Recycle Bin.` };
+}
+
+export async function restoreCourseAction(courseId: string): Promise<ActionState> {
+  const admin = await requireSuperAdminAction();
+
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { id: true, title: true, slug: true, status: true, deletedAt: true },
+  });
+
+  if (!course) {
+    return { success: false, message: "Course not found." };
+  }
+
+  if (!course.deletedAt) {
+    return { success: false, message: "Course is not in the Recycle Bin." };
+  }
+
+  await prisma.course.update({
+    where: { id: courseId },
+    data: {
+      deletedAt: null,
+      deletedById: null,
+    },
+  });
+
+  // Audit Log
+  await prisma.auditLog.create({
+    data: {
+      actorId: admin.id,
+      actorEmail: admin.email,
+      actorRole: admin.role,
+      action: "COURSE_RESTORED",
+      entityType: "Course",
+      entityId: courseId,
+      oldValues: { deletedAt: course.deletedAt.toISOString() },
+      newValues: { title: course.title, slug: course.slug, status: course.status },
+    },
+  });
+
+  revalidatePath("/admin/courses");
+  revalidatePath("/admin/recycle-bin");
+  revalidatePath("/courses");
+  revalidatePath(`/courses/${course.slug}`);
+  revalidatePath("/dashboard/courses");
+
+  return { success: true, message: `"${course.title}" restored successfully.` };
+}
+
+export async function permanentDeleteCourseAction(
+  courseId: string,
+  confirmationTitle: string
+): Promise<ActionState> {
+  const admin = await requireSuperAdminAction();
 
   const course = await prisma.course.findUnique({
     where: { id: courseId },
     include: {
       _count: { select: { enrollments: true } },
       modules: {
-        include: { lessons: { select: { videoKey: true, pdfKey: true, bunnyVideoId: true, bunnyCdnUrl: true, mediaProvider: true } } },
+        include: {
+          lessons: {
+            select: {
+              videoKey: true,
+              pdfKey: true,
+              bunnyVideoId: true,
+              bunnyCdnUrl: true,
+              mediaProvider: true,
+            },
+          },
+        },
       },
     },
   });
 
-  if (!course) return { success: false, message: "Course not found." };
-  if (course._count.enrollments > 0) {
-    return { success: false, message: "Cannot delete a course with active enrollments." };
+  if (!course) {
+    return { success: false, message: "Course not found." };
   }
 
-  // Delete all media assets (R2 + Bunny) for thumbnail and all lessons
+  if (!course.deletedAt) {
+    return {
+      success: false,
+      message: "Course must be in the Recycle Bin before permanent deletion.",
+    };
+  }
+
+  const expectedMatch = course.title.trim().toLowerCase();
+  const provided = confirmationTitle.trim().toLowerCase();
+  if (provided !== expectedMatch && confirmationTitle.trim() !== "DELETE") {
+    return {
+      success: false,
+      message: "Confirmation title does not match. Permanent deletion cancelled.",
+    };
+  }
+
+  // 1. Clean up external media assets (Bunny Stream + Bunny Storage + R2) safely
   await deleteThumbnailAssets(course);
   for (const mod of course.modules) {
     for (const lesson of mod.lessons) {
@@ -376,22 +562,47 @@ export async function deleteCourseAction(courseId: string): Promise<ActionState>
     }
   }
 
-  await prisma.course.delete({ where: { id: courseId } });
+  // 2. Atomic Database Deletion:
+  // - CourseEnrollments deleted explicitly
+  // - Course deleted (cascades to modules, lessons, lesson_progress, coupon_courses)
+  // - OrderItems automatically set courseId = null via foreign key SetNull
+  await prisma.$transaction(async (tx) => {
+    await tx.courseEnrollment.deleteMany({
+      where: { courseId },
+    });
+    await tx.course.delete({
+      where: { id: courseId },
+    });
+  });
 
+  // 3. Audit Log
   await prisma.auditLog.create({
     data: {
       actorId: admin.id,
       actorEmail: admin.email,
       actorRole: admin.role,
-      action: "COURSE_DELETED",
+      action: "COURSE_PERMANENTLY_DELETED",
       entityType: "Course",
       entityId: courseId,
-      oldValues: { title: course.title, slug: course.slug },
+      oldValues: {
+        title: course.title,
+        slug: course.slug,
+        enrollmentsCount: course._count.enrollments,
+      },
     },
   });
 
   revalidatePath("/admin/courses");
-  redirect("/admin/courses");
+  revalidatePath("/admin/recycle-bin");
+  revalidatePath("/courses");
+  revalidatePath("/dashboard/courses");
+
+  return { success: true, message: `"${course.title}" permanently deleted.` };
+}
+
+// Backward-compatible alias for existing callers
+export async function deleteCourseAction(courseId: string): Promise<ActionState> {
+  return softDeleteCourseAction(courseId);
 }
 
 // ==========================================
@@ -818,6 +1029,7 @@ export async function getPublicCoursesAction({
 } = {}) {
   const where: Record<string, unknown> = {
     status: "PUBLISHED",
+    deletedAt: null,
   };
 
   if (difficulty && difficulty !== "all") {
@@ -867,8 +1079,11 @@ export async function getPublicCoursesAction({
 
 export async function getPublicCourseBySlugAction(slug: string) {
   try {
-    const course = await prisma.course.findUnique({
-      where: { slug },
+    const course = await prisma.course.findFirst({
+      where: {
+        slug,
+        deletedAt: null,
+      },
       include: {
         modules: {
           where: { isPublished: true },

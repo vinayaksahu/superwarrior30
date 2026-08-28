@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ScrollText,
   CreditCard,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,12 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/settings",
     label: "Settings",
     icon: Settings,
+    allowedRoles: ["SUPER_ADMIN"],
+  },
+  {
+    href: "/admin/recycle-bin",
+    label: "Recycle Bin",
+    icon: Trash2,
     allowedRoles: ["SUPER_ADMIN"],
   },
   {

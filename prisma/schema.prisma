@@ -68,6 +68,7 @@ model User {
 
   // Audit
   auditLogs AuditLog[] @relation("AuditActor")
+  deletedCourses Course[] @relation("CourseDeletedBy")
 
   @@index([role])
   @@index([status])
@@ -170,9 +171,12 @@ model Course {
   isReferralEligible Boolean         @default(true)
   difficulty         DifficultyLevel @default(BEGINNER)
   totalDuration    Int             @default(0) // seconds
+  deletedAt        DateTime?
+  deletedById      String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
+  deletedBy   User?           @relation("CourseDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   modules     Module[]
   enrollments CourseEnrollment[]
   orderItems  OrderItem[]
@@ -180,6 +184,7 @@ model Course {
 
   @@index([status, createdAt])
   @@index([isFeatured])
+  @@index([deletedAt])
   @@map("courses")
 }
 

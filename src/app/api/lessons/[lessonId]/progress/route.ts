@@ -31,15 +31,15 @@ export async function POST(
       include: {
         module: {
           include: {
-            course: { select: { id: true, slug: true } },
+            course: { select: { id: true, slug: true, deletedAt: true } },
           },
         },
       },
     });
 
-    if (!lesson) {
+    if (!lesson || lesson.module.course.deletedAt !== null) {
       return NextResponse.json(
-        { success: false, error: "Lesson not found." },
+        { success: false, error: "Lesson or course not found." },
         { status: 404 }
       );
     }

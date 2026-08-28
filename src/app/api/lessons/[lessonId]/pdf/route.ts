@@ -26,13 +26,13 @@ export async function GET(
       include: {
         module: {
           include: {
-            course: { select: { id: true } },
+            course: { select: { id: true, deletedAt: true } },
           },
         },
       },
     });
 
-    if (!lesson || (!lesson.pdfKey && !lesson.bunnyCdnUrl)) {
+    if (!lesson || (!lesson.pdfKey && !lesson.bunnyCdnUrl) || lesson.module.course.deletedAt !== null) {
       return new NextResponse("PDF not found for this lesson.", { status: 404 });
     }
 

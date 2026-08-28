@@ -26,6 +26,7 @@ export default async function AdminEditCouponPage({
   }
 
   const courses = await prisma.course.findMany({
+    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

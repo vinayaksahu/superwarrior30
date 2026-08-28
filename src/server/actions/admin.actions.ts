@@ -27,8 +27,8 @@ export async function getAdminOverviewAction() {
       recentStudents,
     ] = await Promise.all([
       prisma.user.count({ where: { role: "STUDENT" } }),
-      prisma.course.count(),
-      prisma.course.count({ where: { status: "PUBLISHED" } }),
+      prisma.course.count({ where: { deletedAt: null } }),
+      prisma.course.count({ where: { status: "PUBLISHED", deletedAt: null } }),
       prisma.order.count({ where: { status: "PAID" } }),
       prisma.order.aggregate({
         where: { status: "PAID" },
