@@ -463,7 +463,11 @@ export async function manualReleaseCommissionAction(
   commissionId: string,
   reason?: string
 ): Promise<ActionState> {
-  const admin = await requireSuperAdminAction();
+  const admin = await requireAdmin();
+  if (admin.role !== "SUPER_ADMIN" && admin.role !== "ADMIN") {
+    return { success: false, message: "Unauthorized: Admin privileges required." };
+  }
+
   await ensureDatabaseSchemaSync();
 
   const commission = await prisma.referralCommissionRecord.findUnique({
@@ -487,7 +491,7 @@ export async function manualReleaseCommissionAction(
 
   const now = new Date();
 
-  return await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     // 1. Update commission record to AVAILABLE with manual release tracking
     await tx.referralCommissionRecord.update({
       where: { id: commissionId },
@@ -495,7 +499,7 @@ export async function manualReleaseCommissionAction(
         status: "AVAILABLE",
         clearedAt: now,
         clearedById: admin.id,
-        clearedReason: reason?.trim() || "Early manual release by SUPER_ADMIN",
+        clearedReason: reason?.trim() || "Early manual release by Admin",
       },
     });
 
@@ -536,7 +540,7 @@ export async function manualReleaseCommissionAction(
         amount: commission.commissionAmount,
         balanceBefore,
         balanceAfter,
-        description: `Early manual release by SUPER_ADMIN for Order #${commission.order.orderNumber}${
+        description: `Early manual release by ${admin.role} for Order #${commission.order?.orderNumber || "N/A"}${
           reason ? `: ${reason}` : ""
         }`,
         referenceType: "COMMISSION_RELEASE",
@@ -558,26 +562,26 @@ export async function manualReleaseCommissionAction(
           previousStatus: "PENDING",
           newStatus: "AVAILABLE",
           beneficiaryId: commission.beneficiaryId,
-          beneficiaryEmail: commission.beneficiary.email,
-          orderNumber: commission.order.orderNumber,
-          reason: reason?.trim() || "Manual release by SUPER_ADMIN",
+          beneficiaryEmail: commission.beneficiary?.email,
+          orderNumber: commission.order?.orderNumber,
+          reason: reason?.trim() || `Manual release by ${admin.role}`,
         },
       },
     });
-
-    revalidatePath("/admin/referrals");
-    revalidatePath("/admin/referrals/clearance");
-    revalidatePath("/admin/wallet");
-    revalidatePath("/wallet");
-    revalidatePath("/dashboard/wallet");
-
-    return {
-      success: true,
-      message: `Commission of ₹${Number(commission.commissionAmount).toFixed(
-        2
-      )} released to available balance for ${commission.beneficiary.name || commission.beneficiary.email}.`,
-    };
   });
+
+  revalidatePath("/admin/referrals");
+  revalidatePath("/admin/referrals/clearance");
+  revalidatePath("/admin/wallet");
+  revalidatePath("/wallet");
+  revalidatePath("/dashboard/wallet");
+
+  return {
+    success: true,
+    message: `Commission of ₹${Number(commission.commissionAmount).toFixed(
+      2
+    )} released to available balance for ${commission.beneficiary?.name || commission.beneficiary?.email || "Student"}.`,
+  };
 }
 
 // ==========================================
@@ -847,18 +851,18 @@ export async function getAdminCommissionClearanceAction({
 
       return {
         id: r.id,
-        orderId: r.order.id,
-        orderNumber: r.order.orderNumber,
-        orderAmount: Number(r.order.totalAmount),
-        orderStatus: r.order.status,
-        buyerName: r.order.user.name || "Student",
-        buyerEmail: r.order.user.email,
-        courseTitle: r.order.items.map((i) => i.itemTitle).filter(Boolean).join(", ") || "Course",
-        beneficiaryId: r.beneficiary.id,
-        beneficiaryName: r.beneficiary.name || "Affiliate",
-        beneficiaryEmail: r.beneficiary.email,
-        beneficiaryCode: r.beneficiary.referralCode,
-        beneficiaryAvailable: Number(r.beneficiary.wallet?.availableBalance || 0),
+        orderId: r.order?.id || r.orderId,
+        orderNumber: r.order?.orderNumber || "N/A",
+        orderAmount: Number(r.order?.totalAmount || 0),
+        orderStatus: r.order?.status || "UNKNOWN",
+        buyerName: r.order?.user?.name || "Student",
+        buyerEmail: r.order?.user?.email || "N/A",
+        courseTitle: r.order?.items?.map((i) => i.itemTitle).filter(Boolean).join(", ") || "Course",
+        beneficiaryId: r.beneficiary?.id || r.beneficiaryId,
+        beneficiaryName: r.beneficiary?.name || "Affiliate",
+        beneficiaryEmail: r.beneficiary?.email || "N/A",
+        beneficiaryCode: r.beneficiary?.referralCode || null,
+        beneficiaryAvailable: Number(r.beneficiary?.wallet?.availableBalance || 0),
         level: r.level,
         ratePercentage: Number(r.rateApplied) * 100,
         commissionAmount: Number(r.commissionAmount),

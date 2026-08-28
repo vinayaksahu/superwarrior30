@@ -70,7 +70,7 @@ export function AdminManualReleaseModal({ commission }: AdminManualReleaseModalP
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-foreground">Early Commission Release</h3>
-                  <p className="text-xs text-muted-foreground">SUPER_ADMIN Action</p>
+                  <p className="text-xs text-muted-foreground">Admin / Super Admin Action</p>
                 </div>
               </div>
               <button
