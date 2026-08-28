@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import { createPresignedDownloadUrl } from "@/lib/storage";
+import { isBunnyStorageConfigured, bunnyStorageConfig, bunnyCdnConfig } from "@/lib/bunny";
 import { isR2Configured, r2 } from "@/lib/r2";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
@@ -61,24 +62,53 @@ export async function GET(
       }
     }
 
-    // 3. Handle Bunny CDN URL (stream directly to prevent CORS issues)
+    // 3. Handle Bunny CDN URL (stream directly to prevent CORS issues with dual fallback)
     if (lesson.bunnyCdnUrl) {
       try {
-        const cdnRes = await fetch(lesson.bunnyCdnUrl);
-        if (cdnRes.ok) {
-          const arrayBuffer = await cdnRes.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          return new NextResponse(buffer, {
+        let pdfBuffer: Buffer | null = null;
+
+        // Attempt 1: Fetch via Bunny CDN
+        try {
+          const cdnRes = await fetch(lesson.bunnyCdnUrl);
+          if (cdnRes.ok) {
+            const arrayBuffer = await cdnRes.arrayBuffer();
+            pdfBuffer = Buffer.from(arrayBuffer);
+          }
+        } catch (cdnFetchErr) {
+          console.warn("[PDF Stream] Bunny CDN fetch error, trying storage fallback:", cdnFetchErr);
+        }
+
+        // Attempt 2: Direct Bunny Storage fetch fallback (authorized with AccessKey)
+        if (!pdfBuffer && isBunnyStorageConfigured()) {
+          try {
+            const storagePath = lesson.bunnyCdnUrl.replace(bunnyCdnConfig.baseUrl, "").replace(/^\/+/, "");
+            const storageUrl = `${bunnyStorageConfig.baseUrl}/${storagePath}`;
+            const storageRes = await fetch(storageUrl, {
+              headers: {
+                AccessKey: bunnyStorageConfig.password,
+              },
+            });
+            if (storageRes.ok) {
+              const arrayBuffer = await storageRes.arrayBuffer();
+              pdfBuffer = Buffer.from(arrayBuffer);
+            }
+          } catch (storageErr) {
+            console.error("[PDF Stream] Direct Bunny Storage fallback error:", storageErr);
+          }
+        }
+
+        if (pdfBuffer) {
+          return new NextResponse(new Uint8Array(pdfBuffer), {
             headers: {
               "Content-Type": "application/pdf",
               "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
               "Cache-Control": "public, max-age=3600",
             },
           });
-        } else {
-          console.error(`[PDF Stream] Bunny CDN responded with HTTP ${cdnRes.status} for URL: ${lesson.bunnyCdnUrl}`);
-          return new NextResponse(`PDF storage returned HTTP ${cdnRes.status}`, { status: cdnRes.status });
         }
+
+        console.error(`[PDF Stream] Bunny PDF not found on CDN or Storage for URL: ${lesson.bunnyCdnUrl}`);
+        return new NextResponse("PDF storage file not found", { status: 404 });
       } catch (streamErr) {
         console.error("[PDF Stream] Could not proxy Bunny CDN stream:", streamErr);
         return new NextResponse("Failed to fetch PDF from CDN storage", { status: 502 });
@@ -95,7 +125,7 @@ export async function GET(
       const base64Data = pdfKey.split(",")[1];
       const buffer = Buffer.from(base64Data, "base64");
 
-      return new NextResponse(buffer, {
+      return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,

@@ -72,21 +72,6 @@ export async function POST(req: NextRequest) {
     const contentType = file.type || (category === "pdf" ? "application/pdf" : "image/jpeg");
     const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
 
-    // Auto-update lesson record with Bunny CDN URL if applicable
-    if (lessonId && category === "pdf") {
-      try {
-        await prisma.lesson.update({
-          where: { id: lessonId },
-          data: {
-            bunnyCdnUrl: result.cdnUrl,
-            mediaProvider: "BUNNY",
-          },
-        });
-      } catch (dbErr) {
-        console.warn("Could not auto-update lesson with Bunny CDN URL:", dbErr);
-      }
-    }
-
     return NextResponse.json({
       success: true,
       key: storagePath,

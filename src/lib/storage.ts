@@ -171,6 +171,7 @@ export async function getThumbnailUrl(
 
 /**
  * Delete a specific media asset (video or PDF) for a lesson.
+ * Only deletes old assets if they differ from the new asset being saved.
  */
 export async function deleteLessonMediaAsset(
   lesson: {
@@ -179,23 +180,24 @@ export async function deleteLessonMediaAsset(
     bunnyVideoId?: string | null;
     bunnyCdnUrl?: string | null;
   },
-  type: "video" | "pdf"
+  type: "video" | "pdf",
+  newKeyOrUrl?: string | null
 ): Promise<void> {
   const deleteOps: Promise<unknown>[] = [];
 
   if (type === "video") {
-    if (lesson.videoKey) {
+    if (lesson.videoKey && lesson.videoKey !== newKeyOrUrl) {
       deleteOps.push(deleteR2Object(lesson.videoKey).catch(() => {}));
     }
-    if (lesson.bunnyVideoId) {
+    if (lesson.bunnyVideoId && lesson.bunnyVideoId !== newKeyOrUrl) {
       const { deleteBunnyVideo } = await import("./bunny/stream");
       deleteOps.push(deleteBunnyVideo(lesson.bunnyVideoId).catch(() => {}));
     }
   } else if (type === "pdf") {
-    if (lesson.pdfKey) {
+    if (lesson.pdfKey && lesson.pdfKey !== newKeyOrUrl) {
       deleteOps.push(deleteR2Object(lesson.pdfKey).catch(() => {}));
     }
-    if (lesson.bunnyCdnUrl) {
+    if (lesson.bunnyCdnUrl && lesson.bunnyCdnUrl !== newKeyOrUrl) {
       try {
         const { deleteFromBunnyStorage, bunnyCdnConfig } = await import("./bunny");
         if (lesson.bunnyCdnUrl.startsWith(bunnyCdnConfig.baseUrl)) {
@@ -229,18 +231,22 @@ export async function deleteMediaAssets(lesson: {
 
 /**
  * Delete thumbnail assets for a course (handles both R2 and Bunny).
+ * Only deletes old assets if they differ from the new thumbnail being saved.
  */
-export async function deleteThumbnailAssets(course: {
-  thumbnailKey?: string | null;
-  thumbnailCdnUrl?: string | null;
-}): Promise<void> {
+export async function deleteThumbnailAssets(
+  course: {
+    thumbnailKey?: string | null;
+    thumbnailCdnUrl?: string | null;
+  },
+  newKeyOrUrl?: string | null
+): Promise<void> {
   const deleteOps: Promise<unknown>[] = [];
 
-  if (course.thumbnailKey) {
+  if (course.thumbnailKey && course.thumbnailKey !== newKeyOrUrl) {
     deleteOps.push(deleteR2Object(course.thumbnailKey).catch(() => {}));
   }
 
-  if (course.thumbnailCdnUrl) {
+  if (course.thumbnailCdnUrl && course.thumbnailCdnUrl !== newKeyOrUrl) {
     try {
       const { deleteFromBunnyStorage, bunnyCdnConfig } = await import("./bunny");
       if (course.thumbnailCdnUrl.startsWith(bunnyCdnConfig.baseUrl)) {

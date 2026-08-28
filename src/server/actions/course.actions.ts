@@ -327,8 +327,9 @@ export async function updateCourseThumbnailAction(
     select: { thumbnailKey: true, thumbnailCdnUrl: true },
   });
 
+  const newThumbnail = provider === "BUNNY" && cdnUrl ? cdnUrl : thumbnailKey;
   if (course) {
-    await deleteThumbnailAssets(course);
+    await deleteThumbnailAssets(course, newThumbnail);
   }
 
   const updateData: Record<string, unknown> = {};
@@ -666,8 +667,13 @@ export async function updateLessonFileAction(
   });
   if (!lesson) return { success: false, message: "Lesson not found." };
 
-  // Delete only the specific old asset being replaced (both R2 and Bunny)
-  await deleteLessonMediaAsset(lesson, fileType);
+  const newAsset =
+    fileType === "video"
+      ? (provider === "BUNNY" || bunnyVideoId ? bunnyVideoId : fileKey)
+      : (provider === "BUNNY" || bunnyCdnUrl ? bunnyCdnUrl : fileKey);
+
+  // Delete only the specific old asset being replaced (both R2 and Bunny), skipping the new one
+  await deleteLessonMediaAsset(lesson, fileType, newAsset);
 
   const updateData: Record<string, unknown> = {
     mediaProvider: provider || "BUNNY",
