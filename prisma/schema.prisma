@@ -659,3 +659,93 @@ model UserDevice {
   @@index([userId, isActive])
   @@map("user_devices")
 }
+
+// ==========================================
+// LEAD & FUNNEL SYSTEM
+// ==========================================
+
+enum LeadStage {
+  NEW_LEAD
+  QUIZ_COMPLETED
+  COURSE_VIEWED
+  CHECKOUT_STARTED
+  PURCHASED
+}
+
+model Lead {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?
+  phone           String?
+  whatsapp        String?
+
+  // Quiz answers
+  tradingExperience   String?
+  targetMarket        String?
+  mainChallenge       String?
+  lossRange           String?
+  learningGoals       String?
+  readyForTraining    String?
+  quizAnswers         Json?     @db.JsonB
+
+  // Funnel tracking
+  stage           LeadStage   @default(NEW_LEAD)
+  courseId         String?
+  userId          String?
+  source          String?
+
+  // UTM Attribution
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmContent      String?
+
+  // Funnel timestamps
+  landingPageAt       DateTime?
+  quizStartedAt       DateTime?
+  quizCompletedAt     DateTime?
+  courseViewedAt       DateTime?
+  checkoutStartedAt   DateTime?
+  purchaseCompletedAt DateTime?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([email])
+  @@index([phone])
+  @@index([stage])
+  @@index([createdAt(sort: Desc)])
+  @@index([utmSource, utmCampaign])
+  @@map("leads")
+}
+
+model Testimonial {
+  id          String    @id @default(cuid())
+  studentName String
+  content     String    @db.Text
+  photoUrl    String?
+  videoUrl    String?
+  rating      Int       @default(5)
+  isApproved  Boolean   @default(false)
+  isVisible   Boolean   @default(true)
+  courseId     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isApproved, isVisible])
+  @@map("testimonials")
+}
+
+model FunnelEvent {
+  id          String   @id @default(cuid())
+  leadId      String?
+  sessionId   String?
+  eventType   String
+  metadata    Json?    @db.JsonB
+  createdAt   DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([leadId])
+  @@index([sessionId])
+  @@map("funnel_events")
+}

@@ -217,5 +217,98 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
+  // LeadStage enum and Funnel Tables
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "LeadStage" AS ENUM ('NEW_LEAD', 'QUIZ_COMPLETED', 'COURSE_VIEWED', 'CHECKOUT_STARTED', 'PURCHASED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "leads" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT,
+        "email" TEXT,
+        "phone" TEXT,
+        "whatsapp" TEXT,
+        "tradingExperience" TEXT,
+        "targetMarket" TEXT,
+        "mainChallenge" TEXT,
+        "lossRange" TEXT,
+        "learningGoals" TEXT,
+        "readyForTraining" TEXT,
+        "quizAnswers" JSONB,
+        "stage" "LeadStage" NOT NULL DEFAULT 'NEW_LEAD',
+        "courseId" TEXT,
+        "userId" TEXT,
+        "source" TEXT,
+        "utmSource" TEXT,
+        "utmMedium" TEXT,
+        "utmCampaign" TEXT,
+        "utmContent" TEXT,
+        "landingPageAt" TIMESTAMP(3),
+        "quizStartedAt" TIMESTAMP(3),
+        "quizCompletedAt" TIMESTAMP(3),
+        "courseViewedAt" TIMESTAMP(3),
+        "checkoutStartedAt" TIMESTAMP(3),
+        "purchaseCompletedAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "leads_email_idx" ON "leads"("email");
+      CREATE INDEX IF NOT EXISTS "leads_phone_idx" ON "leads"("phone");
+      CREATE INDEX IF NOT EXISTS "leads_stage_idx" ON "leads"("stage");
+      CREATE INDEX IF NOT EXISTS "leads_createdAt_idx" ON "leads"("createdAt" DESC);
+      CREATE INDEX IF NOT EXISTS "leads_utmSource_utmCampaign_idx" ON "leads"("utmSource", "utmCampaign");
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "testimonials" (
+        "id" TEXT PRIMARY KEY,
+        "studentName" TEXT NOT NULL,
+        "content" TEXT NOT NULL,
+        "photoUrl" TEXT,
+        "videoUrl" TEXT,
+        "rating" INTEGER NOT NULL DEFAULT 5,
+        "isApproved" BOOLEAN NOT NULL DEFAULT false,
+        "isVisible" BOOLEAN NOT NULL DEFAULT true,
+        "courseId" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "testimonials_isApproved_isVisible_idx" ON "testimonials"("isApproved", "isVisible");
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "funnel_events" (
+        "id" TEXT PRIMARY KEY,
+        "leadId" TEXT,
+        "sessionId" TEXT,
+        "eventType" TEXT NOT NULL,
+        "metadata" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "funnel_events_eventType_createdAt_idx" ON "funnel_events"("eventType", "createdAt");
+      CREATE INDEX IF NOT EXISTS "funnel_events_leadId_idx" ON "funnel_events"("leadId");
+      CREATE INDEX IF NOT EXISTS "funnel_events_sessionId_idx" ON "funnel_events"("sessionId");
+    `);
+  } catch {
+    // ignore
+  }
+
   isSynced = true;
 }

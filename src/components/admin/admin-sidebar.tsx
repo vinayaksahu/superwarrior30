@@ -16,6 +16,9 @@ import {
   ScrollText,
   CreditCard,
   Trash2,
+  ContactRound,
+  BarChart3,
+  Star,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,6 +71,24 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/payment-methods",
     label: "Payment Methods",
     icon: CreditCard,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    href: "/admin/leads",
+    label: "Leads",
+    icon: ContactRound,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/funnel",
+    label: "Funnel Analytics",
+    icon: BarChart3,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    href: "/admin/testimonials",
+    label: "Testimonials",
+    icon: Star,
     allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
