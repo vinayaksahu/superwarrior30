@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCoursesAction } from "@/server/actions/course.actions";
-import { getCurrentUser } from "@/server/dal/auth";
+import { getCurrentUser, isSuperAdminUser } from "@/server/dal/auth";
 import { formatCurrency } from "@/lib/utils";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { CourseStatusBadge } from "@/components/admin/course-status-badge";
@@ -19,7 +19,7 @@ export default async function AdminCoursesPage({
   searchParams: Promise<{ page?: string; status?: string; search?: string }>;
 }) {
   const user = await getCurrentUser();
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const isSuperAdmin = isSuperAdminUser(user);
   const params = await searchParams;
   const page = parseInt(params.page || "1");
   const status = params.status || "all";
