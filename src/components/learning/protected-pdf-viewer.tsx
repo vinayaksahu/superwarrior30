@@ -11,6 +11,48 @@ import {
   FileText,
 } from "lucide-react";
 
+let pdfEngineLoadingPromise: Promise<void> | null = null;
+
+function loadPdfEngine(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  const win = window as any;
+  if (win.pdfjsLib) return Promise.resolve();
+
+  if (!pdfEngineLoadingPromise) {
+    pdfEngineLoadingPromise = new Promise<void>((resolve, reject) => {
+      if (win.pdfjsLib) {
+        resolve();
+        return;
+      }
+      const existing = document.querySelector('script[src="/pdf.min.js"]') as HTMLScriptElement | null;
+      if (existing) {
+        if (win.pdfjsLib) {
+          resolve();
+          return;
+        }
+        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("error", () => reject(new Error("Failed to load PDF viewer script")));
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "/pdf.min.js";
+      script.async = true;
+      script.onload = () => {
+        if (win.pdfjsLib) {
+          win.pdfjsLib.GlobalWorkerOptions = win.pdfjsLib.GlobalWorkerOptions || {};
+          win.pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+        }
+        resolve();
+      };
+      script.onerror = () => reject(new Error("Failed to load PDF viewer engine"));
+      document.head.appendChild(script);
+    });
+  }
+
+  return pdfEngineLoadingPromise;
+}
+
 interface ProtectedPdfViewerProps {
   pdfUrl: string;
   title: string;
@@ -36,37 +78,23 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         setLoading(true);
         setError(null);
 
+        await loadPdfEngine();
         const win = window as any;
 
-        // Ensure pdfjsLib is loaded from local /pdf.min.js
         if (!win.pdfjsLib) {
-          await new Promise<void>((resolve, reject) => {
-            const existingScript = document.querySelector('script[src="/pdf.min.js"]');
-            if (existingScript) {
-              existingScript.addEventListener("load", () => resolve());
-              existingScript.addEventListener("error", () => reject(new Error("Failed to load PDF engine")));
-              return;
-            }
-
-            const script = document.createElement("script");
-            script.src = "/pdf.min.js";
-            script.async = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Failed to load PDF viewer engine"));
-            document.head.appendChild(script);
-          });
+          throw new Error("PDF viewer engine not ready");
         }
 
-        if (win.pdfjsLib) {
-          win.pdfjsLib.GlobalWorkerOptions = win.pdfjsLib.GlobalWorkerOptions || {};
-          win.pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
-        }
+        win.pdfjsLib.GlobalWorkerOptions = win.pdfjsLib.GlobalWorkerOptions || {};
+        win.pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
         if (isCancelled) return;
 
         // Fetch PDF as ArrayBuffer directly from same-origin secure route
-        const response = await fetch(pdfUrl);
-        if (!response.ok) throw new Error("Could not fetch document stream");
+        const response = await fetch(pdfUrl, { credentials: "include" });
+        if (!response.ok) {
+          throw new Error(`Could not load document stream (HTTP ${response.status})`);
+        }
 
         const arrayBuffer = await response.arrayBuffer();
         const typedArray = new Uint8Array(arrayBuffer);
@@ -85,7 +113,8 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
       } catch (err: unknown) {
         if (!isCancelled) {
           console.error("PDF render error:", err);
-          setError("Failed to render document. Please try refreshing.");
+          const msg = err instanceof Error ? err.message : "Failed to render document";
+          setError(`${msg}. Please try refreshing.`);
           setLoading(false);
         }
       }

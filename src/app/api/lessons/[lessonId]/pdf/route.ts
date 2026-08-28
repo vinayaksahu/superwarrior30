@@ -75,11 +75,14 @@ export async function GET(
               "Cache-Control": "public, max-age=3600",
             },
           });
+        } else {
+          console.error(`[PDF Stream] Bunny CDN responded with HTTP ${cdnRes.status} for URL: ${lesson.bunnyCdnUrl}`);
+          return new NextResponse(`PDF storage returned HTTP ${cdnRes.status}`, { status: cdnRes.status });
         }
       } catch (streamErr) {
-        console.warn("Could not proxy Bunny CDN stream, redirecting:", streamErr);
+        console.error("[PDF Stream] Could not proxy Bunny CDN stream:", streamErr);
+        return new NextResponse("Failed to fetch PDF from CDN storage", { status: 502 });
       }
-      return NextResponse.redirect(lesson.bunnyCdnUrl);
     }
 
     const pdfKey = lesson.pdfKey;
