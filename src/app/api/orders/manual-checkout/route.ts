@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/server/dal/auth";
-import { generateOrderNumber } from "@/lib/utils";
+import { generateOrderNumber, generateReferralCode } from "@/lib/utils";
 import { Prisma } from "@/generated/prisma";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { createSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,17 +13,120 @@ export async function POST(req: Request) {
   try {
     await ensureDatabaseSchemaSync();
 
-    const user = await getCurrentUser();
+    let user = await getCurrentUser();
+
+    const body = await req.json();
+    const {
+      courseId,
+      couponCode,
+      paymentMethodId,
+      paymentMethodTitle,
+      utrRef,
+      proofNote,
+      guestName,
+      guestEmail,
+      guestPassword,
+      guestPhone,
+    } = body;
+
+    // Handle guest account creation/login if user is not already authenticated
+    if (!user) {
+      if (!guestEmail || typeof guestEmail !== "string" || !guestEmail.includes("@")) {
+        return NextResponse.json(
+          { success: false, message: "Please provide a valid email address for course access." },
+          { status: 400 }
+        );
+      }
+
+      const cleanEmail = guestEmail.toLowerCase().trim();
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email: cleanEmail },
+      });
+
+      if (existingUser) {
+        // If password was provided, verify it
+        if (guestPassword) {
+          const isValid = await verifyPassword(guestPassword, existingUser.passwordHash);
+          if (!isValid) {
+            return NextResponse.json(
+              {
+                success: false,
+                message: "An account with this email already exists. Please enter your correct password or log in.",
+              },
+              { status: 400 }
+            );
+          }
+        }
+        user = existingUser;
+      } else {
+        // Create new student account
+        if (!guestPassword || guestPassword.length < 6) {
+          return NextResponse.json(
+            { success: false, message: "Please set a password of at least 6 characters for your student account." },
+            { status: 400 }
+          );
+        }
+
+        const passwordHash = await hashPassword(guestPassword);
+        const name = (guestName && typeof guestName === "string" ? guestName.trim() : "") || "Student";
+        const phone = guestPhone && typeof guestPhone === "string" ? guestPhone.trim() : null;
+
+        // Generate unique referral code
+        let newReferralCode: string;
+        let codeExists = true;
+        do {
+          newReferralCode = generateReferralCode();
+          const check = await prisma.user.findUnique({ where: { referralCode: newReferralCode } });
+          codeExists = !!check;
+        } while (codeExists);
+
+        user = await prisma.user.create({
+          data: {
+            email: cleanEmail,
+            name,
+            phone,
+            passwordHash,
+            referralCode: newReferralCode,
+            tokenVersion: 1,
+            status: "ACTIVE",
+            role: "STUDENT",
+          },
+        });
+
+        // Create wallet for new student
+        try {
+          await prisma.wallet.create({ data: { userId: user.id } });
+        } catch {
+          // ignore
+        }
+
+        // Link matching lead
+        try {
+          await prisma.lead.updateMany({
+            where: { email: cleanEmail },
+            data: { userId: user.id, stage: "CHECKOUT_STARTED", checkoutStartedAt: new Date() },
+          });
+        } catch {
+          // ignore
+        }
+      }
+
+      // Automatically log the user in
+      try {
+        await createSession(user.id, user.email, user.role, user.tokenVersion);
+      } catch {
+        // ignore if cookies cannot be set in some environments
+      }
+    }
+
     if (!user) {
       return NextResponse.json(
-        { success: false, message: "Please log in to submit your payment verification." },
+        { success: false, message: "Please log in or provide your details to complete your order." },
         { status: 401 }
       );
     }
-
-    const body = await req.json();
-    const { courseId, couponCode, paymentMethodId, paymentMethodTitle, utrRef, proofNote } = body;
-
     if (!utrRef || typeof utrRef !== "string" || utrRef.trim().length < 4) {
       return NextResponse.json(
         { success: false, message: "Please provide a valid UTR / Transaction Reference ID." },

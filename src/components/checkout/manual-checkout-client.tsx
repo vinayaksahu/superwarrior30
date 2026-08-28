@@ -17,6 +17,10 @@ import {
   Tag,
   X,
   Loader2,
+  User,
+  Mail,
+  Lock,
+  Phone,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { PaymentMethodItem } from "@/server/actions/payment-method.actions";
@@ -31,15 +35,17 @@ interface ManualCheckoutClientProps {
     compareAtPrice: number | null;
   };
   paymentMethods: PaymentMethodItem[];
-  userEmail: string;
-  userName: string | null;
+  userEmail?: string;
+  userName?: string | null;
+  isGuest?: boolean;
 }
 
 export function ManualCheckoutClient({
   course,
   paymentMethods,
-  userEmail,
-  userName,
+  userEmail = "",
+  userName = null,
+  isGuest = false,
 }: ManualCheckoutClientProps) {
   const activeMethods = paymentMethods.filter((m) => m.isActive);
 
@@ -51,6 +57,12 @@ export function ManualCheckoutClient({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [utrInput, setUtrInput] = useState<string>("");
   const [proofNote, setProofNote] = useState<string>("");
+
+  // Guest registration state
+  const [guestName, setGuestName] = useState<string>(userName || "");
+  const [guestEmail, setGuestEmail] = useState<string>(userEmail || "");
+  const [guestPhone, setGuestPhone] = useState<string>("");
+  const [guestPassword, setGuestPassword] = useState<string>("");
 
   // Coupon state
   const [couponInput, setCouponInput] = useState<string>("");
@@ -156,6 +168,21 @@ export function ManualCheckoutClient({
       return;
     }
 
+    if (isGuest) {
+      if (!guestName.trim()) {
+        toast.error("Please enter your Full Name.");
+        return;
+      }
+      if (!guestEmail.trim() || !guestEmail.includes("@")) {
+        toast.error("Please enter a valid Email address.");
+        return;
+      }
+      if (!guestPassword || guestPassword.length < 6) {
+        toast.error("Please create a password of at least 6 characters for your account.");
+        return;
+      }
+    }
+
     if (!utrInput.trim() || utrInput.trim().length < 4) {
       toast.error("Please enter a valid 12-digit UTR or Transaction Reference ID.");
       return;
@@ -174,6 +201,10 @@ export function ManualCheckoutClient({
           paymentMethodTitle: selectedMethod.title,
           utrRef: utrInput.trim(),
           proofNote: proofNote.trim(),
+          guestName: isGuest ? guestName.trim() : undefined,
+          guestEmail: isGuest ? guestEmail.trim() : undefined,
+          guestPhone: isGuest ? guestPhone.trim() : undefined,
+          guestPassword: isGuest ? guestPassword : undefined,
         }),
       });
 
@@ -524,6 +555,93 @@ export function ManualCheckoutClient({
 
               {/* UTR / Transaction Submission Form */}
               <form onSubmit={handleSubmitOrder} className="space-y-4 pt-2 border-t border-border">
+                {isGuest ? (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                    <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5 text-primary" />
+                      Student Account Details
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Your course access credentials will be sent to this email.
+                    </p>
+
+                    <div className="space-y-2.5">
+                      <div>
+                        <label className="text-[11px] font-semibold text-foreground block mb-1">
+                          Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={guestName}
+                          onChange={(e) => setGuestName(e.target.value)}
+                          placeholder="Your Full Name"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-semibold text-foreground block mb-1 flex items-center gap-1">
+                          <Mail className="h-3 w-3 text-primary" /> Email Address *
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={guestEmail}
+                          onChange={(e) => setGuestEmail(e.target.value)}
+                          placeholder="your@email.com"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[11px] font-semibold text-foreground block mb-1 flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-emerald-500" /> Mobile / WhatsApp
+                          </label>
+                          <input
+                            type="tel"
+                            value={guestPhone}
+                            onChange={(e) => setGuestPhone(e.target.value)}
+                            placeholder="+91 XXXXX XXXXX"
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-semibold text-foreground block mb-1 flex items-center gap-1">
+                            <Lock className="h-3 w-3 text-primary" /> Create Password *
+                          </label>
+                          <input
+                            type="password"
+                            required
+                            minLength={6}
+                            value={guestPassword}
+                            onChange={(e) => setGuestPassword(e.target.value)}
+                            placeholder="Min 6 chars"
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500 font-bold text-xs">
+                        {(userName || userEmail || "U").charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground">{userName || "Student"}</p>
+                        <p className="text-[11px] text-muted-foreground">{userEmail}</p>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-500">
+                      Logged In
+                    </span>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-foreground block mb-1.5">
                     {selectedMethod?.type === "CRYPTO"

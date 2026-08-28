@@ -24,6 +24,8 @@ function isPublicRoute(pathname: string): boolean {
   if (pathname.startsWith("/courses/")) return true;
   // Allow /super-warrior-30 and any subpaths as public
   if (pathname.startsWith("/super-warrior-30")) return true;
+  // Allow /checkout and /checkout/[courseId] as public for guest checkout
+  if (pathname.startsWith("/checkout")) return true;
   // Allow API routes (webhooks, etc.) to manage their own auth/signatures
   if (pathname.startsWith("/api/")) return true;
   return false;

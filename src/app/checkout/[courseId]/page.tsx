@@ -21,10 +21,6 @@ export default async function CheckoutPage({
   await ensureDatabaseSchemaSync();
   const user = await getCurrentUser();
 
-  if (!user) {
-    redirect(`/login?callbackUrl=/checkout/${courseId}`);
-  }
-
   // Find course by ID or slug
   const course = await prisma.course.findFirst({
     where: {
@@ -45,27 +41,29 @@ export default async function CheckoutPage({
     notFound();
   }
 
-  // Check if already enrolled
-  let isEnrolled = false;
-  try {
-    const existingEnrollment = await prisma.courseEnrollment.findFirst({
-      where: {
-        userId: user.id,
-        courseId: course.id,
-        status: "ACTIVE",
-      },
-      select: { id: true, status: true },
-    });
+  // Check if already enrolled (only for logged-in users)
+  if (user) {
+    let isEnrolled = false;
+    try {
+      const existingEnrollment = await prisma.courseEnrollment.findFirst({
+        where: {
+          userId: user.id,
+          courseId: course.id,
+          status: "ACTIVE",
+        },
+        select: { id: true, status: true },
+      });
 
-    if (existingEnrollment && existingEnrollment.status === "ACTIVE") {
-      isEnrolled = true;
+      if (existingEnrollment && existingEnrollment.status === "ACTIVE") {
+        isEnrolled = true;
+      }
+    } catch {
+      // fallback if table schema has unmigrated columns
     }
-  } catch {
-    // fallback if table schema has unmigrated columns
-  }
 
-  if (isEnrolled) {
-    redirect(`/learn/${course.slug}`);
+    if (isEnrolled) {
+      redirect(`/learn/${course.slug}`);
+    }
   }
 
   const paymentMethods = await getSystemPaymentMethodsAction(false);
@@ -80,8 +78,9 @@ export default async function CheckoutPage({
         compareAtPrice: course.compareAtPrice ? Number(course.compareAtPrice) : null,
       }}
       paymentMethods={paymentMethods}
-      userEmail={user.email}
-      userName={user.name}
+      userEmail={user?.email || ""}
+      userName={user?.name || null}
+      isGuest={!user}
     />
   );
 }
