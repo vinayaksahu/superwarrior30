@@ -40,7 +40,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
       const globalWindow = window as any;
 
       fallbackTimeout = setTimeout(() => {
-        if (!isCancelled && loading) {
+        if (!isCancelled) {
           console.warn("PDF.js loading timeout, falling back to embedded viewer");
           setError("FALLBACK_IFRAME");
           setLoading(false);
