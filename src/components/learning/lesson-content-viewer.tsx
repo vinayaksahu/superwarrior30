@@ -19,6 +19,7 @@ import {
   Lock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ProtectedPdfViewer } from "./protected-pdf-viewer";
 
 interface LessonContentViewerProps {
   courseSlug: string;
@@ -250,25 +251,10 @@ export function LessonContentViewer({
             </div>
           )
         ) : mediaData.contentType === "PDF" ? (
-          <div className="w-full flex flex-col bg-background select-none">
-            <div className="flex items-center justify-between px-4 py-2 bg-muted/40 border-b border-border text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground flex items-center gap-2">
-                <FileText className="h-4 w-4 text-amber-400" />
-                {mediaData.title}
-              </span>
-              <span className="text-[11px] font-semibold text-muted-foreground">
-                Read-Only Document Viewer
-              </span>
-            </div>
-
-            <div className="h-[750px] w-full bg-neutral-900 overflow-hidden relative">
-              <iframe
-                src={pdfStreamUrl}
-                className="h-full w-full border-0 pointer-events-auto"
-                title={mediaData.title}
-              />
-            </div>
-          </div>
+          <ProtectedPdfViewer
+            pdfUrl={`/api/lessons/${lessonId}/pdf`}
+            title={mediaData.title}
+          />
         ) : (
           <div className="p-8 bg-card text-foreground">
             <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">

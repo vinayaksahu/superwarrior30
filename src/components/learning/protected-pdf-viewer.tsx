@@ -9,28 +9,43 @@ import {
   ZoomOut,
   AlertCircle,
   FileText,
+  RotateCcw,
 } from "lucide-react";
 
-let pdfEngineLoadingPromise: Promise<void> | null = null;
+let pdfEngineLoadingPromise: Promise<any> | null = null;
 
-function loadPdfEngine(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
+function setWorkerSrc(pdfjsLib: any) {
+  if (pdfjsLib?.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+  }
+}
+
+function loadPdfEngine(): Promise<any> {
+  if (typeof window === "undefined") return Promise.reject(new Error("Cannot load PDF on server"));
   const win = window as any;
-  if (win.pdfjsLib) return Promise.resolve();
+  if (win.pdfjsLib) {
+    setWorkerSrc(win.pdfjsLib);
+    return Promise.resolve(win.pdfjsLib);
+  }
 
   if (!pdfEngineLoadingPromise) {
-    pdfEngineLoadingPromise = new Promise<void>((resolve, reject) => {
+    pdfEngineLoadingPromise = new Promise<any>((resolve, reject) => {
       if (win.pdfjsLib) {
-        resolve();
+        setWorkerSrc(win.pdfjsLib);
+        resolve(win.pdfjsLib);
         return;
       }
       const existing = document.querySelector('script[src="/pdf.min.js"]') as HTMLScriptElement | null;
       if (existing) {
         if (win.pdfjsLib) {
-          resolve();
+          setWorkerSrc(win.pdfjsLib);
+          resolve(win.pdfjsLib);
           return;
         }
-        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("load", () => {
+          setWorkerSrc(win.pdfjsLib);
+          resolve(win.pdfjsLib);
+        });
         existing.addEventListener("error", () => reject(new Error("Failed to load PDF viewer script")));
         return;
       }
@@ -39,11 +54,8 @@ function loadPdfEngine(): Promise<void> {
       script.src = "/pdf.min.js";
       script.async = true;
       script.onload = () => {
-        if (win.pdfjsLib) {
-          win.pdfjsLib.GlobalWorkerOptions = win.pdfjsLib.GlobalWorkerOptions || {};
-          win.pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
-        }
-        resolve();
+        setWorkerSrc(win.pdfjsLib);
+        resolve(win.pdfjsLib);
       };
       script.onerror = () => reject(new Error("Failed to load PDF viewer engine"));
       document.head.appendChild(script);
@@ -68,6 +80,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
   const [scale, setScale] = useState<number>(1.2);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState<number>(0);
 
   // Load PDF with self-hosted local pdf.min.js engine
   useEffect(() => {
@@ -78,15 +91,13 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         setLoading(true);
         setError(null);
 
-        await loadPdfEngine();
-        const win = window as any;
+        const pdfjsLib = await loadPdfEngine();
 
-        if (!win.pdfjsLib) {
+        if (!pdfjsLib) {
           throw new Error("PDF viewer engine not ready");
         }
 
-        win.pdfjsLib.GlobalWorkerOptions = win.pdfjsLib.GlobalWorkerOptions || {};
-        win.pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+        setWorkerSrc(pdfjsLib);
 
         if (isCancelled) return;
 
@@ -99,7 +110,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         const arrayBuffer = await response.arrayBuffer();
         const typedArray = new Uint8Array(arrayBuffer);
 
-        const loadingTask = win.pdfjsLib.getDocument({
+        const loadingTask = pdfjsLib.getDocument({
           data: typedArray,
         });
         const doc = await loadingTask.promise;
@@ -114,7 +125,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         if (!isCancelled) {
           console.error("PDF render error:", err);
           const msg = err instanceof Error ? err.message : "Failed to render document";
-          setError(`${msg}. Please try refreshing.`);
+          setError(msg);
           setLoading(false);
         }
       }
@@ -125,7 +136,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
     return () => {
       isCancelled = true;
     };
-  }, [pdfUrl]);
+  }, [pdfUrl, retryCount]);
 
   // Render current page onto Canvas
   const renderPage = useCallback(
@@ -267,9 +278,26 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         )}
 
         {error && (
-          <div className="flex flex-col items-center justify-center gap-3 py-14 text-center text-destructive">
-            <AlertCircle className="h-8 w-8" />
-            <p className="text-xs font-semibold">{error}</p>
+          <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-destructive/10 text-destructive mb-1">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">
+              PDF load nahi ho pa raha. Retry karein.
+            </p>
+            {error && (
+              <p className="text-xs text-muted-foreground max-w-sm">
+                {error}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setRetryCount((c) => c + 1)}
+              className="mt-2 inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-black px-4 py-2 text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Retry
+            </button>
           </div>
         )}
 
