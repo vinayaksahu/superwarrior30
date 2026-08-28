@@ -24,10 +24,17 @@ export async function ensureDatabaseSchemaSync() {
     // course_enrollments columns
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3);`,
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "progressPercent" INTEGER DEFAULT 0;`,
+    `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "progressPercentage" DECIMAL(5,2) DEFAULT 0.00;`,
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP(3);`,
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "lastAccessedAt" TIMESTAMP(3);`,
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "certificateIssued" BOOLEAN DEFAULT false;`,
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "certificateId" TEXT;`,
+
+    // lesson_progress columns
+    `ALTER TABLE "lesson_progress" ADD COLUMN IF NOT EXISTS "watchTimeSeconds" INTEGER DEFAULT 0;`,
+    `ALTER TABLE "lesson_progress" ADD COLUMN IF NOT EXISTS "lastPositionSeconds" INTEGER DEFAULT 0;`,
+    `ALTER TABLE "lesson_progress" ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "lesson_progress" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;`,
 
     // order_items columns
     `ALTER TABLE "order_items" ADD COLUMN IF NOT EXISTS "courseId" TEXT;`,

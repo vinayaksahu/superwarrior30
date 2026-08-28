@@ -143,10 +143,11 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
   }
 
   // Step 3: Fetch Progress
+  const allLessonIds = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
   const progressRecords = await prisma.lessonProgress.findMany({
     where: {
       userId: user.id,
-      lesson: { module: { courseId: course.id } },
+      lessonId: { in: allLessonIds },
     },
     select: {
       lessonId: true,
@@ -164,7 +165,7 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
   }
 
   // Step 4: Calculate Stats
-  const totalLessons = course.modules.reduce((acc, mod) => acc + mod.lessons.length, 0);
+  const totalLessons = allLessonIds.length;
   const completedLessons = progressRecords.filter((p) => p.status === "COMPLETED").length;
   const progressPercentage = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
@@ -275,38 +276,66 @@ export async function updateLessonProgressAction({
   // Find lesson and parent course
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
-    include: { module: { select: { courseId: true } } },
+    include: {
+      module: {
+        include: {
+          course: { select: { id: true, slug: true } },
+        },
+      },
+    },
   });
 
   if (!lesson) {
     return { success: false, message: "Lesson not found" };
   }
 
-  const courseId = lesson.module.courseId;
+  const courseId = lesson.module.course.id;
+  const courseSlug = lesson.module.course.slug;
+  const completedAt = status === "COMPLETED" ? new Date() : null;
 
   // 1. Update or create lesson progress
-  await prisma.lessonProgress.upsert({
-    where: {
-      userId_lessonId: {
+  try {
+    await prisma.lessonProgress.upsert({
+      where: {
+        userId_lessonId: {
+          userId: user.id,
+          lessonId,
+        },
+      },
+      update: {
+        status: status as any,
+        watchTimeSeconds,
+        lastPositionSeconds,
+        completedAt,
+      },
+      create: {
         userId: user.id,
         lessonId,
+        status: status as any,
+        watchTimeSeconds,
+        lastPositionSeconds,
+        completedAt,
       },
-    },
-    update: {
-      status,
-      watchTimeSeconds,
-      lastPositionSeconds,
-      completedAt: status === "COMPLETED" ? new Date() : null,
-    },
-    create: {
-      userId: user.id,
+    });
+  } catch {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "lesson_progress" ("id", "userId", "lessonId", "status", "watchTimeSeconds", "lastPositionSeconds", "completedAt", "updatedAt")
+       VALUES (gen_random_uuid()::text, $1, $2, $3::"ProgressStatus", $4, $5, $6::timestamp, NOW())
+       ON CONFLICT ("userId", "lessonId")
+       DO UPDATE SET
+         "status" = EXCLUDED."status",
+         "watchTimeSeconds" = EXCLUDED."watchTimeSeconds",
+         "lastPositionSeconds" = EXCLUDED."lastPositionSeconds",
+         "completedAt" = EXCLUDED."completedAt",
+         "updatedAt" = NOW();`,
+      user.id,
       lessonId,
       status,
       watchTimeSeconds,
       lastPositionSeconds,
-      completedAt: status === "COMPLETED" ? new Date() : null,
-    },
-  });
+      completedAt ? completedAt.toISOString() : null
+    );
+  }
 
   // 2. Recalculate Course Enrollment progress percentage
   const [totalLessons, completedLessons] = await Promise.all([
@@ -326,7 +355,7 @@ export async function updateLessonProgressAction({
   ]);
 
   const progressPercentage =
-    totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+    totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
   await prisma.courseEnrollment.updateMany({
     where: {
@@ -339,6 +368,9 @@ export async function updateLessonProgressAction({
     },
   });
 
+  revalidatePath(`/learn/${courseSlug}`);
+  revalidatePath(`/learn/${courseSlug}/${lessonId}`);
+  revalidatePath(`/courses/${courseSlug}`);
   revalidatePath(`/dashboard`);
   revalidatePath(`/dashboard/courses`);
 

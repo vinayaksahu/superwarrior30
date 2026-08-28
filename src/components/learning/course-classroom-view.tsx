@@ -79,6 +79,11 @@ export function CourseClassroomView({
   const [isSaving, setIsSaving] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Sync state whenever server revalidates or sends fresh props
+  useEffect(() => {
+    setProgressMap(initialProgressMap);
+  }, [initialProgressMap]);
+
   // Compute total lessons
   const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
 
@@ -142,8 +147,10 @@ export function CourseClassroomView({
     };
   }, [activeLessonId, courseSlug]);
 
-  // Real-time instant toggle completion
+  // Real-time persistent toggle completion
   const handleToggleComplete = async () => {
+    if (isSaving) return;
+    const prevStatus = progressMap[activeLessonId]?.status || "NOT_STARTED";
     const newStatus = isCurrentCompleted ? "IN_PROGRESS" : "COMPLETED";
 
     // 1. Instant Optimistic UI Update in Sidebar & Topbar
@@ -156,22 +163,43 @@ export function CourseClassroomView({
       },
     }));
 
-    if (newStatus === "COMPLETED") {
-      toast.success("Lesson marked complete! Checkbox updated.");
-    } else {
-      toast.info("Lesson marked incomplete.");
-    }
-
     // 2. Background API Call
     setIsSaving(true);
     try {
-      await fetch(`/api/lessons/${activeLessonId}/progress`, {
+      const res = await fetch(`/api/lessons/${activeLessonId}/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-    } catch (err) {
-      console.error("Progress background save error:", err);
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        // Rollback optimistic update on failure
+        setProgressMap((prev) => ({
+          ...prev,
+          [activeLessonId]: {
+            ...(prev[activeLessonId] || {}),
+            status: prevStatus,
+            watchTimeSeconds: prev[activeLessonId]?.watchTimeSeconds || 0,
+          },
+        }));
+        throw new Error(data.error || "Failed to persist lesson completion");
+      }
+
+      // Success notification confirmed by database write
+      if (newStatus === "COMPLETED") {
+        toast.success("Lesson marked complete! Checkbox updated.");
+      } else {
+        toast.info("Lesson marked incomplete.");
+      }
+
+      // Invalidate Next.js App Router client cache and re-fetch server state
+      router.refresh();
+    } catch (err: unknown) {
+      console.error("Progress save error:", err);
+      const msg = err instanceof Error ? err.message : "Error saving progress";
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }
