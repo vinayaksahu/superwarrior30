@@ -349,6 +349,12 @@ export async function updateCourseThumbnailAction(
   });
 
   revalidatePath(`/admin/courses/${courseId}`);
+  revalidatePath("/admin/courses");
+  revalidatePath("/courses");
+  if (course?.slug) {
+    revalidatePath(`/courses/${course.slug}`);
+  }
+  revalidatePath("/");
   return { success: true, message: "Thumbnail updated." };
 }
 

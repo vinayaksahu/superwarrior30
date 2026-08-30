@@ -101,9 +101,23 @@ export default async function PublicCoursesPage({
                   className="group flex flex-col justify-between rounded-2xl border border-border/70 bg-card overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-xl"
                 >
                   <div>
-                    {/* Thumbnail placeholder or badge */}
-                    <div className="relative aspect-video w-full bg-gradient-to-br from-muted/80 to-muted/30 border-b border-border/40 flex items-center justify-center p-6 text-center">
-                      <div className="absolute top-3 left-3 flex gap-2">
+                    {/* Thumbnail Image or Gradient Box */}
+                    <div className="relative aspect-video w-full bg-gradient-to-br from-muted/80 to-muted/30 border-b border-border/40 flex items-center justify-center text-center overflow-hidden">
+                      {course.thumbnailCdnUrl ? (
+                        <img
+                          src={course.thumbnailCdnUrl}
+                          alt={course.title}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="p-6">
+                          <span className="text-xl font-bold tracking-tight text-foreground/80 group-hover:text-primary transition-colors">
+                            {course.title}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="absolute top-3 left-3 flex gap-2 z-10">
                         <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary backdrop-blur-sm">
                           {course.difficulty}
                         </span>
@@ -114,10 +128,6 @@ export default async function PublicCoursesPage({
                           </span>
                         )}
                       </div>
-
-                      <span className="text-xl font-bold tracking-tight text-foreground/80 group-hover:text-primary transition-colors">
-                        {course.title}
-                      </span>
                     </div>
 
                     {/* Content */}

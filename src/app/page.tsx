@@ -229,14 +229,22 @@ export default async function HomePage() {
                     className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-all hover:border-primary/40 hover:shadow-lg group"
                   >
                     <div className="space-y-4">
-                      {/* Image / Thumbnail placeholder */}
+                      {/* Image / Thumbnail */}
                       <div className="relative aspect-video w-full bg-muted/60 overflow-hidden flex items-center justify-center border-b border-border/60">
-                        <PlayCircle className="h-12 w-12 text-muted-foreground/30 group-hover:text-primary/70 transition-colors" />
-                        <span className="absolute top-3 left-3 rounded-md bg-background/90 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-primary border border-border/60 backdrop-blur-sm">
+                        {course.thumbnailCdnUrl ? (
+                          <img
+                            src={course.thumbnailCdnUrl}
+                            alt={course.title}
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <PlayCircle className="h-12 w-12 text-muted-foreground/30 group-hover:text-primary/70 transition-colors" />
+                        )}
+                        <span className="absolute top-3 left-3 rounded-md bg-background/90 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-primary border border-border/60 backdrop-blur-sm z-10">
                           {course.difficulty}
                         </span>
                         {discount && (
-                          <span className="absolute top-3 right-3 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white">
+                          <span className="absolute top-3 right-3 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white z-10">
                             {discount}% OFF
                           </span>
                         )}
