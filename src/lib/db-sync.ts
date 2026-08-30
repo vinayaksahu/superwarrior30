@@ -332,5 +332,59 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
+  // Live Sessions & Video Meetings Tables
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "LiveSessionProvider" AS ENUM ('ZOOM', 'GOOGLE_MEET', 'EMBEDDED_ROOM', 'BUNNY_LIVE', 'CUSTOM');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "LiveSessionStatus" AS ENUM ('UPCOMING', 'LIVE', 'COMPLETED', 'CANCELLED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "live_sessions" (
+        "id" TEXT PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "slug" TEXT NOT NULL UNIQUE,
+        "description" TEXT,
+        "courseId" TEXT REFERENCES "courses"("id") ON DELETE SET NULL,
+        "provider" "LiveSessionProvider" NOT NULL DEFAULT 'ZOOM',
+        "meetingUrl" TEXT,
+        "meetingId" TEXT,
+        "passcode" TEXT,
+        "roomName" TEXT,
+        "scheduledAt" TIMESTAMP(3) NOT NULL,
+        "durationMinutes" INTEGER NOT NULL DEFAULT 60,
+        "status" "LiveSessionStatus" NOT NULL DEFAULT 'UPCOMING',
+        "recordingUrl" TEXT,
+        "bunnyVideoId" TEXT,
+        "isPublished" BOOLEAN NOT NULL DEFAULT true,
+        "createdById" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "live_sessions_status_scheduledAt_idx" ON "live_sessions"("status", "scheduledAt");
+      CREATE INDEX IF NOT EXISTS "live_sessions_courseId_idx" ON "live_sessions"("courseId");
+      CREATE INDEX IF NOT EXISTS "live_sessions_isPublished_idx" ON "live_sessions"("isPublished");
+
+      CREATE TABLE IF NOT EXISTS "live_session_attendees" (
+        "id" TEXT PRIMARY KEY,
+        "sessionId" TEXT NOT NULL REFERENCES "live_sessions"("id") ON DELETE CASCADE,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "live_session_attendees_sessionId_userId_key" UNIQUE ("sessionId", "userId")
+      );
+
+      CREATE INDEX IF NOT EXISTS "live_session_attendees_userId_idx" ON "live_session_attendees"("userId");
+      CREATE INDEX IF NOT EXISTS "live_session_attendees_sessionId_idx" ON "live_session_attendees"("sessionId");
+    `);
+  } catch {
+    // ignore
+  }
+
   isSynced = true;
 }

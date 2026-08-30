@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { LiveSessionForm } from "@/components/admin/live-session-form";
 import { ArrowLeft } from "lucide-react";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 
 export default async function NewLiveSessionPage() {
   await requireAdmin();
+  await ensureDatabaseSchemaSync();
 
   const courses = await prisma.course.findMany({
     where: { deletedAt: null },
