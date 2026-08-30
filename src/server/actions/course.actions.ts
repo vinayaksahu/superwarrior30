@@ -1076,7 +1076,24 @@ export async function getPublicCoursesAction({
       },
     });
 
-    return courses;
+    const resolvedCourses = await Promise.all(
+      courses.map(async (course) => {
+        let thumbnailUrl = course.thumbnailCdnUrl;
+        if (!thumbnailUrl && course.thumbnailKey) {
+          if (course.thumbnailKey.startsWith("http")) {
+            thumbnailUrl = course.thumbnailKey;
+          } else {
+            thumbnailUrl = await getThumbnailUrl(course);
+          }
+        }
+        return {
+          ...course,
+          thumbnailUrl,
+        };
+      })
+    );
+
+    return resolvedCourses;
   } catch (err) {
     console.warn("Could not load public courses:", err);
     return [];
@@ -1121,11 +1138,25 @@ export async function getPublicCourseBySlugAction(slug: string) {
       },
     });
 
-    if (!course || course.status !== "PUBLISHED") {
+    if (!course) return null;
+
+    let thumbnailUrl = course.thumbnailCdnUrl;
+    if (!thumbnailUrl && course.thumbnailKey) {
+      if (course.thumbnailKey.startsWith("http")) {
+        thumbnailUrl = course.thumbnailKey;
+      } else {
+        thumbnailUrl = await getThumbnailUrl(course);
+      }
+    }
+
+    if (course.status !== "PUBLISHED") {
       return null;
     }
 
-    return course;
+    return {
+      ...course,
+      thumbnailUrl,
+    };
   } catch (err) {
     console.warn(`Could not load public course by slug ${slug}:`, err);
     return null;

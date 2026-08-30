@@ -37,6 +37,7 @@ export default async function AdminEditCoursePage({
             shortDescription: course.shortDescription,
             fullDescription: course.fullDescription,
             thumbnailKey: course.thumbnailKey,
+            thumbnailCdnUrl: course.thumbnailCdnUrl,
             price: course.price.toString(),
             compareAtPrice: course.compareAtPrice?.toString() || null,
             status: course.status,

@@ -16,6 +16,7 @@ interface CourseFormProps {
     shortDescription: string | null;
     fullDescription: string | null;
     thumbnailKey: string | null;
+    thumbnailCdnUrl?: string | null;
     price: string | number;
     compareAtPrice: string | number | null;
     status: string;
@@ -30,7 +31,9 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
   const [title, setTitle] = useState(course?.title || "");
   const [slug, setSlug] = useState(course?.slug || "");
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(!!course);
-  const [thumbnailKey, setThumbnailKey] = useState<string | null>(course?.thumbnailKey || null);
+  const [thumbnailKey, setThumbnailKey] = useState<string | null>(
+    course?.thumbnailCdnUrl || course?.thumbnailKey || null
+  );
 
   const boundUpdateAction = isEdit && course ? updateCourseAction.bind(null, course.id) : null;
   const actionToUse = isEdit && boundUpdateAction ? boundUpdateAction : createCourseAction;

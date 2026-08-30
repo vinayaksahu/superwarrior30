@@ -103,9 +103,9 @@ export default async function PublicCoursesPage({
                   <div>
                     {/* Thumbnail Image or Gradient Box */}
                     <div className="relative aspect-video w-full bg-gradient-to-br from-muted/80 to-muted/30 border-b border-border/40 flex items-center justify-center text-center overflow-hidden">
-                      {course.thumbnailCdnUrl ? (
+                      {(course as any).thumbnailUrl || course.thumbnailCdnUrl || (course.thumbnailKey?.startsWith("http") ? course.thumbnailKey : null) ? (
                         <img
-                          src={course.thumbnailCdnUrl}
+                          src={(course as any).thumbnailUrl || course.thumbnailCdnUrl || (course.thumbnailKey?.startsWith("http") ? course.thumbnailKey : "")}
                           alt={course.title}
                           className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
