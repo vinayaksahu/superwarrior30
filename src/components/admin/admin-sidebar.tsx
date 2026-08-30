@@ -128,13 +128,13 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/settings",
     label: "Settings",
     icon: Settings,
-    allowedRoles: ["SUPER_ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     href: "/admin/settings/media-storage",
     label: "Media Storage (Bunny)",
     icon: Cloud,
-    allowedRoles: ["SUPER_ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     href: "/admin/recycle-bin",

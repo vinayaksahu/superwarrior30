@@ -60,8 +60,8 @@ export interface PublicAdminBunnyConfig {
  */
 async function requireSuperAdmin() {
   const user = await requireAdminWrite();
-  if (user.role !== "SUPER_ADMIN" && user.email !== "admin@superwarrior30.com") {
-    throw new Error("Forbidden. Only Super Admin can modify Media Storage & Bunny credentials.");
+  if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && user.email !== "admin@superwarrior30.com") {
+    throw new Error("Forbidden. Only Admin or Super Admin can modify Media Storage & Bunny credentials.");
   }
   return user;
 }
