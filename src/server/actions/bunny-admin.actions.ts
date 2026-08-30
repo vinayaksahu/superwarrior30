@@ -598,11 +598,11 @@ export async function runBunnyDiagnosticsAction(
   let storagePass = config.storagePassword;
   let streamKey = config.streamApiKey;
 
-  // If storage password or stream key is missing, auto-fetch from Bunny API using Account API Key
-  if (config.accountApiKey && (!storagePass || !streamKey)) {
+  // Always auto-fetch fresh storage password and stream API key from Bunny API using Account API Key
+  if (config.accountApiKey) {
     try {
       const resources = await BunnyService.getAccountResources(config.accountApiKey);
-      if (!storagePass && config.storageZoneName) {
+      if (config.storageZoneName) {
         const match = resources.storageZones.find(
           (z) => z.name.toLowerCase() === config.storageZoneName.toLowerCase()
         );
@@ -615,7 +615,7 @@ export async function runBunnyDiagnosticsAction(
           invalidateBunnyConfigCache();
         }
       }
-      if (!streamKey && config.streamLibraryId) {
+      if (config.streamLibraryId) {
         const matchLib = resources.videoLibraries.find(
           (v) => String(v.id) === String(config.streamLibraryId)
         );

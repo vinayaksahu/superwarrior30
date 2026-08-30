@@ -414,46 +414,60 @@ export class BunnyService {
       };
     }
 
-    try {
-      const url = `https://${hostname}/${cleanZone}/`;
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          AccessKey: cleanPass,
-          accept: "application/json",
-        },
-        cache: "no-store",
-      });
+    const hostnamesToTry = Array.from(
+      new Set([
+        hostname,
+        "storage.bunnycdn.com",
+        "de.storage.bunnycdn.com",
+        "ny.storage.bunnycdn.com",
+        "la.storage.bunnycdn.com",
+        "sg.storage.bunnycdn.com",
+        "syd.storage.bunnycdn.com",
+        "uk.storage.bunnycdn.com",
+      ])
+    ).filter(Boolean);
 
-      const durationMs = Date.now() - start;
+    let lastStatus = 0;
+    let lastError = "";
 
-      if (res.ok || res.status === 200 || res.status === 204) {
-        return {
-          id: "connection",
-          name: "Bunny Storage API Connection",
-          success: true,
-          message: `Successfully authenticated with Storage Zone '${cleanZone}' on ${hostname}.`,
-          durationMs,
-        };
+    for (const host of hostnamesToTry) {
+      try {
+        const url = `https://${host}/${cleanZone}/`;
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            AccessKey: cleanPass,
+            accept: "application/json",
+          },
+          cache: "no-store",
+        });
+
+        const durationMs = Date.now() - start;
+
+        if (res.ok || res.status === 200 || res.status === 204) {
+          return {
+            id: "connection",
+            name: "Bunny Storage API Connection",
+            success: true,
+            message: `Successfully authenticated with Storage Zone '${cleanZone}' on ${host}.`,
+            durationMs,
+          };
+        }
+
+        lastStatus = res.status;
+        lastError = await res.text().catch(() => res.statusText);
+      } catch (err: any) {
+        lastError = err.message;
       }
-
-      const text = await res.text().catch(() => "");
-      return {
-        id: "connection",
-        name: "Bunny Storage API Connection",
-        success: false,
-        message: `Storage authentication rejected (${res.status}): ${text || res.statusText}. Check Storage Password.`,
-        durationMs,
-      };
-    } catch (err: any) {
-      return {
-        id: "connection",
-        name: "Bunny Storage API Connection",
-        success: false,
-        message: `Storage connection failed: ${err.message}`,
-        durationMs: Date.now() - start,
-      };
     }
+
+    return {
+      id: "connection",
+      name: "Bunny Storage API Connection",
+      success: false,
+      message: `Storage authentication rejected (${lastStatus || 401}): ${lastError || "Unauthorized"}. Check Storage Password.`,
+      durationMs: Date.now() - start,
+    };
   }
 
   /**
@@ -474,53 +488,65 @@ export class BunnyService {
       "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 300 144]/Parent 2 0 R>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF"
     );
 
-    try {
-      const uploadUrl = `https://${hostname}/${cleanZone}/${testPath}`;
-      const res = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          AccessKey: cleanPass,
-          "Content-Type": "application/pdf",
-        },
-        body: new Uint8Array(dummyPdfContent),
-      });
+    const hostnamesToTry = Array.from(
+      new Set([
+        hostname,
+        "storage.bunnycdn.com",
+        "de.storage.bunnycdn.com",
+        "ny.storage.bunnycdn.com",
+        "la.storage.bunnycdn.com",
+        "sg.storage.bunnycdn.com",
+        "syd.storage.bunnycdn.com",
+        "uk.storage.bunnycdn.com",
+      ])
+    ).filter(Boolean);
 
-      const durationMs = Date.now() - start;
+    let lastStatus = 0;
+    let lastError = "";
 
-      if (res.ok || res.status === 201 || res.status === 200) {
-        return {
-          result: {
-            id: "pdf_upload",
-            name: "PDF Upload to Storage",
-            success: true,
-            message: `Successfully uploaded sample test PDF to Bunny Storage (${testPath}).`,
-            durationMs,
+    for (const host of hostnamesToTry) {
+      try {
+        const uploadUrl = `https://${host}/${cleanZone}/${testPath}`;
+        const res = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            AccessKey: cleanPass,
+            "Content-Type": "application/pdf",
           },
-          testPath,
-        };
-      }
+          body: new Uint8Array(dummyPdfContent),
+        });
 
-      const text = await res.text().catch(() => "");
-      return {
-        result: {
-          id: "pdf_upload",
-          name: "PDF Upload to Storage",
-          success: false,
-          message: `PDF upload failed with status ${res.status}: ${text || res.statusText}`,
-          durationMs,
-        },
-      };
-    } catch (err: any) {
-      return {
-        result: {
-          id: "pdf_upload",
-          name: "PDF Upload to Storage",
-          success: false,
-          message: `PDF upload error: ${err.message}`,
-          durationMs: Date.now() - start,
-        },
-      };
+        const durationMs = Date.now() - start;
+
+        if (res.ok || res.status === 201 || res.status === 200) {
+          return {
+            result: {
+              id: "pdf_upload",
+              name: "PDF Upload to Storage",
+              success: true,
+              message: `Successfully uploaded sample test PDF to Bunny Storage (${testPath}) via ${host}.`,
+              durationMs,
+            },
+            testPath,
+          };
+        }
+
+        lastStatus = res.status;
+        lastError = await res.text().catch(() => res.statusText);
+      } catch (err: any) {
+        lastError = err.message;
+      }
     }
+
+    return {
+      result: {
+        id: "pdf_upload",
+        name: "PDF Upload to Storage",
+        success: false,
+        message: `PDF upload failed with status ${lastStatus || 401}: ${lastError || "Unauthorized"}`,
+        durationMs: Date.now() - start,
+      },
+    };
   }
 
   /**
