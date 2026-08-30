@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Verify webhook HMAC signature
-    const isValid = verifyRazorpayWebhookSignature({
+    const isValid = await verifyRazorpayWebhookSignature({
       rawBody,
       signature,
     });

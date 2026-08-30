@@ -7,7 +7,7 @@ import type { ActionState } from "@/types";
 
 export interface PaymentMethodItem {
   id: string;
-  type: "UPI" | "BANK" | "CRYPTO";
+  type: "UPI" | "BANK" | "CRYPTO" | "GATEWAY";
   title: string;
   details: {
     upiId?: string;
@@ -20,6 +20,15 @@ export interface PaymentMethodItem {
     branch?: string;
     network?: string;
     walletAddress?: string;
+    // Gateway specific
+    provider?: "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM";
+    keyId?: string;
+    keySecret?: string;
+    webhookSecret?: string;
+    mode?: "LIVE" | "TEST";
+    merchantId?: string;
+    saltKey?: string;
+    saltIndex?: string;
   };
   instructions: string | null;
   isActive: boolean;
@@ -80,9 +89,17 @@ async function ensureSystemPaymentTable() {
   try {
     await prisma.$executeRawUnsafe(`
       DO $$ BEGIN
-        CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO');
+        CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO', 'GATEWAY');
       EXCEPTION WHEN duplicate_object THEN null;
       END $$;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TYPE "PaymentMethodType" ADD VALUE IF NOT EXISTS 'GATEWAY';
     `);
   } catch {
     // ignore
@@ -144,7 +161,7 @@ export async function getSystemPaymentMethodsAction(
 
     return methods.map((m) => ({
       id: m.id,
-      type: m.type as "UPI" | "BANK" | "CRYPTO",
+      type: m.type as "UPI" | "BANK" | "CRYPTO" | "GATEWAY",
       title: m.title,
       details: (m.details as PaymentMethodItem["details"]) || {},
       instructions: m.instructions,
@@ -166,11 +183,11 @@ export async function createPaymentMethodAction(
   const admin = await requireAdmin();
   await ensureSystemPaymentTable();
 
-  const type = formData.get("type")?.toString() as "UPI" | "BANK" | "CRYPTO";
+  const type = formData.get("type")?.toString() as "UPI" | "BANK" | "CRYPTO" | "GATEWAY";
   const title = formData.get("title")?.toString().trim();
   const instructions = formData.get("instructions")?.toString().trim() || null;
 
-  if (!type || !["UPI", "BANK", "CRYPTO"].includes(type)) {
+  if (!type || !["UPI", "BANK", "CRYPTO", "GATEWAY"].includes(type)) {
     return { success: false, message: "Invalid payment method type." };
   }
 
@@ -180,7 +197,28 @@ export async function createPaymentMethodAction(
 
   const details: Record<string, string> = {};
 
-  if (type === "UPI") {
+  if (type === "GATEWAY") {
+    const provider = (formData.get("provider")?.toString().trim().toUpperCase() || "RAZORPAY") as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM";
+    const mode = (formData.get("mode")?.toString().trim().toUpperCase() || "TEST") as "TEST" | "LIVE";
+    const keyId = formData.get("keyId")?.toString().trim();
+    const keySecret = formData.get("keySecret")?.toString().trim();
+    const webhookSecret = formData.get("webhookSecret")?.toString().trim() || "";
+    const merchantId = formData.get("merchantId")?.toString().trim() || "";
+
+    if (!keyId || keyId.length < 3) {
+      return { success: false, message: "API Key ID is required." };
+    }
+    if (!keySecret || keySecret.length < 3) {
+      return { success: false, message: "API Key Secret is required." };
+    }
+
+    details.provider = provider;
+    details.mode = mode;
+    details.keyId = keyId;
+    details.keySecret = keySecret;
+    if (webhookSecret) details.webhookSecret = webhookSecret;
+    if (merchantId) details.merchantId = merchantId;
+  } else if (type === "UPI") {
     const upiId = formData.get("upiId")?.toString().trim();
     const payeeName = formData.get("payeeName")?.toString().trim() || title;
     let qrCodeUrl = formData.get("qrCodeUrl")?.toString().trim();
@@ -291,7 +329,21 @@ export async function updatePaymentMethodAction(
   const currentDetails = (existing.details as Record<string, string>) || {};
   const updatedDetails: Record<string, string> = { ...currentDetails };
 
-  if (existing.type === "UPI") {
+  if (existing.type === "GATEWAY") {
+    const provider = formData.get("provider")?.toString().trim().toUpperCase() as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | undefined;
+    const mode = formData.get("mode")?.toString().trim().toUpperCase() as "TEST" | "LIVE" | undefined;
+    const keyId = formData.get("keyId")?.toString().trim();
+    const keySecret = formData.get("keySecret")?.toString().trim();
+    const webhookSecret = formData.get("webhookSecret")?.toString().trim();
+    const merchantId = formData.get("merchantId")?.toString().trim();
+
+    if (provider) updatedDetails.provider = provider;
+    if (mode) updatedDetails.mode = mode;
+    if (keyId) updatedDetails.keyId = keyId;
+    if (keySecret) updatedDetails.keySecret = keySecret;
+    if (webhookSecret !== undefined) updatedDetails.webhookSecret = webhookSecret;
+    if (merchantId !== undefined) updatedDetails.merchantId = merchantId;
+  } else if (existing.type === "UPI") {
     const upiId = formData.get("upiId")?.toString().trim() || currentDetails.upiId;
     const payeeName = formData.get("payeeName")?.toString().trim() || currentDetails.payeeName;
     let qrCodeUrl = formData.get("qrCodeUrl")?.toString().trim() || currentDetails.qrCodeUrl;

@@ -74,9 +74,17 @@ export async function ensureDatabaseSchemaSync() {
   try {
     await prisma.$executeRawUnsafe(`
       DO $$ BEGIN
-        CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO');
+        CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO', 'GATEWAY');
       EXCEPTION WHEN duplicate_object THEN null;
       END $$;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TYPE "PaymentMethodType" ADD VALUE IF NOT EXISTS 'GATEWAY';
     `);
   } catch {
     // ignore

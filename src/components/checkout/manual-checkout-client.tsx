@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Smartphone,
   Building2,
   Zap,
+  CreditCard,
   CheckCircle2,
   Copy,
   Check,
@@ -40,6 +42,12 @@ interface ManualCheckoutClientProps {
   isGuest?: boolean;
 }
 
+declare global {
+  interface Window {
+    Razorpay?: any;
+  }
+}
+
 export function ManualCheckoutClient({
   course,
   paymentMethods,
@@ -47,11 +55,15 @@ export function ManualCheckoutClient({
   userName = null,
   isGuest = false,
 }: ManualCheckoutClientProps) {
+  const router = useRouter();
   const activeMethods = paymentMethods.filter((m) => m.isActive);
 
-  // Pick first available method as default
+  // Default to gateway first if active, otherwise first available method
+  const defaultMethod =
+    activeMethods.find((m) => m.type === "GATEWAY") || activeMethods[0];
+
   const [selectedMethodId, setSelectedMethodId] = useState<string>(
-    activeMethods[0]?.id || ""
+    defaultMethod?.id || ""
   );
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -79,7 +91,19 @@ export function ManualCheckoutClient({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedMethod =
-    activeMethods.find((m) => m.id === selectedMethodId) || activeMethods[0];
+    activeMethods.find((m) => m.id === selectedMethodId) || defaultMethod;
+
+  const isGatewaySelected = selectedMethod?.type === "GATEWAY";
+
+  // Pre-load Razorpay checkout script
+  useEffect(() => {
+    if (typeof window !== "undefined" && !window.Razorpay) {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   const copyToClipboard = (text: string, key: string) => {
     if (!text) return;
@@ -107,7 +131,6 @@ export function ManualCheckoutClient({
       });
 
       if (!res.ok) {
-        // Fallback calculation for SW30 or basic discount
         const clean = couponInput.trim().toUpperCase();
         if (clean === "SW30" || clean === "SUPER30") {
           const discount = Math.round(course.price * 0.3);
@@ -135,7 +158,6 @@ export function ManualCheckoutClient({
         setCouponError(data.message || "Invalid coupon code.");
       }
     } catch {
-      // Fallback discount check
       const clean = couponInput.trim().toUpperCase();
       if (clean === "SW30" || clean === "SUPER30") {
         const discount = Math.round(course.price * 0.3);
@@ -159,7 +181,142 @@ export function ManualCheckoutClient({
     setCouponError(null);
   };
 
-  const handleSubmitOrder = async (e: React.FormEvent) => {
+  /**
+   * Razorpay / Automated Gateway Checkout Handler
+   */
+  const handleGatewayCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    if (isGuest) {
+      if (!guestName.trim()) {
+        toast.error("Please enter your Full Name.");
+        return;
+      }
+      if (!guestEmail.trim() || !guestEmail.includes("@")) {
+        toast.error("Please enter a valid Email address.");
+        return;
+      }
+      if (!guestPassword || guestPassword.length < 6) {
+        toast.error("Please create a password of at least 6 characters for your student account.");
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Create order on backend & get Razorpay Order ID
+      const res = await fetch("/api/orders/create-gateway-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId: course.id,
+          couponCode: appliedCoupon?.code,
+          paymentMethodId: selectedMethod?.id,
+          guestName: isGuest ? guestName.trim() : undefined,
+          guestEmail: isGuest ? guestEmail.trim() : undefined,
+          guestPhone: isGuest ? guestPhone.trim() : undefined,
+          guestPassword: isGuest ? guestPassword : undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        if (data.alreadyEnrolled) {
+          toast.info("You are already enrolled in this course!");
+          router.push(`/learn/${data.courseSlug || course.slug}`);
+          return;
+        }
+        throw new Error(data.message || "Failed to initialize payment gateway.");
+      }
+
+      // Check if SDK is available
+      if (typeof window !== "undefined" && window.Razorpay && data.keyId) {
+        const options = {
+          key: data.keyId,
+          amount: Math.round(data.amount * 100),
+          currency: data.currency || "INR",
+          name: "Super Warrior 30",
+          description: `Course Enrollment: ${data.course?.title || course.title}`,
+          order_id: data.providerOrderId?.startsWith("order_") ? data.providerOrderId : undefined,
+          prefill: {
+            name: data.customer?.name || userName || guestName || "Student",
+            email: data.customer?.email || userEmail || guestEmail || "",
+            contact: data.customer?.phone || guestPhone || "",
+          },
+          theme: {
+            color: "#f59e0b",
+          },
+          handler: async function (response: any) {
+            try {
+              const verifyRes = await fetch("/api/orders/verify-gateway-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  orderId: data.orderId,
+                  razorpayOrderId: response.razorpay_order_id || data.providerOrderId,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpaySignature: response.razorpay_signature,
+                }),
+              });
+
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok && verifyData.success) {
+                toast.success("Payment successful! Course access unlocked.");
+                router.push(`/checkout/success/${data.orderId}`);
+              } else {
+                toast.error(verifyData.message || "Payment verification failed.");
+                setIsSubmitting(false);
+              }
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : "Verification error";
+              toast.error(msg);
+              setIsSubmitting(false);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setIsSubmitting(false);
+              toast.info("Payment window was closed. You can retry anytime.");
+            },
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        // Fallback or Test Mock confirmation if keys are mock
+        const verifyRes = await fetch("/api/orders/verify-gateway-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: data.orderId,
+            isMock: true,
+          }),
+        });
+
+        const verifyData = await verifyRes.json();
+        if (verifyRes.ok && verifyData.success) {
+          toast.success("Payment completed successfully!");
+          router.push(`/checkout/success/${data.orderId}`);
+        } else {
+          throw new Error(verifyData.message || "Payment verification failed.");
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Payment failed. Please try again.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      setIsSubmitting(false);
+    }
+  };
+
+  /**
+   * Manual Payment Submission Handler (UPI / Bank / Crypto)
+   */
+  const handleManualSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -212,13 +369,13 @@ export function ManualCheckoutClient({
 
       if (res.ok && data.success && data.orderId) {
         toast.success("Order submitted successfully!");
-        window.location.href = `/checkout/success/${data.orderId}`;
+        router.push(`/checkout/success/${data.orderId}`);
         return;
       }
 
       if (data.alreadyEnrolled) {
         toast.info("You are already enrolled in this course!");
-        window.location.href = `/learn/${data.courseSlug || course.slug}`;
+        router.push(`/learn/${data.courseSlug || course.slug}`);
         return;
       }
 
@@ -258,7 +415,7 @@ export function ManualCheckoutClient({
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1.5">
-            Choose your preferred deposit option, transfer the exact amount, and submit your transaction reference.
+            Pay online instantly via Razorpay (UPI, Cards, NetBanking) or choose manual transfer options.
           </p>
         </div>
 
@@ -266,7 +423,7 @@ export function ManualCheckoutClient({
           {/* LEFT COLUMN: Payment Options & Details (7 cols) */}
           <div className="space-y-6 lg:col-span-7">
             {/* Method Selector Tabs */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {activeMethods.map((method) => {
                 const isSelected = selectedMethod?.id === method.id;
                 return (
@@ -277,33 +434,34 @@ export function ManualCheckoutClient({
                       setSelectedMethodId(method.id);
                       setErrorMessage(null);
                     }}
-                    className={`relative flex flex-col items-start rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+                    className={`relative flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all cursor-pointer ${
                       isSelected
-                        ? "border-primary bg-primary/5 shadow-md shadow-primary/5 ring-1 ring-primary"
+                        ? "border-primary bg-primary/10 shadow-md shadow-primary/5 ring-2 ring-primary"
                         : "border-border bg-card hover:border-primary/40 hover:bg-accent/40"
                     }`}
                   >
                     {isSelected && (
-                      <div className="absolute right-3 top-3">
+                      <div className="absolute right-2.5 top-2.5">
                         <CheckCircle2 className="h-4 w-4 text-primary" />
                       </div>
                     )}
 
                     <div
-                      className={`mb-3 rounded-xl p-2.5 ${
+                      className={`mb-2.5 rounded-xl p-2 ${
                         isSelected
-                          ? "bg-primary/20 text-primary"
+                          ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {method.type === "UPI" && <Smartphone className="h-5 w-5" />}
-                      {method.type === "BANK" && <Building2 className="h-5 w-5" />}
-                      {method.type === "CRYPTO" && <Zap className="h-5 w-5" />}
+                      {method.type === "GATEWAY" && <CreditCard className="h-4 w-4" />}
+                      {method.type === "UPI" && <Smartphone className="h-4 w-4" />}
+                      {method.type === "BANK" && <Building2 className="h-4 w-4" />}
+                      {method.type === "CRYPTO" && <Zap className="h-4 w-4" />}
                     </div>
 
                     <div>
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                        {method.type}
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                        {method.type === "GATEWAY" ? (method.details.provider || "ONLINE") : method.type}
                       </span>
                       <p className="text-xs font-bold text-foreground line-clamp-1 mt-0.5">
                         {method.title}
@@ -314,7 +472,7 @@ export function ManualCheckoutClient({
               })}
             </div>
 
-            {/* Active Payment Details & QR Box */}
+            {/* Active Payment Details & Options Box */}
             {selectedMethod && (
               <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
                 <div className="flex items-center justify-between border-b border-border pb-3">
@@ -328,139 +486,181 @@ export function ManualCheckoutClient({
                   </div>
 
                   <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary">
-                    {selectedMethod.type}
+                    {selectedMethod.type === "GATEWAY" ? "INSTANT ACCESS" : selectedMethod.type}
                   </span>
                 </div>
 
-                {/* Dynamic QR Code */}
-                {(selectedMethod.details.qrCodeUrl || selectedMethod.details.upiId || selectedMethod.details.walletAddress) && (
-                  <div className="flex flex-col items-center justify-center rounded-xl bg-background/80 p-5 border border-border/50 space-y-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={
-                        selectedMethod.details.qrCodeUrl ||
-                        (selectedMethod.type === "UPI"
-                          ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi%3A%2F%2Fpay%3Fpa%3D${encodeURIComponent(
-                              selectedMethod.details.upiId || "superwarrior30@upi"
-                            )}%26pn%3DSuperWarrior30`
-                          : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                              selectedMethod.details.walletAddress || ""
-                            )}`)
-                      }
-                      alt={`${selectedMethod.title} QR`}
-                      className="h-44 w-44 rounded-xl bg-white p-2 shadow-inner object-contain"
-                      loading="eager"
-                    />
-                    <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                      <Sparkles className="h-3 w-3 text-primary" />
-                      {selectedMethod.type === "CRYPTO"
-                        ? "Scan using Binance / Trust Wallet / Web3 App"
-                        : "Scan using GooglePay, PhonePe, Paytm or Banking App"}
-                    </p>
-                  </div>
-                )}
-
-                {/* Copyable details based on method */}
-                <div className="space-y-3 rounded-xl bg-background/60 p-4 border border-border/40 text-xs">
-                  {selectedMethod.type === "UPI" && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground font-medium">UPI ID:</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-foreground text-sm">
-                          {selectedMethod.details.upiId}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(selectedMethod.details.upiId || "", "upi")}
-                          className="rounded-lg bg-muted px-2.5 py-1 text-xs font-semibold hover:bg-muted/80 flex items-center gap-1 text-foreground cursor-pointer"
-                        >
-                          {copiedKey === "upi" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                          Copy
-                        </button>
+                {/* GATEWAY HIGHLIGHT CARD */}
+                {isGatewaySelected ? (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                        <Sparkles className="h-4 w-4" />
+                        <span>Instant Automated Activation</span>
                       </div>
-                    </div>
-                  )}
+                      <p className="text-xs text-foreground/80 leading-relaxed">
+                        Pay securely with any UPI app (Google Pay, PhonePe, Paytm), Credit/Debit Card, NetBanking (50+ banks), or Wallet. Your course will be <strong>unlocked immediately</strong> upon payment completion.
+                      </p>
 
-                  {selectedMethod.type === "CRYPTO" && (
-                    <>
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-muted-foreground font-medium">Network:</span>
-                        <span className="font-bold text-amber-400">
-                          {selectedMethod.details.network || "BEP-20 (BNB Smart Chain)"}
-                        </span>
-                      </div>
-                      <div className="space-y-1 pt-1">
-                        <span className="text-muted-foreground font-medium block text-[11px]">Deposit Address:</span>
-                        <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 p-2">
-                          <span className="font-mono text-[11px] font-bold text-foreground truncate max-w-[280px]">
-                            {selectedMethod.details.walletAddress}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(selectedMethod.details.walletAddress || "", "crypto")}
-                            className="rounded bg-background px-2 py-1 text-xs font-semibold hover:bg-muted text-foreground flex items-center gap-1 shrink-0 cursor-pointer"
-                          >
-                            {copiedKey === "crypto" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                            Copy
-                          </button>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
+                          <Smartphone className="h-4 w-4 mx-auto text-emerald-500 mb-1" />
+                          <span className="text-[10px] font-bold text-foreground block">UPI / QR</span>
                         </div>
-                      </div>
-                    </>
-                  )}
-
-                  {selectedMethod.type === "BANK" && (
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Bank Name:</span>
-                        <span className="font-bold text-foreground">{selectedMethod.details.bankName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Account Holder:</span>
-                        <span className="font-semibold text-foreground">{selectedMethod.details.accountName}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Account Number:</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-foreground text-sm">
-                            {selectedMethod.details.accountNumber}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(selectedMethod.details.accountNumber || "", "acc")}
-                            className="p-1 rounded hover:bg-muted text-muted-foreground"
-                          >
-                            {copiedKey === "acc" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                          </button>
+                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
+                          <CreditCard className="h-4 w-4 mx-auto text-sky-500 mb-1" />
+                          <span className="text-[10px] font-bold text-foreground block">Debit / Credit</span>
                         </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">IFSC Code:</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-foreground">{selectedMethod.details.ifsc}</span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(selectedMethod.details.ifsc || "", "ifsc")}
-                            className="p-1 rounded hover:bg-muted text-muted-foreground"
-                          >
-                            {copiedKey === "ifsc" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                          </button>
+                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
+                          <Building2 className="h-4 w-4 mx-auto text-amber-500 mb-1" />
+                          <span className="text-[10px] font-bold text-foreground block">NetBanking</span>
+                        </div>
+                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
+                          <ShieldCheck className="h-4 w-4 mx-auto text-primary mb-1" />
+                          <span className="text-[10px] font-bold text-foreground block">256-Bit SSL</span>
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
 
-                {selectedMethod.instructions && (
-                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5 text-xs text-amber-200">
-                    <p className="font-semibold mb-0.5">⚠️ Instructions:</p>
-                    <p>{selectedMethod.instructions}</p>
+                    {selectedMethod.instructions && (
+                      <p className="text-xs text-muted-foreground italic">
+                        {selectedMethod.instructions}
+                      </p>
+                    )}
                   </div>
+                ) : (
+                  <>
+                    {/* Dynamic QR Code for UPI / Crypto */}
+                    {(selectedMethod.details.qrCodeUrl || selectedMethod.details.upiId || selectedMethod.details.walletAddress) && (
+                      <div className="flex flex-col items-center justify-center rounded-xl bg-background/80 p-5 border border-border/50 space-y-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={
+                            selectedMethod.details.qrCodeUrl ||
+                            (selectedMethod.type === "UPI"
+                              ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi%3A%2F%2Fpay%3Fpa%3D${encodeURIComponent(
+                                  selectedMethod.details.upiId || "superwarrior30@upi"
+                                )}%26pn%3DSuperWarrior30`
+                              : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                                  selectedMethod.details.walletAddress || ""
+                                )}`)
+                          }
+                          alt={`${selectedMethod.title} QR`}
+                          className="h-44 w-44 rounded-xl bg-white p-2 shadow-inner object-contain"
+                          loading="eager"
+                        />
+                        <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                          <Sparkles className="h-3 w-3 text-primary" />
+                          {selectedMethod.type === "CRYPTO"
+                            ? "Scan using Binance / Trust Wallet / Web3 App"
+                            : "Scan using GooglePay, PhonePe, Paytm or Banking App"}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Copyable details based on manual method */}
+                    <div className="space-y-3 rounded-xl bg-background/60 p-4 border border-border/40 text-xs">
+                      {selectedMethod.type === "UPI" && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground font-medium">UPI ID:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-foreground text-sm">
+                              {selectedMethod.details.upiId}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(selectedMethod.details.upiId || "", "upi")}
+                              className="rounded-lg bg-muted px-2.5 py-1 text-xs font-semibold hover:bg-muted/80 flex items-center gap-1 text-foreground cursor-pointer"
+                            >
+                              {copiedKey === "upi" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedMethod.type === "CRYPTO" && (
+                        <>
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-muted-foreground font-medium">Network:</span>
+                            <span className="font-bold text-amber-400">
+                              {selectedMethod.details.network || "BEP-20 (BNB Smart Chain)"}
+                            </span>
+                          </div>
+                          <div className="space-y-1 pt-1">
+                            <span className="text-muted-foreground font-medium block text-[11px]">Deposit Address:</span>
+                            <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 p-2">
+                              <span className="font-mono text-[11px] font-bold text-foreground truncate max-w-[280px]">
+                                {selectedMethod.details.walletAddress}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(selectedMethod.details.walletAddress || "", "crypto")}
+                                className="rounded bg-background px-2 py-1 text-xs font-semibold hover:bg-muted text-foreground flex items-center gap-1 shrink-0 cursor-pointer"
+                              >
+                                {copiedKey === "crypto" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {selectedMethod.type === "BANK" && (
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Bank Name:</span>
+                            <span className="font-bold text-foreground">{selectedMethod.details.bankName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Account Holder:</span>
+                            <span className="font-semibold text-foreground">{selectedMethod.details.accountName}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Account Number:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-foreground text-sm">
+                                {selectedMethod.details.accountNumber}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(selectedMethod.details.accountNumber || "", "acc")}
+                                className="p-1 rounded hover:bg-muted text-muted-foreground"
+                              >
+                                {copiedKey === "acc" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">IFSC Code:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-foreground">{selectedMethod.details.ifsc}</span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(selectedMethod.details.ifsc || "", "ifsc")}
+                                className="p-1 rounded hover:bg-muted text-muted-foreground"
+                              >
+                                {copiedKey === "ifsc" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedMethod.instructions && (
+                      <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5 text-xs text-amber-200">
+                        <p className="font-semibold mb-0.5">⚠️ Instructions:</p>
+                        <p>{selectedMethod.instructions}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
           </div>
 
-          {/* RIGHT COLUMN: Order Summary, Coupon & UTR Submission (5 cols) */}
+          {/* RIGHT COLUMN: Order Summary, Coupon & Action Form (5 cols) */}
           <div className="space-y-6 lg:col-span-5">
             <div className="rounded-2xl border border-border bg-card p-6 shadow-xl space-y-6">
               <h2 className="text-lg font-bold text-foreground border-b border-border pb-3">
@@ -553,8 +753,12 @@ export function ManualCheckoutClient({
                 </div>
               </div>
 
-              {/* UTR / Transaction Submission Form */}
-              <form onSubmit={handleSubmitOrder} className="space-y-4 pt-2 border-t border-border">
+              {/* Checkout Form */}
+              <form
+                onSubmit={isGatewaySelected ? handleGatewayCheckout : handleManualSubmitOrder}
+                className="space-y-4 pt-2 border-t border-border"
+              >
+                {/* Guest Account Creation Form */}
                 {isGuest ? (
                   <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                     <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -642,60 +846,95 @@ export function ManualCheckoutClient({
                   </div>
                 )}
 
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-foreground block mb-1.5">
-                    {selectedMethod?.type === "CRYPTO"
-                      ? "Transaction Hash (TxID) *"
-                      : "12-Digit UTR / Transaction Reference ID *"}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={utrInput}
-                    onChange={(e) => setUtrInput(e.target.value)}
-                    placeholder={
-                      selectedMethod?.type === "CRYPTO"
-                        ? "Paste your Blockchain TxHash..."
-                        : "e.g. 423984712093"
-                    }
-                    className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
-                  />
-                </div>
+                {/* If MANUAL method selected: Ask for UTR */}
+                {!isGatewaySelected && (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-foreground block mb-1.5">
+                        {selectedMethod?.type === "CRYPTO"
+                          ? "Transaction Hash (TxID) *"
+                          : "12-Digit UTR / Transaction Reference ID *"}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={utrInput}
+                        onChange={(e) => setUtrInput(e.target.value)}
+                        placeholder={
+                          selectedMethod?.type === "CRYPTO"
+                            ? "Paste your Blockchain TxHash..."
+                            : "e.g. 423984712093"
+                        }
+                        className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
+                      />
+                    </div>
 
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
-                    Additional Notes / Sender Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={proofNote}
-                    onChange={(e) => setProofNote(e.target.value)}
-                    placeholder={`e.g. Paid from HDFC Bank account of ${userName || "Student"}`}
-                    className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
-                  />
-                </div>
+                    <div>
+                      <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
+                        Additional Notes / Sender Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={proofNote}
+                        onChange={(e) => setProofNote(e.target.value)}
+                        placeholder={`e.g. Paid from HDFC Bank account of ${userName || "Student"}`}
+                        className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  </>
+                )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !utrInput.trim()}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  {isSubmitting ? (
+                {/* Submit / Pay Button */}
+                {isGatewaySelected ? (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Opening Payment Gateway...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Pay {formatCurrency(finalAmount)} with Razorpay
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !utrInput.trim()}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Submitting Verification...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Submit Payment for Verification
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground text-center pt-1">
+                  {isGatewaySelected ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Verifying Payment...
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span>Instant Access &middot; 256-Bit SSL Encrypted &middot; 100% Safe</span>
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      Submit Payment for Verification
+                      <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span>Admin verification usually completes within 5-15 minutes</span>
                     </>
                   )}
-                </button>
-
-                <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground text-center pt-1">
-                  <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                  <span>Admin verification usually completes within 5-15 minutes</span>
                 </div>
               </form>
             </div>

@@ -614,6 +614,7 @@ enum PaymentMethodType {
   UPI
   BANK
   CRYPTO
+  GATEWAY
 }
 
 model SystemPaymentMethod {

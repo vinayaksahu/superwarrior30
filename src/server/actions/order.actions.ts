@@ -85,6 +85,7 @@ export async function createOrderAction(courseId: string, couponCode?: string) {
 
   // 4. Create unique order in DB
   const orderNumber = generateOrderNumber();
+  const razorpayActive = await isRazorpayConfigured();
 
   const order = await prisma.$transaction(async (tx) => {
     const newOrder = await tx.order.create({
@@ -98,7 +99,7 @@ export async function createOrderAction(courseId: string, couponCode?: string) {
         discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
         taxAmount: 0.0,
         totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
-        paymentProvider: isRazorpayConfigured() ? "RAZORPAY" : "MOCK",
+        paymentProvider: razorpayActive ? "RAZORPAY" : "MOCK",
         items: {
           create: {
             courseId: course.id,
@@ -318,7 +319,7 @@ export async function verifyRazorpayPaymentAction({
   }
 
   // Verify signature
-  const isValid = verifyRazorpayPaymentSignature({
+  const isValid = await verifyRazorpayPaymentSignature({
     razorpayOrderId,
     razorpayPaymentId,
     razorpaySignature,
@@ -354,7 +355,8 @@ export async function mockConfirmPaymentAction(orderId: string): Promise<ActionS
   const user = await requireAuth();
 
   // Gateway configuration block: if live Razorpay keys are configured, mock payment is strictly disabled
-  if (isRazorpayConfigured() && user.role !== "ADMIN") {
+  const razorpayConfigured = await isRazorpayConfigured();
+  if (razorpayConfigured && user.role !== "ADMIN") {
     throw new Error("Live payment gateway is active. Please complete checkout through Razorpay.");
   }
 
