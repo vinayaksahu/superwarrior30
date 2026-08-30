@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/server/dal/auth";
+import { prisma } from "@/lib/prisma";
 import {
   getBrokerAdminSettingsAction,
   listBrokerClaimsAction,
@@ -25,7 +26,7 @@ export default async function AdminBrokerOffersPage({
   const mode = params.mode || "ALL";
   const search = params.search || "";
 
-  const [settings, claimsData] = await Promise.all([
+  const [settings, claimsData, courses] = await Promise.all([
     getBrokerAdminSettingsAction(),
     listBrokerClaimsAction({
       page,
@@ -34,12 +35,23 @@ export default async function AdminBrokerOffersPage({
       search,
       limit: 50,
     }),
+    prisma.course.findMany({
+      where: { deletedAt: null },
+      select: { id: true, title: true, price: true, status: true },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   return (
     <AdminBrokerOffersClient
       initialSettings={settings}
       claimsData={claimsData as any}
+      courses={courses.map((c) => ({
+        id: c.id,
+        title: c.title,
+        price: Number(c.price),
+        status: c.status,
+      }))}
     />
   );
 }

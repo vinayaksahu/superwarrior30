@@ -410,6 +410,7 @@ export async function ensureDatabaseSchemaSync() {
         "orderId" TEXT NOT NULL UNIQUE REFERENCES "orders"("id") ON DELETE CASCADE,
         "brokerName" TEXT NOT NULL DEFAULT 'Partner Broker',
         "brokerMemberId" TEXT NOT NULL,
+        "proofUrl" TEXT,
         "mode" "BrokerOfferMode" NOT NULL DEFAULT 'CASHBACK',
         "verificationStatus" "BrokerVerificationStatus" NOT NULL DEFAULT 'PENDING',
         "verifiedAt" TIMESTAMP(3),
@@ -427,6 +428,8 @@ export async function ensureDatabaseSchemaSync() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE "broker_offer_claims" ADD COLUMN IF NOT EXISTS "proofUrl" TEXT;
 
       CREATE INDEX IF NOT EXISTS "broker_offer_claims_userId_cashbackStatus_idx" ON "broker_offer_claims"("userId", "cashbackStatus");
       CREATE INDEX IF NOT EXISTS "broker_offer_claims_verificationStatus_idx" ON "broker_offer_claims"("verificationStatus");

@@ -91,20 +91,62 @@ export function ManualCheckoutClient({
   } | null>(null);
 
   // Broker Offer state
-  const isBrokerEnabled = brokerConfig ? brokerConfig.isEnabled !== false : true;
+  const isCourseEligible =
+    !brokerConfig?.eligibleCourseScope ||
+    brokerConfig.eligibleCourseScope === "ALL_COURSES" ||
+    (Array.isArray(brokerConfig.eligibleCourseIds) &&
+      brokerConfig.eligibleCourseIds.includes(course.id));
+
+  const isMinAmountMet =
+    !brokerConfig?.minimumOrderAmount ||
+    course.price >= brokerConfig.minimumOrderAmount;
+
+  const isDateValid =
+    (!brokerConfig?.startDate || new Date(brokerConfig.startDate) <= new Date()) &&
+    (!brokerConfig?.endDate || new Date(brokerConfig.endDate) >= new Date());
+
+  const isBrokerEnabled =
+    brokerConfig ? brokerConfig.isEnabled !== false : true &&
+    isCourseEligible &&
+    isMinAmountMet &&
+    isDateValid;
+
   const brokerMode = brokerConfig?.mode || "CASHBACK";
   const brokerOfferPct = Number(brokerConfig?.offerPercentage) || 40;
   const isAutoVerifyActive = Boolean(brokerConfig?.isAutoVerificationActive);
-  const brokerName = brokerConfig?.brokerName || "Exness";
+  const brokerName = brokerConfig?.brokerName || "GTC FX";
   const brokerPartnerUrl =
     brokerConfig?.brokerPartnerUrl ||
-    "https://one.exness-track.com/a/superwarrior30";
+    "https://web.mygtc.app/login/register?ref=FtHnmAFV";
+  const allowCouponStacking = Boolean(brokerConfig?.allowCouponStacking);
+  const requireMemberId = brokerConfig?.requireMemberId !== false;
+  const requireProof = Boolean(brokerConfig?.requireProof);
 
+  const [hasBrokerAccount, setHasBrokerAccount] = useState<boolean>(false);
   const [brokerMemberInput, setBrokerMemberInput] = useState<string>("");
+  const [brokerProofUrl, setBrokerProofUrl] = useState<string | null>(null);
+  const [isUploadingProof, setIsUploadingProof] = useState<boolean>(false);
   const [isCheckingBroker, setIsCheckingBroker] = useState<boolean>(false);
   const [brokerStatusMessage, setBrokerStatusMessage] = useState<string | null>(null);
   const [brokerVerified, setBrokerVerified] = useState<boolean>(false);
   const [appliedBrokerId, setAppliedBrokerId] = useState<string | null>(null);
+
+  // Benefit calculation
+  let rawBenefit = Math.round((course.price * brokerOfferPct) / 100);
+  if (brokerConfig?.maximumBenefitAmount && brokerConfig.maximumBenefitAmount > 0) {
+    rawBenefit = Math.min(rawBenefit, brokerConfig.maximumBenefitAmount);
+  }
+  const brokerDiscount = brokerMode === "INSTANT_DISCOUNT" && appliedBrokerId ? rawBenefit : 0;
+  const potentialCashback = rawBenefit;
+
+  // Total payable
+  const couponDiscount = appliedCoupon?.discountAmount || 0;
+  const isInstantDiscountApplied = brokerMode === "INSTANT_DISCOUNT" && Boolean(appliedBrokerId);
+  const finalPayableAmount = Math.max(
+    0,
+    course.price - couponDiscount - brokerDiscount
+  );
+  const finalAmount = finalPayableAmount;
 
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -136,6 +178,16 @@ export function ManualCheckoutClient({
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponInput.trim()) return;
+
+    if (appliedBrokerId && !allowCouponStacking) {
+      toast.error(
+        "Coupon and Broker Offer cannot be stacked together. Please remove the broker offer first."
+      );
+      setCouponError(
+        "Coupon and Broker Offer cannot be stacked together. Please remove the broker offer first."
+      );
+      return;
+    }
 
     setIsCheckingCoupon(true);
     setCouponError(null);
@@ -195,55 +247,111 @@ export function ManualCheckoutClient({
     }
   };
 
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError(null);
+  };
+
+  const handleProofFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Screenshot file size must be under 5MB.");
+      return;
+    }
+
+    setIsUploadingProof(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setBrokerProofUrl(dataUrl);
+      setIsUploadingProof(false);
+      toast.success("Broker registration screenshot attached!");
+    };
+    reader.onerror = () => {
+      setIsUploadingProof(false);
+      toast.error("Failed to read screenshot file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleVerifyBrokerMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!brokerMemberInput.trim()) return;
+
+    if (appliedCoupon && !allowCouponStacking) {
+      toast.error(
+        "Coupon and Broker Offer cannot be combined. Please remove the coupon first."
+      );
+      setBrokerStatusMessage(
+        "Coupon and Broker Offer cannot be combined. Please remove the coupon first."
+      );
+      return;
+    }
+
+    if (requireMemberId && !brokerMemberInput.trim()) {
+      toast.error("Please enter your Broker Member ID / User ID.");
+      return;
+    }
+
+    if (requireProof && !brokerProofUrl) {
+      toast.error("Please upload your broker account screenshot / proof.");
+      return;
+    }
 
     setIsCheckingBroker(true);
     setBrokerStatusMessage(null);
     setBrokerVerified(false);
 
     try {
-      const res = await fetch("/api/broker/verify-member", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          memberId: brokerMemberInput.trim(),
-        }),
-      });
-
-      const data = await res.json();
+      const idToApply = brokerMemberInput.trim() || "PARTNER-ACCOUNT";
 
       if (brokerMode === "INSTANT_DISCOUNT") {
-        if (data.isServiceAvailable === false) {
-          setBrokerStatusMessage(
-            "Instant discount verification is currently unavailable. Please use the Cashback option."
-          );
-          toast.error("Instant discount verification is unavailable.");
-          return;
-        }
+        if (isAutoVerifyActive) {
+          const res = await fetch("/api/broker/verify-member", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              memberId: idToApply,
+            }),
+          });
 
-        if (data.isVerified) {
-          setBrokerVerified(true);
-          setAppliedBrokerId(brokerMemberInput.trim());
-          setBrokerStatusMessage(`Verified! Instant ${brokerOfferPct}% discount applied.`);
-          toast.success(`Broker Member ID verified! ${brokerOfferPct}% discount applied.`);
+          const data = await res.json();
+          if (data.isVerified) {
+            setBrokerVerified(true);
+            setAppliedBrokerId(idToApply);
+            setBrokerStatusMessage(
+              `Verified! Instant ${brokerOfferPct}% discount (-₹${rawBenefit}) applied.`
+            );
+            toast.success(
+              `Broker Member ID verified! ${brokerOfferPct}% discount applied.`
+            );
+          } else {
+            setBrokerStatusMessage(data.message || "Could not verify Member ID.");
+            toast.error(data.message || "Invalid Broker Member ID.");
+          }
         } else {
-          setBrokerStatusMessage(data.message || "Could not verify Member ID.");
-          toast.error(data.message || "Invalid Broker Member ID.");
+          // Provisional Instant Discount applied server-side
+          setBrokerVerified(true);
+          setAppliedBrokerId(idToApply);
+          setBrokerStatusMessage(
+            `Broker Partner discount applied (-₹${rawBenefit}). Subject to review.`
+          );
+          toast.success(`Broker Partner ${brokerOfferPct}% discount applied!`);
         }
       } else {
-        // Cashback mode: Save member ID for post-purchase admin verification
-        setAppliedBrokerId(brokerMemberInput.trim());
+        // Cashback Mode
+        setAppliedBrokerId(idToApply);
         setBrokerVerified(true);
-        const cashbackEst = Math.round((course.price * brokerOfferPct) / 100);
         setBrokerStatusMessage(
-          `Member ID saved. You will receive ₹${cashbackEst} Cashback after admin approval.`
+          `Member ID saved. You will receive ₹${potentialCashback} Cashback after admin approval.`
         );
-        toast.success("Broker Member ID recorded for post-purchase Cashback!");
+        toast.success("Broker Partner account recorded for Cashback!");
       }
     } catch {
-      setBrokerStatusMessage("Failed to connect to verification server.");
+      setBrokerStatusMessage("Failed to apply broker offer.");
     } finally {
       setIsCheckingBroker(false);
     }
@@ -252,6 +360,7 @@ export function ManualCheckoutClient({
   const handleRemoveBrokerOffer = () => {
     setAppliedBrokerId(null);
     setBrokerMemberInput("");
+    setBrokerProofUrl(null);
     setBrokerVerified(false);
     setBrokerStatusMessage(null);
   };
@@ -289,6 +398,8 @@ export function ManualCheckoutClient({
           courseId: course.id,
           couponCode: appliedCoupon?.code,
           brokerMemberId: appliedBrokerId || (brokerMemberInput.trim() || undefined),
+          brokerProofUrl: brokerProofUrl || undefined,
+          hasBrokerAccount: hasBrokerAccount || Boolean(appliedBrokerId),
           paymentMethodId: selectedMethod?.id,
           guestName: isGuest ? guestName.trim() : undefined,
           guestEmail: isGuest ? guestEmail.trim() : undefined,
@@ -431,6 +542,8 @@ export function ManualCheckoutClient({
           courseId: course.id,
           couponCode: appliedCoupon?.code,
           brokerMemberId: appliedBrokerId || (brokerMemberInput.trim() || undefined),
+          brokerProofUrl: brokerProofUrl || undefined,
+          hasBrokerAccount: hasBrokerAccount || Boolean(appliedBrokerId),
           paymentMethodId: selectedMethod.id,
           paymentMethodTitle: selectedMethod.title,
           utrRef: utrInput.trim(),
@@ -467,23 +580,6 @@ export function ManualCheckoutClient({
       setIsSubmitting(false);
     }
   };
-
-  // Calculate broker discount only for INSTANT_DISCOUNT mode when verified
-  const couponDiscount = appliedCoupon ? appliedCoupon.discountAmount : 0;
-  const isInstantDiscountApplied =
-    isBrokerEnabled &&
-    brokerMode === "INSTANT_DISCOUNT" &&
-    brokerVerified &&
-    Boolean(appliedBrokerId);
-  const brokerDiscount = isInstantDiscountApplied
-    ? Math.round((course.price * brokerOfferPct) / 100)
-    : 0;
-
-  const potentialCashback = isBrokerEnabled
-    ? Math.round((course.price * brokerOfferPct) / 100)
-    : 0;
-
-  const finalAmount = Math.max(0, course.price - couponDiscount - brokerDiscount);
 
   return (
     <div className="min-h-screen bg-background py-10">
@@ -778,48 +874,60 @@ export function ManualCheckoutClient({
 
               {/* BROKER PARTNER OFFER SECTION */}
               {isBrokerEnabled && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                      {brokerName} Offer ({brokerOfferPct}% {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback"})
+                      <Sparkles className="h-4 w-4 text-amber-400" />
+                      BROKER PARTNER OFFER ({brokerOfferPct}% {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback"})
                     </label>
-                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-extrabold uppercase text-amber-300">
+                    <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[9px] font-extrabold uppercase text-amber-300">
                       {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback Mode"}
                     </span>
                   </div>
 
-                  {brokerPartnerUrl && (
-                    <div className="text-[11px] text-muted-foreground flex items-center justify-between bg-background/50 p-2 rounded-lg border border-border/50">
-                      <span>Don&apos;t have an account?</span>
+                  {/* Broker partner explanation & registration button */}
+                  <div className="rounded-xl bg-background/70 p-3 text-xs space-y-2 border border-border/60">
+                    <p className="text-muted-foreground leading-relaxed">
+                      {brokerConfig?.description || "Open your broker account using our partner link and unlock a special course benefit."}
+                    </p>
+                    <div className="pt-1">
                       <a
                         href={brokerPartnerUrl}
                         target="_blank"
-                        rel="noreferrer"
-                        className="text-amber-400 font-bold hover:underline inline-flex items-center gap-1"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-black shadow hover:bg-amber-400 transition-all cursor-pointer"
                       >
-                        Open Partner Account <ExternalLink className="h-3 w-3" />
+                        Open Broker Account
+                        <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     </div>
-                  )}
+                  </div>
 
-                  {/* Mode 2: Instant Discount Mode - Auto-verification Check */}
-                  {brokerMode === "INSTANT_DISCOUNT" && !isAutoVerifyActive ? (
-                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-200 flex items-start gap-2">
-                      <ShieldAlert className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
-                      <p>
-                        Instant discount verification is currently unavailable.
-                        Please use the Cashback option.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
+                  {/* Checkbox: I have a Broker Partner Account */}
+                  <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={hasBrokerAccount || Boolean(appliedBrokerId)}
+                      onChange={(e) => {
+                        setHasBrokerAccount(e.target.checked);
+                        if (!e.target.checked) {
+                          handleRemoveBrokerOffer();
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input text-amber-500 focus:ring-amber-400 cursor-pointer"
+                    />
+                    <span>I have a {brokerName} Partner Account</span>
+                  </label>
+
+                  {/* Form fields shown if checkbox is checked */}
+                  {(hasBrokerAccount || Boolean(appliedBrokerId)) && (
+                    <div className="space-y-3 pt-2 border-t border-amber-500/20">
                       {appliedBrokerId ? (
-                        <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-400">
+                        <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs font-semibold text-emerald-400">
                           <div className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                             <span>
-                              Member ID: <strong>{appliedBrokerId}</strong> (
+                              {brokerName} ID: <strong>{appliedBrokerId}</strong> (
                               {brokerMode === "INSTANT_DISCOUNT"
                                 ? `Saved ₹${brokerDiscount}`
                                 : `₹${potentialCashback} Cashback upon verification`}
@@ -830,36 +938,71 @@ export function ManualCheckoutClient({
                             type="button"
                             onClick={handleRemoveBrokerOffer}
                             className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 cursor-pointer"
+                            title="Remove Broker Offer"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ) : (
-                        <form onSubmit={handleVerifyBrokerMember} className="space-y-2">
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              placeholder={`Enter ${brokerConfig?.brokerName || "Broker"} Member ID`}
-                              value={brokerMemberInput}
-                              onChange={(e) => setBrokerMemberInput(e.target.value)}
-                              className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-amber-400 focus:outline-none"
-                            />
-                            <button
-                              type="submit"
-                              disabled={isCheckingBroker || !brokerMemberInput.trim()}
-                              className="rounded-lg bg-amber-500/20 text-amber-300 px-3 py-1.5 text-xs font-bold hover:bg-amber-500/30 disabled:opacity-50 transition-colors cursor-pointer"
-                            >
-                              {isCheckingBroker
-                                ? "..."
-                                : brokerMode === "INSTANT_DISCOUNT"
-                                ? "Verify & Apply"
-                                : "Submit ID"}
-                            </button>
-                          </div>
+                        <form onSubmit={handleVerifyBrokerMember} className="space-y-2.5">
+                          {requireMemberId && (
+                            <div>
+                              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
+                                Broker Member ID / User ID <span className="text-amber-400">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                placeholder={`Enter ${brokerName} Member ID`}
+                                value={brokerMemberInput}
+                                onChange={(e) => setBrokerMemberInput(e.target.value)}
+                                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-amber-400 focus:outline-none"
+                              />
+                            </div>
+                          )}
+
+                          {requireProof && (
+                            <div>
+                              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
+                                Upload Broker Registration Proof / Screenshot <span className="text-amber-400">*</span>
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleProofFileUpload}
+                                className="w-full text-xs text-muted-foreground file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-500/20 file:text-amber-300 hover:file:bg-amber-500/30 cursor-pointer"
+                              />
+                              {isUploadingProof && (
+                                <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
+                                  <Loader2 className="h-3 w-3 animate-spin" /> Processing screenshot...
+                                </p>
+                              )}
+                              {brokerProofUrl && !isUploadingProof && (
+                                <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+                                  <Check className="h-3 w-3" /> Screenshot attached!
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <button
+                            type="submit"
+                            disabled={
+                              isCheckingBroker ||
+                              (requireMemberId && !brokerMemberInput.trim()) ||
+                              (requireProof && !brokerProofUrl)
+                            }
+                            className="w-full rounded-lg bg-amber-500 text-black py-2 text-xs font-bold shadow hover:bg-amber-400 disabled:opacity-50 transition-all cursor-pointer"
+                          >
+                            {isCheckingBroker
+                              ? "Verifying..."
+                              : brokerMode === "INSTANT_DISCOUNT"
+                              ? "Verify & Apply Discount"
+                              : "Apply Broker Offer"}
+                          </button>
 
                           {brokerMode === "CASHBACK" && (
                             <p className="text-[10px] text-muted-foreground">
-                              Pay full course price today. ₹{potentialCashback} cashback will be unlocked in your dashboard after admin verification.
+                              Pay normal amount today. ₹{potentialCashback} cashback will be unlocked in your dashboard after verification.
                             </p>
                           )}
                         </form>
@@ -876,7 +1019,7 @@ export function ManualCheckoutClient({
                           {brokerStatusMessage}
                         </p>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               )}

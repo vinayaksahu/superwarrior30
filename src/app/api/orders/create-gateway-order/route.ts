@@ -195,6 +195,7 @@ export async function POST(req: Request) {
     let brokerClaimData: {
       brokerName: string;
       brokerMemberId: string;
+      proofUrl?: string | null;
       mode: "CASHBACK" | "INSTANT_DISCOUNT";
       verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
       verifiedAt?: Date;
@@ -204,52 +205,127 @@ export async function POST(req: Request) {
       cashbackStatus: "NOT_APPLICABLE" | "PENDING_VERIFICATION";
     } | null = null;
 
-    if (
-      brokerMemberId &&
-      typeof brokerMemberId === "string" &&
-      brokerMemberId.trim().length > 0 &&
-      brokerSettings.isEnabled
-    ) {
-      const cleanMemberId = brokerMemberId.trim();
+    const requestedBrokerMemberId =
+      (body.brokerMemberId || body.memberId || "").trim();
+    const requestedProofUrl =
+      (body.brokerProofUrl || body.proofUrl || "").trim() || null;
+    const isBrokerRequested =
+      Boolean(body.hasBrokerAccount || requestedBrokerMemberId || requestedProofUrl);
+
+    if (isBrokerRequested && brokerSettings.isEnabled) {
+      const now = new Date();
+
+      // 1. Date window validation
+      if (brokerSettings.startDate && new Date(brokerSettings.startDate) > now) {
+        return NextResponse.json(
+          { success: false, message: "This broker offer has not started yet." },
+          { status: 400 }
+        );
+      }
+      if (brokerSettings.endDate && new Date(brokerSettings.endDate) < now) {
+        return NextResponse.json(
+          { success: false, message: "This broker offer has expired." },
+          { status: 400 }
+        );
+      }
+
+      // 2. Minimum order amount validation
+      if (
+        brokerSettings.minimumOrderAmount > 0 &&
+        Number(course.price) < brokerSettings.minimumOrderAmount
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Minimum order amount of ₹${brokerSettings.minimumOrderAmount} is required for this broker offer.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // 3. Course eligibility check
+      if (
+        brokerSettings.eligibleCourseScope === "SELECTED_COURSES" &&
+        Array.isArray(brokerSettings.eligibleCourseIds) &&
+        brokerSettings.eligibleCourseIds.length > 0 &&
+        !brokerSettings.eligibleCourseIds.includes(course.id)
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "This course is not eligible for the partner broker offer.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // 4. Require Member ID check
+      if (brokerSettings.requireMemberId && !requestedBrokerMemberId) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Please enter your Broker Member ID / User ID.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // 5. Require Proof check
+      if (brokerSettings.requireProof && !requestedProofUrl) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Please upload your Broker account screenshot / proof.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // 6. Stacking check: Stacking is OFF by default
+      if (couponId && !brokerSettings.allowCouponStacking) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Coupon code and Broker Offer cannot be stacked together. Please choose one.",
+          },
+          { status: 400 }
+        );
+      }
+
       const offerPct = Number(brokerSettings.offerPercentage) || 40;
-      const calculatedBrokerValue = (Number(course.price) * offerPct) / 100;
+      let calculatedBrokerValue = (Number(course.price) * offerPct) / 100;
+
+      // Cap at maximum benefit amount if configured
+      if (
+        brokerSettings.maximumBenefitAmount &&
+        brokerSettings.maximumBenefitAmount > 0 &&
+        calculatedBrokerValue > brokerSettings.maximumBenefitAmount
+      ) {
+        calculatedBrokerValue = brokerSettings.maximumBenefitAmount;
+      }
+
+      const cleanMemberId = requestedBrokerMemberId || "PARTNER-CLAIM";
 
       if (brokerSettings.mode === "INSTANT_DISCOUNT") {
-        // INSTANT DISCOUNT MODE: Strict Server-Side Verification
-        if (!brokerSettings.isAutoVerificationActive) {
-          return NextResponse.json(
-            {
-              success: false,
-              message:
-                "Instant discount verification is currently unavailable. Please use the Cashback option.",
-            },
-            { status: 400 }
-          );
-        }
-
-        const verifyResult = await verifyBrokerMemberIdServer(cleanMemberId, brokerSettings);
-        if (!verifyResult.isVerified) {
-          return NextResponse.json(
-            {
-              success: false,
-              message:
-                verifyResult.message ||
-                "Partner Broker Member ID could not be verified automatically.",
-            },
-            { status: 400 }
-          );
-        }
-
-        // Apply instant discount strictly on server
+        // INSTANT DISCOUNT MODE: Apply discount server-side
         discountAmount += calculatedBrokerValue;
         finalPayable = Math.max(0, Number(course.price) - discountAmount);
+
+        // Verification status: if auto-verification is active and succeeds, VERIFIED; else PENDING admin review
+        let isAutoVerified = false;
+        if (brokerSettings.isAutoVerificationActive) {
+          const verifyResult = await verifyBrokerMemberIdServer(cleanMemberId, brokerSettings);
+          isAutoVerified = verifyResult.isVerified;
+        }
 
         brokerClaimData = {
           brokerName: brokerSettings.brokerName,
           brokerMemberId: cleanMemberId,
+          proofUrl: requestedProofUrl,
           mode: "INSTANT_DISCOUNT",
-          verificationStatus: "VERIFIED",
-          verifiedAt: new Date(),
+          verificationStatus: isAutoVerified ? "VERIFIED" : "PENDING",
+          verifiedAt: isAutoVerified ? new Date() : undefined,
           coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
           offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
           calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
@@ -260,6 +336,7 @@ export async function POST(req: Request) {
         brokerClaimData = {
           brokerName: brokerSettings.brokerName,
           brokerMemberId: cleanMemberId,
+          proofUrl: requestedProofUrl,
           mode: "CASHBACK",
           verificationStatus: "PENDING",
           coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
@@ -306,6 +383,7 @@ export async function POST(req: Request) {
             orderId: order.id,
             brokerName: brokerClaimData.brokerName,
             brokerMemberId: brokerClaimData.brokerMemberId,
+            proofUrl: brokerClaimData.proofUrl,
             mode: brokerClaimData.mode,
             verificationStatus: brokerClaimData.verificationStatus,
             verifiedAt: brokerClaimData.verifiedAt,

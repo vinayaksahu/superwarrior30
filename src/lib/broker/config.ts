@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 export type BrokerOfferMode = "CASHBACK" | "INSTANT_DISCOUNT";
+export type EligibleCourseScope = "ALL_COURSES" | "SELECTED_COURSES";
 
 export interface BrokerOfferSettings {
   isEnabled: boolean;
@@ -8,22 +9,40 @@ export interface BrokerOfferSettings {
   brokerName: string;
   brokerPartnerUrl: string;
   offerPercentage: number; // e.g. 40 for 40%
+  minimumOrderAmount: number;
+  maximumBenefitAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  eligibleCourseScope: EligibleCourseScope;
+  eligibleCourseIds: string[];
+  requireMemberId: boolean;
+  requireProof: boolean;
+  description: string;
+  allowCouponStacking: boolean;
   isAutoVerificationActive: boolean;
   autoVerificationProvider: "INTERNAL_ADAPTER" | "API_WEBHOOK" | "CUSTOM";
   autoVerificationApiKey?: string;
   autoVerificationEndpoint?: string;
-  customInstructions?: string;
 }
 
 export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
   isEnabled: true,
   mode: "CASHBACK",
-  brokerName: "Exness",
-  brokerPartnerUrl: "https://one.exness-track.com/a/superwarrior30",
+  brokerName: "GTC FX",
+  brokerPartnerUrl: "https://web.mygtc.app/login/register?ref=FtHnmAFV",
   offerPercentage: 40,
+  minimumOrderAmount: 0,
+  maximumBenefitAmount: null,
+  startDate: null,
+  endDate: null,
+  eligibleCourseScope: "ALL_COURSES",
+  eligibleCourseIds: [],
+  requireMemberId: true,
+  requireProof: false,
+  description: "Open your broker account using our partner link and unlock a special course benefit.",
+  allowCouponStacking: false,
   isAutoVerificationActive: false,
   autoVerificationProvider: "INTERNAL_ADAPTER",
-  customInstructions: "Create your partner account using our link, deposit and complete KYC, then submit your Broker Member/Account ID here.",
 };
 
 const SITE_SETTING_KEY = "BROKER_OFFER_SETTINGS";
@@ -57,13 +76,6 @@ export async function saveBrokerSettings(
     ...current,
     ...settings,
   };
-
-  // Enforce rule: Admin CANNOT enable Instant Discount unless auto-verification is active
-  if (updated.mode === "INSTANT_DISCOUNT" && !updated.isAutoVerificationActive) {
-    throw new Error(
-      "Cannot enable Instant Discount Mode: Automatic verification is not configured or active. Please configure and activate auto-verification first, or choose Cashback Mode."
-    );
-  }
 
   await prisma.siteSetting.upsert({
     where: { key: SITE_SETTING_KEY },

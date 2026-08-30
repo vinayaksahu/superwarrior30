@@ -17,6 +17,11 @@ import {
   Check,
   AlertTriangle,
   RefreshCw,
+  Image as ImageIcon,
+  BookOpen,
+  Calendar,
+  Layers,
+  X,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { BrokerOfferSettings } from "@/lib/broker/config";
@@ -28,10 +33,18 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
+interface CourseOption {
+  id: string;
+  title: string;
+  price: number;
+  status: string;
+}
+
 interface ClaimItem {
   id: string;
   brokerName: string;
   brokerMemberId: string;
+  proofUrl?: string | null;
   mode: "CASHBACK" | "INSTANT_DISCOUNT";
   verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
   verifiedAt: Date | null;
@@ -39,7 +52,13 @@ interface ClaimItem {
   coursePrice: number;
   offerPercentage: number;
   calculatedAmount: number;
-  cashbackStatus: "NOT_APPLICABLE" | "PENDING_VERIFICATION" | "AVAILABLE" | "CLAIM_REQUESTED" | "PAID" | "REJECTED";
+  cashbackStatus:
+    | "NOT_APPLICABLE"
+    | "PENDING_VERIFICATION"
+    | "AVAILABLE"
+    | "CLAIM_REQUESTED"
+    | "PAID"
+    | "REJECTED";
   payoutDetails: any;
   claimedAt: Date | null;
   paidAt: Date | null;
@@ -58,6 +77,7 @@ interface ClaimItem {
     totalAmount: any;
     createdAt: Date;
     paidAt: Date | null;
+    items?: { itemTitle: string }[];
   };
   verifiedBy?: { id: string; email: string; name: string | null } | null;
   paidBy?: { id: string; email: string; name: string | null } | null;
@@ -71,11 +91,13 @@ interface AdminBrokerOffersClientProps {
     page: number;
     totalPages: number;
   };
+  courses?: CourseOption[];
 }
 
 export function AdminBrokerOffersClient({
   initialSettings,
   claimsData,
+  courses = [],
 }: AdminBrokerOffersClientProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"SETTINGS" | "CLAIMS">("SETTINGS");
@@ -90,23 +112,17 @@ export function AdminBrokerOffersClient({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isUpdatingClaim, setIsUpdatingClaim] = useState(false);
 
-  // Modal State for Reject / Payout
+  // Modal State for Reject / Payout / Proof
   const [rejectModalClaim, setRejectModalClaim] = useState<ClaimItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
   const [payoutModalClaim, setPayoutModalClaim] = useState<ClaimItem | null>(null);
   const [payoutTxRef, setPayoutTxRef] = useState("");
 
+  const [viewProofUrl, setViewProofUrl] = useState<string | null>(null);
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Guard: Prevent saving Instant Discount Mode without active auto-verification
-    if (settings.mode === "INSTANT_DISCOUNT" && !settings.isAutoVerificationActive) {
-      toast.error(
-        "Cannot enable Instant Discount Mode: Automatic verification must be configured and active. Please enable Auto-Verification or switch to Cashback Mode."
-      );
-      return;
-    }
 
     setIsSavingSettings(true);
     try {
@@ -206,6 +222,15 @@ export function AdminBrokerOffersClient({
     }
   };
 
+  // Toggle course selection for eligibleCourseIds
+  const toggleCourseSelection = (courseId: string) => {
+    const current = settings.eligibleCourseIds || [];
+    const next = current.includes(courseId)
+      ? current.filter((id) => id !== courseId)
+      : [...current, courseId];
+    setSettings({ ...settings, eligibleCourseIds: next });
+  };
+
   // Filter claims locally based on criteria
   const filteredClaims = claimsData.claims.filter((c) => {
     if (statusFilter !== "ALL" && c.cashbackStatus !== statusFilter) return false;
@@ -231,11 +256,11 @@ export function AdminBrokerOffersClient({
               <Sparkles className="h-5 w-5" />
             </span>
             <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-              Broker Offer Management
+              Broker Offers Management
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Configure Cashback Mode vs Instant Discount Mode and manage verification &amp; payouts.
+            Configure Instant Discount vs Cashback Modes, referral URL, and review student claims.
           </p>
         </div>
 
@@ -251,7 +276,7 @@ export function AdminBrokerOffersClient({
             }`}
           >
             <Settings2 className="h-4 w-4" />
-            Offer Settings &amp; Modes
+            Offer Settings
           </button>
           <button
             type="button"
@@ -271,13 +296,13 @@ export function AdminBrokerOffersClient({
       {/* TAB 1: SETTINGS */}
       {activeTab === "SETTINGS" && (
         <form onSubmit={handleSaveSettings} className="space-y-6 max-w-4xl">
-          {/* Mode Selector Card */}
+          {/* Main Mode & Toggle Card */}
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h2 className="text-base font-bold text-foreground">Broker Offer Mode</h2>
                 <p className="text-xs text-muted-foreground">
-                  Select how student discounts and broker rewards are applied.
+                  Select whether students receive an Instant Discount at checkout or Cashback post-purchase.
                 </p>
               </div>
 
@@ -287,13 +312,42 @@ export function AdminBrokerOffersClient({
                   type="checkbox"
                   checked={settings.isEnabled}
                   onChange={(e) => setSettings({ ...settings, isEnabled: e.target.checked })}
-                  className="h-4 w-4 rounded text-primary focus:ring-primary"
+                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
                 />
               </label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Option 1: Cashback Mode */}
+              {/* Option 1: Instant Discount Mode */}
+              <div
+                onClick={() => setSettings({ ...settings, mode: "INSTANT_DISCOUNT" })}
+                className={`relative rounded-2xl border p-5 cursor-pointer transition-all ${
+                  settings.mode === "INSTANT_DISCOUNT"
+                    ? "border-primary bg-primary/5 ring-2 ring-primary"
+                    : "border-border bg-background/50 hover:border-border/80"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="rounded-full bg-primary/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-primary">
+                    Mode 1
+                  </span>
+                  {settings.mode === "INSTANT_DISCOUNT" && (
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                  )}
+                </div>
+                <h3 className="text-base font-bold text-foreground">INSTANT DISCOUNT MODE</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Discount applied <strong>immediately</strong> at checkout.
+                </p>
+                <div className="mt-3 rounded-xl bg-background/80 p-3 text-[11px] text-muted-foreground space-y-1 border border-border/40">
+                  <p className="text-foreground font-semibold">Example Flow:</p>
+                  <p>1. Course Price: ₹5,555 | Offer: 40% (-₹2,222)</p>
+                  <p>2. Customer pays: ₹3,333 via Razorpay.</p>
+                  <p>3. Razorpay order is created for exact ₹3,333.</p>
+                </div>
+              </div>
+
+              {/* Option 2: Cashback Mode */}
               <div
                 onClick={() => setSettings({ ...settings, mode: "CASHBACK" })}
                 className={`relative rounded-2xl border p-5 cursor-pointer transition-all ${
@@ -304,7 +358,7 @@ export function AdminBrokerOffersClient({
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-amber-400">
-                    Mode 1
+                    Mode 2
                   </span>
                   {settings.mode === "CASHBACK" && (
                     <CheckCircle2 className="h-5 w-5 text-amber-400" />
@@ -312,95 +366,42 @@ export function AdminBrokerOffersClient({
                 </div>
                 <h3 className="text-base font-bold text-foreground">CASHBACK MODE</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Does <strong>NOT</strong> require verification before payment.
+                  Customer pays <strong>full price</strong>. Cashback released post-purchase.
                 </p>
                 <div className="mt-3 rounded-xl bg-background/80 p-3 text-[11px] text-muted-foreground space-y-1 border border-border/40">
-                  <p className="text-foreground font-semibold">Lifecycle Flow:</p>
-                  <p>1. User submits Member ID at checkout.</p>
-                  <p>2. User pays full amount (₹4,999) via Razorpay.</p>
-                  <p>3. Broker verification = PENDING.</p>
-                  <p>4. Admin verifies Member ID &rarr; Status = AVAILABLE.</p>
-                  <p>5. User clicks &quot;Claim Cashback&quot; with UPI/Bank info.</p>
-                  <p>6. Admin releases payment &rarr; Status = PAID.</p>
-                </div>
-              </div>
-
-              {/* Option 2: Instant Discount Mode */}
-              <div
-                onClick={() => {
-                  if (!settings.isAutoVerificationActive) {
-                    toast.warning(
-                      "To enable Instant Discount Mode, you must also enable and configure Automatic Verification below."
-                    );
-                  }
-                  setSettings({ ...settings, mode: "INSTANT_DISCOUNT" });
-                }}
-                className={`relative rounded-2xl border p-5 cursor-pointer transition-all ${
-                  settings.mode === "INSTANT_DISCOUNT"
-                    ? "border-primary bg-primary/5 ring-2 ring-primary"
-                    : "border-border bg-background/50 hover:border-border/80"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="rounded-full bg-primary/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-primary">
-                    Mode 2
-                  </span>
-                  {settings.mode === "INSTANT_DISCOUNT" && (
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                  )}
-                </div>
-                <h3 className="text-base font-bold text-foreground">INSTANT DISCOUNT MODE</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Automated server verification <strong>required</strong> before Razorpay order creation.
-                </p>
-                <div className="mt-3 rounded-xl bg-background/80 p-3 text-[11px] text-muted-foreground space-y-1 border border-border/40">
-                  <p className="text-foreground font-semibold">Lifecycle Flow:</p>
-                  <p>1. User enters Member ID at checkout.</p>
-                  <p>2. Server strictly auto-verifies Member ID.</p>
-                  <p>3. If VERIFIED: 40% discount applied server-side.</p>
-                  <p>4. Razorpay order created with discounted amount (₹2,999.40).</p>
-                  <p>5. Instant access unlocked upon payment.</p>
+                  <p className="text-foreground font-semibold">Example Flow:</p>
+                  <p>1. Customer pays full course amount (₹5,555).</p>
+                  <p>2. Cashback claim created (₹2,222) with status PENDING.</p>
+                  <p>3. Admin approves and releases payout to student wallet.</p>
                 </div>
               </div>
             </div>
-
-            {settings.mode === "INSTANT_DISCOUNT" && !settings.isAutoVerificationActive && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive flex items-start gap-2.5">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Instant Discount cannot be enabled yet:</p>
-                  <p className="mt-0.5">
-                    Automatic verification is currently inactive. You must configure and activate Auto-Verification below before activating Instant Discount Mode.
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Partner & Offer Configuration */}
+          {/* Broker Details & Partner URL */}
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
             <h2 className="text-base font-bold text-foreground border-b border-border pb-3">
-              Broker Partner &amp; Offer Details
+              Broker Partner &amp; Offer Specifications
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-foreground block mb-1">
-                  Partner Broker Name *
+                  Broker Name *
                 </label>
                 <input
                   type="text"
                   required
                   value={settings.brokerName}
                   onChange={(e) => setSettings({ ...settings, brokerName: e.target.value })}
-                  placeholder="e.g. Exness, Delta Exchange"
+                  placeholder="e.g. GTC FX, Exness"
                   className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-foreground block mb-1">
-                  Offer Percentage (%) *
+                  Discount / Cashback Percentage (%) *
                 </label>
                 <input
                   type="number"
@@ -417,118 +418,228 @@ export function AdminBrokerOffersClient({
 
               <div className="sm:col-span-2">
                 <label className="text-xs font-semibold text-foreground block mb-1">
-                  Affiliate Partner Signup URL *
+                  Broker Registration URL (Partner Referral Link) *
                 </label>
                 <input
                   type="url"
                   required
                   value={settings.brokerPartnerUrl}
                   onChange={(e) => setSettings({ ...settings, brokerPartnerUrl: e.target.value })}
-                  placeholder="https://one.exness-track.com/a/..."
+                  placeholder="https://web.mygtc.app/login/register?ref=FtHnmAFV"
                   className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Displayed on checkout page for students who do not yet have an account.
+                  Opened when the student clicks &quot;Open Broker Account&quot; on the checkout page.
                 </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1">
+                  Minimum Order Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={settings.minimumOrderAmount}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      minimumOrderAmount: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="0 (No minimum)"
+                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1">
+                  Maximum Benefit Cap (₹, Optional)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={settings.maximumBenefitAmount || ""}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      maximumBenefitAmount: e.target.value ? parseFloat(e.target.value) : null,
+                    })
+                  }
+                  placeholder="Leave empty for uncapped"
+                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1">
+                  Offer Start Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={settings.startDate ? settings.startDate.slice(0, 10) : ""}
+                  onChange={(e) =>
+                    setSettings({ ...settings, startDate: e.target.value || null })
+                  }
+                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1">
+                  Offer End Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={settings.endDate ? settings.endDate.slice(0, 10) : ""}
+                  onChange={(e) =>
+                    setSettings({ ...settings, endDate: e.target.value || null })
+                  }
+                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
               </div>
 
               <div className="sm:col-span-2">
                 <label className="text-xs font-semibold text-foreground block mb-1">
-                  Custom Student Instructions (Optional)
+                  Offer Description Shown to Students *
                 </label>
                 <textarea
                   rows={2}
-                  value={settings.customInstructions || ""}
-                  onChange={(e) =>
-                    setSettings({ ...settings, customInstructions: e.target.value })
-                  }
-                  placeholder="Create your partner account using our link, complete KYC and deposit..."
+                  value={settings.description}
+                  onChange={(e) => setSettings({ ...settings, description: e.target.value })}
+                  placeholder="Open your broker account using our partner link and unlock a special course benefit."
                   className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                 />
               </div>
             </div>
           </div>
 
-          {/* Automatic Verification Configuration */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h2 className="text-base font-bold text-foreground">
-                  Automatic Server Verification
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Required for Instant Discount Mode. Verifies Member IDs server-side.
-                </p>
-              </div>
+          {/* Validation & Verification Rules */}
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+            <h2 className="text-base font-bold text-foreground border-b border-border pb-3">
+              Checkout Requirements &amp; Stacking Rules
+            </h2>
 
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                <span className={settings.isAutoVerificationActive ? "text-emerald-400" : "text-muted-foreground"}>
-                  {settings.isAutoVerificationActive ? "Auto-Verify Active" : "Auto-Verify Inactive"}
-                </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={settings.isAutoVerificationActive}
+                  checked={settings.requireMemberId}
                   onChange={(e) =>
-                    setSettings({ ...settings, isAutoVerificationActive: e.target.checked })
+                    setSettings({ ...settings, requireMemberId: e.target.checked })
                   }
-                  className="h-4 w-4 rounded text-emerald-500 focus:ring-emerald-500"
+                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
                 />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Require Broker Member ID</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Students must enter their Broker User/Account ID during checkout.
+                  </p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.requireProof}
+                  onChange={(e) =>
+                    setSettings({ ...settings, requireProof: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Require Proof / Screenshot</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Students must upload a screenshot of their broker profile.
+                  </p>
+                </div>
+              </label>
+
+              <label className="sm:col-span-2 flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.allowCouponStacking}
+                  onChange={(e) =>
+                    setSettings({ ...settings, allowCouponStacking: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    Allow Promo Coupon + Broker Offer Stacking
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    If OFF (default), students cannot combine promo coupon discounts with the broker offer.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Eligible Courses Scope */}
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+            <h2 className="text-base font-bold text-foreground border-b border-border pb-3 flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              Eligible Course Scope
+            </h2>
+
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer">
+                <input
+                  type="radio"
+                  name="courseScope"
+                  checked={settings.eligibleCourseScope === "ALL_COURSES"}
+                  onChange={() => setSettings({ ...settings, eligibleCourseScope: "ALL_COURSES" })}
+                  className="text-primary focus:ring-primary cursor-pointer"
+                />
+                <span>All Courses Eligible</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer">
+                <input
+                  type="radio"
+                  name="courseScope"
+                  checked={settings.eligibleCourseScope === "SELECTED_COURSES"}
+                  onChange={() => setSettings({ ...settings, eligibleCourseScope: "SELECTED_COURSES" })}
+                  className="text-primary focus:ring-primary cursor-pointer"
+                />
+                <span>Selected Courses Only</span>
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-foreground block mb-1">
-                  Verification Provider / Adapter
-                </label>
-                <select
-                  value={settings.autoVerificationProvider}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      autoVerificationProvider: e.target.value as any,
-                    })
-                  }
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                >
-                  <option value="INTERNAL_ADAPTER">Internal Structured Adapter (Fast &amp; Safe)</option>
-                  <option value="API_WEBHOOK">Custom Broker Webhook / API</option>
-                </select>
+            {settings.eligibleCourseScope === "SELECTED_COURSES" && (
+              <div className="mt-3 rounded-xl border border-border bg-background/50 p-4 space-y-2 max-h-56 overflow-y-auto">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase">
+                  Select Applicable Courses:
+                </p>
+                {courses.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No published courses found.</p>
+                ) : (
+                  courses.map((c) => {
+                    const isSelected = (settings.eligibleCourseIds || []).includes(c.id);
+                    return (
+                      <label
+                        key={c.id}
+                        className="flex items-center justify-between rounded-lg p-2 hover:bg-muted/40 text-xs cursor-pointer"
+                      >
+                        <span className="font-medium text-foreground">{c.title}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-muted-foreground font-mono">
+                            {formatCurrency(c.price)}
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleCourseSelection(c.id)}
+                            className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                          />
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
               </div>
-
-              {settings.autoVerificationProvider === "API_WEBHOOK" && (
-                <>
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1">
-                      API Endpoint URL
-                    </label>
-                    <input
-                      type="url"
-                      value={settings.autoVerificationEndpoint || ""}
-                      onChange={(e) =>
-                        setSettings({ ...settings, autoVerificationEndpoint: e.target.value })
-                      }
-                      placeholder="https://api.partner.com/verify-member"
-                      className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1">
-                      API Bearer Key / Secret (Optional)
-                    </label>
-                    <input
-                      type="password"
-                      value={settings.autoVerificationApiKey || ""}
-                      onChange={(e) =>
-                        setSettings({ ...settings, autoVerificationApiKey: e.target.value })
-                      }
-                      placeholder="Secret API key"
-                      className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2">
@@ -564,7 +675,7 @@ export function AdminBrokerOffersClient({
                 <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search Member ID, email..."
+                  placeholder="Search Member ID, email, order..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full rounded-xl border border-input bg-background pl-8 pr-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
@@ -611,19 +722,20 @@ export function AdminBrokerOffersClient({
             <table className="w-full text-left text-xs">
               <thead className="border-b border-border bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3.5">Student / Order</th>
+                  <th className="px-4 py-3.5">Customer</th>
+                  <th className="px-4 py-3.5">Course &amp; Order</th>
                   <th className="px-4 py-3.5">Broker &amp; Member ID</th>
                   <th className="px-4 py-3.5">Mode</th>
-                  <th className="px-4 py-3.5">Amount</th>
+                  <th className="px-4 py-3.5">Benefit Amount</th>
+                  <th className="px-4 py-3.5">Proof</th>
                   <th className="px-4 py-3.5">Status</th>
-                  <th className="px-4 py-3.5">Payout Details</th>
                   <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredClaims.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-10 text-center text-muted-foreground">
+                    <td colSpan={8} className="py-10 text-center text-muted-foreground">
                       No broker offer records found matching your filters.
                     </td>
                   </tr>
@@ -640,7 +752,13 @@ export function AdminBrokerOffersClient({
                         <td className="px-4 py-3.5">
                           <p className="font-bold text-foreground">{claim.user.name || "Student"}</p>
                           <p className="text-[11px] text-muted-foreground">{claim.user.email}</p>
-                          <p className="text-[10px] text-primary mt-0.5">
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-foreground">
+                            {claim.order.items?.[0]?.itemTitle || "Course"}
+                          </p>
+                          <p className="text-[10px] text-primary font-mono mt-0.5">
                             Order #{claim.order.orderNumber}
                           </p>
                         </td>
@@ -665,6 +783,20 @@ export function AdminBrokerOffersClient({
                           <p className="text-[10px] text-muted-foreground">
                             {claim.offerPercentage}% of {formatCurrency(claim.coursePrice)}
                           </p>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          {claim.proofUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setViewProofUrl(claim.proofUrl || null)}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:underline cursor-pointer"
+                            >
+                              <ImageIcon className="h-3.5 w-3.5" /> View Proof
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground text-[11px]">—</span>
+                          )}
                         </td>
 
                         <td className="px-4 py-3.5">
@@ -700,34 +832,6 @@ export function AdminBrokerOffersClient({
                           )}
                         </td>
 
-                        <td className="px-4 py-3.5">
-                          {claim.payoutDetails ? (
-                            <div className="space-y-0.5 text-[11px]">
-                              {claim.payoutDetails.method === "UPI" ? (
-                                <p className="font-mono text-foreground font-semibold">
-                                  UPI: {claim.payoutDetails.upiId}
-                                </p>
-                              ) : (
-                                <>
-                                  <p className="font-mono text-foreground font-semibold">
-                                    Acc: {claim.payoutDetails.accountNumber}
-                                  </p>
-                                  <p className="text-[10px] text-muted-foreground font-mono">
-                                    IFSC: {claim.payoutDetails.ifsc}
-                                  </p>
-                                </>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-[11px]">—</span>
-                          )}
-                          {claim.payoutTxRef && (
-                            <p className="text-[10px] text-emerald-400 font-mono mt-0.5">
-                              TxRef: {claim.payoutTxRef}
-                            </p>
-                          )}
-                        </td>
-
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Actions for PENDING verification in Cashback Mode */}
@@ -739,7 +843,7 @@ export function AdminBrokerOffersClient({
                                   onClick={() => handleApproveMemberId(claim)}
                                   className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-400 hover:bg-emerald-500/25 transition-all cursor-pointer"
                                 >
-                                  Approve ID
+                                  Approve
                                 </button>
                                 <button
                                   type="button"
@@ -776,12 +880,38 @@ export function AdminBrokerOffersClient({
         </div>
       )}
 
+      {/* Proof Modal */}
+      {viewProofUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="relative max-w-2xl w-full rounded-2xl border border-border bg-card p-4 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <h3 className="text-sm font-bold text-foreground">Broker Registration Screenshot</h3>
+              <button
+                type="button"
+                onClick={() => setViewProofUrl(null)}
+                className="p-1 rounded hover:bg-muted text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-xl bg-black flex items-center justify-center max-h-[70vh]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={viewProofUrl}
+                alt="Broker Proof"
+                className="max-h-[68vh] object-contain rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reject Modal */}
       {rejectModalClaim && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-foreground">
-              Reject Broker Member ID Verification
+              Reject Broker Claim Verification
             </h3>
             <p className="text-xs text-muted-foreground">
               Member ID <strong>{rejectModalClaim.brokerMemberId}</strong> for student {rejectModalClaim.user.email}.
@@ -795,7 +925,7 @@ export function AdminBrokerOffersClient({
                 <textarea
                   rows={3}
                   required
-                  placeholder="e.g. Member ID is not registered under our affiliate link or account is not activated."
+                  placeholder="e.g. Member ID is not registered under our partner link or account is not activated."
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
                   className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:border-destructive focus:outline-none"
@@ -806,7 +936,7 @@ export function AdminBrokerOffersClient({
                 <button
                   type="button"
                   onClick={() => setRejectModalClaim(null)}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted"
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -876,7 +1006,7 @@ export function AdminBrokerOffersClient({
                 <button
                   type="button"
                   onClick={() => setPayoutModalClaim(null)}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted"
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -886,7 +1016,7 @@ export function AdminBrokerOffersClient({
                   className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 cursor-pointer"
                 >
                   <Check className="h-4 w-4" />
-                  Confirm Payout Released
+                  Confirm Payout &amp; Credit Wallet
                 </button>
               </div>
             </form>

@@ -859,6 +859,7 @@ model BrokerOfferClaim {
   orderId            String                   @unique
   brokerName         String                   @default("Partner Broker")
   brokerMemberId     String
+  proofUrl           String?
   mode               BrokerOfferMode          @default(CASHBACK)
   verificationStatus BrokerVerificationStatus @default(PENDING)
   verifiedAt         DateTime?

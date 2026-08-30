@@ -7,6 +7,7 @@ import {
   saveBrokerSettings,
   BrokerOfferSettings,
   BrokerOfferMode,
+  EligibleCourseScope,
 } from "@/lib/broker/config";
 import {
   verifyBrokerMemberIdServer,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/broker/verification";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma";
 
 export interface PublicBrokerConfig {
   isEnabled: boolean;
@@ -21,8 +23,17 @@ export interface PublicBrokerConfig {
   brokerName: string;
   brokerPartnerUrl: string;
   offerPercentage: number;
+  minimumOrderAmount: number;
+  maximumBenefitAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  eligibleCourseScope: EligibleCourseScope;
+  eligibleCourseIds: string[];
+  requireMemberId: boolean;
+  requireProof: boolean;
+  description: string;
+  allowCouponStacking: boolean;
   isAutoVerificationActive: boolean;
-  customInstructions?: string;
 }
 
 /**
@@ -36,8 +47,17 @@ export async function getBrokerPublicConfigAction(): Promise<PublicBrokerConfig>
     brokerName: settings.brokerName,
     brokerPartnerUrl: settings.brokerPartnerUrl,
     offerPercentage: Number(settings.offerPercentage) || 40,
+    minimumOrderAmount: Number(settings.minimumOrderAmount) || 0,
+    maximumBenefitAmount: settings.maximumBenefitAmount ? Number(settings.maximumBenefitAmount) : null,
+    startDate: settings.startDate || null,
+    endDate: settings.endDate || null,
+    eligibleCourseScope: settings.eligibleCourseScope || "ALL_COURSES",
+    eligibleCourseIds: settings.eligibleCourseIds || [],
+    requireMemberId: settings.requireMemberId !== false,
+    requireProof: Boolean(settings.requireProof),
+    description: settings.description || "Open your broker account using our partner link and unlock a special course benefit.",
+    allowCouponStacking: Boolean(settings.allowCouponStacking),
     isAutoVerificationActive: Boolean(settings.isAutoVerificationActive),
-    customInstructions: settings.customInstructions,
   };
 }
 
@@ -51,28 +71,11 @@ export async function getBrokerAdminSettingsAction(): Promise<BrokerOfferSetting
 
 /**
  * Admin action to update configuration.
- * Guard: Prevents saving INSTANT_DISCOUNT if auto-verification is inactive.
  */
 export async function updateBrokerAdminSettingsAction(
   newSettings: Partial<BrokerOfferSettings>
 ) {
   const admin = await requireAdminWrite();
-
-  // Safety validation
-  if (newSettings.mode === "INSTANT_DISCOUNT") {
-    const isAutoActive =
-      newSettings.isAutoVerificationActive !== undefined
-        ? newSettings.isAutoVerificationActive
-        : (await getBrokerSettings()).isAutoVerificationActive;
-
-    if (!isAutoActive) {
-      return {
-        success: false,
-        message:
-          "Cannot enable Instant Discount Mode: Automatic verification is not active. Please configure and activate auto-verification first.",
-      };
-    }
-  }
 
   try {
     const updated = await saveBrokerSettings(newSettings);
@@ -181,6 +184,11 @@ export async function listBrokerClaimsAction(params?: {
             totalAmount: true,
             createdAt: true,
             paidAt: true,
+            items: {
+              select: {
+                itemTitle: true,
+              },
+            },
           },
         },
         verifiedBy: {
@@ -389,6 +397,7 @@ export async function claimCashbackAction(input: {
 
 /**
  * Admin releases payout and marks cashback as PAID
+ * Also credits the user's Wallet and writes a Financial Ledger record.
  */
 export async function adminReleaseCashbackPayoutAction(input: {
   claimId: string;
@@ -401,33 +410,71 @@ export async function adminReleaseCashbackPayoutAction(input: {
     return { success: false, message: "Please enter the transaction reference / UTR ID." };
   }
 
-  const claim = await prisma.brokerOfferClaim.findUnique({
-    where: { id: input.claimId },
-  });
+  return await prisma.$transaction(async (tx) => {
+    const claim = await tx.brokerOfferClaim.findUnique({
+      where: { id: input.claimId },
+      include: { order: true, user: true },
+    });
 
-  if (!claim) {
-    return { success: false, message: "Cashback claim not found." };
-  }
+    if (!claim) {
+      return { success: false, message: "Cashback claim not found." };
+    }
 
-  if (claim.cashbackStatus !== "CLAIM_REQUESTED" && claim.cashbackStatus !== "AVAILABLE") {
-    return {
-      success: false,
-      message: `Cannot release payout for claim in '${claim.cashbackStatus}' status.`,
-    };
-  }
+    if (claim.cashbackStatus === "PAID") {
+      return { success: false, message: "This cashback claim is already marked as PAID." };
+    }
 
-  const updated = await prisma.brokerOfferClaim.update({
-    where: { id: input.claimId },
-    data: {
-      cashbackStatus: "PAID",
-      paidAt: new Date(),
-      paidById: admin.id,
-      payoutTxRef: input.payoutTxRef.trim(),
-    },
-  });
+    // 1. Update Claim Status to PAID
+    const updatedClaim = await tx.brokerOfferClaim.update({
+      where: { id: input.claimId },
+      data: {
+        cashbackStatus: "PAID",
+        paidAt: new Date(),
+        paidById: admin.id,
+        payoutTxRef: input.payoutTxRef.trim(),
+      },
+    });
 
-  try {
-    await prisma.auditLog.create({
+    // 2. Credit user's Wallet and record Financial Ledger entry
+    const wallet = await tx.wallet.upsert({
+      where: { userId: claim.userId },
+      update: {},
+      create: {
+        userId: claim.userId,
+        availableBalance: new Prisma.Decimal(0.0),
+        pendingBalance: new Prisma.Decimal(0.0),
+        totalEarned: new Prisma.Decimal(0.0),
+        totalWithdrawn: new Prisma.Decimal(0.0),
+      },
+    });
+
+    const balanceBefore = wallet.availableBalance;
+    const balanceAfter = wallet.availableBalance.plus(claim.calculatedAmount);
+
+    await tx.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        availableBalance: balanceAfter,
+        totalEarned: wallet.totalEarned.plus(claim.calculatedAmount),
+      },
+    });
+
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: "ADJUSTMENT",
+        status: "COMPLETED",
+        amount: claim.calculatedAmount,
+        balanceBefore,
+        balanceAfter,
+        description: `Broker Cashback Credit for Order #${claim.order.orderNumber} (Ref: ${input.payoutTxRef.trim()})`,
+        referenceType: "CASHBACK",
+        referenceId: claim.id,
+      },
+    });
+
+    // 3. Audit log
+    await tx.auditLog.create({
       data: {
         actorId: admin.id,
         actorEmail: admin.email,
@@ -439,21 +486,23 @@ export async function adminReleaseCashbackPayoutAction(input: {
           claimId: claim.id,
           amount: Number(claim.calculatedAmount),
           payoutTxRef: input.payoutTxRef.trim(),
+          userId: claim.userId,
+          walletId: wallet.id,
         },
       },
     });
-  } catch {
-    // ignore
-  }
 
-  revalidatePath("/admin/broker-offers");
-  revalidatePath("/dashboard/cashbacks");
+    revalidatePath("/admin/broker-offers");
+    revalidatePath("/admin/wallet");
+    revalidatePath("/wallet");
+    revalidatePath("/dashboard/cashbacks");
 
-  return {
-    success: true,
-    message: `Cashback payout of ₹${Number(claim.calculatedAmount).toFixed(2)} marked as PAID.`,
-    claim: updated,
-  };
+    return {
+      success: true,
+      message: `Cashback payout of ₹${Number(claim.calculatedAmount).toFixed(2)} marked as PAID and credited to student wallet.`,
+      claim: updatedClaim,
+    };
+  });
 }
 
 /**
