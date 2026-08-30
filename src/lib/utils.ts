@@ -30,6 +30,10 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+export function generateSlug(text: string): string {
+  return slugify(text);
+}
+
 export function generateReferralCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "";

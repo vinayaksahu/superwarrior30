@@ -14,6 +14,7 @@ import {
   Wallet,
   ShoppingCart,
   User,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -28,6 +29,7 @@ interface StudentHeaderProps {
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
+  { href: "/dashboard/live", label: "Live Classes", icon: Radio },
   { href: "/referrals", label: "Referrals", icon: GitBranch },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/orders", label: "Orders", icon: ShoppingCart },

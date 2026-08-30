@@ -19,6 +19,7 @@ import {
   ContactRound,
   BarChart3,
   Star,
+  Radio,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,12 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/courses",
     label: "Courses",
     icon: BookOpen,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/live-sessions",
+    label: "Live Sessions",
+    icon: Radio,
     allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
   },
   {

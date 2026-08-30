@@ -71,6 +71,10 @@ model User {
   deletedCourses Course[] @relation("CourseDeletedBy")
   clearedCommissions ReferralCommissionRecord[] @relation("CommissionsCleared")
 
+  // Live Sessions
+  liveSessionAttendances LiveSessionAttendee[]
+  hostedLiveSessions     LiveSession[] @relation("LiveSessionHost")
+
   @@index([role])
   @@index([status])
   @@index([referralCode])
@@ -182,6 +186,7 @@ model Course {
   enrollments CourseEnrollment[]
   orderItems  OrderItem[]
   couponCourses CouponCourse[]
+  liveSessions  LiveSession[]
 
   @@index([status, createdAt])
   @@index([isFeatured])
@@ -752,3 +757,69 @@ model FunnelEvent {
   @@index([sessionId])
   @@map("funnel_events")
 }
+
+// ==========================================
+// LIVE SESSIONS & VIDEO MEETINGS
+// ==========================================
+
+enum LiveSessionProvider {
+  ZOOM
+  GOOGLE_MEET
+  EMBEDDED_ROOM
+  BUNNY_LIVE
+  CUSTOM
+}
+
+enum LiveSessionStatus {
+  UPCOMING
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+model LiveSession {
+  id              String              @id @default(cuid())
+  title           String
+  slug            String              @unique
+  description     String?             @db.Text
+  courseId        String?
+  provider        LiveSessionProvider @default(ZOOM)
+  meetingUrl      String?             @db.Text
+  meetingId       String?
+  passcode        String?
+  roomName        String?             // Unique room slug for embedded video call
+  scheduledAt     DateTime
+  durationMinutes Int                 @default(60)
+  status          LiveSessionStatus   @default(UPCOMING)
+  recordingUrl    String?             @db.Text
+  bunnyVideoId    String?
+  isPublished     Boolean             @default(true)
+  createdById     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  course    Course?               @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  host      User?                 @relation("LiveSessionHost", fields: [createdById], references: [id], onDelete: SetNull)
+  attendees LiveSessionAttendee[]
+
+  @@index([status, scheduledAt])
+  @@index([courseId])
+  @@index([isPublished])
+  @@map("live_sessions")
+}
+
+model LiveSessionAttendee {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  session LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([userId])
+  @@index([sessionId])
+  @@map("live_session_attendees")
+}
+
