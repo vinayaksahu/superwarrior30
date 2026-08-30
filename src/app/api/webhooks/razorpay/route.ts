@@ -68,10 +68,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: "No order_id in event" }, { status: 200 });
       }
 
-      // Find order by razorpay paymentId / metadata
+      // Find order by gateway order ID (primary), paymentId (backward compat), or notes
       const order = await prisma.order.findFirst({
         where: {
           OR: [
+            { gatewayOrderId: razorpayOrderId },
             { paymentId: razorpayOrderId },
             { id: paymentEntity.notes?.orderId },
           ],
@@ -115,7 +116,10 @@ export async function POST(req: NextRequest) {
       if (razorpayOrderId) {
         await prisma.order.updateMany({
           where: {
-            paymentId: razorpayOrderId,
+            OR: [
+              { gatewayOrderId: razorpayOrderId },
+              { paymentId: razorpayOrderId },
+            ],
             status: "PENDING",
           },
           data: {

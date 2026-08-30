@@ -134,6 +134,7 @@ export async function createOrderAction(courseId: string, couponCode?: string) {
     where: { id: order.id },
     data: {
       paymentId: paymentOrder.providerOrderId,
+      gatewayOrderId: paymentOrder.providerOrderId,
       metadata: {
         providerOrderId: paymentOrder.providerOrderId,
         provider: paymentOrder.provider,
@@ -294,12 +295,10 @@ export async function fulfillOrderPayment({
 
 export async function verifyRazorpayPaymentAction({
   orderId,
-  razorpayOrderId,
   razorpayPaymentId,
   razorpaySignature,
 }: {
   orderId: string;
-  razorpayOrderId: string;
   razorpayPaymentId: string;
   razorpaySignature: string;
 }): Promise<ActionState> {
@@ -307,7 +306,7 @@ export async function verifyRazorpayPaymentAction({
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { userId: true, status: true },
+    select: { userId: true, status: true, gatewayOrderId: true, paymentId: true },
   });
 
   if (!order || order.userId !== user.id) {
@@ -318,9 +317,15 @@ export async function verifyRazorpayPaymentAction({
     return { success: true, message: "Order is already paid." };
   }
 
+  // SECURITY: Use server-stored Razorpay order ID, never client-supplied
+  const serverRazorpayOrderId = order.gatewayOrderId || order.paymentId;
+  if (!serverRazorpayOrderId) {
+    return { success: false, message: "Order has no associated payment gateway order." };
+  }
+
   // Verify signature
   const isValid = await verifyRazorpayPaymentSignature({
-    razorpayOrderId,
+    razorpayOrderId: serverRazorpayOrderId,
     razorpayPaymentId,
     razorpaySignature,
   });
@@ -338,7 +343,7 @@ export async function verifyRazorpayPaymentAction({
     orderId,
     provider: "RAZORPAY",
     paymentId: razorpayPaymentId,
-    metadata: { razorpayOrderId, razorpayPaymentId },
+    metadata: { razorpayOrderId: serverRazorpayOrderId, razorpayPaymentId },
   });
 
   revalidatePath(`/dashboard`);

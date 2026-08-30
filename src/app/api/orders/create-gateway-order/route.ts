@@ -230,6 +230,7 @@ export async function POST(req: Request) {
       where: { id: order.id },
       data: {
         paymentId: paymentOrder.providerOrderId,
+        gatewayOrderId: paymentOrder.providerOrderId,
         metadata: {
           paymentMethodId,
           provider: paymentOrder.provider,

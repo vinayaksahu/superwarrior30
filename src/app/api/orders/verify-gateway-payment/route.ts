@@ -22,10 +22,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       orderId,
-      razorpayOrderId,
       razorpayPaymentId,
       razorpaySignature,
-      isMock,
     } = body;
 
     if (!orderId) {
@@ -70,8 +68,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // Handle mock payment in development / when mock mode is explicitly passed
-    if (isMock || order.paymentProvider === "MOCK") {
+    // Handle mock payment ONLY when order was server-created as MOCK (no client override)
+    if (order.paymentProvider === "MOCK") {
       await fulfillOrderPayment({
         orderId: order.id,
         provider: "MOCK_GATEWAY",
@@ -91,8 +89,19 @@ export async function POST(req: Request) {
       });
     }
 
-    // Verify live Razorpay signature
-    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    // SECURITY: Use server-stored Razorpay order ID for signature verification
+    // NEVER trust client-supplied razorpayOrderId for HMAC verification
+    const serverRazorpayOrderId = order.gatewayOrderId || order.paymentId;
+
+    if (!serverRazorpayOrderId) {
+      console.error(`Order ${orderId} has no associated gateway order ID.`);
+      return NextResponse.json(
+        { success: false, message: "Order has no associated payment gateway order." },
+        { status: 400 }
+      );
+    }
+
+    if (!razorpayPaymentId || !razorpaySignature) {
       return NextResponse.json(
         { success: false, message: "Missing payment verification parameters." },
         { status: 400 }
@@ -100,7 +109,7 @@ export async function POST(req: Request) {
     }
 
     const isValid = await verifyRazorpayPaymentSignature({
-      razorpayOrderId,
+      razorpayOrderId: serverRazorpayOrderId,
       razorpayPaymentId,
       razorpaySignature,
     });
@@ -123,7 +132,7 @@ export async function POST(req: Request) {
       provider: "RAZORPAY",
       paymentId: razorpayPaymentId,
       metadata: {
-        razorpayOrderId,
+        razorpayOrderId: serverRazorpayOrderId,
         razorpayPaymentId,
         razorpaySignature,
         verifiedAt: new Date().toISOString(),

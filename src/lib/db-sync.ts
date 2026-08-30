@@ -20,6 +20,8 @@ export async function ensureDatabaseSchemaSync() {
     `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "metadata" JSONB;`,
     `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "discountAmount" DECIMAL(12,2) DEFAULT 0.00;`,
     `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL(12,2) DEFAULT 0.00;`,
+    `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "gatewayOrderId" TEXT;`,
+    `CREATE INDEX IF NOT EXISTS "orders_gatewayOrderId_idx" ON "orders"("gatewayOrderId");`,
 
     // courses columns
     `ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);`,
@@ -313,6 +315,18 @@ export async function ensureDatabaseSchemaSync() {
       CREATE INDEX IF NOT EXISTS "funnel_events_eventType_createdAt_idx" ON "funnel_events"("eventType", "createdAt");
       CREATE INDEX IF NOT EXISTS "funnel_events_leadId_idx" ON "funnel_events"("leadId");
       CREATE INDEX IF NOT EXISTS "funnel_events_sessionId_idx" ON "funnel_events"("sessionId");
+    `);
+  } catch {
+    // ignore
+  }
+
+  // Backfill: populate gatewayOrderId from paymentId for existing Razorpay orders
+  try {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "orders" SET "gatewayOrderId" = "paymentId"
+      WHERE "gatewayOrderId" IS NULL
+        AND "paymentProvider" IN ('RAZORPAY', 'MOCK')
+        AND "paymentId" IS NOT NULL;
     `);
   } catch {
     // ignore
