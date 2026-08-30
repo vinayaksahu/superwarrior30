@@ -4,6 +4,16 @@ import { fulfillOrderPayment } from "@/server/actions/order.actions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  return NextResponse.json({
+    status: "active",
+    message: "Razorpay Webhook endpoint is healthy and ready to receive POST events.",
+    timestamp: new Date().toISOString(),
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "webhook-caller";
