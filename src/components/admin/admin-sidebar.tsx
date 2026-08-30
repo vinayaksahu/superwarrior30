@@ -67,7 +67,7 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/broker-offers",
     label: "Broker Offers",
     icon: Sparkles,
-    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
   },
   {
     href: "/admin/coupons",

@@ -91,10 +91,14 @@ export function ManualCheckoutClient({
   } | null>(null);
 
   // Broker Offer state
-  const isBrokerEnabled = Boolean(brokerConfig?.isEnabled);
+  const isBrokerEnabled = brokerConfig ? brokerConfig.isEnabled !== false : true;
   const brokerMode = brokerConfig?.mode || "CASHBACK";
   const brokerOfferPct = Number(brokerConfig?.offerPercentage) || 40;
   const isAutoVerifyActive = Boolean(brokerConfig?.isAutoVerificationActive);
+  const brokerName = brokerConfig?.brokerName || "Exness";
+  const brokerPartnerUrl =
+    brokerConfig?.brokerPartnerUrl ||
+    "https://one.exness-track.com/a/superwarrior30";
 
   const [brokerMemberInput, setBrokerMemberInput] = useState<string>("");
   const [isCheckingBroker, setIsCheckingBroker] = useState<boolean>(false);
@@ -778,18 +782,18 @@ export function ManualCheckoutClient({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                      {brokerConfig?.brokerName || "Partner Broker"} Offer ({brokerOfferPct}% {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback"})
+                      {brokerName} Offer ({brokerOfferPct}% {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback"})
                     </label>
                     <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-extrabold uppercase text-amber-300">
                       {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback Mode"}
                     </span>
                   </div>
 
-                  {brokerConfig?.brokerPartnerUrl && (
+                  {brokerPartnerUrl && (
                     <div className="text-[11px] text-muted-foreground flex items-center justify-between bg-background/50 p-2 rounded-lg border border-border/50">
                       <span>Don&apos;t have an account?</span>
                       <a
-                        href={brokerConfig.brokerPartnerUrl}
+                        href={brokerPartnerUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="text-amber-400 font-bold hover:underline inline-flex items-center gap-1"
