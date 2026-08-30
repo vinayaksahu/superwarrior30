@@ -8,6 +8,8 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { createRazorpayOrder, getRazorpayConfig } from "@/lib/payment/razorpay";
 import { validateAndCalculateCouponAction } from "@/server/actions/coupon.actions";
+import { getBrokerSettings } from "@/lib/broker/config";
+import { verifyBrokerMemberIdServer } from "@/lib/broker/verification";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ export async function POST(req: Request) {
     const {
       courseId,
       couponCode,
+      brokerMemberId,
       paymentMethodId,
       guestName,
       guestEmail,
@@ -187,6 +190,86 @@ export async function POST(req: Request) {
       }
     }
 
+    // Broker Offer Server-Side Processing
+    const brokerSettings = await getBrokerSettings();
+    let brokerClaimData: {
+      brokerName: string;
+      brokerMemberId: string;
+      mode: "CASHBACK" | "INSTANT_DISCOUNT";
+      verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
+      verifiedAt?: Date;
+      coursePrice: Prisma.Decimal;
+      offerPercentage: Prisma.Decimal;
+      calculatedAmount: Prisma.Decimal;
+      cashbackStatus: "NOT_APPLICABLE" | "PENDING_VERIFICATION";
+    } | null = null;
+
+    if (
+      brokerMemberId &&
+      typeof brokerMemberId === "string" &&
+      brokerMemberId.trim().length > 0 &&
+      brokerSettings.isEnabled
+    ) {
+      const cleanMemberId = brokerMemberId.trim();
+      const offerPct = Number(brokerSettings.offerPercentage) || 40;
+      const calculatedBrokerValue = (Number(course.price) * offerPct) / 100;
+
+      if (brokerSettings.mode === "INSTANT_DISCOUNT") {
+        // INSTANT DISCOUNT MODE: Strict Server-Side Verification
+        if (!brokerSettings.isAutoVerificationActive) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                "Instant discount verification is currently unavailable. Please use the Cashback option.",
+            },
+            { status: 400 }
+          );
+        }
+
+        const verifyResult = await verifyBrokerMemberIdServer(cleanMemberId, brokerSettings);
+        if (!verifyResult.isVerified) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                verifyResult.message ||
+                "Partner Broker Member ID could not be verified automatically.",
+            },
+            { status: 400 }
+          );
+        }
+
+        // Apply instant discount strictly on server
+        discountAmount += calculatedBrokerValue;
+        finalPayable = Math.max(0, Number(course.price) - discountAmount);
+
+        brokerClaimData = {
+          brokerName: brokerSettings.brokerName,
+          brokerMemberId: cleanMemberId,
+          mode: "INSTANT_DISCOUNT",
+          verificationStatus: "VERIFIED",
+          verifiedAt: new Date(),
+          coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
+          offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
+          calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
+          cashbackStatus: "NOT_APPLICABLE",
+        };
+      } else {
+        // CASHBACK MODE: User pays FULL course amount (Razorpay order amount is NOT reduced)
+        brokerClaimData = {
+          brokerName: brokerSettings.brokerName,
+          brokerMemberId: cleanMemberId,
+          mode: "CASHBACK",
+          verificationStatus: "PENDING",
+          coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
+          offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
+          calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
+          cashbackStatus: "PENDING_VERIFICATION",
+        };
+      }
+    }
+
     const orderNumber = generateOrderNumber();
     const gatewayConfig = await getRazorpayConfig();
 
@@ -213,6 +296,29 @@ export async function POST(req: Request) {
         },
       },
     });
+
+    // If broker claim exists, persist claim record linked to order
+    if (brokerClaimData) {
+      try {
+        await prisma.brokerOfferClaim.create({
+          data: {
+            userId: user.id,
+            orderId: order.id,
+            brokerName: brokerClaimData.brokerName,
+            brokerMemberId: brokerClaimData.brokerMemberId,
+            mode: brokerClaimData.mode,
+            verificationStatus: brokerClaimData.verificationStatus,
+            verifiedAt: brokerClaimData.verifiedAt,
+            coursePrice: brokerClaimData.coursePrice,
+            offerPercentage: brokerClaimData.offerPercentage,
+            calculatedAmount: brokerClaimData.calculatedAmount,
+            cashbackStatus: brokerClaimData.cashbackStatus,
+          },
+        });
+      } catch (err) {
+        console.error("Failed to record broker offer claim:", err);
+      }
+    }
 
     // Create provider order
     const paymentOrder = await createRazorpayOrder({

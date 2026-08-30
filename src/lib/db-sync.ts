@@ -386,5 +386,57 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
+  // Broker Offer & Cashback System
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "BrokerOfferMode" AS ENUM ('CASHBACK', 'INSTANT_DISCOUNT');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "BrokerVerificationStatus" AS ENUM ('PENDING', 'VERIFIED', 'REJECTED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "CashbackStatus" AS ENUM ('NOT_APPLICABLE', 'PENDING_VERIFICATION', 'AVAILABLE', 'CLAIM_REQUESTED', 'PAID', 'REJECTED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "broker_offer_claims" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "orderId" TEXT NOT NULL UNIQUE REFERENCES "orders"("id") ON DELETE CASCADE,
+        "brokerName" TEXT NOT NULL DEFAULT 'Partner Broker',
+        "brokerMemberId" TEXT NOT NULL,
+        "mode" "BrokerOfferMode" NOT NULL DEFAULT 'CASHBACK',
+        "verificationStatus" "BrokerVerificationStatus" NOT NULL DEFAULT 'PENDING',
+        "verifiedAt" TIMESTAMP(3),
+        "verifiedById" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
+        "rejectionReason" TEXT,
+        "coursePrice" DECIMAL(12,2) NOT NULL,
+        "offerPercentage" DECIMAL(5,2) NOT NULL DEFAULT 40.00,
+        "calculatedAmount" DECIMAL(12,2) NOT NULL,
+        "cashbackStatus" "CashbackStatus" NOT NULL DEFAULT 'PENDING_VERIFICATION',
+        "payoutDetails" JSONB,
+        "claimedAt" TIMESTAMP(3),
+        "paidAt" TIMESTAMP(3),
+        "paidById" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
+        "payoutTxRef" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "broker_offer_claims_userId_cashbackStatus_idx" ON "broker_offer_claims"("userId", "cashbackStatus");
+      CREATE INDEX IF NOT EXISTS "broker_offer_claims_verificationStatus_idx" ON "broker_offer_claims"("verificationStatus");
+      CREATE INDEX IF NOT EXISTS "broker_offer_claims_cashbackStatus_idx" ON "broker_offer_claims"("cashbackStatus");
+      CREATE INDEX IF NOT EXISTS "broker_offer_claims_brokerMemberId_idx" ON "broker_offer_claims"("brokerMemberId");
+      CREATE INDEX IF NOT EXISTS "broker_offer_claims_createdAt_idx" ON "broker_offer_claims"("createdAt" DESC);
+    `);
+  } catch {
+    // ignore
+  }
+
   isSynced = true;
 }

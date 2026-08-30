@@ -75,6 +75,11 @@ model User {
   liveSessionAttendances LiveSessionAttendee[]
   hostedLiveSessions     LiveSession[] @relation("LiveSessionHost")
 
+  // Broker Offer & Cashback
+  brokerClaims           BrokerOfferClaim[]
+  verifiedBrokerClaims   BrokerOfferClaim[] @relation("BrokerClaimsVerified")
+  paidBrokerClaims       BrokerOfferClaim[] @relation("BrokerClaimsPaid")
+
   @@index([role])
   @@index([status])
   @@index([referralCode])
@@ -341,6 +346,7 @@ model Order {
   redemptions        CouponRedemption[]
   commissionSnapshot OrderCommissionSnapshot?
   commissions        ReferralCommissionRecord[]
+  brokerClaim        BrokerOfferClaim?
 
   @@index([userId, status, createdAt(sort: Desc)])
   @@index([status, createdAt])
@@ -822,4 +828,65 @@ model LiveSessionAttendee {
   @@index([sessionId])
   @@map("live_session_attendees")
 }
+
+// ==========================================
+// BROKER OFFER & CASHBACK SYSTEM
+// ==========================================
+
+enum BrokerOfferMode {
+  CASHBACK
+  INSTANT_DISCOUNT
+}
+
+enum BrokerVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum CashbackStatus {
+  NOT_APPLICABLE
+  PENDING_VERIFICATION
+  AVAILABLE
+  CLAIM_REQUESTED
+  PAID
+  REJECTED
+}
+
+model BrokerOfferClaim {
+  id                 String                   @id @default(cuid())
+  userId             String
+  orderId            String                   @unique
+  brokerName         String                   @default("Partner Broker")
+  brokerMemberId     String
+  mode               BrokerOfferMode          @default(CASHBACK)
+  verificationStatus BrokerVerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  verifiedById       String?
+  rejectionReason    String?
+  coursePrice        Decimal                  @db.Decimal(12, 2)
+  offerPercentage    Decimal                  @default(40.00) @db.Decimal(5, 2)
+  calculatedAmount   Decimal                  @db.Decimal(12, 2)
+  cashbackStatus     CashbackStatus           @default(PENDING_VERIFICATION)
+  payoutDetails      Json?                    @db.JsonB
+  claimedAt          DateTime?
+  paidAt             DateTime?
+  paidById           String?
+  payoutTxRef        String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  verifiedBy User? @relation("BrokerClaimsVerified", fields: [verifiedById], references: [id], onDelete: SetNull)
+  paidBy     User? @relation("BrokerClaimsPaid", fields: [paidById], references: [id], onDelete: SetNull)
+
+  @@index([userId, cashbackStatus])
+  @@index([verificationStatus])
+  @@index([cashbackStatus])
+  @@index([brokerMemberId])
+  @@index([createdAt(sort: Desc)])
+  @@map("broker_offer_claims")
+}
+
 
