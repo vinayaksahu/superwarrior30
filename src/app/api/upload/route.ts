@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
-import { isBunnyStorageConfigured, uploadToBunnyStorage } from "@/lib/bunny";
+import { getResolvedBunnyConfig, uploadToBunnyStorage } from "@/lib/bunny";
 
 /**
  * POST /api/upload
@@ -44,15 +44,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isBunnyStorageConfigured()) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Bunny Storage is not configured. Please set BUNNY_STORAGE_ZONE, BUNNY_STORAGE_PASSWORD, and BUNNY_CDN_HOSTNAME in environment variables.",
-        },
-        { status: 503 }
-      );
-    }
+    const bunnyConfig = await getResolvedBunnyConfig();
+    const isBunnyActive = Boolean(bunnyConfig.storageZoneName && bunnyConfig.storagePassword && bunnyConfig.cdnHostname);
 
     const filename = file.name;
     const ext = filename.split(".").pop()?.toLowerCase() || "bin";
@@ -70,18 +63,54 @@ export async function POST(req: NextRequest) {
     }
 
     const contentType = file.type || (category === "pdf" ? "application/pdf" : "image/jpeg");
-    const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
 
-    return NextResponse.json({
-      success: true,
-      key: storagePath,
-      bunnyVideoId: null,
-      cdnUrl: result.cdnUrl,
-      provider: "BUNNY",
-      filename,
-      category,
-      message: `${filename} uploaded to Bunny CDN!`,
-    });
+    if (isBunnyActive) {
+      const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
+      return NextResponse.json({
+        success: true,
+        key: storagePath,
+        bunnyVideoId: null,
+        cdnUrl: result.cdnUrl,
+        provider: "BUNNY",
+        filename,
+        category,
+        message: `${filename} uploaded to Bunny CDN!`,
+      });
+    }
+
+    // Fallback to Cloudflare R2 if configured
+    const { isR2Configured, r2 } = await import("@/lib/r2");
+    const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+    if (isR2Configured()) {
+      const bucket = process.env.R2_BUCKET_NAME || "superwarrior30";
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: storagePath,
+          Body: new Uint8Array(buffer),
+          ContentType: contentType,
+        })
+      );
+
+      return NextResponse.json({
+        success: true,
+        key: storagePath,
+        bunnyVideoId: null,
+        cdnUrl: null,
+        provider: "R2",
+        filename,
+        category,
+        message: `${filename} uploaded to R2 Storage!`,
+      });
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Media Storage is not configured. Please complete the Bunny CDN setup in Admin Settings → Media Storage.",
+      },
+      { status: 503 }
+    );
   } catch (error: unknown) {
     console.error("Bunny Storage Upload API Error:", error);
     const msg = error instanceof Error ? error.message : "Internal upload server error";

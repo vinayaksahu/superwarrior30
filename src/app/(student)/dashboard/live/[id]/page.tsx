@@ -103,7 +103,7 @@ export default async function LiveSessionRoomPage({
           {session.bunnyVideoId ? (
             <div className="relative aspect-video w-full bg-black select-none">
               <iframe
-                src={`https://iframe.mediadelivery.net/embed/${process.env.BUNNY_STREAM_LIBRARY_ID || "409070"}/${session.bunnyVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`}
+                src={getSecurePlaybackUrl(session.bunnyVideoId, 3600, "embed")}
                 loading="lazy"
                 className="h-full w-full border-0"
                 allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"

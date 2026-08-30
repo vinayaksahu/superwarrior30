@@ -441,5 +441,47 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
+  // Media Provider Configurations (Bunny CDN, Cloudflare R2, etc.)
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "MediaProviderType" AS ENUM ('BUNNY', 'CLOUDFLARE_R2', 'AWS_S3', 'LOCAL');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "media_provider_configs" (
+        "id" TEXT PRIMARY KEY,
+        "provider" "MediaProviderType" NOT NULL DEFAULT 'BUNNY',
+        "environment" TEXT NOT NULL DEFAULT 'production',
+        "isEnabled" BOOLEAN NOT NULL DEFAULT true,
+        "isProductionReady" BOOLEAN NOT NULL DEFAULT false,
+        "accountApiKeyEncrypted" TEXT,
+        "accountEmail" TEXT,
+        "storageZoneId" TEXT,
+        "storageZoneName" TEXT,
+        "storagePasswordEncrypted" TEXT,
+        "storageHostname" TEXT DEFAULT 'storage.bunnycdn.com',
+        "pullZoneId" TEXT,
+        "pullZoneName" TEXT,
+        "cdnHostname" TEXT,
+        "streamLibraryId" TEXT,
+        "streamLibraryName" TEXT,
+        "streamApiKeyEncrypted" TEXT,
+        "tokenSecurityKeyEncrypted" TEXT,
+        "enableTokenAuth" BOOLEAN NOT NULL DEFAULT false,
+        "lastTestedAt" TIMESTAMP(3),
+        "testResults" JSONB,
+        "metadata" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "media_provider_configs_provider_environment_idx" ON "media_provider_configs"("provider", "environment");
+      CREATE INDEX IF NOT EXISTS "media_provider_configs_isEnabled_isProductionReady_idx" ON "media_provider_configs"("isEnabled", "isProductionReady");
+    `);
+  } catch {
+    // ignore
+  }
+
   isSynced = true;
 }

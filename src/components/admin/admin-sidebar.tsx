@@ -21,6 +21,7 @@ import {
   Star,
   Radio,
   Sparkles,
+  Cloud,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -127,6 +128,12 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/settings",
     label: "Settings",
     icon: Settings,
+    allowedRoles: ["SUPER_ADMIN"],
+  },
+  {
+    href: "/admin/settings/media-storage",
+    label: "Media Storage (Bunny)",
+    icon: Cloud,
     allowedRoles: ["SUPER_ADMIN"],
   },
   {

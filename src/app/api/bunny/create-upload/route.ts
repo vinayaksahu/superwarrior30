@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
-import { isBunnyStreamConfigured, createDirectVideoUploadAuth } from "@/lib/bunny";
+import { getResolvedBunnyConfig, createDirectVideoUploadAuth } from "@/lib/bunny";
 import { BUNNY_MAX_VIDEO_SIZE } from "@/lib/constants";
 
 /**
@@ -21,9 +21,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isBunnyStreamConfigured()) {
+    const bunnyConfig = await getResolvedBunnyConfig();
+    if (!bunnyConfig.streamLibraryId || !bunnyConfig.streamApiKey) {
       return NextResponse.json(
-        { success: false, error: "Bunny Stream is not configured in environment variables." },
+        { success: false, error: "Bunny Stream is not configured. Please complete the Media Storage setup in Admin Settings." },
         { status: 503 }
       );
     }

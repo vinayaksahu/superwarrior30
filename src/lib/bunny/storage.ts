@@ -1,6 +1,7 @@
 import "server-only";
 
-import { bunnyStorageConfig, bunnyCdnConfig, isBunnyStorageConfigured } from "./config";
+import { getResolvedBunnyConfig } from "./config";
+import { BunnyService } from "./service";
 import type { BunnyStorageUploadResult } from "./types";
 
 // ==========================================
@@ -20,20 +21,22 @@ export async function uploadToBunnyStorage(
   buffer: Buffer,
   contentType: string
 ): Promise<BunnyStorageUploadResult> {
-  if (!isBunnyStorageConfigured()) {
+  const config = await getResolvedBunnyConfig();
+
+  if (!config.storageZoneName || !config.storagePassword || !config.cdnHostname) {
     throw new Error(
-      "Bunny Storage is not configured. Set BUNNY_STORAGE_ZONE, BUNNY_STORAGE_PASSWORD, and BUNNY_CDN_HOSTNAME."
+      "Bunny Storage is not configured. Please complete the Media Storage setup in Admin Panel."
     );
   }
 
   // Normalize path: remove leading slash
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-  const uploadUrl = `${bunnyStorageConfig.baseUrl}/${normalizedPath}`;
+  const uploadUrl = `https://${config.storageHostname}/${config.storageZoneName}/${normalizedPath}`;
 
   const res = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
-      AccessKey: bunnyStorageConfig.password,
+      AccessKey: config.storagePassword,
       "Content-Type": contentType,
     },
     body: new Uint8Array(buffer),
@@ -46,7 +49,7 @@ export async function uploadToBunnyStorage(
     );
   }
 
-  const cdnUrl = getBunnyCdnUrl(normalizedPath);
+  const cdnUrl = await getBunnyCdnUrl(normalizedPath);
 
   return {
     path: normalizedPath,
@@ -58,15 +61,16 @@ export async function uploadToBunnyStorage(
  * Delete a file from Bunny Storage.
  */
 export async function deleteFromBunnyStorage(path: string): Promise<void> {
-  if (!isBunnyStorageConfigured()) return;
+  const config = await getResolvedBunnyConfig();
+  if (!config.storageZoneName || !config.storagePassword) return;
 
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-  const deleteUrl = `${bunnyStorageConfig.baseUrl}/${normalizedPath}`;
+  const deleteUrl = `https://${config.storageHostname}/${config.storageZoneName}/${normalizedPath}`;
 
   const res = await fetch(deleteUrl, {
     method: "DELETE",
     headers: {
-      AccessKey: bunnyStorageConfig.password,
+      AccessKey: config.storagePassword,
     },
   });
 
@@ -78,27 +82,44 @@ export async function deleteFromBunnyStorage(path: string): Promise<void> {
 }
 
 /**
- * Get the public CDN URL for a Bunny Storage file.
+ * Get the CDN delivery URL for a Bunny Storage file.
+ * Automatically generates signed token URLs if Token Authentication is active.
  */
-export function getBunnyCdnUrl(path: string): string {
+export async function getBunnyCdnUrl(
+  path: string,
+  expiresInSec: number = 3600
+): Promise<string> {
+  const config = await getResolvedBunnyConfig();
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-  return `${bunnyCdnConfig.baseUrl}/${normalizedPath}`;
+  const cleanHost = (config.cdnHostname || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
+  if (config.enableTokenAuth && config.tokenSecurityKey) {
+    return BunnyService.generateSignedUrl(
+      cleanHost,
+      normalizedPath,
+      config.tokenSecurityKey,
+      expiresInSec
+    );
+  }
+
+  return `https://${cleanHost}/${normalizedPath}`;
 }
 
 /**
  * Check if a file exists in Bunny Storage.
  */
 export async function checkBunnyStorageFile(path: string): Promise<boolean> {
-  if (!isBunnyStorageConfigured()) return false;
+  const config = await getResolvedBunnyConfig();
+  if (!config.storageZoneName || !config.storagePassword) return false;
 
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-  const url = `${bunnyStorageConfig.baseUrl}/${normalizedPath}`;
+  const url = `https://${config.storageHostname}/${config.storageZoneName}/${normalizedPath}`;
 
   try {
     const res = await fetch(url, {
       method: "HEAD",
       headers: {
-        AccessKey: bunnyStorageConfig.password,
+        AccessKey: config.storagePassword,
       },
     });
     return res.ok;

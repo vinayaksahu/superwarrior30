@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import { createPresignedDownloadUrl } from "@/lib/storage";
-import { isBunnyStorageConfigured, bunnyStorageConfig, bunnyCdnConfig } from "@/lib/bunny";
+import { getResolvedBunnyConfig, bunnyStorageConfig, bunnyCdnConfig } from "@/lib/bunny";
 import { isR2Configured, r2 } from "@/lib/r2";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
@@ -79,13 +79,15 @@ export async function GET(
         }
 
         // Attempt 2: Direct Bunny Storage fetch fallback (authorized with AccessKey)
-        if (!pdfBuffer && isBunnyStorageConfigured()) {
+        const bunnyConfig = await getResolvedBunnyConfig();
+        if (!pdfBuffer && bunnyConfig.storageZoneName && bunnyConfig.storagePassword) {
           try {
-            const storagePath = lesson.bunnyCdnUrl.replace(bunnyCdnConfig.baseUrl, "").replace(/^\/+/, "");
-            const storageUrl = `${bunnyStorageConfig.baseUrl}/${storagePath}`;
+            const cdnBase = bunnyConfig.cdnHostname ? `https://${bunnyConfig.cdnHostname.replace(/^https?:\/\//, "")}` : bunnyCdnConfig.baseUrl;
+            const storagePath = lesson.bunnyCdnUrl.replace(cdnBase, "").replace(/^\/+/, "");
+            const storageUrl = `https://${bunnyConfig.storageHostname}/${bunnyConfig.storageZoneName}/${storagePath}`;
             const storageRes = await fetch(storageUrl, {
               headers: {
-                AccessKey: bunnyStorageConfig.password,
+                AccessKey: bunnyConfig.storagePassword,
               },
             });
             if (storageRes.ok) {

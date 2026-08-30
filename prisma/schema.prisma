@@ -890,4 +890,60 @@ model BrokerOfferClaim {
   @@map("broker_offer_claims")
 }
 
+// ==========================================
+// MEDIA STORAGE & CDN PROVIDER CONFIGURATION
+// ==========================================
+
+enum MediaProviderType {
+  BUNNY
+  CLOUDFLARE_R2
+  AWS_S3
+  LOCAL
+}
+
+model MediaProviderConfig {
+  id                         String            @id @default(cuid())
+  provider                   MediaProviderType @default(BUNNY)
+  environment                String            @default("production") // "production" | "development"
+  isEnabled                  Boolean           @default(true)
+  isProductionReady          Boolean           @default(false)
+  
+  // Encrypted Credentials (AES-256-GCM)
+  accountApiKeyEncrypted     String?           @db.Text
+  accountEmail               String?
+  
+  // Bunny Storage Zone
+  storageZoneId              String?
+  storageZoneName            String?
+  storagePasswordEncrypted   String?           @db.Text
+  storageHostname            String?           @default("storage.bunnycdn.com")
+  
+  // Bunny Pull Zone / CDN
+  pullZoneId                 String?
+  pullZoneName               String?
+  cdnHostname                String?
+  
+  // Bunny Stream (Video Delivery)
+  streamLibraryId            String?
+  streamLibraryName          String?
+  streamApiKeyEncrypted      String?           @db.Text
+  
+  // Token Authentication / Secure URL Signing
+  tokenSecurityKeyEncrypted  String?           @db.Text
+  enableTokenAuth            Boolean           @default(false)
+  
+  // Health & Verification
+  lastTestedAt               DateTime?
+  testResults                Json?             @db.JsonB
+  metadata                   Json?             @db.JsonB
+  
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+
+  @@index([provider, environment])
+  @@index([isEnabled, isProductionReady])
+  @@map("media_provider_configs")
+}
+
+
 

@@ -90,7 +90,7 @@ export async function deleteR2Object(key: string) {
 // ==========================================
 
 import { getSecurePlaybackUrl } from "./bunny/stream";
-import { isBunnyStreamConfigured, isBunnyStorageConfigured } from "./bunny/config";
+import { isBunnyStreamConfigured, isBunnyStorageConfigured, getResolvedBunnyConfig } from "./bunny/config";
 import { SIGNED_URL_EXPIRY } from "./constants";
 
 /**
@@ -119,14 +119,16 @@ export async function getMediaUrl(
     Boolean(lesson.bunnyCdnUrl)
   ) {
     if (type === "video" && lesson.bunnyVideoId) {
-      if (!isBunnyStreamConfigured()) {
+      const bunnyConfig = await getResolvedBunnyConfig();
+      if (!bunnyConfig.streamLibraryId) {
         console.error("Lesson has Bunny video but Bunny Stream is not configured");
         return null;
       }
       return getSecurePlaybackUrl(
         lesson.bunnyVideoId,
         expiresIn || SIGNED_URL_EXPIRY.VIDEO,
-        "embed"
+        "embed",
+        bunnyConfig.streamLibraryId
       );
     }
     if (type === "pdf" && lesson.bunnyCdnUrl) {
@@ -199,9 +201,12 @@ export async function deleteLessonMediaAsset(
     }
     if (lesson.bunnyCdnUrl && lesson.bunnyCdnUrl !== newKeyOrUrl) {
       try {
-        const { deleteFromBunnyStorage, bunnyCdnConfig } = await import("./bunny");
-        if (lesson.bunnyCdnUrl.startsWith(bunnyCdnConfig.baseUrl)) {
-          const path = lesson.bunnyCdnUrl.replace(bunnyCdnConfig.baseUrl + "/", "");
+        const { deleteFromBunnyStorage } = await import("./bunny");
+        let path = lesson.bunnyCdnUrl;
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+          path = new URL(path).pathname.replace(/^\/+/, "");
+        }
+        if (path) {
           deleteOps.push(deleteFromBunnyStorage(path).catch(() => {}));
         }
       } catch {
@@ -248,9 +253,12 @@ export async function deleteThumbnailAssets(
 
   if (course.thumbnailCdnUrl && course.thumbnailCdnUrl !== newKeyOrUrl) {
     try {
-      const { deleteFromBunnyStorage, bunnyCdnConfig } = await import("./bunny");
-      if (course.thumbnailCdnUrl.startsWith(bunnyCdnConfig.baseUrl)) {
-        const path = course.thumbnailCdnUrl.replace(bunnyCdnConfig.baseUrl + "/", "");
+      const { deleteFromBunnyStorage } = await import("./bunny");
+      let path = course.thumbnailCdnUrl;
+      if (path.startsWith("http://") || path.startsWith("https://")) {
+        path = new URL(path).pathname.replace(/^\/+/, "");
+      }
+      if (path) {
         deleteOps.push(deleteFromBunnyStorage(path).catch(() => {}));
       }
     } catch {

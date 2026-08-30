@@ -20,7 +20,9 @@ export async function GET(
       );
     }
 
-    if (!isBunnyStreamConfigured()) {
+    const { getResolvedBunnyConfig } = await import("@/lib/bunny/config");
+    const bunnyConfig = await getResolvedBunnyConfig();
+    if (!bunnyConfig.streamLibraryId || !bunnyConfig.streamApiKey) {
       return NextResponse.json(
         { success: false, error: "Bunny Stream is not configured" },
         { status: 503 }

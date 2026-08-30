@@ -1,7 +1,7 @@
 import "server-only";
 
 import crypto from "crypto";
-import { bunnyStreamConfig, isBunnyStreamConfigured } from "./config";
+import { getResolvedBunnyConfig, bunnyStreamConfig } from "./config";
 import type { BunnyVideo, BunnyVideoUploadResult, VideoEncodingStatus } from "./types";
 import { mapBunnyStatusCode } from "./types";
 
@@ -9,24 +9,26 @@ import { mapBunnyStatusCode } from "./types";
 // Bunny Stream Service — Video Hosting & HLS
 // ==========================================
 
-const STREAM_HEADERS = () => ({
-  accept: "application/json",
-  "content-type": "application/json",
-  AccessKey: bunnyStreamConfig.apiKey,
-});
-
 /**
  * Create a new video entry in Bunny Stream library.
  * This must be called BEFORE uploading the video file.
  */
 export async function createBunnyVideo(title: string): Promise<BunnyVideoUploadResult> {
-  if (!isBunnyStreamConfigured()) {
-    throw new Error("Bunny Stream is not configured. Set BUNNY_STREAM_LIBRARY_ID and BUNNY_STREAM_API_KEY.");
+  const config = await getResolvedBunnyConfig();
+
+  if (!config.streamLibraryId || !config.streamApiKey) {
+    throw new Error(
+      "Bunny Stream is not configured. Please complete the Media Storage setup in Admin Panel."
+    );
   }
 
-  const res = await fetch(`${bunnyStreamConfig.baseUrl}/videos`, {
+  const res = await fetch(`https://video.bunnycdn.com/library/${config.streamLibraryId}/videos`, {
     method: "POST",
-    headers: STREAM_HEADERS(),
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      AccessKey: config.streamApiKey,
+    },
     body: JSON.stringify({ title }),
   });
 
@@ -59,15 +61,19 @@ export async function createDirectVideoUploadAuth(
   signature: string;
   endpoint: string;
 }> {
-  if (!isBunnyStreamConfigured()) {
-    throw new Error("Bunny Stream is not configured. Set BUNNY_STREAM_LIBRARY_ID and BUNNY_STREAM_API_KEY.");
+  const config = await getResolvedBunnyConfig();
+
+  if (!config.streamLibraryId || !config.streamApiKey) {
+    throw new Error(
+      "Bunny Stream is not configured. Please complete the Media Storage setup in Admin Panel."
+    );
   }
 
   // 1. Create the video entry in Bunny Stream Library
   const videoEntry = await createBunnyVideo(title);
   const videoId = videoEntry.guid;
-  const libraryId = bunnyStreamConfig.libraryId;
-  const apiKey = bunnyStreamConfig.apiKey;
+  const libraryId = config.streamLibraryId;
+  const apiKey = config.streamApiKey;
 
   // 2. Generate short-lived expiration timestamp (in seconds)
   const expirationTime = Math.floor(Date.now() / 1000) + expiresInSec;
@@ -95,16 +101,18 @@ export async function uploadVideoToBunny(
   guid: string,
   fileBuffer: Buffer
 ): Promise<void> {
-  if (!isBunnyStreamConfigured()) {
+  const config = await getResolvedBunnyConfig();
+
+  if (!config.streamLibraryId || !config.streamApiKey) {
     throw new Error("Bunny Stream is not configured.");
   }
 
   const res = await fetch(
-    `${bunnyStreamConfig.baseUrl}/videos/${guid}`,
+    `https://video.bunnycdn.com/library/${config.streamLibraryId}/videos/${guid}`,
     {
       method: "PUT",
       headers: {
-        AccessKey: bunnyStreamConfig.apiKey,
+        AccessKey: config.streamApiKey,
         "content-type": "application/octet-stream",
       },
       body: new Uint8Array(fileBuffer),
@@ -121,15 +129,20 @@ export async function uploadVideoToBunny(
  * Get video metadata and encoding status from Bunny Stream.
  */
 export async function getVideoStatus(guid: string): Promise<VideoEncodingStatus> {
-  if (!isBunnyStreamConfigured()) {
+  const config = await getResolvedBunnyConfig();
+
+  if (!config.streamLibraryId || !config.streamApiKey) {
     throw new Error("Bunny Stream is not configured.");
   }
 
   const res = await fetch(
-    `${bunnyStreamConfig.baseUrl}/videos/${guid}`,
+    `https://video.bunnycdn.com/library/${config.streamLibraryId}/videos/${guid}`,
     {
       method: "GET",
-      headers: STREAM_HEADERS(),
+      headers: {
+        accept: "application/json",
+        AccessKey: config.streamApiKey,
+      },
     }
   );
 
@@ -153,7 +166,6 @@ export async function getVideoStatus(guid: string): Promise<VideoEncodingStatus>
 
 /**
  * Generate a token-authenticated playback URL for a Bunny Stream video.
- * Uses SHA256 HMAC token authentication for secure delivery.
  *
  * Returns the direct HLS manifest URL with token auth, OR
  * the embed iframe URL if preferred.
@@ -161,34 +173,32 @@ export async function getVideoStatus(guid: string): Promise<VideoEncodingStatus>
 export function getSecurePlaybackUrl(
   guid: string,
   _expiresInSec: number = 3600,
-  format: "hls" | "embed" = "embed"
+  format: "hls" | "embed" = "embed",
+  libraryIdOverride?: string
 ): string {
-  if (!isBunnyStreamConfigured()) {
-    throw new Error("Bunny Stream is not configured.");
-  }
-
-  const libraryId = bunnyStreamConfig.libraryId;
+  const libraryId = libraryIdOverride || bunnyStreamConfig.libraryId;
 
   if (format === "embed") {
-    // Generate clean, high-performance responsive Bunny Stream embed player URL
     return `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
   }
 
-  // Direct HLS URL
-  return `${bunnyStreamConfig.hlsBaseUrl}/${guid}/playlist.m3u8`;
+  return `https://vz-${libraryId}.b-cdn.net/${guid}/playlist.m3u8`;
 }
 
 /**
  * Delete a video from Bunny Stream.
  */
 export async function deleteBunnyVideo(guid: string): Promise<void> {
-  if (!isBunnyStreamConfigured()) return;
+  const config = await getResolvedBunnyConfig();
+  if (!config.streamLibraryId || !config.streamApiKey) return;
 
   const res = await fetch(
-    `${bunnyStreamConfig.baseUrl}/videos/${guid}`,
+    `https://video.bunnycdn.com/library/${config.streamLibraryId}/videos/${guid}`,
     {
       method: "DELETE",
-      headers: STREAM_HEADERS(),
+      headers: {
+        AccessKey: config.streamApiKey,
+      },
     }
   );
 
@@ -204,15 +214,19 @@ export async function listBunnyVideos(
   page: number = 1,
   itemsPerPage: number = 25
 ): Promise<{ items: BunnyVideo[]; totalItems: number }> {
-  if (!isBunnyStreamConfigured()) {
+  const config = await getResolvedBunnyConfig();
+  if (!config.streamLibraryId || !config.streamApiKey) {
     return { items: [], totalItems: 0 };
   }
 
   const res = await fetch(
-    `${bunnyStreamConfig.baseUrl}/videos?page=${page}&itemsPerPage=${itemsPerPage}&orderBy=date`,
+    `https://video.bunnycdn.com/library/${config.streamLibraryId}/videos?page=${page}&itemsPerPage=${itemsPerPage}&orderBy=date`,
     {
       method: "GET",
-      headers: STREAM_HEADERS(),
+      headers: {
+        accept: "application/json",
+        AccessKey: config.streamApiKey,
+      },
     }
   );
 

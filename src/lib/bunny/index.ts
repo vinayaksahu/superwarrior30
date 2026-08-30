@@ -12,7 +12,21 @@ export {
   bunnyStorageConfig,
   bunnyCdnConfig,
   getBunnyApiKey,
+  getResolvedBunnyConfig,
+  invalidateBunnyConfigCache,
 } from "./config";
+export type { ResolvedBunnyConfig } from "./config";
+
+// Bunny Service Layer (Management API, Provisioning, Diagnostics)
+export { BunnyService } from "./service";
+export type {
+  BunnyStorageZoneSummary,
+  BunnyPullZoneSummary,
+  BunnyVideoLibrarySummary,
+  BunnyAccountResources,
+  TestResultItem,
+  FullDiagnosticsResult,
+} from "./service";
 
 // Bunny Stream (Video hosting)
 export {
