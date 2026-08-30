@@ -142,15 +142,34 @@ export class BunnyService {
       const pullData: any[] = await pullRes.json().catch(() => []);
       const streamData: any[] = streamRes.ok ? await streamRes.json().catch(() => []) : [];
 
-      const storageZones: BunnyStorageZoneSummary[] = storageData.map((z) => ({
-        id: z.Id,
-        name: z.Name,
-        region: z.Region || "DE",
-        storageUsed: z.StorageUsed || 0,
-        filesStored: z.FilesStored || 0,
-        password: z.Password || z.ReadPassword,
-        pullZones: z.PullZones || [],
-      }));
+      const storageZones: BunnyStorageZoneSummary[] = await Promise.all(
+        storageData.map(async (z) => {
+          let pass = z.Password || z.ReadPassword || z.password || "";
+          if (!pass && z.Id) {
+            try {
+              const singleRes = await fetch(`${BUNNY_API_BASE}/storagezone/${z.Id}`, {
+                headers: { AccessKey: cleanKey, accept: "application/json" },
+                cache: "no-store",
+              });
+              if (singleRes.ok) {
+                const singleData = await singleRes.json();
+                pass = singleData.Password || singleData.ReadPassword || singleData.password || "";
+              }
+            } catch {
+              // ignore
+            }
+          }
+          return {
+            id: z.Id,
+            name: z.Name,
+            region: z.Region || "DE",
+            storageUsed: z.StorageUsed || 0,
+            filesStored: z.FilesStored || 0,
+            password: pass,
+            pullZones: z.PullZones || [],
+          };
+        })
+      );
 
       const pullZones: BunnyPullZoneSummary[] = pullData.map((p) => {
         const hostnames = (p.Hostnames || []).map((h: any) => h.Value);
@@ -167,13 +186,34 @@ export class BunnyService {
         };
       });
 
-      const videoLibraries: BunnyVideoLibrarySummary[] = streamData.map((v) => ({
-        id: v.Id,
-        name: v.Name,
-        apiKey: v.ApiKey,
-        readOnlyApiKey: v.ReadOnlyApiKey,
-        hasWatermark: v.HasWatermark,
-      }));
+      const videoLibraries: BunnyVideoLibrarySummary[] = await Promise.all(
+        streamData.map(async (v) => {
+          let apiKey = v.ApiKey || "";
+          let readOnlyApiKey = v.ReadOnlyApiKey || "";
+          if (!apiKey && v.Id) {
+            try {
+              const singleLibRes = await fetch(`${BUNNY_API_BASE}/videolibrary/${v.Id}`, {
+                headers: { AccessKey: cleanKey, accept: "application/json" },
+                cache: "no-store",
+              });
+              if (singleLibRes.ok) {
+                const singleLibData = await singleLibRes.json();
+                apiKey = singleLibData.ApiKey || "";
+                readOnlyApiKey = singleLibData.ReadOnlyApiKey || "";
+              }
+            } catch {
+              // ignore
+            }
+          }
+          return {
+            id: v.Id,
+            name: v.Name,
+            apiKey,
+            readOnlyApiKey,
+            hasWatermark: v.HasWatermark,
+          };
+        })
+      );
 
       return {
         isValid: true,

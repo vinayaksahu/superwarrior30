@@ -480,17 +480,43 @@ export async function saveLmsMediaConfigAction(input: {
     where: { provider: "BUNNY" },
   });
 
-  const encryptedStoragePass = input.storagePassword?.trim()
+  let encryptedStoragePass = input.storagePassword?.trim()
     ? encryptSecret(input.storagePassword.trim())
     : existing?.storagePasswordEncrypted;
 
-  const encryptedStreamKey = input.streamApiKey?.trim()
+  let encryptedStreamKey = input.streamApiKey?.trim()
     ? encryptSecret(input.streamApiKey.trim())
     : existing?.streamApiKeyEncrypted;
 
   const encryptedTokenKey = input.tokenSecurityKey?.trim()
     ? encryptSecret(input.tokenSecurityKey.trim())
     : existing?.tokenSecurityKeyEncrypted;
+
+  // Auto-fetch storage password and stream API key from Bunny API if not provided
+  const rawAccountKey = decryptSecret(existing?.accountApiKeyEncrypted);
+  if (rawAccountKey && (!encryptedStoragePass || (!encryptedStreamKey && input.streamLibraryId))) {
+    try {
+      const resources = await BunnyService.getAccountResources(rawAccountKey);
+      if (!encryptedStoragePass && input.storageZoneName) {
+        const matchZone = resources.storageZones.find(
+          (z) => z.name.toLowerCase() === input.storageZoneName.trim().toLowerCase()
+        );
+        if (matchZone?.password) {
+          encryptedStoragePass = encryptSecret(matchZone.password);
+        }
+      }
+      if (!encryptedStreamKey && input.streamLibraryId) {
+        const matchLib = resources.videoLibraries.find(
+          (v) => String(v.id) === String(input.streamLibraryId?.trim())
+        );
+        if (matchLib?.apiKey) {
+          encryptedStreamKey = encryptSecret(matchLib.apiKey);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const cleanCdnHost = input.cdnHostname.replace(/^https?:\/\//, "").replace(/\/+$/, "").trim();
 
@@ -569,6 +595,44 @@ export async function runBunnyDiagnosticsAction(
   await ensureDatabaseSchemaSync();
 
   const config = await getResolvedBunnyConfig(true);
+  let storagePass = config.storagePassword;
+  let streamKey = config.streamApiKey;
+
+  // If storage password or stream key is missing, auto-fetch from Bunny API using Account API Key
+  if (config.accountApiKey && (!storagePass || !streamKey)) {
+    try {
+      const resources = await BunnyService.getAccountResources(config.accountApiKey);
+      if (!storagePass && config.storageZoneName) {
+        const match = resources.storageZones.find(
+          (z) => z.name.toLowerCase() === config.storageZoneName.toLowerCase()
+        );
+        if (match?.password) {
+          storagePass = match.password;
+          await prisma.mediaProviderConfig.updateMany({
+            where: { provider: "BUNNY" },
+            data: { storagePasswordEncrypted: encryptSecret(storagePass) },
+          });
+          invalidateBunnyConfigCache();
+        }
+      }
+      if (!streamKey && config.streamLibraryId) {
+        const matchLib = resources.videoLibraries.find(
+          (v) => String(v.id) === String(config.streamLibraryId)
+        );
+        if (matchLib?.apiKey) {
+          streamKey = matchLib.apiKey;
+          await prisma.mediaProviderConfig.updateMany({
+            where: { provider: "BUNNY" },
+            data: { streamApiKeyEncrypted: encryptSecret(streamKey) },
+          });
+          invalidateBunnyConfigCache();
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const tests: TestResultItem[] = [];
 
   let testPath: string | undefined;
@@ -578,7 +642,7 @@ export async function runBunnyDiagnosticsAction(
   if (testScope === "ALL" || testScope === "CONNECTION") {
     const connTest = await BunnyService.testStorageConnection(
       config.storageZoneName,
-      config.storagePassword,
+      storagePass,
       config.storageHostname
     );
     tests.push(connTest);
@@ -588,7 +652,7 @@ export async function runBunnyDiagnosticsAction(
   if (testScope === "ALL" || testScope === "PDF_UPLOAD") {
     const uploadRes = await BunnyService.testPdfUpload(
       config.storageZoneName,
-      config.storagePassword,
+      storagePass,
       config.storageHostname
     );
     tests.push(uploadRes.result);
@@ -609,7 +673,7 @@ export async function runBunnyDiagnosticsAction(
   if (testScope === "ALL" || testScope === "VIDEO_UPLOAD") {
     const videoUploadRes = await BunnyService.testVideoUpload(
       config.streamLibraryId,
-      config.streamApiKey
+      streamKey
     );
     tests.push(videoUploadRes.result);
     testVideoGuid = videoUploadRes.testVideoGuid;
@@ -619,7 +683,7 @@ export async function runBunnyDiagnosticsAction(
   if (testScope === "ALL" || testScope === "VIDEO_DELIVERY") {
     const videoDeliveryTest = await BunnyService.testVideoDelivery(
       config.streamLibraryId,
-      config.streamApiKey,
+      streamKey,
       testVideoGuid
     );
     tests.push(videoDeliveryTest);
