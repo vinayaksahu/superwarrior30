@@ -91,15 +91,9 @@ const allSidebarLinks: SidebarLink[] = [
   },
   {
     href: "/admin/broker-offers",
-    label: "Broker Offers",
+    label: "Offers & Discounts",
     icon: Sparkles,
     allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
-  },
-  {
-    href: "/admin/coupons",
-    label: "Coupons",
-    icon: Tag,
-    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     href: "/admin/payment-methods",
@@ -197,7 +191,8 @@ export function AdminSidebar({ userRole = "ADMIN", userEmail = "" }: AdminSideba
         {visibleLinks.map((link) => {
           const isActive =
             pathname === link.href ||
-            (link.href !== "/admin" && pathname.startsWith(link.href));
+            (link.href !== "/admin" && pathname.startsWith(link.href)) ||
+            (link.href === "/admin/broker-offers" && pathname.startsWith("/admin/coupons"));
           return (
             <Link
               key={link.href}
