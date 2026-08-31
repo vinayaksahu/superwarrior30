@@ -26,7 +26,7 @@ export default async function AdminReferralsPage({
 
   const data = await getAdminReferralDashboardAction({
     page,
-    limit: 20,
+    pageSize: 20,
     level,
     status,
     search,
