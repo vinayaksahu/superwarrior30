@@ -130,10 +130,10 @@ export function AdminBrokerOffersClient({
     try {
       const res = await updateBrokerAdminSettingsAction(settings);
       if (res.success) {
-        toast.success(res.message);
+        toast.success(res.message || "Broker Offer and Stacking Settings updated successfully!");
         router.refresh();
       } else {
-        toast.error(res.message);
+        toast.error(res.message || "Failed to update settings.");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to update settings.");
@@ -233,16 +233,25 @@ export function AdminBrokerOffersClient({
     setSettings({ ...settings, eligibleCourseIds: next });
   };
 
+  // Safe claims array extraction
+  const claimsList: ClaimItem[] = Array.isArray(claimsData?.claims)
+    ? claimsData.claims
+    : Array.isArray(claimsData)
+    ? (claimsData as any)
+    : [];
+
+  const totalClaimsCount: number = claimsData?.totalCount ?? claimsList.length;
+
   // Filter claims locally based on criteria
-  const filteredClaims = claimsData.claims.filter((c) => {
+  const filteredClaims = claimsList.filter((c) => {
     if (statusFilter !== "ALL" && c.cashbackStatus !== statusFilter) return false;
     if (modeFilter !== "ALL" && c.mode !== modeFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      const matchMember = c.brokerMemberId.toLowerCase().includes(q);
-      const matchEmail = c.user.email.toLowerCase().includes(q);
-      const matchName = (c.user.name || "").toLowerCase().includes(q);
-      const matchOrder = c.order.orderNumber.toLowerCase().includes(q);
+      const matchMember = (c.brokerMemberId || "").toLowerCase().includes(q);
+      const matchEmail = (c.user?.email || "").toLowerCase().includes(q);
+      const matchName = ((c.user?.name) || "").toLowerCase().includes(q);
+      const matchOrder = ((c.order?.orderNumber) || "").toLowerCase().includes(q);
       if (!matchMember && !matchEmail && !matchName && !matchOrder) return false;
     }
     return true;
@@ -290,7 +299,7 @@ export function AdminBrokerOffersClient({
             }`}
           >
             <ListFilter className="h-4 w-4" />
-            Claims &amp; Cashback Ledger ({claimsData.totalCount})
+            Claims &amp; Cashback Ledger ({totalClaimsCount})
           </button>
         </div>
       </div>
