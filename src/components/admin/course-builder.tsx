@@ -39,6 +39,9 @@ interface LessonType {
   contentType: string;
   videoKey: string | null;
   pdfKey: string | null;
+  bunnyVideoId?: string | null;
+  bunnyCdnUrl?: string | null;
+  mediaProvider?: string | null;
   textContent: string | null;
   durationSec: number;
   isFreePreview: boolean;
