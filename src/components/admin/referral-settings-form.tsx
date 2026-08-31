@@ -120,9 +120,9 @@ export function ReferralSettingsForm({
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Referral Program Status</h2>
+            <h2 className="text-lg font-bold text-foreground">Affiliate Program Status</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Enable or disable multi-level referral commission generation system-wide
+              Enable or disable multi-level affiliate commission generation system-wide
             </p>
           </div>
 
@@ -141,7 +141,7 @@ export function ReferralSettingsForm({
           <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-500 font-medium">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>
-              The referral program is currently disabled. No new referral commissions will be generated on course purchases.
+              The affiliate program is currently disabled. No new affiliate commissions will be generated on course purchases.
             </span>
           </div>
         )}

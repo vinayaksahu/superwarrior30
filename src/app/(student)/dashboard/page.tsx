@@ -109,7 +109,7 @@ export default async function StudentDashboardPage() {
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-xs font-semibold uppercase tracking-wider">Network Referrals</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Total Affiliates</span>
             <GitBranch className="h-4 w-4 text-primary" />
           </div>
           <p className="text-2xl font-extrabold text-foreground">{referralCount}</p>

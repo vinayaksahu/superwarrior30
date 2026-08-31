@@ -29,19 +29,19 @@ export function ReferralLinkCard({
   const handleCopyCode = () => {
     navigator.clipboard.writeText(referralCode);
     setCopiedCode(true);
-    toast.success("Referral code copied to clipboard!");
+    toast.success("Affiliate code copied to clipboard!");
     setTimeout(() => setCopiedCode(false), 2500);
   };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(currentLink);
     setCopiedLink(true);
-    toast.success("Referral link copied to clipboard!");
+    toast.success("Affiliate link copied to clipboard!");
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
   const handleWhatsAppShare = () => {
-    const shareMessage = `Join Super Warrior 30 and master trading with professional strategies! Use my referral link: ${currentLink}`;
+    const shareMessage = `Join Super Warrior 30 and master trading with professional strategies! Use my affiliate link: ${currentLink}`;
     const url = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
     window.open(url, "_blank");
   };
@@ -51,7 +51,7 @@ export function ReferralLinkCard({
       {/* Header */}
       <div className="flex items-center gap-2 text-primary font-bold text-xs sm:text-sm uppercase tracking-wider">
         <Sparkles className="h-4 w-4 shrink-0" />
-        <span>Your Referral Invitation</span>
+        <span>Your Affiliate Invitation</span>
       </div>
 
       {/* Inputs Grid */}
@@ -59,7 +59,7 @@ export function ReferralLinkCard({
         {/* Referral Code Box */}
         <div className="space-y-1.5 min-w-0">
           <label className="text-xs font-semibold text-muted-foreground">
-            Unique Referral Code
+            Unique Affiliate Code
           </label>
           <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 sm:px-4 py-2.5 shadow-inner min-w-0 w-full overflow-hidden">
             <span className="font-mono text-lg sm:text-xl font-extrabold tracking-widest text-primary truncate select-all">
@@ -79,7 +79,7 @@ export function ReferralLinkCard({
         {/* Shareable Link Box */}
         <div className="space-y-1.5 min-w-0">
           <label className="text-xs font-semibold text-muted-foreground">
-            Shareable Invitation Link
+            Shareable Affiliate Link
           </label>
           <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 sm:px-4 py-2.5 shadow-inner min-w-0 w-full overflow-hidden">
             <span className="truncate flex-1 min-w-0 text-xs font-mono text-muted-foreground select-all">

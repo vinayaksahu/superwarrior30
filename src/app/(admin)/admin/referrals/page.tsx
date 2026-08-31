@@ -8,24 +8,25 @@ import { Settings, Users, GitBranch, IndianRupee, Clock, Search, Trophy, ArrowRi
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Referral Program Management",
+  title: "Affiliate Program Management",
 };
 
 export default async function AdminReferralsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; level?: string; status?: string; search?: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   await requireAdmin();
 
   const params = await searchParams;
-  const page = parseInt(params.page || "1");
-  const level = params.level || "all";
-  const status = params.status || "all";
-  const search = params.search || "";
+  const page = typeof params.page === "string" ? parseInt(params.page, 10) : 1;
+  const level = typeof params.level === "string" ? params.level : "all";
+  const status = typeof params.status === "string" ? params.status : "all";
+  const search = typeof params.search === "string" ? params.search : "";
 
   const data = await getAdminReferralDashboardAction({
     page,
+    limit: 20,
     level,
     status,
     search,
@@ -36,9 +37,9 @@ export default async function AdminReferralsPage({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Referral Program</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Affiliate Program</h1>
           <p className="text-sm text-muted-foreground">
-            Overview of referral tree network growth, payouts, and multi-tier commission logs
+            Overview of affiliate tree network growth, payouts, and multi-tier commission logs
           </p>
         </div>
 

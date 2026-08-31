@@ -44,7 +44,7 @@ export function ReferralNetworkTree({
             </span>
             <p className="text-2xl font-extrabold text-foreground">{l.count}</p>
             <span className="text-[10px] text-muted-foreground">
-              {l.level === 1 ? "Direct Referrals" : `Tier ${l.level} Network`}
+              {l.level === 1 ? "Direct Affiliates" : `Tier ${l.level} Network`}
             </span>
           </div>
         ))}
@@ -54,15 +54,15 @@ export function ReferralNetworkTree({
       {network.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center text-xs text-muted-foreground space-y-2">
           <GitBranch className="mx-auto h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm font-semibold text-foreground">No network referrals yet</p>
-          <p>Share your referral link with peers and fellow traders to start building your network.</p>
+          <p className="text-sm font-semibold text-foreground">No affiliate network yet</p>
+          <p>Share your affiliate link with peers and fellow traders to start building your network.</p>
         </div>
       ) : (
         <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between border-b border-border pb-3">
             <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <GitBranch className="h-4 w-4 text-primary" />
-              Referral Hierarchy Network Tree
+              Affiliate Hierarchy Network Tree
             </h3>
             <span className="text-xs text-muted-foreground font-medium">
               {network.length} Total Members

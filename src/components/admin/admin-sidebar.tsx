@@ -108,7 +108,7 @@ const allSidebarLinks: SidebarLink[] = [
   },
   {
     href: "/admin/referrals",
-    label: "Referrals",
+    label: "Affiliate",
     icon: GitBranch,
     allowedRoles: ["SUPER_ADMIN"],
   },

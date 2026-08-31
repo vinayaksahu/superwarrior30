@@ -147,7 +147,7 @@ export function AdminCommissionClearanceClient({
             href="/admin/referrals"
             className="inline-flex items-center gap-2 rounded-xl border border-input bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
           >
-            ← Referrals Overview
+            ← Affiliate Overview
           </Link>
 
           <button

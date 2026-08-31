@@ -8,7 +8,7 @@ import { Users, IndianRupee, Clock, GitBranch } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Referrals & Network",
+  title: "Affiliate Program",
 };
 
 export default async function StudentReferralsPage() {
@@ -19,10 +19,10 @@ export default async function StudentReferralsPage() {
       {/* Top Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Referrals & Network
+          Affiliate & Partner Program
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Share your referral invitation link and earn multi-tier commissions as your network grows
+          Share your affiliate invitation link and earn multi-tier commissions as your network grows
         </p>
       </div>
 
@@ -36,7 +36,7 @@ export default async function StudentReferralsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-1">
           <span className="text-xs font-semibold uppercase text-muted-foreground">
-            Direct Referrals
+            Direct Affiliates
           </span>
           <p className="text-2xl font-extrabold text-foreground">
             {data.stats.directReferrals}
@@ -85,7 +85,7 @@ export default async function StudentReferralsPage() {
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <h3 className="text-base font-bold text-foreground">
-            Referral Earnings History
+            Affiliate Earnings History
           </h3>
           <span className="text-xs text-muted-foreground">
             {data.earningsHistory.length} Transactions

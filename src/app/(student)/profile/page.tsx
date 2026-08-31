@@ -62,7 +62,7 @@ export default async function StudentProfilePage() {
 
         <div className="grid grid-cols-2 gap-4 text-xs sm:grid-cols-3">
           <div>
-            <span className="text-muted-foreground block text-[11px]">Referral Code</span>
+            <span className="text-muted-foreground block text-[11px]">Affiliate Code</span>
             <span className="font-mono font-bold text-foreground">{user.referralCode}</span>
           </div>
           <div>

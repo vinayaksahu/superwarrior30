@@ -55,7 +55,7 @@ const allSidebarLinks: SidebarLink[] = [
   { href: "/admin/leads", label: "Leads", icon: ContactRound, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/funnel", label: "Funnel Analytics", icon: BarChart3, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
   { href: "/admin/testimonials", label: "Testimonials", icon: Star, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
-  { href: "/admin/referrals", label: "Referrals", icon: GitBranch, allowedRoles: ["SUPER_ADMIN"] },
+  { href: "/admin/referrals", label: "Affiliate", icon: GitBranch, allowedRoles: ["SUPER_ADMIN"] },
   { href: "/admin/wallet", label: "Wallet", icon: Wallet, allowedRoles: ["SUPER_ADMIN"] },
   { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck, allowedRoles: ["SUPER_ADMIN"] },
   { href: "/admin/settings", label: "Settings", icon: Settings, allowedRoles: ["SUPER_ADMIN"] },

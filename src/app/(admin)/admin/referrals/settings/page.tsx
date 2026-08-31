@@ -6,7 +6,7 @@ import { requireAdmin } from "@/server/dal/auth";
 import { ArrowLeft } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Referral Program Settings",
+  title: "Affiliate Program Settings",
 };
 
 export default async function AdminReferralSettingsPage() {
@@ -25,10 +25,10 @@ export default async function AdminReferralSettingsPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Referral Configuration
+            Affiliate Configuration
           </h1>
           <p className="text-sm text-muted-foreground">
-            Manage multi-tier referral depths, commission percentages, and global toggles
+            Manage multi-tier affiliate depths, commission percentages, and global toggles
           </p>
         </div>
       </div>

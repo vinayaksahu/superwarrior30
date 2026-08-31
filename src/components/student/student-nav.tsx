@@ -19,7 +19,7 @@ const navLinks = [
   { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
   { href: "/dashboard/live", label: "Live Classes", icon: Radio },
   { href: "/dashboard/cashbacks", label: "Broker Cashbacks", icon: Sparkles },
-  { href: "/referrals", label: "Referrals", icon: GitBranch },
+  { href: "/referrals", label: "Affiliate", icon: GitBranch },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
   { href: "/profile", label: "Profile", icon: User },
