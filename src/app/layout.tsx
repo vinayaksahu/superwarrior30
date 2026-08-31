@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { SessionGuard } from "@/components/auth/session-guard";
+import { MaintenanceGuard } from "@/components/shared/maintenance-guard";
 import "./globals.css";
 
 const inter = Inter({
@@ -45,7 +46,9 @@ export default function RootLayout({
           enableSystem={true}
           disableTransitionOnChange={false}
         >
-          {children}
+          <MaintenanceGuard>
+            {children}
+          </MaintenanceGuard>
           <SessionGuard />
           <Toaster richColors position="top-right" />
         </ThemeProvider>

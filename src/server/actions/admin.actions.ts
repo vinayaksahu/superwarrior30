@@ -310,8 +310,10 @@ export async function saveAdminSettingsAction(
     });
   });
 
+  revalidatePath("/", "layout");
   revalidatePath("/admin/settings");
-  revalidatePath("/");
+  revalidatePath("/courses");
+  revalidatePath("/dashboard");
   return { success: true, message: "Platform settings saved successfully." };
 }
 
