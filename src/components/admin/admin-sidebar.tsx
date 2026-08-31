@@ -59,9 +59,27 @@ const allSidebarLinks: SidebarLink[] = [
     allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
   },
   {
+    href: "/admin/referrals",
+    label: "Affiliate",
+    icon: GitBranch,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
     href: "/admin/orders",
     label: "Orders",
     icon: ShoppingCart,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/withdrawals",
+    label: "Withdrawals",
+    icon: ArrowDownToLine,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/wallet",
+    label: "Wallet",
+    icon: Wallet,
     allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
   },
   {
@@ -74,12 +92,6 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/coupons",
     label: "Coupons",
     icon: Tag,
-    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
-  },
-  {
-    href: "/admin/withdrawals",
-    label: "Withdrawals",
-    icon: ArrowDownToLine,
     allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
@@ -104,18 +116,6 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/testimonials",
     label: "Testimonials",
     icon: Star,
-    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
-  },
-  {
-    href: "/admin/referrals",
-    label: "Affiliate",
-    icon: GitBranch,
-    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
-  },
-  {
-    href: "/admin/wallet",
-    label: "Wallet",
-    icon: Wallet,
     allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
