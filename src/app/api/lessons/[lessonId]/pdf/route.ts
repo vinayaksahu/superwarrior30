@@ -7,12 +7,12 @@ import { isR2Configured, r2 } from "@/lib/r2";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { PDFDocument } from "pdf-lib";
 
-async function slicePdfPages(pdfBuffer: Buffer, maxPages: number): Promise<Buffer> {
+async function slicePdfPages(pdfBytes: Uint8Array | Buffer, maxPages: number): Promise<Uint8Array> {
   try {
-    const srcDoc = await PDFDocument.load(pdfBuffer);
+    const srcDoc = await PDFDocument.load(pdfBytes);
     const totalPages = srcDoc.getPageCount();
     if (totalPages <= maxPages) {
-      return pdfBuffer;
+      return pdfBytes;
     }
 
     const previewDoc = await PDFDocument.create();
@@ -20,11 +20,10 @@ async function slicePdfPages(pdfBuffer: Buffer, maxPages: number): Promise<Buffe
     const copiedPages = await previewDoc.copyPages(srcDoc, pageIndices);
     copiedPages.forEach((page) => previewDoc.addPage(page));
 
-    const previewBytes = await previewDoc.save();
-    return Buffer.from(previewBytes);
+    return await previewDoc.save();
   } catch (err) {
     console.error("[PDF Slice Error]:", err);
-    return pdfBuffer;
+    return pdfBytes;
   }
 }
 
@@ -90,18 +89,18 @@ export async function GET(
     const shouldLimitPages = isPreviewParam || (!isEnrolled && !isAdmin && lesson.isFreePreview);
     const maxPages = lesson.durationSec && lesson.durationSec > 0 ? lesson.durationSec : 1;
 
-    // 3. Handle Bunny CDN / HTTP URL (stream directly to prevent CORS/iframe blocking issues with dual fallback)
+    // 3. Handle Bunny CDN / HTTP URL (stream directly with dual fallback)
     const effectivePdfUrl = lesson.bunnyCdnUrl || (lesson.pdfKey?.startsWith("http") ? lesson.pdfKey : null);
     if (effectivePdfUrl) {
       try {
-        let pdfBuffer: Buffer | null = null;
+        let pdfBytes: Uint8Array | null = null;
 
         // Attempt 1: Fetch via Bunny CDN
         try {
           const cdnRes = await fetch(effectivePdfUrl);
           if (cdnRes.ok) {
             const arrayBuffer = await cdnRes.arrayBuffer();
-            pdfBuffer = Buffer.from(arrayBuffer);
+            pdfBytes = new Uint8Array(arrayBuffer);
           }
         } catch (cdnFetchErr) {
           console.warn("[PDF Stream] Bunny CDN fetch error, trying storage fallback:", cdnFetchErr);
@@ -109,7 +108,7 @@ export async function GET(
 
         // Attempt 2: Direct Bunny Storage fetch fallback (authorized with AccessKey)
         const bunnyConfig = await getResolvedBunnyConfig();
-        if (!pdfBuffer && bunnyConfig.storageZoneName && bunnyConfig.storagePassword) {
+        if (!pdfBytes && bunnyConfig.storageZoneName && bunnyConfig.storagePassword) {
           try {
             const cdnBase = bunnyConfig.cdnHostname ? `https://${bunnyConfig.cdnHostname.replace(/^https?:\/\//, "")}` : bunnyCdnConfig.baseUrl;
             const storagePath = effectivePdfUrl.replace(cdnBase, "").replace(/^\/+/, "");
@@ -121,19 +120,19 @@ export async function GET(
             });
             if (storageRes.ok) {
               const arrayBuffer = await storageRes.arrayBuffer();
-              pdfBuffer = Buffer.from(arrayBuffer);
+              pdfBytes = new Uint8Array(arrayBuffer);
             }
           } catch (storageErr) {
             console.error("[PDF Stream] Direct Bunny Storage fallback error:", storageErr);
           }
         }
 
-        if (pdfBuffer) {
+        if (pdfBytes) {
           if (shouldLimitPages) {
-            pdfBuffer = await slicePdfPages(pdfBuffer, maxPages);
+            pdfBytes = await slicePdfPages(pdfBytes, maxPages);
           }
 
-          return new NextResponse(new Uint8Array(pdfBuffer), {
+          return new NextResponse(Buffer.from(pdfBytes), {
             headers: {
               "Content-Type": "application/pdf",
               "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
@@ -157,13 +156,13 @@ export async function GET(
     // 4. Handle base64 data URI
     if (pdfKey.startsWith("data:application/pdf;base64,")) {
       const base64Data = pdfKey.split(",")[1];
-      let buffer = Buffer.from(base64Data, "base64");
+      let pdfBytes: Uint8Array = Buffer.from(base64Data, "base64");
 
       if (shouldLimitPages) {
-        buffer = await slicePdfPages(buffer, maxPages);
+        pdfBytes = await slicePdfPages(pdfBytes, maxPages);
       }
 
-      return new NextResponse(new Uint8Array(buffer), {
+      return new NextResponse(Buffer.from(pdfBytes), {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
@@ -185,13 +184,13 @@ export async function GET(
         const s3Response = await r2.send(command);
         if (s3Response.Body) {
           const bytes = await s3Response.Body.transformToByteArray();
-          let buffer = Buffer.from(bytes);
+          let pdfBytes: Uint8Array = bytes;
 
           if (shouldLimitPages) {
-            buffer = await slicePdfPages(buffer, maxPages);
+            pdfBytes = await slicePdfPages(pdfBytes, maxPages);
           }
 
-          return new NextResponse(new Uint8Array(buffer), {
+          return new NextResponse(Buffer.from(pdfBytes), {
             headers: {
               "Content-Type": "application/pdf",
               "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
