@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { UploadCloud, CheckCircle2, AlertCircle, Loader2, FileIcon, X, Film, Pause, Play } from "lucide-react";
+import { UploadCloud, CheckCircle2, AlertCircle, Loader2, FileIcon, X, Film, Pause, Play, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import * as tus from "tus-js-client";
 import { BUNNY_VIDEO_POLL_INTERVAL } from "@/lib/constants";
@@ -111,12 +111,17 @@ export function FileUploader({
 
       setEncodingProgress(data.encodeProgress || 0);
 
-      if (data.isReady) {
+      if (data.isReady || data.status === "FINISHED" || (typeof data.encodeProgress === "number" && data.encodeProgress >= 100)) {
         setStatus("completed");
         setEncodingProgress(100);
         if (encodingPollRef.current) {
           clearInterval(encodingPollRef.current);
           encodingPollRef.current = null;
+        }
+        if (lessonId) {
+          getLessonPreviewMediaUrlAction(lessonId).then((mediaRes) => {
+            if (mediaRes?.signedUrl) setVideoEmbedUrl(mediaRes.signedUrl);
+          });
         }
         toast.success("Video encoding complete! Ready for playback.");
       } else if (data.status === "FAILED") {
@@ -130,7 +135,7 @@ export function FileUploader({
     } catch {
       // Silently continue polling
     }
-  }, []);
+  }, [lessonId]);
 
   // Poll timer for encoding state
   useEffect(() => {
@@ -719,9 +724,19 @@ export function FileUploader({
               Upload Different File
             </button>
           ) : status === "encoding" ? (
-            <p className="text-xs text-muted-foreground">
-              Encoding continues in background on Bunny CDN.
-            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => encodingVideoId && pollEncodingStatus(encodingVideoId)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/20 cursor-pointer transition-colors"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Check Status Now
+              </button>
+              <span className="text-xs text-muted-foreground">
+                (Saved in background)
+              </span>
+            </div>
           ) : (
             <button
               type="button"
