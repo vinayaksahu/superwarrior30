@@ -56,6 +56,17 @@ export function FileUploader({
   const [fileName, setFileName] = useState<string | null>(null);
   const [encodingProgress, setEncodingProgress] = useState<number>(0);
   const [encodingVideoId, setEncodingVideoId] = useState<string | null>(currentBunnyVideoId || null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    currentKey && (currentKey.startsWith("http") || currentKey.startsWith("data:") || currentKey.startsWith("/"))
+      ? currentKey
+      : null
+  );
+
+  useEffect(() => {
+    if (currentKey && (currentKey.startsWith("http") || currentKey.startsWith("data:") || currentKey.startsWith("/"))) {
+      setPreviewUrl(currentKey);
+    }
+  }, [currentKey]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const encodingPollRef = useRef<NodeJS.Timeout | null>(null);
@@ -366,6 +377,13 @@ export function FileUploader({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (category === "thumbnail" || category === "image") {
+      try {
+        const localUrl = URL.createObjectURL(file);
+        setPreviewUrl(localUrl);
+      } catch {}
+    }
+
     if (fileInputRef.current) fileInputRef.current.value = "";
 
     // Route videos to direct TUS upload (bypasses Next.js server body limit)
@@ -410,6 +428,85 @@ export function FileUploader({
   };
 
   const hasExistingFile = currentKey || currentBunnyVideoId;
+  const isImageCategory = category === "thumbnail" || category === "image";
+  const displayImageSrc =
+    previewUrl ||
+    (currentKey && (currentKey.startsWith("http") || currentKey.startsWith("data:") || currentKey.startsWith("/"))
+      ? currentKey
+      : null);
+  const showImagePreview = isImageCategory && Boolean(displayImageSrc) && status !== "error";
+
+  if (showImagePreview) {
+    return (
+      <div className="space-y-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={defaultAccept}
+          className="hidden"
+          onChange={handleFileChange}
+          disabled={status === "uploading" || status === "saving"}
+        />
+
+        <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border bg-black/40 shadow-sm group">
+          <img
+            src={displayImageSrc!}
+            alt="Course Thumbnail"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            onError={(e) => {
+              // If image fails to load, fallback
+              (e.target as HTMLElement).style.display = "none";
+            }}
+          />
+
+          {/* Active Thumbnail Badge */}
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-md bg-black/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 border border-emerald-500/30 backdrop-blur-md">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            <span>Active Thumbnail</span>
+          </div>
+
+          {/* Uploading Progress Overlay */}
+          {(status === "uploading" || status === "saving") && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm p-4 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+              <p className="text-xs font-semibold text-white">
+                {status === "uploading" ? `Uploading Thumbnail (${progress}%)...` : "Saving Record..."}
+              </p>
+              <div className="mt-3 w-full max-w-xs h-1.5 overflow-hidden rounded-full bg-neutral-800">
+                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          )}
+
+          {/* Hover Overlay Button */}
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <UploadCloud className="h-4 w-4" />
+              Change / Replace Thumbnail
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+          <span className="truncate max-w-[220px] font-mono text-[11px]">
+            {fileName || (displayImageSrc!.startsWith("http") ? displayImageSrc!.split("/").pop() : "Uploaded Thumbnail")}
+          </span>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+          >
+            <UploadCloud className="h-3.5 w-3.5" />
+            Upload Different File
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-dashed border-border bg-card/50 p-5 transition-colors hover:border-primary/40">

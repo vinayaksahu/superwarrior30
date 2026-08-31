@@ -52,7 +52,7 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
   };
 
   const handleThumbnailUpload = async (result: { key: string | null; bunnyVideoId: string | null; cdnUrl: string | null; provider: "R2" | "BUNNY" }) => {
-    const newKey = result.key || result.cdnUrl || "";
+    const newKey = result.cdnUrl || result.key || "";
     setThumbnailKey(newKey);
     if (isEdit && course?.id) {
       await updateCourseThumbnailAction(course.id, result.key || "", result.cdnUrl, result.provider);

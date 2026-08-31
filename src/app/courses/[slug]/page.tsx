@@ -124,10 +124,10 @@ export default async function CourseDetailPage({
             {/* Pricing / Enrollment Sticky Card */}
             <div className="lg:col-span-1">
               <div className="sticky top-24 rounded-2xl border border-border bg-card p-6 shadow-xl space-y-6 overflow-hidden">
-                {course.thumbnailCdnUrl && (
+                {(course.thumbnailUrl || course.thumbnailCdnUrl) && (
                   <div className="relative -mx-6 -mt-6 aspect-video overflow-hidden border-b border-border bg-muted">
                     <img
-                      src={course.thumbnailCdnUrl}
+                      src={course.thumbnailUrl || course.thumbnailCdnUrl || ""}
                       alt={course.title}
                       className="h-full w-full object-cover"
                     />
