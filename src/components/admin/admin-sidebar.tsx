@@ -22,6 +22,7 @@ import {
   Radio,
   Sparkles,
   Cloud,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,12 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/orders",
     label: "Orders",
     icon: ShoppingCart,
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
+  },
+  {
+    href: "/admin/support",
+    label: "Support Desk",
+    icon: LifeBuoy,
     allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"],
   },
   {

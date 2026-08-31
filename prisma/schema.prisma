@@ -945,5 +945,35 @@ model MediaProviderConfig {
   @@map("media_provider_configs")
 }
 
+// ==========================================
+// SUPPORT & INQUIRY SYSTEM
+// ==========================================
 
+enum SupportInquiryStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
 
+model SupportInquiry {
+  id          String               @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  subject     String
+  message     String               @db.Text
+  category    String               @default("GENERAL")
+  status      SupportInquiryStatus @default(NEW)
+  orderNumber String?
+  adminNotes  String?              @db.Text
+  userId      String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt(sort: Desc)])
+  @@map("support_inquiries")
+}

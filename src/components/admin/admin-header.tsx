@@ -23,6 +23,7 @@ import {
   ContactRound,
   BarChart3,
   Star,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,7 @@ const allSidebarLinks: SidebarLink[] = [
   { href: "/admin/students", label: "Students", icon: Users, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/referrals", label: "Affiliate", icon: GitBranch, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
+  { href: "/admin/support", label: "Support Desk", icon: LifeBuoy, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/wallet", label: "Wallet", icon: Wallet, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { href: "/admin/coupons", label: "Coupons", icon: Tag, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
