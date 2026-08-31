@@ -369,6 +369,28 @@ export async function GET() {
       ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyVideoId" TEXT;
       ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyCdnUrl" TEXT;
       ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "mediaProvider" TEXT DEFAULT 'BUNNY';
+
+      -- Support Inquiries Table
+      DO $$ BEGIN
+        CREATE TYPE "SupportInquiryStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "support_inquiries" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "email" TEXT NOT NULL,
+        "phone" TEXT,
+        "subject" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "category" TEXT NOT NULL DEFAULT 'GENERAL',
+        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'NEW',
+        "orderNumber" TEXT,
+        "adminNotes" TEXT,
+        "userId" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     // Step 1.5: Seed default UPI and Crypto Payment Methods if table is empty

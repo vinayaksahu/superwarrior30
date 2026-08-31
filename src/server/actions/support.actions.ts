@@ -18,8 +18,46 @@ const contactInquirySchema = z.object({
 
 export type SubmitContactInquiryInput = z.infer<typeof contactInquirySchema>;
 
+let isTableVerified = false;
+
+async function ensureSupportInquiriesTable() {
+  if (isTableVerified) return;
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "SupportInquiryStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "support_inquiries" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "email" TEXT NOT NULL,
+        "phone" TEXT,
+        "subject" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "category" TEXT NOT NULL DEFAULT 'GENERAL',
+        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'NEW',
+        "orderNumber" TEXT,
+        "adminNotes" TEXT,
+        "userId" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "support_inquiries_email_idx" ON "support_inquiries"("email");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_status_idx" ON "support_inquiries"("status");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_createdAt_idx" ON "support_inquiries"("createdAt" DESC);
+    `);
+    isTableVerified = true;
+  } catch (err) {
+    console.error("Auto table migration warning for support_inquiries:", err);
+  }
+}
+
 export async function submitSupportInquiryAction(input: SubmitContactInquiryInput) {
   try {
+    await ensureSupportInquiriesTable();
     const validated = contactInquirySchema.parse(input);
 
     const inquiry = await prisma.supportInquiry.create({
@@ -63,6 +101,7 @@ export async function getAdminSupportInquiriesAction(params: {
   search?: string;
 }) {
   await requireAdmin();
+  await ensureSupportInquiriesTable();
 
   const page = Math.max(1, params.page || 1);
   const pageSize = Math.min(100, Math.max(1, params.pageSize || 20));
@@ -90,40 +129,61 @@ export async function getAdminSupportInquiriesAction(params: {
     ];
   }
 
-  const [inquiries, totalCount, statsNew, statsInProgress, statsResolved, statsClosed] = await Promise.all([
-    prisma.supportInquiry.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: pageSize,
-    }),
-    prisma.supportInquiry.count({ where }),
-    prisma.supportInquiry.count({ where: { status: "NEW" } }),
-    prisma.supportInquiry.count({ where: { status: "IN_PROGRESS" } }),
-    prisma.supportInquiry.count({ where: { status: "RESOLVED" } }),
-    prisma.supportInquiry.count({ where: { status: "CLOSED" } }),
-  ]);
+  try {
+    const [inquiries, totalCount, statsNew, statsInProgress, statsResolved, statsClosed] = await Promise.all([
+      prisma.supportInquiry.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.supportInquiry.count({ where }),
+      prisma.supportInquiry.count({ where: { status: "NEW" } }),
+      prisma.supportInquiry.count({ where: { status: "IN_PROGRESS" } }),
+      prisma.supportInquiry.count({ where: { status: "RESOLVED" } }),
+      prisma.supportInquiry.count({ where: { status: "CLOSED" } }),
+    ]);
 
-  return {
-    inquiries: inquiries.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    pagination: {
-      page,
-      pageSize,
-      totalCount,
-      totalPages: Math.ceil(totalCount / pageSize),
-    },
-    metrics: {
-      total: statsNew + statsInProgress + statsResolved + statsClosed,
-      new: statsNew,
-      inProgress: statsInProgress,
-      resolved: statsResolved,
-      closed: statsClosed,
-    },
-  };
+    return {
+      inquiries: inquiries.map((item) => ({
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+      })),
+      pagination: {
+        page,
+        pageSize,
+        totalCount,
+        totalPages: Math.ceil(totalCount / pageSize),
+      },
+      metrics: {
+        total: statsNew + statsInProgress + statsResolved + statsClosed,
+        new: statsNew,
+        inProgress: statsInProgress,
+        resolved: statsResolved,
+        closed: statsClosed,
+      },
+    };
+  } catch (err) {
+    console.error("Error fetching support inquiries:", err);
+    // Return graceful fallback so page never crashes
+    return {
+      inquiries: [],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        totalCount: 0,
+        totalPages: 1,
+      },
+      metrics: {
+        total: 0,
+        new: 0,
+        inProgress: 0,
+        resolved: 0,
+        closed: 0,
+      },
+    };
+  }
 }
 
 export async function updateSupportInquiryStatusAction(params: {
@@ -132,6 +192,7 @@ export async function updateSupportInquiryStatusAction(params: {
   adminNotes?: string;
 }) {
   await requireAdmin();
+  await ensureSupportInquiriesTable();
 
   try {
     const updated = await prisma.supportInquiry.update({
@@ -155,6 +216,7 @@ export async function updateSupportInquiryStatusAction(params: {
 
 export async function deleteSupportInquiryAction(id: string) {
   await requireAdmin();
+  await ensureSupportInquiriesTable();
 
   try {
     await prisma.supportInquiry.delete({
