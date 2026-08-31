@@ -314,3 +314,91 @@ export async function saveAdminSettingsAction(
   revalidatePath("/");
   return { success: true, message: "Platform settings saved successfully." };
 }
+
+// ==========================================
+// 5. ADMIN PROFILE & BACKUP HELPERS
+// ==========================================
+
+export async function getAdminProfileAction() {
+  const admin = await requireAdmin();
+
+  const user = await prisma.user.findUnique({
+    where: { id: admin.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      status: true,
+      createdAt: true,
+      lastLoginAt: true,
+    },
+  });
+
+  return user;
+}
+
+export async function triggerDatabaseSyncAction() {
+  const admin = await requireAdmin();
+
+  try {
+    const { ensureDatabaseSchemaSync } = await import("@/lib/db-sync");
+    await ensureDatabaseSchemaSync();
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: admin.id,
+        actorEmail: admin.email,
+        actorRole: admin.role,
+        action: "DATABASE_SCHEMA_SYNC",
+        entityType: "System",
+        entityId: "postgres",
+      },
+    });
+
+    return { success: true, message: "Database schema verification & migration completed successfully." };
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Failed to execute database schema sync." };
+  }
+}
+
+export async function getDatabaseBackupDataAction() {
+  await requireAdmin();
+
+  try {
+    const [
+      usersCount,
+      coursesCount,
+      ordersCount,
+      settingsCount,
+      claimsCount,
+      couponsCount,
+      auditLogsCount,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.course.count(),
+      prisma.order.count(),
+      prisma.siteSetting.count(),
+      prisma.brokerOfferClaim.count().catch(() => 0),
+      prisma.coupon.count(),
+      prisma.auditLog.count(),
+    ]);
+
+    return {
+      success: true,
+      stats: {
+        usersCount,
+        coursesCount,
+        ordersCount,
+        settingsCount,
+        claimsCount,
+        couponsCount,
+        auditLogsCount,
+        exportedAt: new Date().toISOString(),
+      },
+    };
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Failed to load database backup metrics." };
+  }
+}

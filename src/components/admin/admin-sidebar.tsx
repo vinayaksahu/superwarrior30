@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -7,7 +8,6 @@ import {
   BookOpen,
   Users,
   ShoppingCart,
-  Tag,
   GitBranch,
   Wallet,
   ArrowDownToLine,
@@ -21,17 +21,30 @@ import {
   Star,
   Radio,
   Sparkles,
-  Cloud,
   LifeBuoy,
+  ChevronDown,
+  ChevronRight,
+  Globe,
+  UserCheck,
+  Cloud,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface SidebarSubLink {
+  href: string;
+  label: string;
+  exact?: boolean;
+  icon?: LucideIcon;
+}
 
 interface SidebarLink {
   href: string;
   label: string;
   icon: LucideIcon;
   allowedRoles: ("SUPER_ADMIN" | "ADMIN" | "SUPPORT")[];
+  children?: SidebarSubLink[];
 }
 
 const allSidebarLinks: SidebarLink[] = [
@@ -130,12 +143,12 @@ const allSidebarLinks: SidebarLink[] = [
     label: "Settings",
     icon: Settings,
     allowedRoles: ["SUPER_ADMIN", "ADMIN"],
-  },
-  {
-    href: "/admin/settings/media-storage",
-    label: "Media Storage (Bunny)",
-    icon: Cloud,
-    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+    children: [
+      { href: "/admin/settings", label: "General & Branding", exact: true, icon: Globe },
+      { href: "/admin/settings/profile", label: "Profile & Password", exact: true, icon: UserCheck },
+      { href: "/admin/settings/media-storage", label: "Media Storage (Bunny)", exact: false, icon: Cloud },
+      { href: "/admin/settings/backups", label: "Backups & Database", exact: true, icon: Database },
+    ],
   },
   {
     href: "/admin/recycle-bin",
@@ -162,6 +175,9 @@ export function AdminSidebar({ userRole = "ADMIN", userEmail = "" }: AdminSideba
   const isSuper = userRole === "SUPER_ADMIN" || userEmail === "admin@superwarrior30.com";
   const effectiveRole = isSuper ? "SUPER_ADMIN" : (userRole as "ADMIN" | "SUPPORT");
 
+  // Keep settings sub-menu open by default or when on settings routes
+  const [settingsOpen, setSettingsOpen] = useState(true);
+
   // Filter links based on role permissions
   const visibleLinks = allSidebarLinks.filter((link) =>
     link.allowedRoles.includes(effectiveRole)
@@ -187,20 +203,76 @@ export function AdminSidebar({ userRole = "ADMIN", userEmail = "" }: AdminSideba
           </div>
         </Link>
       </div>
-      <nav className="space-y-1 p-4">
+      <nav className="space-y-1 p-4 overflow-y-auto max-h-[calc(100vh-4rem)]">
         {visibleLinks.map((link) => {
-          const isActive =
+          const hasChildren = Boolean(link.children && link.children.length > 0);
+          const isParentActive =
             pathname === link.href ||
             (link.href !== "/admin" && pathname.startsWith(link.href)) ||
             (link.href === "/admin/broker-offers" && pathname.startsWith("/admin/coupons"));
+
+          if (hasChildren) {
+            return (
+              <div key={link.href} className="space-y-1">
+                <div
+                  onClick={() => setSettingsOpen(!settingsOpen)}
+                  className={cn(
+                    "flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer select-none",
+                    isParentActive
+                      ? "bg-sidebar-accent/60 text-sidebar-accent-foreground font-semibold"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <link.icon className="h-4 w-4" />
+                    <span>{link.label}</span>
+                  </div>
+                  {settingsOpen ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* Sub-menu items */}
+                {settingsOpen && (
+                  <div className="ml-4 pl-3 border-l border-border/60 space-y-1 pt-0.5">
+                    {link.children!.map((child) => {
+                      const isChildActive = child.exact
+                        ? pathname === child.href
+                        : pathname.startsWith(child.href);
+                      const SubIcon = child.icon;
+
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                            isChildActive
+                              ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                              : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                          )}
+                        >
+                          {SubIcon && <SubIcon className="h-3 w-3 shrink-0" />}
+                          <span>{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                isParentActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >

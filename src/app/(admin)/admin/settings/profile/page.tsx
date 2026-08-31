@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
-import { getAdminSettingsAction } from "@/server/actions/admin.actions";
-import { AdminSettingsForm } from "@/components/admin/admin-settings-form";
+import { getAdminProfileAction } from "@/server/actions/admin.actions";
+import { AdminProfileForm } from "@/components/admin/admin-profile-form";
 import { SettingsNav } from "@/components/admin/settings-nav";
 import { requireAdmin } from "@/server/dal/auth";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "General Platform Settings | Admin",
-  description: "Configure platform identity, contact email, and maintenance mode",
+  title: "Admin Profile & Password | Settings",
+  description: "Update administrator profile details and change master password",
 };
 
-export default async function AdminSettingsPage() {
+export default async function AdminProfileSettingsPage() {
   await requireAdmin();
 
-  const settings = await getAdminSettingsAction();
+  const user = await getAdminProfileAction();
+
+  if (!user) {
+    redirect("/admin/settings");
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -27,7 +32,7 @@ export default async function AdminSettingsPage() {
 
       <SettingsNav />
 
-      <AdminSettingsForm initialSettings={settings} />
+      <AdminProfileForm user={user} />
     </div>
   );
 }
