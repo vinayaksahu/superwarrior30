@@ -224,6 +224,7 @@ export async function adminVerifyMemberIdAction(input: {
   claimId: string;
   status?: "VERIFIED" | "REJECTED";
   action?: "APPROVE" | "REJECT" | "VERIFIED" | "REJECTED";
+  rejectionReason?: string;
   adminNotes?: string;
   note?: string;
   reason?: string;
@@ -246,7 +247,7 @@ export async function adminVerifyMemberIdAction(input: {
     input.action === "VERIFIED";
 
   const targetStatus = isVerified ? "VERIFIED" : "REJECTED";
-  const notes = input.adminNotes || input.note || input.reason || null;
+  const notes = input.rejectionReason || input.adminNotes || input.note || input.reason || null;
 
   const updated = await prisma.brokerOfferClaim.update({
     where: { id: input.claimId },
