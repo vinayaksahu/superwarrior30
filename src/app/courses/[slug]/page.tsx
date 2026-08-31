@@ -259,7 +259,7 @@ export default async function CourseDetailPage({
                           </div>
 
                           <div className="flex items-center gap-3 shrink-0">
-                            {lesson.durationSec > 0 && (
+                            {!lesson.isFreePreview && lesson.durationSec >= 60 && (
                               <span className="text-xs text-muted-foreground hidden sm:inline">
                                 {Math.round(lesson.durationSec / 60)} min
                               </span>

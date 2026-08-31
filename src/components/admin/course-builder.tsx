@@ -374,23 +374,27 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
                           </p>
                           <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                             <span>{lesson.contentType}</span>
-                            {lesson.durationSec > 0 && (
+                            {!lesson.isFreePreview && lesson.durationSec >= 60 && (
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
                                 {Math.round(lesson.durationSec / 60)} min
                               </span>
                             )}
                             {lesson.isFreePreview && (
-                              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-500">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                                 <Eye className="h-3 w-3" />
-                                Free Preview
+                                {lesson.contentType === "VIDEO"
+                                  ? `Free Preview (${lesson.durationSec || 15}s)`
+                                  : lesson.contentType === "PDF"
+                                  ? `Free Preview (${lesson.durationSec || 1} Page${(lesson.durationSec || 1) > 1 ? "s" : ""})`
+                                  : `Free Preview (${lesson.durationSec || 150} Words)`}
                               </span>
                             )}
-                            {lesson.videoKey && (
-                              <span className="text-[10px] text-primary">● Video Attached</span>
+                            {(lesson.videoKey || lesson.bunnyVideoId) && (
+                              <span className="text-[10px] text-primary font-medium">● Video Active</span>
                             )}
-                            {lesson.pdfKey && (
-                              <span className="text-[10px] text-amber-500">● PDF Attached</span>
+                            {(lesson.pdfKey || lesson.bunnyCdnUrl) && (
+                              <span className="text-[10px] text-amber-500 font-medium">● PDF Active</span>
                             )}
                           </div>
                         </div>
