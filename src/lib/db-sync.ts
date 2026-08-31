@@ -483,5 +483,38 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
+  // Support Inquiries System
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "SupportInquiryStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "support_inquiries" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "email" TEXT NOT NULL,
+        "phone" TEXT,
+        "subject" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "category" TEXT NOT NULL DEFAULT 'GENERAL',
+        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'NEW',
+        "orderNumber" TEXT,
+        "adminNotes" TEXT,
+        "userId" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "support_inquiries_email_idx" ON "support_inquiries"("email");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_status_idx" ON "support_inquiries"("status");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_category_idx" ON "support_inquiries"("category");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_createdAt_idx" ON "support_inquiries"("createdAt" DESC);
+    `);
+  } catch {
+    // ignore
+  }
+
   isSynced = true;
 }

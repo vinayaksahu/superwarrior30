@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/server/dal/auth";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { SupportInquiryStatus } from "@/generated/prisma";
@@ -18,43 +19,9 @@ const contactInquirySchema = z.object({
 
 export type SubmitContactInquiryInput = z.infer<typeof contactInquirySchema>;
 
-export async function ensureSupportInquiriesTable() {
-  try {
-    await prisma.$executeRawUnsafe(`
-      DO $$ BEGIN
-        CREATE TYPE "SupportInquiryStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
-      EXCEPTION WHEN duplicate_object THEN null;
-      END $$;
-
-      CREATE TABLE IF NOT EXISTS "support_inquiries" (
-        "id" TEXT PRIMARY KEY,
-        "name" TEXT NOT NULL,
-        "email" TEXT NOT NULL,
-        "phone" TEXT,
-        "subject" TEXT NOT NULL,
-        "message" TEXT NOT NULL,
-        "category" TEXT NOT NULL DEFAULT 'GENERAL',
-        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'NEW',
-        "orderNumber" TEXT,
-        "adminNotes" TEXT,
-        "userId" TEXT,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE INDEX IF NOT EXISTS "support_inquiries_email_idx" ON "support_inquiries"("email");
-      CREATE INDEX IF NOT EXISTS "support_inquiries_status_idx" ON "support_inquiries"("status");
-      CREATE INDEX IF NOT EXISTS "support_inquiries_category_idx" ON "support_inquiries"("category");
-      CREATE INDEX IF NOT EXISTS "support_inquiries_createdAt_idx" ON "support_inquiries"("createdAt" DESC);
-    `);
-  } catch (err) {
-    console.error("Table auto-migration notice:", err);
-  }
-}
-
 export async function submitSupportInquiryAction(input: SubmitContactInquiryInput) {
+  await ensureDatabaseSchemaSync();
   try {
-    await ensureSupportInquiriesTable();
     const validated = contactInquirySchema.parse(input);
 
     const inquiry = await prisma.supportInquiry.create({
@@ -97,36 +64,36 @@ export async function getAdminSupportInquiriesAction(params: {
   category?: string;
   search?: string;
 }) {
+  await requireAdmin();
+  await ensureDatabaseSchemaSync();
+
+  const page = Math.max(1, params.page || 1);
+  const pageSize = Math.min(100, Math.max(1, params.pageSize || 20));
+  const skip = (page - 1) * pageSize;
+
+  const where: any = {};
+
+  if (params.status && params.status !== "ALL") {
+    where.status = params.status as SupportInquiryStatus;
+  }
+
+  if (params.category && params.category !== "ALL") {
+    where.category = params.category;
+  }
+
+  if (params.search && params.search.trim()) {
+    const q = params.search.trim();
+    where.OR = [
+      { name: { contains: q, mode: "insensitive" } },
+      { email: { contains: q, mode: "insensitive" } },
+      { phone: { contains: q, mode: "insensitive" } },
+      { subject: { contains: q, mode: "insensitive" } },
+      { message: { contains: q, mode: "insensitive" } },
+      { orderNumber: { contains: q, mode: "insensitive" } },
+    ];
+  }
+
   try {
-    await requireAdmin();
-    await ensureSupportInquiriesTable();
-
-    const page = Math.max(1, params.page || 1);
-    const pageSize = Math.min(100, Math.max(1, params.pageSize || 20));
-    const skip = (page - 1) * pageSize;
-
-    const where: any = {};
-
-    if (params.status && params.status !== "ALL") {
-      where.status = params.status as SupportInquiryStatus;
-    }
-
-    if (params.category && params.category !== "ALL") {
-      where.category = params.category;
-    }
-
-    if (params.search && params.search.trim()) {
-      const q = params.search.trim();
-      where.OR = [
-        { name: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q, mode: "insensitive" } },
-        { subject: { contains: q, mode: "insensitive" } },
-        { message: { contains: q, mode: "insensitive" } },
-        { orderNumber: { contains: q, mode: "insensitive" } },
-      ];
-    }
-
     const [inquiries, totalCount, statsNew, statsInProgress, statsResolved, statsClosed] = await Promise.all([
       prisma.supportInquiry.findMany({
         where,
@@ -187,10 +154,10 @@ export async function updateSupportInquiryStatusAction(params: {
   status: SupportInquiryStatus;
   adminNotes?: string;
 }) {
-  try {
-    await requireAdmin();
-    await ensureSupportInquiriesTable();
+  await requireAdmin();
+  await ensureDatabaseSchemaSync();
 
+  try {
     const updated = await prisma.supportInquiry.update({
       where: { id: params.id },
       data: {
@@ -211,10 +178,10 @@ export async function updateSupportInquiryStatusAction(params: {
 }
 
 export async function deleteSupportInquiryAction(id: string) {
-  try {
-    await requireAdmin();
-    await ensureSupportInquiriesTable();
+  await requireAdmin();
+  await ensureDatabaseSchemaSync();
 
+  try {
     await prisma.supportInquiry.delete({
       where: { id },
     });
