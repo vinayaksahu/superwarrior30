@@ -294,10 +294,10 @@ export function FreePreviewButton({
                   </div>
 
                   {/* PDF Embed */}
-                  <div className="relative h-[420px] w-full rounded-xl overflow-hidden border border-border bg-neutral-900 shadow-inner">
+                  <div className="relative h-[450px] w-full rounded-xl overflow-hidden border border-border bg-neutral-900 shadow-inner">
                     <iframe
-                      src={`${mediaData.signedUrl}#page=1&toolbar=0&navpanes=0`}
-                      className="h-full w-full"
+                      src={`/api/lessons/${lessonId}/pdf#page=1&toolbar=0&navpanes=0`}
+                      className="h-full w-full border-0"
                       title={lessonTitle}
                     />
                   </div>

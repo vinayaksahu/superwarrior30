@@ -14,12 +14,6 @@ export async function GET(
     const { lessonId } = await params;
     const user = await getCurrentUser();
 
-    if (!user) {
-      return new NextResponse("Unauthorized. Please log in.", { status: 401 });
-    }
-
-    const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
-
     // 1. Fetch lesson
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
@@ -36,8 +30,14 @@ export async function GET(
       return new NextResponse("PDF not found for this lesson.", { status: 404 });
     }
 
-    // 2. Verify enrollment
-    if (!isAdmin && !lesson.isFreePreview) {
+    const isAdmin = Boolean(user && (user.role === "ADMIN" || user.role === "SUPER_ADMIN"));
+
+    // 2. Verify authorization (if not marked as free preview, require logged-in enrolled user or admin)
+    if (!lesson.isFreePreview && !isAdmin) {
+      if (!user) {
+        return new NextResponse("Unauthorized. Please log in.", { status: 401 });
+      }
+
       const enrollment = await prisma.courseEnrollment.findFirst({
         where: {
           userId: user.id,
@@ -62,14 +62,15 @@ export async function GET(
       }
     }
 
-    // 3. Handle Bunny CDN URL (stream directly to prevent CORS issues with dual fallback)
-    if (lesson.bunnyCdnUrl) {
+    // 3. Handle Bunny CDN / HTTP URL (stream directly to prevent CORS/iframe blocking issues with dual fallback)
+    const effectivePdfUrl = lesson.bunnyCdnUrl || (lesson.pdfKey?.startsWith("http") ? lesson.pdfKey : null);
+    if (effectivePdfUrl) {
       try {
         let pdfBuffer: Buffer | null = null;
 
         // Attempt 1: Fetch via Bunny CDN
         try {
-          const cdnRes = await fetch(lesson.bunnyCdnUrl);
+          const cdnRes = await fetch(effectivePdfUrl);
           if (cdnRes.ok) {
             const arrayBuffer = await cdnRes.arrayBuffer();
             pdfBuffer = Buffer.from(arrayBuffer);
@@ -83,7 +84,7 @@ export async function GET(
         if (!pdfBuffer && bunnyConfig.storageZoneName && bunnyConfig.storagePassword) {
           try {
             const cdnBase = bunnyConfig.cdnHostname ? `https://${bunnyConfig.cdnHostname.replace(/^https?:\/\//, "")}` : bunnyCdnConfig.baseUrl;
-            const storagePath = lesson.bunnyCdnUrl.replace(cdnBase, "").replace(/^\/+/, "");
+            const storagePath = effectivePdfUrl.replace(cdnBase, "").replace(/^\/+/, "");
             const storageUrl = `https://${bunnyConfig.storageHostname}/${bunnyConfig.storageZoneName}/${storagePath}`;
             const storageRes = await fetch(storageUrl, {
               headers: {
@@ -105,15 +106,14 @@ export async function GET(
               "Content-Type": "application/pdf",
               "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
               "Cache-Control": "public, max-age=3600",
+              "Access-Control-Allow-Origin": "*",
             },
           });
         }
 
-        console.error(`[PDF Stream] Bunny PDF not found on CDN or Storage for URL: ${lesson.bunnyCdnUrl}`);
-        return new NextResponse("PDF storage file not found", { status: 404 });
+        console.error(`[PDF Stream] Bunny PDF not found on CDN or Storage for URL: ${effectivePdfUrl}`);
       } catch (streamErr) {
         console.error("[PDF Stream] Could not proxy Bunny CDN stream:", streamErr);
-        return new NextResponse("Failed to fetch PDF from CDN storage", { status: 502 });
       }
     }
 
