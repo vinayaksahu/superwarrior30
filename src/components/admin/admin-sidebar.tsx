@@ -110,13 +110,13 @@ const allSidebarLinks: SidebarLink[] = [
     href: "/admin/referrals",
     label: "Affiliate",
     icon: GitBranch,
-    allowedRoles: ["SUPER_ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     href: "/admin/wallet",
     label: "Wallet",
     icon: Wallet,
-    allowedRoles: ["SUPER_ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     href: "/admin/staff",
