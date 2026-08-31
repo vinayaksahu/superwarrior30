@@ -332,7 +332,6 @@ export async function getAdminProfileAction() {
       role: true,
       status: true,
       createdAt: true,
-      lastLoginAt: true,
     },
   });
 

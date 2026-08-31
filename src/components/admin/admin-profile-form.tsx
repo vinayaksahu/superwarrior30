@@ -13,7 +13,6 @@ interface AdminProfileFormProps {
     phone: string | null;
     role: string;
     createdAt: Date;
-    lastLoginAt?: Date | null;
   };
 }
 
