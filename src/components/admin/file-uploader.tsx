@@ -541,7 +541,7 @@ export function FileUploader({
           accept={defaultAccept}
           className="hidden"
           onChange={handleFileChange}
-          disabled={status === "uploading" || status === "saving"}
+          disabled={false}
         />
 
         <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border bg-black shadow-md">

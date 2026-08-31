@@ -279,7 +279,7 @@ export function FreePreviewButton({
                           onContextMenu={(e) => e.preventDefault()}
                           autoPlay
                           onTimeUpdate={(e) => {
-                            if (e.currentTarget.currentTime >= PREVIEW_LIMIT_SEC) {
+                            if (e.currentTarget.currentTime >= previewLimit) {
                               e.currentTarget.pause();
                               setIsLimitReached(true);
                               setTimeLeft(0);
