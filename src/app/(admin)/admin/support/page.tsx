@@ -8,7 +8,7 @@ import { Suspense } from "react";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Support & Helpdesk — Admin Panel",
+  title: "Support Desk & Tickets — Admin Panel",
 };
 
 export default async function AdminSupportPage({
@@ -21,14 +21,14 @@ export default async function AdminSupportPage({
   const params = await searchParams;
   const page = typeof params.page === "string" ? parseInt(params.page, 10) : 1;
   const status = typeof params.status === "string" ? params.status : "ALL";
-  const category = typeof params.category === "string" ? params.category : "ALL";
+  const source = typeof params.source === "string" ? params.source : "ALL";
   const search = typeof params.search === "string" ? params.search : "";
 
   const data = await getAdminSupportInquiriesAction({
     page,
     pageSize: 20,
     status,
-    category,
+    source,
     search,
   });
 
@@ -44,7 +44,7 @@ export default async function AdminSupportPage({
             </h1>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage incoming student inquiries, payment dispute tickets, and contact requests
+            Manage authenticated student support tickets and incoming public contact inquiries
           </p>
         </div>
       </div>
@@ -56,7 +56,7 @@ export default async function AdminSupportPage({
           pagination={data.pagination}
           metrics={data.metrics}
           currentStatus={status}
-          currentCategory={category}
+          currentSource={source}
           currentSearch={search}
         />
       </Suspense>

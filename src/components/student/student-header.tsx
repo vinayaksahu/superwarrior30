@@ -15,6 +15,8 @@ import {
   ShoppingCart,
   User,
   Radio,
+  Sparkles,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -30,9 +32,11 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
   { href: "/dashboard/live", label: "Live Classes", icon: Radio },
+  { href: "/dashboard/cashbacks", label: "Broker Cashbacks", icon: Sparkles },
   { href: "/referrals", label: "Affiliate", icon: GitBranch },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
+  { href: "/dashboard/support", label: "Support Desk", icon: LifeBuoy },
   { href: "/profile", label: "Profile", icon: User },
 ];
 

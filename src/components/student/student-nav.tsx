@@ -11,6 +11,7 @@ import {
   User,
   Radio,
   Sparkles,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ const navLinks = [
   { href: "/referrals", label: "Affiliate", icon: GitBranch },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
+  { href: "/dashboard/support", label: "Support Desk", icon: LifeBuoy },
   { href: "/profile", label: "Profile", icon: User },
 ];
 

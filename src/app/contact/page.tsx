@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicNavbar } from "@/components/shared/public-navbar";
 import { ContactForm } from "@/components/public/contact-form";
-import { Mail, Clock, MessageSquare, MapPin, Phone, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Mail, Clock, MapPin, MessageSquare, Phone } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Contact & Support Desk — Rahul Trade Warrior Academy",
-  description: "Official customer contact desk, corporate address, student assistance, and grievance redressal for Super Warrior 30.",
+  title: "Contact Us — Rahul Trade Warrior Academy",
+  description: "Official contact information, address, and inquiry desk for Super Warrior 30.",
 };
 
 export default function ContactPage() {
@@ -18,14 +18,14 @@ export default function ContactPage() {
       <section className="py-14 border-b border-border/40 bg-gradient-to-b from-muted/30 to-background">
         <div className="container mx-auto px-4 max-w-3xl text-center space-y-3">
           <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary">
-            <Mail className="h-3.5 w-3.5" />
-            <span>Official Support & Helpdesk</span>
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>We are here to help</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
-            Customer Support & Inquiries
+            Contact Us
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-xl mx-auto">
-            Need help with course enrollment, UPI payment verification, digital access, or billing? Our dedicated support team is here to assist you.
+            Have questions about our mentorship program, curriculum, or enrollment? Send us a message and our team will get back to you shortly.
           </p>
         </div>
       </section>
@@ -39,7 +39,7 @@ export default function ContactPage() {
             <div className="rounded-2xl border border-border bg-card p-5 space-y-2 shadow-sm">
               <div className="flex items-center gap-2 text-primary font-bold text-xs">
                 <Mail className="h-4 w-4 shrink-0" />
-                <span>Email Support</span>
+                <span>Email Us</span>
               </div>
               <p className="text-xs text-foreground font-semibold">
                 <a href="mailto:support@superwarrior30.com" className="hover:underline text-primary">
@@ -47,21 +47,21 @@ export default function ContactPage() {
                 </a>
               </p>
               <p className="text-[11px] text-muted-foreground">
-                For order receipts, payment disputes, and general questions.
+                For course queries, payment questions, and general guidance.
               </p>
             </div>
 
-            {/* Business Hours & Response SLA */}
+            {/* Business Hours */}
             <div className="rounded-2xl border border-border bg-card p-5 space-y-2 shadow-sm">
               <div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
                 <Clock className="h-4 w-4 shrink-0" />
-                <span>Working Hours & SLA</span>
+                <span>Operating Hours</span>
               </div>
               <p className="text-xs font-medium text-foreground">
-                Mon – Sat: 10:00 AM – 7:00 PM IST
+                Monday – Saturday: 10:00 AM – 7:00 PM IST
               </p>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Guaranteed response within <strong>24 business hours</strong>. Sundays & National Holidays closed.
+                Response typically within 24 business hours.
               </p>
             </div>
 
@@ -69,7 +69,7 @@ export default function ContactPage() {
             <div className="rounded-2xl border border-border bg-card p-5 space-y-2 shadow-sm">
               <div className="flex items-center gap-2 text-blue-500 font-bold text-xs">
                 <MapPin className="h-4 w-4 shrink-0" />
-                <span>Registered Office Address</span>
+                <span>Registered Office</span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 <strong>Rahul Trade Warrior Academy</strong><br />
@@ -77,28 +77,16 @@ export default function ContactPage() {
                 Raipur, Chhattisgarh - 492001, India.
               </p>
             </div>
-
-            {/* Grievance Officer */}
-            <div className="rounded-2xl border border-border bg-card p-5 space-y-2 shadow-sm">
-              <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs">
-                <ShieldCheck className="h-4 w-4 shrink-0" />
-                <span>Grievance Redressal</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Grievance Officer: <strong>Compliance Desk</strong><br />
-                Email: <a href="mailto:grievance@superwarrior30.com" className="text-primary hover:underline">grievance@superwarrior30.com</a>
-              </p>
-            </div>
           </div>
 
           {/* Right Column: Contact Inquiry Form */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm md:col-span-2 space-y-5">
+          <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm md:col-span-2 space-y-6">
             <div>
-              <h2 className="text-lg font-bold text-foreground">
-                Submit an Online Support Ticket
+              <h2 className="text-xl font-bold text-foreground">
+                Send Us a Message
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Fill in your details below and our team will get back to you promptly with a resolution.
+              <p className="text-xs text-muted-foreground mt-1">
+                Fill in the form below and we will get back to you promptly.
               </p>
             </div>
 
@@ -118,7 +106,7 @@ export default function ContactPage() {
             <span>•</span>
             <Link href="/refund-policy" className="hover:text-foreground">Refund & Cancellation Policy</Link>
             <span>•</span>
-            <Link href="/contact" className="text-primary font-bold">Contact Support</Link>
+            <Link href="/contact" className="text-primary font-bold">Contact Us</Link>
           </div>
         </div>
       </footer>

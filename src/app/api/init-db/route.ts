@@ -370,9 +370,9 @@ export async function GET() {
       ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "bunnyCdnUrl" TEXT;
       ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "mediaProvider" TEXT DEFAULT 'BUNNY';
 
-      -- Support Inquiries Table
+      -- Support Inquiries & Student Ticket System
       DO $$ BEGIN
-        CREATE TYPE "SupportInquiryStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
+        CREATE TYPE "SupportInquiryStatus" AS ENUM ('OPEN', 'NEW', 'IN_PROGRESS', 'WAITING_FOR_USER', 'RESOLVED', 'CLOSED');
       EXCEPTION WHEN duplicate_object THEN null;
       END $$;
 
@@ -384,12 +384,26 @@ export async function GET() {
         "subject" TEXT NOT NULL,
         "message" TEXT NOT NULL,
         "category" TEXT NOT NULL DEFAULT 'GENERAL',
-        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'NEW',
+        "source" TEXT NOT NULL DEFAULT 'PUBLIC_CONTACT',
+        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'OPEN',
         "orderNumber" TEXT,
         "adminNotes" TEXT,
-        "userId" TEXT,
+        "userId" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE "support_inquiries" ADD COLUMN IF NOT EXISTS "source" TEXT DEFAULT 'PUBLIC_CONTACT';
+      ALTER TABLE "support_inquiries" ADD COLUMN IF NOT EXISTS "userId" TEXT;
+
+      CREATE TABLE IF NOT EXISTS "support_inquiry_messages" (
+        "id" TEXT PRIMARY KEY,
+        "inquiryId" TEXT NOT NULL REFERENCES "support_inquiries"("id") ON DELETE CASCADE,
+        "senderId" TEXT,
+        "senderRole" TEXT NOT NULL,
+        "senderName" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
 

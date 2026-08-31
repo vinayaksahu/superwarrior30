@@ -80,6 +80,9 @@ model User {
   verifiedBrokerClaims   BrokerOfferClaim[] @relation("BrokerClaimsVerified")
   paidBrokerClaims       BrokerOfferClaim[] @relation("BrokerClaimsPaid")
 
+  // Support System
+  supportInquiries       SupportInquiry[]
+
   @@index([role])
   @@index([status])
   @@index([referralCode])
@@ -950,30 +953,55 @@ model MediaProviderConfig {
 // ==========================================
 
 enum SupportInquiryStatus {
+  OPEN
   NEW
   IN_PROGRESS
+  WAITING_FOR_USER
   RESOLVED
   CLOSED
 }
 
 model SupportInquiry {
-  id          String               @id @default(cuid())
+  id          String                  @id @default(cuid())
   name        String
   email       String
   phone       String?
   subject     String
-  message     String               @db.Text
-  category    String               @default("GENERAL")
-  status      SupportInquiryStatus @default(NEW)
+  message     String                  @db.Text
+  category    String                  @default("GENERAL")
+  source      String                  @default("PUBLIC_CONTACT") // "PUBLIC_CONTACT" | "STUDENT_TICKET"
+  status      SupportInquiryStatus    @default(OPEN)
   orderNumber String?
-  adminNotes  String?              @db.Text
+  adminNotes  String?                 @db.Text
   userId      String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  user        User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages    SupportInquiryMessage[]
 
   @@index([email])
   @@index([status])
   @@index([category])
+  @@index([source])
+  @@index([userId])
   @@index([createdAt(sort: Desc)])
   @@map("support_inquiries")
 }
+
+model SupportInquiryMessage {
+  id          String         @id @default(cuid())
+  inquiryId   String
+  senderId    String?
+  senderRole  String         // "STUDENT" | "ADMIN" | "GUEST"
+  senderName  String
+  message     String         @db.Text
+  createdAt   DateTime       @default(now())
+
+  inquiry     SupportInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId])
+  @@index([createdAt])
+  @@map("support_inquiry_messages")
+}
+

@@ -483,11 +483,21 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
-  // Support Inquiries System
+  // Support Inquiries & Student Ticket System
   try {
     await prisma.$executeRawUnsafe(`
       DO $$ BEGIN
-        CREATE TYPE "SupportInquiryStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
+        CREATE TYPE "SupportInquiryStatus" AS ENUM ('OPEN', 'NEW', 'IN_PROGRESS', 'WAITING_FOR_USER', 'RESOLVED', 'CLOSED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        ALTER TYPE "SupportInquiryStatus" ADD VALUE IF NOT EXISTS 'OPEN';
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        ALTER TYPE "SupportInquiryStatus" ADD VALUE IF NOT EXISTS 'WAITING_FOR_USER';
       EXCEPTION WHEN duplicate_object THEN null;
       END $$;
 
@@ -499,18 +509,37 @@ export async function ensureDatabaseSchemaSync() {
         "subject" TEXT NOT NULL,
         "message" TEXT NOT NULL,
         "category" TEXT NOT NULL DEFAULT 'GENERAL',
-        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'NEW',
+        "source" TEXT NOT NULL DEFAULT 'PUBLIC_CONTACT',
+        "status" "SupportInquiryStatus" NOT NULL DEFAULT 'OPEN',
         "orderNumber" TEXT,
         "adminNotes" TEXT,
-        "userId" TEXT,
+        "userId" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
 
+      ALTER TABLE "support_inquiries" ADD COLUMN IF NOT EXISTS "source" TEXT DEFAULT 'PUBLIC_CONTACT';
+      ALTER TABLE "support_inquiries" ADD COLUMN IF NOT EXISTS "userId" TEXT;
+
       CREATE INDEX IF NOT EXISTS "support_inquiries_email_idx" ON "support_inquiries"("email");
       CREATE INDEX IF NOT EXISTS "support_inquiries_status_idx" ON "support_inquiries"("status");
       CREATE INDEX IF NOT EXISTS "support_inquiries_category_idx" ON "support_inquiries"("category");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_source_idx" ON "support_inquiries"("source");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_userId_idx" ON "support_inquiries"("userId");
       CREATE INDEX IF NOT EXISTS "support_inquiries_createdAt_idx" ON "support_inquiries"("createdAt" DESC);
+
+      CREATE TABLE IF NOT EXISTS "support_inquiry_messages" (
+        "id" TEXT PRIMARY KEY,
+        "inquiryId" TEXT NOT NULL REFERENCES "support_inquiries"("id") ON DELETE CASCADE,
+        "senderId" TEXT,
+        "senderRole" TEXT NOT NULL,
+        "senderName" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "support_inquiry_messages_inquiryId_idx" ON "support_inquiry_messages"("inquiryId");
+      CREATE INDEX IF NOT EXISTS "support_inquiry_messages_createdAt_idx" ON "support_inquiry_messages"("createdAt");
     `);
   } catch {
     // ignore
