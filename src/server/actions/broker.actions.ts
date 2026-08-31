@@ -33,6 +33,9 @@ export interface PublicBrokerConfig {
   requireProof: boolean;
   description: string;
   allowCouponStacking: boolean;
+  allowReferralStacking: boolean;
+  isReferralDiscountEnabled: boolean;
+  referralDiscountPercentage: number;
   isAutoVerificationActive: boolean;
 }
 
@@ -57,6 +60,9 @@ export async function getBrokerPublicConfigAction(): Promise<PublicBrokerConfig>
     requireProof: Boolean(settings.requireProof),
     description: settings.description || "Open your broker account using our partner link and unlock a special course benefit.",
     allowCouponStacking: Boolean(settings.allowCouponStacking),
+    allowReferralStacking: Boolean(settings.allowReferralStacking),
+    isReferralDiscountEnabled: settings.isReferralDiscountEnabled !== false,
+    referralDiscountPercentage: Number(settings.referralDiscountPercentage) || 10,
     isAutoVerificationActive: Boolean(settings.isAutoVerificationActive),
   };
 }

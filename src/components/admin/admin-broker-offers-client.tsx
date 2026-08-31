@@ -555,7 +555,7 @@ export function AdminBrokerOffersClient({
                 </div>
               </label>
 
-              <label className="sm:col-span-2 flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
+              <label className="flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.allowCouponStacking}
@@ -569,10 +569,79 @@ export function AdminBrokerOffersClient({
                     Allow Promo Coupon + Broker Offer Stacking
                   </p>
                   <p className="text-[11px] text-muted-foreground">
-                    If OFF (default), students cannot combine promo coupon discounts with the broker offer.
+                    If enabled, students can combine promo coupon codes with the partner broker offer.
                   </p>
                 </div>
               </label>
+
+              <label className="flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.allowReferralStacking)}
+                  onChange={(e) =>
+                    setSettings({ ...settings, allowReferralStacking: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    Allow Promo Coupon + Broker Offer + Referral Discount Stacking
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    If enabled, students can stack referral discounts alongside promo coupons and broker offers.
+                  </p>
+                </div>
+              </label>
+
+              {/* Referral Discount Configuration */}
+              <div className="sm:col-span-2 rounded-xl bg-primary/5 p-4 border border-primary/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/10 pb-2">
+                  <label className="flex items-center gap-2 text-xs font-bold text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.isReferralDiscountEnabled !== false}
+                      onChange={(e) =>
+                        setSettings({ ...settings, isReferralDiscountEnabled: e.target.checked })
+                      }
+                      className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Enable Referral Discount for Students (Registration &amp; Checkout)</span>
+                  </label>
+                  <span className="text-[11px] font-semibold text-primary">
+                    Active Discount: {settings.referralDiscountPercentage || 10}%
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-foreground block">
+                      Referral Discount Percentage (%)
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Instant discount given to students who signup or checkout with a valid referral code (e.g. 5%, 6%, 10%, 20%).
+                    </p>
+                  </div>
+                  <div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        step={1}
+                        value={settings.referralDiscountPercentage !== undefined ? settings.referralDiscountPercentage : 10}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            referralDiscountPercentage: Math.max(1, Math.min(100, Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="h-10 w-full rounded-xl border border-input bg-background pl-3.5 pr-8 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

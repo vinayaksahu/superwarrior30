@@ -19,6 +19,9 @@ export interface BrokerOfferSettings {
   requireProof: boolean;
   description: string;
   allowCouponStacking: boolean;
+  allowReferralStacking: boolean; // Allow Promo Coupon + Broker Offer + Referral Discount Stacking
+  isReferralDiscountEnabled: boolean; // Global toggle for referral discount
+  referralDiscountPercentage: number; // e.g. 10 for 10% (modifiable by admin)
   isAutoVerificationActive: boolean;
   autoVerificationProvider: "INTERNAL_ADAPTER" | "API_WEBHOOK" | "CUSTOM";
   autoVerificationApiKey?: string;
@@ -41,6 +44,9 @@ export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
   requireProof: false,
   description: "Open your broker account using our partner link and unlock a special course benefit.",
   allowCouponStacking: false,
+  allowReferralStacking: false,
+  isReferralDiscountEnabled: true,
+  referralDiscountPercentage: 10,
   isAutoVerificationActive: false,
   autoVerificationProvider: "INTERNAL_ADAPTER",
 };
@@ -61,6 +67,18 @@ export async function getBrokerSettings(): Promise<BrokerOfferSettings> {
     return {
       ...DEFAULT_BROKER_SETTINGS,
       ...parsed,
+      referralDiscountPercentage:
+        parsed.referralDiscountPercentage !== undefined
+          ? Number(parsed.referralDiscountPercentage)
+          : DEFAULT_BROKER_SETTINGS.referralDiscountPercentage,
+      allowReferralStacking:
+        parsed.allowReferralStacking !== undefined
+          ? Boolean(parsed.allowReferralStacking)
+          : DEFAULT_BROKER_SETTINGS.allowReferralStacking,
+      isReferralDiscountEnabled:
+        parsed.isReferralDiscountEnabled !== undefined
+          ? Boolean(parsed.isReferralDiscountEnabled)
+          : DEFAULT_BROKER_SETTINGS.isReferralDiscountEnabled,
     };
   } catch (error) {
     console.error("Failed to load broker settings:", error);

@@ -28,7 +28,7 @@ export default async function AdminReferralSettingsPage() {
             Affiliate Configuration
           </h1>
           <p className="text-sm text-muted-foreground">
-            Manage multi-tier affiliate depths, commission percentages, and global toggles
+            Manage multi-tier affiliate depths, commission percentages, referral coupon discounts, and global toggles
           </p>
         </div>
       </div>
@@ -37,6 +37,8 @@ export default async function AdminReferralSettingsPage() {
         initialEnabled={settings.isReferralEnabled}
         initialHoldingPeriodDays={settings.holdingPeriodDays}
         initialMinWithdrawalAmount={settings.minWithdrawalAmount}
+        initialReferralDiscountPercentage={settings.referralDiscountPercentage}
+        initialIsReferralDiscountEnabled={settings.isReferralDiscountEnabled}
         initialLevels={settings.levels}
       />
     </div>

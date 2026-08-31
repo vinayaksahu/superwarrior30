@@ -17,7 +17,7 @@ export async function getReferralSettingsAction() {
   await requireAdmin();
   await ensureDatabaseSchemaSync();
 
-  const [globalSetting, holdingSetting, minWithdrawalSetting, levels] = await Promise.all([
+  const [globalSetting, holdingSetting, minWithdrawalSetting, discountSetting, discountEnabledSetting, levels] = await Promise.all([
     prisma.siteSetting.findUnique({
       where: { key: "referral_enabled" },
     }),
@@ -27,6 +27,12 @@ export async function getReferralSettingsAction() {
     prisma.siteSetting.findUnique({
       where: { key: "referral_min_withdrawal" },
     }),
+    prisma.siteSetting.findUnique({
+      where: { key: "referral_discount_percentage" },
+    }),
+    prisma.siteSetting.findUnique({
+      where: { key: "referral_discount_enabled" },
+    }),
     prisma.referralLevel.findMany({
       orderBy: { level: "asc" },
     }),
@@ -35,11 +41,15 @@ export async function getReferralSettingsAction() {
   const isReferralEnabled = globalSetting ? globalSetting.value === "true" : true;
   const holdingPeriodDays = holdingSetting ? parseInt(holdingSetting.value, 10) || 7 : 7;
   const minWithdrawalAmount = minWithdrawalSetting ? parseFloat(minWithdrawalSetting.value) || 500 : 500;
+  const referralDiscountPercentage = discountSetting ? parseFloat(discountSetting.value) || 10 : 10;
+  const isReferralDiscountEnabled = discountEnabledSetting ? discountEnabledSetting.value === "true" : true;
 
   return {
     isReferralEnabled,
     holdingPeriodDays,
     minWithdrawalAmount,
+    referralDiscountPercentage,
+    isReferralDiscountEnabled,
     levels: levels.map((l) => ({
       id: l.id,
       level: l.level,
@@ -64,7 +74,14 @@ export async function saveReferralSettingsAction(
     };
   }
 
-  const { isReferralEnabled, holdingPeriodDays, minWithdrawalAmount, levels } = validated.data;
+  const {
+    isReferralEnabled,
+    holdingPeriodDays,
+    minWithdrawalAmount,
+    referralDiscountPercentage,
+    isReferralDiscountEnabled,
+    levels,
+  } = validated.data;
 
   await prisma.$transaction(async (tx) => {
     // 1. Update global settings
@@ -95,6 +112,26 @@ export async function saveReferralSettingsAction(
         key: "referral_min_withdrawal",
         value: minWithdrawalAmount.toString(),
         type: "number",
+      },
+    });
+
+    await tx.siteSetting.upsert({
+      where: { key: "referral_discount_percentage" },
+      update: { value: referralDiscountPercentage.toString() },
+      create: {
+        key: "referral_discount_percentage",
+        value: referralDiscountPercentage.toString(),
+        type: "number",
+      },
+    });
+
+    await tx.siteSetting.upsert({
+      where: { key: "referral_discount_enabled" },
+      update: { value: isReferralDiscountEnabled ? "true" : "false" },
+      create: {
+        key: "referral_discount_enabled",
+        value: isReferralDiscountEnabled ? "true" : "false",
+        type: "boolean",
       },
     });
 

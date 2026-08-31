@@ -281,13 +281,14 @@ export async function POST(req: Request) {
         );
       }
 
-      // 6. Stacking check: Stacking is OFF by default
-      if (couponId && !brokerSettings.allowCouponStacking) {
+      // 6. Stacking check: Stacking is OFF by default unless enabled by admin
+      const isStackingAllowed = Boolean(brokerSettings.allowCouponStacking || brokerSettings.allowReferralStacking);
+      if (discountAmount > 0 && !isStackingAllowed) {
         return NextResponse.json(
           {
             success: false,
             message:
-              "Coupon code and Broker Offer cannot be stacked together. Please choose one.",
+              "Coupon code / Referral discount and Broker Offer cannot be stacked together. Please choose one.",
           },
           { status: 400 }
         );

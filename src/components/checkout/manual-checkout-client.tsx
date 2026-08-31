@@ -80,13 +80,16 @@ export function ManualCheckoutClient({
   const [guestPhone, setGuestPhone] = useState<string>("");
   const [guestPassword, setGuestPassword] = useState<string>("");
 
-  // Coupon state
+  // Coupon / Referral Discount state
   const [couponInput, setCouponInput] = useState<string>("");
   const [isCheckingCoupon, setIsCheckingCoupon] = useState<boolean>(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
+    type?: "PROMO_COUPON" | "REFERRAL_DISCOUNT" | "REFERRAL";
     discountAmount: number;
+    discountPercentage?: number;
+    referrerName?: string;
     finalPrice: number;
   } | null>(null);
 
@@ -118,7 +121,7 @@ export function ManualCheckoutClient({
   const brokerPartnerUrl =
     brokerConfig?.brokerPartnerUrl ||
     "https://web.mygtc.app/login/register?ref=FtHnmAFV";
-  const allowCouponStacking = Boolean(brokerConfig?.allowCouponStacking);
+  const isStackingAllowed = Boolean(brokerConfig?.allowCouponStacking || brokerConfig?.allowReferralStacking);
   const requireMemberId = brokerConfig?.requireMemberId !== false;
   const requireProof = Boolean(brokerConfig?.requireProof);
 
@@ -179,12 +182,12 @@ export function ManualCheckoutClient({
     e.preventDefault();
     if (!couponInput.trim()) return;
 
-    if (appliedBrokerId && !allowCouponStacking) {
+    if (appliedBrokerId && !isStackingAllowed) {
       toast.error(
-        "Coupon and Broker Offer cannot be stacked together. Please remove the broker offer first."
+        "Coupon / Referral discount and Broker Offer cannot be stacked together. Please remove the broker offer first or enable stacking in Admin Settings."
       );
       setCouponError(
-        "Coupon and Broker Offer cannot be stacked together. Please remove the broker offer first."
+        "Coupon / Referral discount and Broker Offer cannot be stacked together. Please remove the broker offer first."
       );
       return;
     }
@@ -202,32 +205,31 @@ export function ManualCheckoutClient({
         }),
       });
 
-      if (!res.ok) {
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setAppliedCoupon({
+          code: data.code || couponInput.trim().toUpperCase(),
+          type: data.type || (data.referrerId ? "REFERRAL_DISCOUNT" : "PROMO_COUPON"),
+          discountAmount: data.discountAmount,
+          discountPercentage: data.discountValue,
+          referrerName: data.referrerName,
+          finalPrice: data.finalPrice,
+        });
+        toast.success(data.message || `Code applied! Saved ₹${data.discountAmount}`);
+      } else {
         const clean = couponInput.trim().toUpperCase();
         if (clean === "SW30" || clean === "SUPER30") {
           const discount = Math.round(course.price * 0.3);
           setAppliedCoupon({
             code: clean,
+            type: "PROMO_COUPON",
             discountAmount: discount,
             finalPrice: Math.max(0, course.price - discount),
           });
           toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
-          setIsCheckingCoupon(false);
-          return;
+        } else {
+          setCouponError(data.message || "Invalid coupon or referral code.");
         }
-        throw new Error("Invalid or expired coupon code.");
-      }
-
-      const data = await res.json();
-      if (data.valid) {
-        setAppliedCoupon({
-          code: couponInput.trim().toUpperCase(),
-          discountAmount: data.discountAmount,
-          finalPrice: data.finalPrice,
-        });
-        toast.success(`Coupon applied! Saved ₹${data.discountAmount}`);
-      } else {
-        setCouponError(data.message || "Invalid coupon code.");
       }
     } catch {
       const clean = couponInput.trim().toUpperCase();
@@ -235,6 +237,7 @@ export function ManualCheckoutClient({
         const discount = Math.round(course.price * 0.3);
         setAppliedCoupon({
           code: clean,
+          type: "PROMO_COUPON",
           discountAmount: discount,
           finalPrice: Math.max(0, course.price - discount),
         });
@@ -281,12 +284,12 @@ export function ManualCheckoutClient({
   const handleVerifyBrokerMember = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (appliedCoupon && !allowCouponStacking) {
+    if (appliedCoupon && !isStackingAllowed) {
       toast.error(
-        "Coupon and Broker Offer cannot be combined. Please remove the coupon first."
+        "Coupon / Referral discount and Broker Offer cannot be combined. Please remove the coupon first or enable stacking in Admin Settings."
       );
       setBrokerStatusMessage(
-        "Coupon and Broker Offer cannot be combined. Please remove the coupon first."
+        "Coupon / Referral discount and Broker Offer cannot be combined. Please remove the coupon first."
       );
       return;
     }
@@ -1024,19 +1027,34 @@ export function ManualCheckoutClient({
                 </div>
               )}
 
-              {/* Coupon Code Section */}
+              {/* Coupon / Referral Code Section */}
               <div className="rounded-xl border border-border/80 bg-background/60 p-3.5 space-y-2.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                  <Tag className="h-3.5 w-3.5 text-primary" />
-                  Have a Promo Coupon?
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5 text-primary" />
+                    Have a Promo Coupon or Referral Code?
+                  </label>
+                  {brokerConfig?.isReferralDiscountEnabled !== false && (
+                    <span className="text-[10px] font-bold text-primary">
+                      {brokerConfig?.referralDiscountPercentage || 10}% Ref Discount
+                    </span>
+                  )}
+                </div>
 
                 {appliedCoupon ? (
                   <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-500">
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3.5 w-3.5" />
                       <span>
-                        <strong>{appliedCoupon.code}</strong> applied (-₹{appliedCoupon.discountAmount})
+                        {appliedCoupon.type === "REFERRAL" || appliedCoupon.type === "REFERRAL_DISCOUNT" ? (
+                          <>
+                            <strong>Referral Code {appliedCoupon.code}</strong> applied (-₹{appliedCoupon.discountAmount})
+                          </>
+                        ) : (
+                          <>
+                            <strong>Coupon {appliedCoupon.code}</strong> applied (-₹{appliedCoupon.discountAmount})
+                          </>
+                        )}
                       </span>
                     </div>
                     <button
@@ -1051,7 +1069,7 @@ export function ManualCheckoutClient({
                   <form onSubmit={handleApplyCoupon} className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="ENTER COUPON (E.G. SW30)"
+                      placeholder="ENTER COUPON OR REFERRAL CODE"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
                       className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
@@ -1080,7 +1098,11 @@ export function ManualCheckoutClient({
 
                 {appliedCoupon && (
                   <div className="flex justify-between text-emerald-500 font-semibold">
-                    <span>Coupon Discount</span>
+                    <span>
+                      {appliedCoupon.type === "REFERRAL" || appliedCoupon.type === "REFERRAL_DISCOUNT"
+                        ? `Referral Discount (${appliedCoupon.discountPercentage || brokerConfig?.referralDiscountPercentage || 10}%)`
+                        : "Coupon Discount"}
+                    </span>
                     <span>- {formatCurrency(appliedCoupon.discountAmount)}</span>
                   </div>
                 )}

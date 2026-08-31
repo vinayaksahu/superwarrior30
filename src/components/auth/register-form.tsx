@@ -1,15 +1,24 @@
 "use client";
 
-import { useActionState, use } from "react";
+import { useActionState, use, useState, useEffect } from "react";
 import { registerAction } from "@/server/actions/auth.actions";
 import type { ActionState } from "@/types";
+import { Sparkles, Tag, CheckCircle2 } from "lucide-react";
+
+interface RegisterFormProps {
+  searchParams: Promise<{ ref?: string }>;
+  referralDiscountPercentage?: number;
+  isReferralDiscountEnabled?: boolean;
+}
 
 export function RegisterForm({
   searchParams,
-}: {
-  searchParams: Promise<{ ref?: string }>;
-}) {
-  const { ref: referralCode } = use(searchParams);
+  referralDiscountPercentage = 10,
+  isReferralDiscountEnabled = true,
+}: RegisterFormProps) {
+  const { ref: initialRef } = use(searchParams);
+  const [refCode, setRefCode] = useState(initialRef || "");
+
   const [state, formAction, isPending] = useActionState<ActionState | null, FormData>(
     registerAction,
     null
@@ -21,6 +30,21 @@ export function RegisterForm({
         {state?.message && !state.success && (
           <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
             {state.message}
+          </div>
+        )}
+
+        {/* Dynamic Referral Discount Banner */}
+        {isReferralDiscountEnabled && (
+          <div className="mb-5 rounded-xl border border-primary/30 bg-primary/10 p-3.5 flex items-start gap-2.5">
+            <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div className="text-xs space-y-0.5">
+              <span className="font-bold text-foreground block">
+                🎁 Referral Bonus: {referralDiscountPercentage}% Instant Discount
+              </span>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                Use a friend or mentor&apos;s referral code below to unlock an instant {referralDiscountPercentage}% discount on your course enrollment!
+              </p>
+            </div>
           </div>
         )}
 
@@ -105,21 +129,38 @@ export function RegisterForm({
           </div>
 
           <div className="space-y-2">
-            <label
-              htmlFor="referralCode"
-              className="text-sm font-medium leading-none"
-            >
-              Referral Code{" "}
-              <span className="text-muted-foreground">(optional)</span>
-            </label>
-            <input
-              id="referralCode"
-              name="referralCode"
-              type="text"
-              placeholder="e.g. ABC12345"
-              defaultValue={referralCode || ""}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm uppercase ring-offset-background placeholder:text-muted-foreground placeholder:normal-case focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            />
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="referralCode"
+                className="text-sm font-medium leading-none"
+              >
+                Referral Code{" "}
+                <span className="text-muted-foreground">(optional)</span>
+              </label>
+              {isReferralDiscountEnabled && (
+                <span className="text-[11px] font-bold text-primary flex items-center gap-1">
+                  <Tag className="h-3 w-3" />
+                  {referralDiscountPercentage}% Discount
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                id="referralCode"
+                name="referralCode"
+                type="text"
+                value={refCode}
+                onChange={(e) => setRefCode(e.target.value.toUpperCase())}
+                placeholder="e.g. ABC12345"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm uppercase ring-offset-background placeholder:text-muted-foreground placeholder:normal-case focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+              {refCode && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>{referralDiscountPercentage}% OFF</span>
+                </div>
+              )}
+            </div>
             {state?.errors?.referralCode && (
               <p className="text-xs text-destructive">
                 {state.errors.referralCode[0]}
@@ -131,7 +172,7 @@ export function RegisterForm({
         <button
           type="submit"
           disabled={isPending}
-          className="mt-6 inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+          className="mt-6 inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
         >
           {isPending ? "Creating account..." : "Create Account"}
         </button>

@@ -23,6 +23,12 @@ export const referralSettingsSchema = z.object({
     .min(50, "Minimum withdrawal must be at least ₹50")
     .max(100000, "Cannot exceed ₹1,00,000")
     .default(500),
+  referralDiscountPercentage: z.coerce
+    .number()
+    .min(0, "Discount cannot be negative")
+    .max(100, "Discount cannot exceed 100%")
+    .default(10),
+  isReferralDiscountEnabled: z.coerce.boolean().default(true),
   levels: z.array(referralLevelItemSchema).min(1, "At least one referral level must be defined"),
 }).refine(
   (data) => {

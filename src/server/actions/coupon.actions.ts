@@ -56,7 +56,45 @@ export async function validateAndCalculateCouponAction({
   });
 
   if (!coupon) {
-    return { valid: false, message: "Invalid coupon code." };
+    // Check if it matches an affiliate referral code
+    const referrer = await prisma.user.findUnique({
+      where: { referralCode: cleanCode },
+      select: { id: true, name: true, referralCode: true, status: true },
+    });
+
+    if (referrer && referrer.status === "ACTIVE") {
+      if (user.id === referrer.id) {
+        return { valid: false, message: "You cannot use your own referral code for a discount." };
+      }
+
+      const { getBrokerSettings } = await import("@/lib/broker/config");
+      const brokerSettings = await getBrokerSettings();
+
+      if (brokerSettings.isReferralDiscountEnabled === false) {
+        return { valid: false, message: "Referral discount is currently disabled." };
+      }
+
+      const referralPct = Number(brokerSettings.referralDiscountPercentage) || 10;
+      let discountAmount = Number(((coursePrice * referralPct) / 100).toFixed(2));
+      const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
+
+      return {
+        valid: true,
+        type: "REFERRAL",
+        couponId: null,
+        referrerId: referrer.id,
+        referrerName: referrer.name || "Affiliate Partner",
+        code: referrer.referralCode,
+        discountType: "PERCENTAGE",
+        discountValue: referralPct,
+        discountAmount,
+        originalPrice: coursePrice,
+        finalPrice,
+        message: `Referral code "${referrer.referralCode}" applied! You unlocked ${referralPct}% instant discount (₹${discountAmount}).`,
+      };
+    }
+
+    return { valid: false, message: "Invalid coupon or referral code." };
   }
 
   // 3. Check active state

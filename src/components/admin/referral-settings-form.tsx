@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveReferralSettingsAction } from "@/server/actions/referral.actions";
-import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Clock, IndianRupee } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Clock, IndianRupee, Tag, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReferralLevelItem {
@@ -16,6 +16,8 @@ interface ReferralSettingsFormProps {
   initialEnabled: boolean;
   initialHoldingPeriodDays?: number;
   initialMinWithdrawalAmount?: number;
+  initialReferralDiscountPercentage?: number;
+  initialIsReferralDiscountEnabled?: boolean;
   initialLevels: ReferralLevelItem[];
 }
 
@@ -23,11 +25,15 @@ export function ReferralSettingsForm({
   initialEnabled,
   initialHoldingPeriodDays = 7,
   initialMinWithdrawalAmount = 500,
+  initialReferralDiscountPercentage = 10,
+  initialIsReferralDiscountEnabled = true,
   initialLevels,
 }: ReferralSettingsFormProps) {
   const [isReferralEnabled, setIsReferralEnabled] = useState(initialEnabled);
   const [holdingPeriodDays, setHoldingPeriodDays] = useState(initialHoldingPeriodDays);
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState(initialMinWithdrawalAmount);
+  const [referralDiscountPercentage, setReferralDiscountPercentage] = useState(initialReferralDiscountPercentage);
+  const [isReferralDiscountEnabled, setIsReferralDiscountEnabled] = useState(initialIsReferralDiscountEnabled);
   const [levels, setLevels] = useState<ReferralLevelItem[]>(
     initialLevels.length > 0
       ? initialLevels
@@ -93,19 +99,26 @@ export function ReferralSettingsForm({
       return;
     }
 
+    if (referralDiscountPercentage < 0 || referralDiscountPercentage > 100) {
+      toast.error("Referral discount percentage must be between 0% and 100%");
+      return;
+    }
+
     startTransition(async () => {
       try {
         const res = await saveReferralSettingsAction({
           isReferralEnabled,
           holdingPeriodDays,
           minWithdrawalAmount,
+          referralDiscountPercentage,
+          isReferralDiscountEnabled,
           levels,
         });
 
         if (res.success) {
-          toast.success("Referral program settings saved successfully!");
+          toast.success("Affiliate program & referral discount settings saved successfully!");
         } else {
-          toast.error(res.message || "Failed to save referral settings");
+          toast.error(res.message || "Failed to save settings");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Error saving settings";
@@ -145,6 +158,75 @@ export function ReferralSettingsForm({
             </span>
           </div>
         )}
+      </div>
+
+      {/* Referral Discount Coupon Configuration */}
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+          <div>
+            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Referral Discount Coupon Settings
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Configure the instant discount given to students when they register or checkout using an affiliate referral code
+            </p>
+          </div>
+
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              checked={isReferralDiscountEnabled}
+              onChange={(e) => setIsReferralDiscountEnabled(e.target.checked)}
+              className="peer sr-only"
+            />
+            <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-border after:bg-background after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
+          </label>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          {/* Discount % Input */}
+          <div className="rounded-xl border border-border/80 bg-background p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Tag className="h-3.5 w-3.5 text-primary" />
+                Referral Discount Percentage (%)
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={referralDiscountPercentage}
+                onChange={(e) => setReferralDiscountPercentage(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-10 text-sm font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                %
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Students who enter a referral code on <strong>/register</strong> or <strong>/checkout</strong> get this instant discount (e.g. 5%, 6%, 10%, 20%).
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex flex-col justify-between">
+            <div>
+              <span className="text-xs font-bold text-foreground block">Active Status Summary</span>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {isReferralDiscountEnabled
+                  ? `Students will receive a ${referralDiscountPercentage}% discount on course checkout when referred.`
+                  : "Referral discount is currently disabled for incoming students."}
+              </p>
+            </div>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-background/80 px-3 py-1.5 text-xs font-bold text-primary border border-primary/20">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>{referralDiscountPercentage}% Discount Active</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Financial Clearance & Payout Rules */}
@@ -226,7 +308,7 @@ export function ReferralSettingsForm({
           <button
             type="button"
             onClick={handleAddLevel}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Add Tier (Level {levels.length + 1})
@@ -295,7 +377,7 @@ export function ReferralSettingsForm({
                     onChange={(e) =>
                       handleLevelChange(index, "isEnabled", e.target.checked)
                     }
-                    className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
                   />
                   <span>Enabled</span>
                 </label>
@@ -305,7 +387,7 @@ export function ReferralSettingsForm({
                   type="button"
                   disabled={levels.length <= 1}
                   onClick={() => handleRemoveLevel(index)}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 cursor-pointer"
                   title="Remove Level"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -346,7 +428,7 @@ export function ReferralSettingsForm({
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
         >
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {isPending ? "Saving..." : "Save Referral Configuration"}
