@@ -732,8 +732,8 @@ export function ManualCheckoutClient({
                     >
                       <div className="flex items-center justify-between w-full mb-2">
                         {method.type === "GATEWAY" && <CreditCard className="h-4 w-4 text-primary" />}
-                        {method.type === "UPI_MANUAL" && <Smartphone className="h-4 w-4 text-primary" />}
-                        {method.type === "BANK_MANUAL" && <Building2 className="h-4 w-4 text-primary" />}
+                        {method.type === "UPI" && <Smartphone className="h-4 w-4 text-primary" />}
+                        {method.type === "BANK" && <Building2 className="h-4 w-4 text-primary" />}
                         {method.type === "CRYPTO" && <Zap className="h-4 w-4 text-primary" />}
                         {isSelected && (
                           <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
@@ -743,7 +743,7 @@ export function ManualCheckoutClient({
                         {method.title}
                       </span>
                       <span className="text-[10px] text-muted-foreground mt-1 truncate w-full">
-                        {method.accountName || method.type}
+                        {method.details?.accountName || method.details?.payeeName || method.type}
                       </span>
                     </button>
                   );
@@ -802,13 +802,13 @@ export function ManualCheckoutClient({
                   )}
 
                   {/* UPI QR & ID */}
-                  {selectedMethod.type === "UPI_MANUAL" && (
+                  {selectedMethod.type === "UPI" && (
                     <div className="space-y-4">
-                      {selectedMethod.qrCodeUrl && (
+                      {selectedMethod.details?.qrCodeUrl && (
                         <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background border border-border">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={selectedMethod.qrCodeUrl}
+                            src={selectedMethod.details.qrCodeUrl}
                             alt="UPI QR Code"
                             className="h-44 w-44 object-contain rounded-lg border"
                           />
@@ -818,19 +818,19 @@ export function ManualCheckoutClient({
                         </div>
                       )}
 
-                      {selectedMethod.upiId && (
+                      {selectedMethod.details?.upiId && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
                           <div>
                             <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                               UPI ID / VPA
                             </span>
                             <span className="text-xs font-mono font-bold text-foreground">
-                              {selectedMethod.upiId}
+                              {selectedMethod.details.upiId}
                             </span>
                           </div>
                           <button
                             type="button"
-                            onClick={() => copyToClipboard(selectedMethod.upiId!, "upi")}
+                            onClick={() => copyToClipboard(selectedMethod.details.upiId!, "upi")}
                             className="inline-flex items-center gap-1 rounded bg-secondary px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors"
                           >
                             {copiedKey === "upi" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
@@ -842,28 +842,28 @@ export function ManualCheckoutClient({
                   )}
 
                   {/* Bank Transfer Details */}
-                  {selectedMethod.type === "BANK_MANUAL" && (
+                  {selectedMethod.type === "BANK" && (
                     <div className="space-y-2 text-xs">
-                      {selectedMethod.bankName && (
+                      {selectedMethod.details?.bankName && (
                         <div className="flex justify-between py-1 border-b border-border/50">
                           <span className="text-muted-foreground">Bank Name:</span>
-                          <span className="font-bold text-foreground">{selectedMethod.bankName}</span>
+                          <span className="font-bold text-foreground">{selectedMethod.details.bankName}</span>
                         </div>
                       )}
-                      {selectedMethod.accountName && (
+                      {selectedMethod.details?.accountName && (
                         <div className="flex justify-between py-1 border-b border-border/50">
                           <span className="text-muted-foreground">Account Holder:</span>
-                          <span className="font-bold text-foreground">{selectedMethod.accountName}</span>
+                          <span className="font-bold text-foreground">{selectedMethod.details.accountName}</span>
                         </div>
                       )}
-                      {selectedMethod.accountNumber && (
+                      {selectedMethod.details?.accountNumber && (
                         <div className="flex items-center justify-between py-1 border-b border-border/50">
                           <span className="text-muted-foreground">Account Number:</span>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-foreground">{selectedMethod.accountNumber}</span>
+                            <span className="font-mono font-bold text-foreground">{selectedMethod.details.accountNumber}</span>
                             <button
                               type="button"
-                              onClick={() => copyToClipboard(selectedMethod.accountNumber!, "acc")}
+                              onClick={() => copyToClipboard(selectedMethod.details.accountNumber!, "acc")}
                               className="text-muted-foreground hover:text-foreground"
                             >
                               <Copy className="h-3 w-3" />
@@ -871,14 +871,14 @@ export function ManualCheckoutClient({
                           </div>
                         </div>
                       )}
-                      {selectedMethod.ifscCode && (
+                      {selectedMethod.details?.ifsc && (
                         <div className="flex items-center justify-between py-1 border-b border-border/50">
                           <span className="text-muted-foreground">IFSC Code:</span>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-foreground">{selectedMethod.ifscCode}</span>
+                            <span className="font-mono font-bold text-foreground">{selectedMethod.details.ifsc}</span>
                             <button
                               type="button"
-                              onClick={() => copyToClipboard(selectedMethod.ifscCode!, "ifsc")}
+                              onClick={() => copyToClipboard(selectedMethod.details.ifsc!, "ifsc")}
                               className="text-muted-foreground hover:text-foreground"
                             >
                               <Copy className="h-3 w-3" />
@@ -890,11 +890,11 @@ export function ManualCheckoutClient({
                   )}
 
                   {/* Crypto Wallet Details */}
-                  {selectedMethod.type === "CRYPTO" && selectedMethod.cryptoAddress && (
+                  {selectedMethod.type === "CRYPTO" && selectedMethod.details?.walletAddress && (
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between py-1 border-b border-border/50">
                         <span className="text-muted-foreground">Network:</span>
-                        <span className="font-bold text-foreground">{selectedMethod.cryptoNetwork || "USDT (TRC-20)"}</span>
+                        <span className="font-bold text-foreground">{selectedMethod.details.network || "USDT (TRC-20)"}</span>
                       </div>
                       <div className="p-3 rounded-lg bg-background border border-border space-y-1">
                         <span className="text-[10px] uppercase font-bold text-muted-foreground block">
@@ -902,11 +902,11 @@ export function ManualCheckoutClient({
                         </span>
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-mono text-xs text-foreground break-all">
-                            {selectedMethod.cryptoAddress}
+                            {selectedMethod.details.walletAddress}
                           </span>
                           <button
                             type="button"
-                            onClick={() => copyToClipboard(selectedMethod.cryptoAddress!, "crypto")}
+                            onClick={() => copyToClipboard(selectedMethod.details.walletAddress!, "crypto")}
                             className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs font-medium hover:bg-accent shrink-0"
                           >
                             <Copy className="h-3 w-3" />

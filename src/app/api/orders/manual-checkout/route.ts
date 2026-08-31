@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { getBrokerSettings } from "@/lib/broker/config";
 import { verifyBrokerMemberIdServer } from "@/lib/broker/verification";
+import { validateAndCalculateCouponAction } from "@/server/actions/coupon.actions";
 
 export const dynamic = "force-dynamic";
 

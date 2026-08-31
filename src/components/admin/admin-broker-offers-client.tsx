@@ -22,6 +22,8 @@ import {
   Calendar,
   Layers,
   X,
+  Building2,
+  Tag,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { BrokerOfferSettings } from "@/lib/broker/config";
