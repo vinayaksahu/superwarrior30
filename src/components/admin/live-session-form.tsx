@@ -10,6 +10,7 @@ import {
   liveSessionSchema,
   type LiveSessionInput,
 } from "@/lib/validations/live-session.schema";
+import { DarkDateTimePicker } from "@/components/ui/dark-date-time-picker";
 import {
   Video,
   Calendar,
@@ -95,13 +96,17 @@ export function LiveSessionForm({ initialData, courses }: LiveSessionFormProps) 
     const parsed = liveSessionSchema.safeParse(formData);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
+      let firstMsg = "Please fix form errors before submitting";
       parsed.error.issues.forEach((issue) => {
         if (issue.path[0]) {
           fieldErrors[issue.path[0].toString()] = issue.message;
         }
       });
+      if (parsed.error.issues[0]?.message) {
+        firstMsg = parsed.error.issues[0].message;
+      }
       setErrors(fieldErrors);
-      toast.error("Please fix form errors before submitting");
+      toast.error(firstMsg);
       return;
     }
 
@@ -366,17 +371,22 @@ export function LiveSessionForm({ initialData, courses }: LiveSessionFormProps) 
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-foreground mb-1.5">
-              Scheduled Date & Time <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="datetime-local"
-              className={inputClasses}
+            <DarkDateTimePicker
               value={formData.scheduledAt as string}
-              onChange={(e) => setFormData({ ...formData, scheduledAt: e.target.value })}
+              onChange={(newVal) => {
+                setFormData({ ...formData, scheduledAt: newVal });
+                if (errors.scheduledAt) {
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.scheduledAt;
+                    return next;
+                  });
+                }
+              }}
+              error={errors.scheduledAt}
+              label="Scheduled Date & Time"
               required
             />
-            {errors.scheduledAt && <p className="text-xs text-destructive mt-1">{errors.scheduledAt}</p>}
           </div>
 
           <div>

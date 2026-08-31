@@ -22,23 +22,52 @@ export const liveSessionSchema = z.object({
     .max(150, "Title cannot exceed 150 characters"),
   slug: z
     .string()
-    .min(3, "Slug must be at least 3 characters")
-    .regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens")
-    .optional(),
-  description: z.string().optional().nullable(),
-  courseId: z.string().optional().nullable(),
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  description: z.string().optional().nullable().or(z.literal("")),
+  courseId: z
+    .string()
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => (val === "ALL" || !val ? null : val)),
   provider: liveSessionProviderEnum.default("ZOOM"),
-  meetingUrl: z.string().url("Must be a valid URL").optional().nullable().or(z.literal("")),
-  meetingId: z.string().optional().nullable(),
-  passcode: z.string().optional().nullable(),
-  roomName: z.string().optional().nullable(),
-  scheduledAt: z.string().or(z.date()).refine((val) => !isNaN(new Date(val).getTime()), {
-    message: "Invalid date and time",
+  meetingUrl: z
+    .string()
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => {
+      if (!val || val.trim() === "") return null;
+      const trimmed = val.trim();
+      if (!/^https?:\/\//i.test(trimmed) && trimmed.includes(".")) {
+        return `https://${trimmed}`;
+      }
+      return trimmed;
+    }),
+  meetingId: z.string().optional().nullable().or(z.literal("")),
+  passcode: z.string().optional().nullable().or(z.literal("")),
+  roomName: z.string().optional().nullable().or(z.literal("")),
+  scheduledAt: z.union([z.string(), z.date()]).refine((val) => !isNaN(new Date(val).getTime()), {
+    message: "Please select a valid date and time",
   }),
   durationMinutes: z.coerce.number().min(5, "Minimum duration is 5 minutes").max(480, "Maximum duration is 8 hours").default(60),
   status: liveSessionStatusEnum.default("UPCOMING"),
-  recordingUrl: z.string().url("Must be a valid URL").optional().nullable().or(z.literal("")),
-  bunnyVideoId: z.string().optional().nullable(),
+  recordingUrl: z
+    .string()
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => {
+      if (!val || val.trim() === "") return null;
+      const trimmed = val.trim();
+      if (!/^https?:\/\//i.test(trimmed) && trimmed.includes(".")) {
+        return `https://${trimmed}`;
+      }
+      return trimmed;
+    }),
+  bunnyVideoId: z.string().optional().nullable().or(z.literal("")),
   isPublished: z.boolean().default(true),
 });
 
