@@ -122,9 +122,25 @@ export function LessonEditModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="relative w-full max-w-2xl rounded-xl border border-border bg-card shadow-2xl my-8 animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Edit Lesson</h3>
-            <p className="text-xs text-muted-foreground">Manage lesson content, video, and attachments</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-foreground">Edit Lesson Content</h3>
+                <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
+                  contentType === "VIDEO"
+                    ? "bg-primary/10 text-primary border-primary/20"
+                    : contentType === "PDF"
+                    ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                    : "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                }`}>
+                  {contentType === "VIDEO" && <Video className="h-3 w-3" />}
+                  {contentType === "PDF" && <FileText className="h-3 w-3" />}
+                  {contentType === "TEXT" && <AlignLeft className="h-3 w-3" />}
+                  {contentType === "VIDEO" ? "Video Lesson" : contentType === "PDF" ? "PDF Document" : "Text Article"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Upload and manage content for this lesson</p>
+            </div>
           </div>
           <button
             type="button"
@@ -136,6 +152,8 @@ export function LessonEditModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <input type="hidden" name="contentType" value={contentType} />
+
           {/* Lesson Title */}
           <div className="space-y-2">
             <label htmlFor="lessonTitle" className="text-sm font-medium leading-none">
@@ -149,32 +167,6 @@ export function LessonEditModal({
               required
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-          </div>
-
-          {/* Content Type Selector */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Content Format</label>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { type: "VIDEO", label: "Video Lesson", icon: Video },
-                { type: "PDF", label: "PDF Document", icon: FileText },
-                { type: "TEXT", label: "Article / Text", icon: AlignLeft },
-              ].map(({ type, label, icon: Icon }) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setContentType(type as "VIDEO" | "PDF" | "TEXT")}
-                  className={`flex flex-col items-center justify-center rounded-lg border p-3 text-center transition-all ${
-                    contentType === type
-                      ? "border-primary bg-primary/10 text-primary font-semibold shadow-sm"
-                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-5 w-5 mb-1.5" />
-                  <span className="text-xs">{label}</span>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Upload Area for VIDEO */}
