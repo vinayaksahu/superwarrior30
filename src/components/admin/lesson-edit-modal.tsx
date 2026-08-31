@@ -278,27 +278,73 @@ export function LessonEditModal({
               </label>
             </div>
 
-            {/* If Free Preview is enabled, Admin decides how many seconds to show */}
+            {/* If Free Preview is enabled, Admin decides preview limit tailored to Video, PDF, or Article */}
             {isFreePreview ? (
               <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3.5 space-y-2 animate-in fade-in">
-                <label htmlFor="durationSec" className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                  ⏱️ Free Preview Duration (in Seconds)
-                </label>
-                <div className="flex flex-wrap items-center gap-3">
-                  <input
-                    id="durationSec"
-                    name="durationSec"
-                    type="number"
-                    min="5"
-                    max="600"
-                    defaultValue={lesson.durationSec > 0 ? lesson.durationSec : 15}
-                    placeholder="e.g. 15, 30 or 60"
-                    className="flex h-10 w-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <span className="text-xs text-neutral-300">
-                    seconds (video will automatically pause & lock after this time)
-                  </span>
-                </div>
+                {contentType === "VIDEO" ? (
+                  <>
+                    <label htmlFor="durationSec" className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      ⏱️ Video Free Preview Limit (in Seconds)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        id="durationSec"
+                        name="durationSec"
+                        type="number"
+                        min="5"
+                        max="600"
+                        defaultValue={lesson.durationSec > 0 ? lesson.durationSec : 15}
+                        placeholder="e.g. 15, 30 or 60"
+                        className="flex h-10 w-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                      <span className="text-xs text-neutral-300">
+                        seconds (video will automatically pause & show paywall after this time)
+                      </span>
+                    </div>
+                  </>
+                ) : contentType === "PDF" ? (
+                  <>
+                    <label htmlFor="durationSec" className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      📄 PDF Free Preview Limit (in Pages)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        id="durationSec"
+                        name="durationSec"
+                        type="number"
+                        min="1"
+                        max="50"
+                        defaultValue={lesson.durationSec > 0 ? lesson.durationSec : 1}
+                        placeholder="e.g. 1, 2 or 3"
+                        className="flex h-10 w-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                      <span className="text-xs text-neutral-300">
+                        page(s) (prospective students can preview the first X pages)
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label htmlFor="durationSec" className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      📝 Article Free Preview Limit (Word Count)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        id="durationSec"
+                        name="durationSec"
+                        type="number"
+                        min="30"
+                        max="5000"
+                        defaultValue={lesson.durationSec > 0 ? lesson.durationSec : 150}
+                        placeholder="e.g. 100 or 150"
+                        className="flex h-10 w-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                      <span className="text-xs text-neutral-300">
+                        words (article will fade out with Paywall card after this limit)
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <input type="hidden" name="durationSec" value={lesson.durationSec || 0} />

@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions";
-import { Eye, X, Loader2, Play, Lock, RotateCcw, Sparkles, AlertCircle, Clock } from "lucide-react";
+import { Eye, X, Loader2, Play, Lock, RotateCcw, Sparkles, AlertCircle, Clock, FileText, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 
 interface FreePreviewModalProps {
@@ -49,6 +49,10 @@ export function FreePreviewButton({
       ? initialDurationSec
       : (mediaData?.lesson?.durationSec && mediaData.lesson.durationSec > 0)
       ? mediaData.lesson.durationSec
+      : contentType === "PDF"
+      ? 1
+      : contentType === "TEXT"
+      ? 150
       : 15;
 
   // Preview countdown & limit state
@@ -171,7 +175,11 @@ export function FreePreviewButton({
         className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-500 transition-colors hover:bg-emerald-500/20"
       >
         <Eye className="h-3.5 w-3.5" />
-        Preview ({previewLimit}s)
+        {contentType === "VIDEO"
+          ? `Preview (${previewLimit}s)`
+          : contentType === "PDF"
+          ? `Preview (${previewLimit} Page${previewLimit > 1 ? "s" : ""})`
+          : "Preview (Article)"}
       </button>
 
       {isOpen && (
@@ -181,8 +189,14 @@ export function FreePreviewButton({
             <div className="flex items-center justify-between border-b border-border px-5 py-3.5 bg-muted/40 shrink-0">
               <div className="flex items-center gap-2.5">
                 <span className="rounded bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Free {previewLimit}s Preview
+                  {contentType === "VIDEO" && <Clock className="h-3 w-3" />}
+                  {contentType === "PDF" && <FileText className="h-3 w-3" />}
+                  {contentType === "TEXT" && <AlignLeft className="h-3 w-3" />}
+                  {contentType === "VIDEO"
+                    ? `Free ${previewLimit}s Video Preview`
+                    : contentType === "PDF"
+                    ? `Free ${previewLimit} Page Preview`
+                    : "Free Article Preview"}
                 </span>
                 <h3 className="font-semibold text-foreground text-sm sm:text-base truncate max-w-md">
                   {lessonTitle}
@@ -322,16 +336,120 @@ export function FreePreviewButton({
                   </div>
                 </div>
               ) : mediaData?.signedUrl && contentType === "PDF" ? (
-                <div className="h-[500px] w-full rounded-lg overflow-hidden border border-border">
-                  <iframe
-                    src={`${mediaData.signedUrl}#toolbar=0`}
-                    className="h-full w-full"
-                    title={lessonTitle}
-                  />
+                <div className="space-y-3">
+                  {/* PDF Preview Notice */}
+                  <div className="flex items-center justify-between bg-black/60 backdrop-blur-md px-3.5 py-2 rounded-xl border border-border text-xs">
+                    <div className="flex items-center gap-2 text-emerald-400 font-medium">
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>Showing First {previewLimit} Page{previewLimit > 1 ? "s" : ""} (Free Preview)</span>
+                    </div>
+                    <span className="text-[11px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      Full Document Locked
+                    </span>
+                  </div>
+
+                  {/* PDF Embed */}
+                  <div className="relative h-[420px] w-full rounded-xl overflow-hidden border border-border bg-neutral-900 shadow-inner">
+                    <iframe
+                      src={`${mediaData.signedUrl}#page=1&toolbar=0&navpanes=0`}
+                      className="h-full w-full"
+                      title={lessonTitle}
+                    />
+                  </div>
+
+                  {/* Paywall Banner under PDF */}
+                  <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                    <div>
+                      <p className="text-xs font-bold text-amber-400 flex items-center justify-center sm:justify-start gap-1.5">
+                        <Lock className="h-3.5 w-3.5" />
+                        Preview Limited to First {previewLimit} Page{previewLimit > 1 ? "s" : ""}
+                      </p>
+                      <p className="text-[11px] text-neutral-300 mt-0.5">
+                        Enroll in the course to view and download complete PDF notes & slides.
+                      </p>
+                    </div>
+
+                    {effectiveCourseId ? (
+                      <Link
+                        href={`/checkout/${effectiveCourseId}`}
+                        className="shrink-0 flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold text-primary-foreground shadow-md transition-all hover:scale-105 active:scale-95"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Unlock Full PDF {effectiveCoursePrice ? `• ₹${effectiveCoursePrice}` : ""}
+                      </Link>
+                    ) : effectiveCourseSlug ? (
+                      <Link
+                        href={`/courses/${effectiveCourseSlug}`}
+                        className="shrink-0 flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold text-primary-foreground shadow-md transition-all hover:scale-105 active:scale-95"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Unlock Full PDF
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
               ) : mediaData?.lesson?.textContent && contentType === "TEXT" ? (
-                <div className="prose prose-invert max-w-none max-h-96 overflow-y-auto whitespace-pre-wrap p-4 rounded-lg bg-muted/30 text-sm leading-relaxed">
-                  {mediaData.lesson.textContent}
+                <div className="space-y-4">
+                  {/* Article Preview Notice */}
+                  <div className="flex items-center justify-between bg-black/60 backdrop-blur-md px-3.5 py-2 rounded-xl border border-border text-xs">
+                    <div className="flex items-center gap-2 text-emerald-400 font-medium">
+                      <AlignLeft className="h-3.5 w-3.5" />
+                      <span>Article Sample Preview</span>
+                    </div>
+                    <span className="text-[11px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      Full Article Locked
+                    </span>
+                  </div>
+
+                  {/* Text Content with Word Truncation */}
+                  <div className="relative rounded-xl border border-border bg-muted/20 p-5">
+                    {(() => {
+                      const fullText = mediaData.lesson.textContent;
+                      const words = fullText.split(/\s+/);
+                      const wordLimit = previewLimit > 0 ? previewLimit : 150;
+                      const isTruncated = words.length > wordLimit;
+                      const displayText = isTruncated ? words.slice(0, wordLimit).join(" ") + "..." : fullText;
+
+                      return (
+                        <>
+                          <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed text-neutral-200">
+                            {displayText}
+                          </div>
+
+                          {isTruncated && (
+                            <div className="mt-5 rounded-xl border border-amber-500/25 bg-gradient-to-t from-black via-black/95 to-black/70 p-5 text-center flex flex-col items-center select-none shadow-lg">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 mb-2 border border-amber-500/30">
+                                <Lock className="h-5 w-5" />
+                              </div>
+                              <h5 className="text-sm font-bold text-white mb-1">
+                                Article Preview Ended
+                              </h5>
+                              <p className="text-xs text-neutral-300 max-w-sm mb-4">
+                                Enroll now to read the full trading setup notes, rules, and complete lesson material.
+                              </p>
+                              {effectiveCourseId ? (
+                                <Link
+                                  href={`/checkout/${effectiveCourseId}`}
+                                  className="flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-xs font-bold text-primary-foreground shadow-md transition-all hover:scale-105 active:scale-95"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  Read Full Article {effectiveCoursePrice ? `• ₹${effectiveCoursePrice}` : ""}
+                                </Link>
+                              ) : effectiveCourseSlug ? (
+                                <Link
+                                  href={`/courses/${effectiveCourseSlug}`}
+                                  className="flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-xs font-bold text-primary-foreground shadow-md transition-all hover:scale-105 active:scale-95"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  Read Full Article
+                                </Link>
+                              ) : null}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               ) : (
                 <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
