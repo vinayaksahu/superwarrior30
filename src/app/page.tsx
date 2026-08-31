@@ -32,6 +32,8 @@ export default async function HomePage() {
     price: number | string | { toString(): string };
     compareAtPrice: number | string | { toString(): string } | null;
     difficulty: string;
+    thumbnailCdnUrl?: string | null;
+    thumbnailKey?: string | null;
     _count: { modules: number };
   }> = [];
 

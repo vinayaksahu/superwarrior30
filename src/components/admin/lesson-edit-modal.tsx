@@ -256,7 +256,7 @@ export function LessonEditModal({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="durationSec" className="text-sm font-medium leading-none">
-                Duration (in Seconds)
+                Total Video Length (in Seconds)
               </label>
               <input
                 id="durationSec"
@@ -268,7 +268,7 @@ export function LessonEditModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <p className="text-xs text-muted-foreground">
-                Approx {Math.round((lesson.durationSec || 0) / 60)} minutes
+                Approx {Math.round((lesson.durationSec || 0) / 60)} min total length
               </p>
             </div>
 
@@ -282,8 +282,8 @@ export function LessonEditModal({
                   className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
                 />
                 <div>
-                  <p className="text-sm font-medium">Free Preview Lesson</p>
-                  <p className="text-xs text-muted-foreground">Allow potential students to watch without enrolling</p>
+                  <p className="text-sm font-medium">Free Preview (15-Sec Demo)</p>
+                  <p className="text-xs text-muted-foreground">Allows prospective students to watch a 15-second preview</p>
                 </div>
               </label>
 

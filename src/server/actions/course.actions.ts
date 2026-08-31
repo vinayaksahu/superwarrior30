@@ -326,7 +326,7 @@ export async function updateCourseThumbnailAction(
   // Delete old thumbnail if exists (both R2 and Bunny)
   const course = await prisma.course.findUnique({
     where: { id: courseId },
-    select: { thumbnailKey: true, thumbnailCdnUrl: true },
+    select: { thumbnailKey: true, thumbnailCdnUrl: true, slug: true },
   });
 
   const newThumbnail = provider === "BUNNY" && cdnUrl ? cdnUrl : thumbnailKey;
@@ -1180,6 +1180,20 @@ export async function getLessonPreviewMediaUrlAction(lessonId: string) {
       mediaProvider: true,
       textContent: true,
       isFreePreview: true,
+      durationSec: true,
+      module: {
+        select: {
+          courseId: true,
+          course: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              price: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -1207,6 +1221,10 @@ export async function getLessonPreviewMediaUrlAction(lessonId: string) {
     signedUrl,
     provider: isBunny ? "BUNNY" : (lesson.mediaProvider || "R2"),
     bunnyVideoId: lesson.bunnyVideoId,
+    courseId: lesson.module?.course?.id,
+    courseSlug: lesson.module?.course?.slug,
+    courseTitle: lesson.module?.course?.title,
+    coursePrice: lesson.module?.course?.price ? Number(lesson.module.course.price) : null,
   };
 }
 

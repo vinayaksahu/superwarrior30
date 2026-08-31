@@ -270,6 +270,9 @@ export default async function CourseDetailPage({
                                 lessonId={lesson.id}
                                 lessonTitle={lesson.title}
                                 contentType={lesson.contentType}
+                                courseId={course.id}
+                                courseSlug={course.slug}
+                                coursePrice={course.price ? Number(course.price) : undefined}
                               />
                             ) : (
                               <div className="flex items-center gap-1 text-xs text-muted-foreground/60">
