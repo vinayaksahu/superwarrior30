@@ -5,6 +5,7 @@ import { UploadCloud, CheckCircle2, AlertCircle, Loader2, FileIcon, X, Film, Pau
 import { toast } from "sonner";
 import * as tus from "tus-js-client";
 import { BUNNY_VIDEO_POLL_INTERVAL } from "@/lib/constants";
+import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions";
 
 interface UploadResult {
   key: string | null;
@@ -61,12 +62,25 @@ export function FileUploader({
       ? currentKey
       : null
   );
+  const [videoEmbedUrl, setVideoEmbedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentKey && (currentKey.startsWith("http") || currentKey.startsWith("data:") || currentKey.startsWith("/"))) {
       setPreviewUrl(currentKey);
     }
   }, [currentKey]);
+
+  useEffect(() => {
+    if (category === "video" && (currentBunnyVideoId || currentKey) && lessonId) {
+      getLessonPreviewMediaUrlAction(lessonId)
+        .then((res) => {
+          if (res?.signedUrl) {
+            setVideoEmbedUrl(res.signedUrl);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [category, currentBunnyVideoId, currentKey, lessonId]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const encodingPollRef = useRef<NodeJS.Timeout | null>(null);
@@ -502,6 +516,70 @@ export function FileUploader({
           >
             <UploadCloud className="h-3.5 w-3.5" />
             Upload Different File
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const isVideoCategory = category === "video";
+  const showVideoPreview =
+    isVideoCategory &&
+    Boolean(videoEmbedUrl || currentBunnyVideoId) &&
+    status !== "uploading" &&
+    status !== "requesting" &&
+    status !== "encoding" &&
+    status !== "saving" &&
+    status !== "error";
+
+  if (showVideoPreview) {
+    return (
+      <div className="space-y-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={defaultAccept}
+          className="hidden"
+          onChange={handleFileChange}
+          disabled={status === "uploading" || status === "saving"}
+        />
+
+        <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border bg-black shadow-md">
+          {videoEmbedUrl ? (
+            <iframe
+              src={videoEmbedUrl}
+              loading="lazy"
+              className="h-full w-full border-0"
+              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+              title="Lesson Video Preview"
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground bg-black/70 p-4 text-center">
+              <Film className="h-10 w-10 text-primary" />
+              <p className="text-sm font-semibold text-foreground">Video Ready on Bunny Stream</p>
+              <p className="text-xs font-mono text-muted-foreground">ID: {currentBunnyVideoId?.slice(0, 16)}...</p>
+            </div>
+          )}
+
+          {/* Active Video Badge */}
+          <div className="pointer-events-none absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-md bg-black/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 border border-emerald-500/30 backdrop-blur-md">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            <span>Bunny Stream Video Active</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+          <span className="truncate max-w-[220px] font-mono text-[11px]">
+            {fileName || (currentBunnyVideoId ? `Bunny: ${currentBunnyVideoId.slice(0, 14)}...` : "Uploaded Video")}
+          </span>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+          >
+            <UploadCloud className="h-3.5 w-3.5" />
+            Replace / Upload Different Video
           </button>
         </div>
       </div>

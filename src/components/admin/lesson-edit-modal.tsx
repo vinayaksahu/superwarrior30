@@ -42,6 +42,7 @@ export function LessonEditModal({
   const [pdfKey, setPdfKey] = useState<string | null>(lesson.pdfKey);
   const [bunnyVideoId, setBunnyVideoId] = useState<string | null>(lesson.bunnyVideoId || null);
   const [bunnyCdnUrl, setBunnyCdnUrl] = useState<string | null>(lesson.bunnyCdnUrl || null);
+  const [isFreePreview, setIsFreePreview] = useState<boolean>(lesson.isFreePreview);
   const [isPending, startTransition] = useTransition();
 
   const hasVideo = videoKey || bunnyVideoId;
@@ -252,55 +253,64 @@ export function LessonEditModal({
             </div>
           )}
 
-          {/* Duration in Minutes/Seconds */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor="durationSec" className="text-sm font-medium leading-none">
-                Total Video Length (in Seconds)
-              </label>
-              <input
-                id="durationSec"
-                name="durationSec"
-                type="number"
-                min="0"
-                defaultValue={lesson.durationSec || 0}
-                placeholder="e.g. 600 for 10 min"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <p className="text-xs text-muted-foreground">
-                Approx {Math.round((lesson.durationSec || 0) / 60)} min total length
-              </p>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <label className="flex items-center gap-2.5 cursor-pointer">
+          {/* Settings: Free Preview & Published */}
+          <div className="rounded-xl border border-border bg-card/40 p-4 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   name="isFreePreview"
                   value="true"
-                  defaultChecked={lesson.isFreePreview}
-                  className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                  checked={isFreePreview}
+                  onChange={(e) => setIsFreePreview(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-input text-primary focus:ring-primary"
                 />
                 <div>
-                  <p className="text-sm font-medium">Free Preview (15-Sec Demo)</p>
-                  <p className="text-xs text-muted-foreground">Allows prospective students to watch a 15-second preview</p>
+                  <p className="text-sm font-semibold text-foreground">Free Preview Lesson</p>
+                  <p className="text-xs text-muted-foreground">Allow prospective students to watch a teaser without enrolling</p>
                 </div>
               </label>
 
-              <label className="flex items-center gap-2.5 cursor-pointer">
+              <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   name="isPublished"
                   value="true"
                   defaultChecked={lesson.isPublished}
-                  className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                  className="mt-1 h-4 w-4 rounded border-input text-primary focus:ring-primary"
                 />
                 <div>
-                  <p className="text-sm font-medium">Published</p>
+                  <p className="text-sm font-semibold text-foreground">Published</p>
                   <p className="text-xs text-muted-foreground">Visible to enrolled students</p>
                 </div>
               </label>
             </div>
+
+            {/* If Free Preview is enabled, Admin decides how many seconds to show */}
+            {isFreePreview ? (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3.5 space-y-2 animate-in fade-in">
+                <label htmlFor="durationSec" className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  ⏱️ Free Preview Duration (in Seconds)
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    id="durationSec"
+                    name="durationSec"
+                    type="number"
+                    min="5"
+                    max="600"
+                    defaultValue={lesson.durationSec > 0 ? lesson.durationSec : 15}
+                    placeholder="e.g. 15, 30 or 60"
+                    className="flex h-10 w-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <span className="text-xs text-neutral-300">
+                    seconds (video will automatically pause & lock after this time)
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <input type="hidden" name="durationSec" value={lesson.durationSec || 0} />
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 border-t border-border pt-4">

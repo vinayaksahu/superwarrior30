@@ -13,9 +13,8 @@ interface FreePreviewModalProps {
   courseId?: string;
   courseSlug?: string;
   coursePrice?: number;
+  durationSec?: number;
 }
-
-const PREVIEW_LIMIT_SEC = 15;
 
 export function FreePreviewButton({
   lessonId,
@@ -24,6 +23,7 @@ export function FreePreviewButton({
   courseId: initialCourseId,
   courseSlug: initialCourseSlug,
   coursePrice: initialCoursePrice,
+  durationSec: initialDurationSec,
 }: FreePreviewModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [mediaData, setMediaData] = useState<{
@@ -44,8 +44,15 @@ export function FreePreviewButton({
   } | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const previewLimit =
+    (initialDurationSec && initialDurationSec > 0)
+      ? initialDurationSec
+      : (mediaData?.lesson?.durationSec && mediaData.lesson.durationSec > 0)
+      ? mediaData.lesson.durationSec
+      : 15;
+
   // Preview countdown & limit state
-  const [timeLeft, setTimeLeft] = useState(PREVIEW_LIMIT_SEC);
+  const [timeLeft, setTimeLeft] = useState(previewLimit);
   const [isLimitReached, setIsLimitReached] = useState(false);
   const [replayKey, setReplayKey] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -57,7 +64,7 @@ export function FreePreviewButton({
   // Handle open modal
   const handleOpen = () => {
     setIsOpen(true);
-    setTimeLeft(PREVIEW_LIMIT_SEC);
+    setTimeLeft(previewLimit);
     setIsLimitReached(false);
 
     if (!mediaData) {
@@ -65,6 +72,9 @@ export function FreePreviewButton({
         try {
           const res = await getLessonPreviewMediaUrlAction(lessonId);
           setMediaData(res);
+          if (res?.lesson?.durationSec && res.lesson.durationSec > 0) {
+            setTimeLeft(res.lesson.durationSec);
+          }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : "Failed to load preview";
           toast.error(msg);
@@ -75,15 +85,15 @@ export function FreePreviewButton({
 
   const handleClose = () => {
     setIsOpen(false);
-    setTimeLeft(PREVIEW_LIMIT_SEC);
+    setTimeLeft(previewLimit);
     setIsLimitReached(false);
   };
 
   const handleReplay = useCallback(() => {
-    setTimeLeft(PREVIEW_LIMIT_SEC);
+    setTimeLeft(previewLimit);
     setIsLimitReached(false);
     setReplayKey((prev) => prev + 1);
-  }, []);
+  }, [previewLimit]);
 
   // Timer countdown for Video preview
   useEffect(() => {
@@ -121,7 +131,7 @@ export function FreePreviewButton({
           data?.value?.currentTime ??
           data?.time;
 
-        if (typeof currentTime === "number" && currentTime >= PREVIEW_LIMIT_SEC) {
+        if (typeof currentTime === "number" && currentTime >= previewLimit) {
           setIsLimitReached(true);
           setTimeLeft(0);
         }
@@ -132,7 +142,7 @@ export function FreePreviewButton({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isOpen, isLimitReached, contentType]);
+  }, [isOpen, isLimitReached, contentType, previewLimit]);
 
   return (
     <>
@@ -142,7 +152,7 @@ export function FreePreviewButton({
         className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-500 transition-colors hover:bg-emerald-500/20"
       >
         <Eye className="h-3.5 w-3.5" />
-        Preview (15s)
+        Preview ({previewLimit}s)
       </button>
 
       {isOpen && (
@@ -153,7 +163,7 @@ export function FreePreviewButton({
               <div className="flex items-center gap-2.5">
                 <span className="rounded bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  Free 15s Preview
+                  Free {previewLimit}s Preview
                 </span>
                 <h3 className="font-semibold text-foreground text-sm sm:text-base truncate max-w-md">
                   {lessonTitle}
@@ -197,7 +207,7 @@ export function FreePreviewButton({
 
                   {/* Video Player Container */}
                   <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black shadow-2xl border border-border">
-                    {/* Paywall Overlay when 15s limit reached */}
+                    {/* Paywall Overlay when preview limit reached */}
                     {isLimitReached && (
                       <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/92 backdrop-blur-md p-6 text-center animate-in fade-in zoom-in-95 duration-200 select-none">
                         <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 mb-3 shadow-lg shadow-amber-500/10">
@@ -205,7 +215,7 @@ export function FreePreviewButton({
                         </div>
 
                         <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 border border-amber-500/20 mb-2">
-                          <span>15-Second Free Preview Ended</span>
+                          <span>{previewLimit}-Second Free Preview Ended</span>
                         </div>
 
                         <h4 className="text-base sm:text-xl font-bold text-white mb-1.5">
@@ -241,7 +251,7 @@ export function FreePreviewButton({
                             className="flex h-11 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900/90 px-4 text-xs font-semibold text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
-                            Replay (15s)
+                            Replay ({previewLimit}s)
                           </button>
                         </div>
                       </div>
