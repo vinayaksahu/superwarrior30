@@ -54,6 +54,7 @@ export function FreePreviewButton({
   // Preview countdown & limit state
   const [timeLeft, setTimeLeft] = useState(previewLimit);
   const [isLimitReached, setIsLimitReached] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [replayKey, setReplayKey] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -66,6 +67,7 @@ export function FreePreviewButton({
     setIsOpen(true);
     setTimeLeft(previewLimit);
     setIsLimitReached(false);
+    setIsPlaying(false);
 
     if (!mediaData) {
       startTransition(async () => {
@@ -87,17 +89,19 @@ export function FreePreviewButton({
     setIsOpen(false);
     setTimeLeft(previewLimit);
     setIsLimitReached(false);
+    setIsPlaying(false);
   };
 
   const handleReplay = useCallback(() => {
     setTimeLeft(previewLimit);
     setIsLimitReached(false);
+    setIsPlaying(false);
     setReplayKey((prev) => prev + 1);
   }, [previewLimit]);
 
-  // Timer countdown for Video preview
+  // Timer countdown for Video preview (ONLY ticks when video is actively playing)
   useEffect(() => {
-    if (!isOpen || isLimitReached || !mediaData?.signedUrl || contentType !== "VIDEO") {
+    if (!isOpen || isLimitReached || !isPlaying || !mediaData?.signedUrl || contentType !== "VIDEO") {
       return;
     }
 
@@ -113,9 +117,9 @@ export function FreePreviewButton({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, isLimitReached, mediaData?.signedUrl, contentType, replayKey]);
+  }, [isOpen, isLimitReached, isPlaying, mediaData?.signedUrl, contentType, replayKey]);
 
-  // Listen for Bunny Stream postMessage events
+  // Listen for Bunny Stream postMessage events (play, pause, timeupdate)
   useEffect(() => {
     if (!isOpen || isLimitReached || contentType !== "VIDEO") return;
 
@@ -125,15 +129,30 @@ export function FreePreviewButton({
         if (typeof data === "string") {
           data = JSON.parse(data);
         }
+
+        // Track play/pause state from Bunny player
+        const eventType = data?.event || data?.type || "";
+        if (eventType === "play" || eventType === "playing" || eventType === "video_play") {
+          setIsPlaying(true);
+        } else if (eventType === "pause" || eventType === "ended" || eventType === "video_pause") {
+          setIsPlaying(false);
+        }
+
         const currentTime =
           data?.currentTime ??
           data?.data?.currentTime ??
           data?.value?.currentTime ??
           data?.time;
 
-        if (typeof currentTime === "number" && currentTime >= previewLimit) {
-          setIsLimitReached(true);
-          setTimeLeft(0);
+        if (typeof currentTime === "number" && currentTime > 0) {
+          setIsPlaying(true);
+          const remaining = Math.max(0, Math.ceil(previewLimit - currentTime));
+          setTimeLeft(remaining);
+
+          if (currentTime >= previewLimit) {
+            setIsLimitReached(true);
+            setTimeLeft(0);
+          }
         }
       } catch {
         // Non-JSON messages ignored
@@ -189,12 +208,21 @@ export function FreePreviewButton({
                   {/* Timer & Live Preview Status Bar */}
                   {!isLimitReached && (
                     <div className="flex items-center justify-between bg-black/60 backdrop-blur-md px-3.5 py-2 rounded-xl border border-border text-xs">
-                      <div className="flex items-center gap-2 text-emerald-400 font-medium">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        <span>Free Preview Playing</span>
+                      <div className="flex items-center gap-2 font-medium">
+                        {isPlaying ? (
+                          <>
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-emerald-400">Free Preview Playing</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-3 w-3 text-amber-400" />
+                            <span className="text-amber-300">Click Play on video to start</span>
+                          </>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-neutral-300 font-mono text-xs">
                         <span>Preview limit:</span>
@@ -278,6 +306,8 @@ export function FreePreviewButton({
                           controlsList="nodownload"
                           onContextMenu={(e) => e.preventDefault()}
                           autoPlay
+                          onPlay={() => setIsPlaying(true)}
+                          onPause={() => setIsPlaying(false)}
                           onTimeUpdate={(e) => {
                             if (e.currentTarget.currentTime >= previewLimit) {
                               e.currentTarget.pause();
