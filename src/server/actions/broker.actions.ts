@@ -152,7 +152,10 @@ export async function verifyBrokerMemberIdAction(
  * Admin action to list all broker claims
  */
 export async function listBrokerClaimsAction(params?: {
+  page?: number;
+  limit?: number;
   status?: string;
+  mode?: string;
   search?: string;
 }) {
   await requireAdmin();
@@ -162,6 +165,10 @@ export async function listBrokerClaimsAction(params?: {
 
   if (params?.status && params.status !== "ALL") {
     whereClause.verificationStatus = params.status as any;
+  }
+
+  if (params?.mode && params.mode !== "ALL") {
+    whereClause.mode = params.mode as any;
   }
 
   if (params?.search && params.search.trim()) {
@@ -174,9 +181,15 @@ export async function listBrokerClaimsAction(params?: {
     ];
   }
 
+  const limit = params?.limit || 50;
+  const page = params?.page || 1;
+  const skip = (page - 1) * limit;
+
   const claims = await prisma.brokerOfferClaim.findMany({
     where: whereClause,
     orderBy: { createdAt: "desc" },
+    skip,
+    take: limit,
     include: {
       user: {
         select: {
@@ -209,8 +222,11 @@ export async function listBrokerClaimsAction(params?: {
  */
 export async function adminVerifyMemberIdAction(input: {
   claimId: string;
-  status: "VERIFIED" | "REJECTED";
+  status?: "VERIFIED" | "REJECTED";
+  action?: "APPROVE" | "REJECT" | "VERIFIED" | "REJECTED";
   adminNotes?: string;
+  note?: string;
+  reason?: string;
 }) {
   const admin = await requireAdminWrite();
   await ensureDatabaseSchemaSync();
@@ -224,14 +240,21 @@ export async function adminVerifyMemberIdAction(input: {
     return { success: false, message: "Claim record not found." };
   }
 
-  const isVerified = input.status === "VERIFIED";
+  const isVerified =
+    input.status === "VERIFIED" ||
+    input.action === "APPROVE" ||
+    input.action === "VERIFIED";
+
+  const targetStatus = isVerified ? "VERIFIED" : "REJECTED";
+  const notes = input.adminNotes || input.note || input.reason || null;
 
   const updated = await prisma.brokerOfferClaim.update({
     where: { id: input.claimId },
     data: {
-      verificationStatus: input.status,
+      verificationStatus: targetStatus,
       verifiedAt: isVerified ? new Date() : null,
-      adminNotes: input.adminNotes || null,
+      verifiedById: isVerified ? admin.id : null,
+      rejectionReason: !isVerified ? notes : null,
       cashbackStatus:
         existingClaim.mode === "CASHBACK"
           ? isVerified
@@ -252,8 +275,8 @@ export async function adminVerifyMemberIdAction(input: {
         entityId: existingClaim.id,
         newValues: {
           claimId: existingClaim.id,
-          status: input.status,
-          adminNotes: input.adminNotes,
+          status: targetStatus,
+          adminNotes: notes,
         },
       },
     });
@@ -264,14 +287,14 @@ export async function adminVerifyMemberIdAction(input: {
   revalidatePath("/admin/broker-offers");
   revalidatePath("/dashboard/cashbacks");
 
-  return {
-    success: true,
-    message: isVerified
-      ? "Broker Member ID successfully verified!"
-      : "Broker Member ID verification rejected.",
-    claim: updated,
-  };
-}
+    return {
+      success: true,
+      message: isVerified
+        ? "Broker Member ID successfully verified!"
+        : "Broker Member ID verification rejected.",
+      claim: updated,
+    };
+  }
 
 /**
  * Student submits Payout details (UPI ID / Bank) to claim available cashback
