@@ -172,26 +172,44 @@ export async function POST(req: Request) {
       );
     }
 
-    // Calculate coupon
-    let couponId: string | null = null;
-    let discountAmount = 0.0;
-    let finalPayable = Number(course.price);
+    const brokerSettings = await getBrokerSettings();
 
-    if (couponCode && typeof couponCode === "string" && couponCode.trim().length > 0) {
+    // 1. Calculate Promo Coupon Discount
+    let couponId: string | null = null;
+    let couponDiscount = 0.0;
+    const requestedCouponCode = (body.couponCode || "").trim().toUpperCase();
+
+    if (requestedCouponCode && brokerSettings.isCouponEnabled !== false) {
       const couponRes = await validateAndCalculateCouponAction({
-        code: couponCode.trim().toUpperCase(),
+        code: requestedCouponCode,
         courseId: course.id,
       });
 
       if (couponRes.valid && couponRes.couponId) {
         couponId = couponRes.couponId;
-        discountAmount = couponRes.discountAmount;
-        finalPayable = couponRes.finalPrice;
+        couponDiscount = couponRes.discountAmount;
       }
     }
 
-    // Broker Offer Server-Side Processing
-    const brokerSettings = await getBrokerSettings();
+    // 2. Calculate Referral Discount
+    let referralDiscount = 0.0;
+    let appliedReferrerId: string | null = null;
+    const requestedReferralCode = (body.referralCode || "").trim().toUpperCase();
+
+    if (requestedReferralCode && brokerSettings.isReferralDiscountEnabled !== false) {
+      const referrerUser = await prisma.user.findUnique({
+        where: { referralCode: requestedReferralCode },
+        select: { id: true, name: true, referralCode: true, status: true },
+      });
+
+      if (referrerUser && referrerUser.status === "ACTIVE" && referrerUser.id !== user.id) {
+        appliedReferrerId = referrerUser.id;
+        const refPct = Number(brokerSettings.referralDiscountPercentage) || 10;
+        referralDiscount = Number(((Number(course.price) * refPct) / 100).toFixed(2));
+      }
+    }
+
+    // 3. Broker Offer Server-Side Processing
     let brokerClaimData: {
       brokerName: string;
       brokerMemberId: string;
@@ -204,6 +222,8 @@ export async function POST(req: Request) {
       calculatedAmount: Prisma.Decimal;
       cashbackStatus: "NOT_APPLICABLE" | "PENDING_VERIFICATION";
     } | null = null;
+
+    let brokerInstantDiscount = 0.0;
 
     const requestedBrokerMemberId =
       (body.brokerMemberId || body.memberId || "").trim();
@@ -281,19 +301,6 @@ export async function POST(req: Request) {
         );
       }
 
-      // 6. Stacking check: Stacking is OFF by default unless enabled by admin
-      const isStackingAllowed = Boolean(brokerSettings.allowCouponStacking || brokerSettings.allowReferralStacking);
-      if (discountAmount > 0 && !isStackingAllowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Coupon code / Referral discount and Broker Offer cannot be stacked together. Please choose one.",
-          },
-          { status: 400 }
-        );
-      }
-
       const offerPct = Number(brokerSettings.offerPercentage) || 40;
       let calculatedBrokerValue = (Number(course.price) * offerPct) / 100;
 
@@ -309,44 +316,71 @@ export async function POST(req: Request) {
       const cleanMemberId = requestedBrokerMemberId || "PARTNER-CLAIM";
 
       if (brokerSettings.mode === "INSTANT_DISCOUNT") {
-        // INSTANT DISCOUNT MODE: Apply discount server-side
-        discountAmount += calculatedBrokerValue;
-        finalPayable = Math.max(0, Number(course.price) - discountAmount);
-
-        // Verification status: if auto-verification is active and succeeds, VERIFIED; else PENDING admin review
-        let isAutoVerified = false;
-        if (brokerSettings.isAutoVerificationActive) {
-          const verifyResult = await verifyBrokerMemberIdServer(cleanMemberId, brokerSettings);
-          isAutoVerified = verifyResult.isVerified;
-        }
-
-        brokerClaimData = {
-          brokerName: brokerSettings.brokerName,
-          brokerMemberId: cleanMemberId,
-          proofUrl: requestedProofUrl,
-          mode: "INSTANT_DISCOUNT",
-          verificationStatus: isAutoVerified ? "VERIFIED" : "PENDING",
-          verifiedAt: isAutoVerified ? new Date() : undefined,
-          coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
-          offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
-          calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
-          cashbackStatus: "NOT_APPLICABLE",
-        };
-      } else {
-        // CASHBACK MODE: User pays FULL course amount (Razorpay order amount is NOT reduced)
-        brokerClaimData = {
-          brokerName: brokerSettings.brokerName,
-          brokerMemberId: cleanMemberId,
-          proofUrl: requestedProofUrl,
-          mode: "CASHBACK",
-          verificationStatus: "PENDING",
-          coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
-          offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
-          calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
-          cashbackStatus: "PENDING_VERIFICATION",
-        };
+        brokerInstantDiscount = calculatedBrokerValue;
       }
+
+      // Verification status: if auto-verification is active and succeeds, VERIFIED; else PENDING admin review
+      let isAutoVerified = false;
+      if (brokerSettings.isAutoVerificationActive) {
+        const verifyResult = await verifyBrokerMemberIdServer(cleanMemberId, brokerSettings);
+        isAutoVerified = verifyResult.isVerified;
+      }
+
+      brokerClaimData = {
+        brokerName: brokerSettings.brokerName,
+        brokerMemberId: cleanMemberId,
+        proofUrl: requestedProofUrl,
+        mode: brokerSettings.mode,
+        verificationStatus: isAutoVerified ? "VERIFIED" : "PENDING",
+        verifiedAt: isAutoVerified ? new Date() : undefined,
+        coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
+        offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
+        calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
+        cashbackStatus:
+          brokerSettings.mode === "CASHBACK"
+            ? "PENDING_VERIFICATION"
+            : "NOT_APPLICABLE",
+      };
     }
+
+    // 4. Stacking Rules Validation
+    const hasCoupon = couponDiscount > 0;
+    const hasReferral = referralDiscount > 0;
+    const hasBroker = isBrokerRequested;
+
+    const allowAll = Boolean(brokerSettings.allowAllStacking || brokerSettings.allowReferralStacking);
+    const allowCouponBroker = Boolean(brokerSettings.allowCouponWithBroker || brokerSettings.allowCouponStacking || allowAll);
+    const allowReferralCoupon = Boolean(brokerSettings.allowReferralWithCoupon || allowAll);
+    const allowReferralBroker = Boolean(brokerSettings.allowReferralWithBroker || allowAll);
+
+    if (hasCoupon && hasReferral && hasBroker && !allowAll) {
+      return NextResponse.json(
+        { success: false, message: "Stacking all three discounts simultaneously is not allowed by policy." },
+        { status: 400 }
+      );
+    }
+    if (hasCoupon && hasBroker && !allowCouponBroker) {
+      return NextResponse.json(
+        { success: false, message: "Promo coupon and Broker Offer cannot be stacked together." },
+        { status: 400 }
+      );
+    }
+    if (hasReferral && hasCoupon && !allowReferralCoupon) {
+      return NextResponse.json(
+        { success: false, message: "Referral discount and Promo coupon cannot be stacked together." },
+        { status: 400 }
+      );
+    }
+    if (hasReferral && hasBroker && !allowReferralBroker) {
+      return NextResponse.json(
+        { success: false, message: "Referral discount and Broker Offer cannot be stacked together." },
+        { status: 400 }
+      );
+    }
+
+    const totalDiscount = couponDiscount + referralDiscount + brokerInstantDiscount;
+    const discountAmount = totalDiscount;
+    const finalPayable = Math.max(0, Number(course.price) - totalDiscount);
 
     const orderNumber = generateOrderNumber();
     const gatewayConfig = await getRazorpayConfig();

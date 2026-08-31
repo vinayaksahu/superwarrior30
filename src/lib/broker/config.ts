@@ -4,7 +4,23 @@ export type BrokerOfferMode = "CASHBACK" | "INSTANT_DISCOUNT";
 export type EligibleCourseScope = "ALL_COURSES" | "SELECTED_COURSES";
 
 export interface BrokerOfferSettings {
-  isEnabled: boolean;
+  // 1. Independent Module Toggles
+  isEnabled: boolean; // Broker Offer module toggle
+  isCouponEnabled: boolean; // Promo Coupon module toggle
+  isReferralDiscountEnabled: boolean; // Referral Discount module toggle
+  referralDiscountPercentage: number; // Modifiable % (e.g. 5, 6, 10, 20)
+
+  // 2. Flexible Stacking Rules
+  allowCouponWithBroker: boolean; // Allow Promo Coupon + Broker Offer
+  allowReferralWithCoupon: boolean; // Allow Referral Discount + Promo Coupon
+  allowReferralWithBroker: boolean; // Allow Referral Discount + Broker Offer
+  allowAllStacking: boolean; // Allow All 3 together
+
+  // Backward compatibility aliases
+  allowCouponStacking?: boolean;
+  allowReferralStacking?: boolean;
+
+  // 3. Broker Specific Config
   mode: BrokerOfferMode;
   brokerName: string;
   brokerPartnerUrl: string;
@@ -18,10 +34,6 @@ export interface BrokerOfferSettings {
   requireMemberId: boolean;
   requireProof: boolean;
   description: string;
-  allowCouponStacking: boolean;
-  allowReferralStacking: boolean; // Allow Promo Coupon + Broker Offer + Referral Discount Stacking
-  isReferralDiscountEnabled: boolean; // Global toggle for referral discount
-  referralDiscountPercentage: number; // e.g. 10 for 10% (modifiable by admin)
   isAutoVerificationActive: boolean;
   autoVerificationProvider: "INTERNAL_ADAPTER" | "API_WEBHOOK" | "CUSTOM";
   autoVerificationApiKey?: string;
@@ -30,6 +42,15 @@ export interface BrokerOfferSettings {
 
 export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
   isEnabled: true,
+  isCouponEnabled: true,
+  isReferralDiscountEnabled: true,
+  referralDiscountPercentage: 10,
+
+  allowCouponWithBroker: false,
+  allowReferralWithCoupon: false,
+  allowReferralWithBroker: false,
+  allowAllStacking: false,
+
   mode: "CASHBACK",
   brokerName: "GTC FX",
   brokerPartnerUrl: "https://web.mygtc.app/login/register?ref=FtHnmAFV",
@@ -43,10 +64,6 @@ export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
   requireMemberId: true,
   requireProof: false,
   description: "Open your broker account using our partner link and unlock a special course benefit.",
-  allowCouponStacking: false,
-  allowReferralStacking: false,
-  isReferralDiscountEnabled: true,
-  referralDiscountPercentage: 10,
   isAutoVerificationActive: false,
   autoVerificationProvider: "INTERNAL_ADAPTER",
 };
@@ -64,21 +81,27 @@ export async function getBrokerSettings(): Promise<BrokerOfferSettings> {
     }
 
     const parsed = JSON.parse(setting.value);
+    const allowAll = Boolean(parsed.allowAllStacking || parsed.allowReferralStacking);
+
     return {
       ...DEFAULT_BROKER_SETTINGS,
       ...parsed,
-      referralDiscountPercentage:
-        parsed.referralDiscountPercentage !== undefined
-          ? Number(parsed.referralDiscountPercentage)
-          : DEFAULT_BROKER_SETTINGS.referralDiscountPercentage,
-      allowReferralStacking:
-        parsed.allowReferralStacking !== undefined
-          ? Boolean(parsed.allowReferralStacking)
-          : DEFAULT_BROKER_SETTINGS.allowReferralStacking,
+      isEnabled: parsed.isEnabled !== undefined ? Boolean(parsed.isEnabled) : true,
+      isCouponEnabled: parsed.isCouponEnabled !== undefined ? Boolean(parsed.isCouponEnabled) : true,
       isReferralDiscountEnabled:
         parsed.isReferralDiscountEnabled !== undefined
           ? Boolean(parsed.isReferralDiscountEnabled)
-          : DEFAULT_BROKER_SETTINGS.isReferralDiscountEnabled,
+          : true,
+      referralDiscountPercentage:
+        parsed.referralDiscountPercentage !== undefined
+          ? Number(parsed.referralDiscountPercentage)
+          : 10,
+      allowCouponWithBroker: Boolean(parsed.allowCouponWithBroker || parsed.allowCouponStacking || allowAll),
+      allowReferralWithCoupon: Boolean(parsed.allowReferralWithCoupon || allowAll),
+      allowReferralWithBroker: Boolean(parsed.allowReferralWithBroker || allowAll),
+      allowAllStacking: allowAll,
+      allowCouponStacking: Boolean(parsed.allowCouponStacking || parsed.allowCouponWithBroker || allowAll),
+      allowReferralStacking: allowAll,
     };
   } catch (error) {
     console.error("Failed to load broker settings:", error);

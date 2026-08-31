@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     if (!code || typeof code !== "string" || !code.trim()) {
       return NextResponse.json(
-        { valid: false, message: "Please enter a valid coupon or referral code." },
+        { valid: false, message: "Please enter a valid coupon code." },
         { status: 400 }
       );
     }
@@ -29,6 +29,14 @@ export async function POST(req: Request) {
     }
 
     const cleanCode = code.trim().toUpperCase();
+
+    const brokerSettings = await getBrokerSettings();
+    if (brokerSettings.isCouponEnabled === false) {
+      return NextResponse.json({
+        valid: false,
+        message: "Promo coupons are currently disabled by administrator.",
+      });
+    }
 
     // 1. Fetch course details
     const course = await prisma.course.findFirst({
@@ -49,7 +57,7 @@ export async function POST(req: Request) {
 
     const coursePrice = Number(course.price);
 
-    // 2. First check if it matches a PROMOTIONAL COUPON
+    // 2. Find PROMOTIONAL COUPON
     const coupon = await prisma.coupon.findUnique({
       where: { code: cleanCode },
       include: {
@@ -57,131 +65,88 @@ export async function POST(req: Request) {
       },
     });
 
-    if (coupon) {
-      // Validate Promo Coupon
-      if (!coupon.isActive) {
-        return NextResponse.json({ valid: false, message: "This coupon is currently inactive." });
-      }
-
-      const now = new Date();
-      if (now < new Date(coupon.startDate)) {
-        return NextResponse.json({ valid: false, message: "This coupon promotion has not started yet." });
-      }
-      if (now > new Date(coupon.endDate)) {
-        return NextResponse.json({ valid: false, message: "This coupon has expired." });
-      }
-
-      if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
-        return NextResponse.json({ valid: false, message: "This coupon has reached its maximum total redemptions." });
-      }
-
-      if (currentUser) {
-        const userRedemptions = await prisma.couponRedemption.count({
-          where: { couponId: coupon.id, userId: currentUser.id },
-        });
-        if (userRedemptions >= coupon.perUserLimit) {
-          return NextResponse.json({
-            valid: false,
-            message: `You have already used this coupon maximum allowed times (${coupon.perUserLimit}).`,
-          });
-        }
-      }
-
-      if (coupon.courses.length > 0) {
-        const isApplicable = coupon.courses.some((c) => c.courseId === course.id);
-        if (!isApplicable) {
-          return NextResponse.json({
-            valid: false,
-            message: "This coupon is not applicable to the selected course.",
-          });
-        }
-      }
-
-      const minAmount = Number(coupon.minOrderAmount);
-      if (coursePrice < minAmount) {
-        return NextResponse.json({
-          valid: false,
-          message: `Minimum order amount of ₹${minAmount} required to use this coupon.`,
-        });
-      }
-
-      let discountAmount = 0;
-      if (coupon.discountType === "PERCENTAGE") {
-        discountAmount = (coursePrice * Number(coupon.discountValue)) / 100;
-        if (coupon.maxDiscountAmount !== null) {
-          discountAmount = Math.min(discountAmount, Number(coupon.maxDiscountAmount));
-        }
-      } else {
-        discountAmount = Math.min(Number(coupon.discountValue), coursePrice);
-      }
-
-      discountAmount = Number(discountAmount.toFixed(2));
-      const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
-
+    if (!coupon) {
       return NextResponse.json({
-        valid: true,
-        type: "PROMO_COUPON",
-        couponId: coupon.id,
-        code: coupon.code,
-        discountType: coupon.discountType,
-        discountValue: Number(coupon.discountValue),
-        discountAmount,
-        originalPrice: coursePrice,
-        finalPrice,
-        message: `Promo coupon "${coupon.code}" applied! You save ₹${discountAmount}.`,
+        valid: false,
+        message: "Invalid promo coupon code.",
       });
     }
 
-    // 3. Check if it matches an AFFILIATE REFERRAL CODE
-    const referrerUser = await prisma.user.findUnique({
-      where: { referralCode: cleanCode },
-      select: { id: true, name: true, referralCode: true, status: true },
-    });
+    // Validate Promo Coupon
+    if (!coupon.isActive) {
+      return NextResponse.json({ valid: false, message: "This coupon is currently inactive." });
+    }
 
-    if (referrerUser && referrerUser.status === "ACTIVE") {
-      // Check self-referral
-      if (currentUser && currentUser.id === referrerUser.id) {
+    const now = new Date();
+    if (now < new Date(coupon.startDate)) {
+      return NextResponse.json({ valid: false, message: "This coupon promotion has not started yet." });
+    }
+    if (now > new Date(coupon.endDate)) {
+      return NextResponse.json({ valid: false, message: "This coupon has expired." });
+    }
+
+    if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
+      return NextResponse.json({ valid: false, message: "This coupon has reached its maximum total redemptions." });
+    }
+
+    if (currentUser) {
+      const userRedemptions = await prisma.couponRedemption.count({
+        where: { couponId: coupon.id, userId: currentUser.id },
+      });
+      if (userRedemptions >= coupon.perUserLimit) {
         return NextResponse.json({
           valid: false,
-          message: "You cannot use your own referral code for discount.",
+          message: `You have already used this coupon maximum allowed times (${coupon.perUserLimit}).`,
         });
       }
+    }
 
-      const brokerSettings = await getBrokerSettings();
-      if (brokerSettings.isReferralDiscountEnabled === false) {
+    if (coupon.courses.length > 0) {
+      const isApplicable = coupon.courses.some((c) => c.courseId === course.id);
+      if (!isApplicable) {
         return NextResponse.json({
           valid: false,
-          message: "Referral discount is currently disabled.",
+          message: "This coupon is not applicable to the selected course.",
         });
       }
+    }
 
-      const referralPct = Number(brokerSettings.referralDiscountPercentage) || 10;
-      let discountAmount = Number(((coursePrice * referralPct) / 100).toFixed(2));
-      const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
-
+    const minAmount = Number(coupon.minOrderAmount);
+    if (coursePrice < minAmount) {
       return NextResponse.json({
-        valid: true,
-        type: "REFERRAL_DISCOUNT",
-        referrerId: referrerUser.id,
-        referrerName: referrerUser.name || "Affiliate Partner",
-        code: referrerUser.referralCode,
-        discountType: "PERCENTAGE",
-        discountValue: referralPct,
-        discountAmount,
-        originalPrice: coursePrice,
-        finalPrice,
-        message: `Referral code "${referrerUser.referralCode}" applied! You unlocked ${referralPct}% instant discount (₹${discountAmount}).`,
+        valid: false,
+        message: `Minimum order amount of ₹${minAmount} required to use this coupon.`,
       });
     }
+
+    let discountAmount = 0;
+    if (coupon.discountType === "PERCENTAGE") {
+      discountAmount = (coursePrice * Number(coupon.discountValue)) / 100;
+      if (coupon.maxDiscountAmount !== null) {
+        discountAmount = Math.min(discountAmount, Number(coupon.maxDiscountAmount));
+      }
+    } else {
+      discountAmount = Math.min(Number(coupon.discountValue), coursePrice);
+    }
+
+    discountAmount = Number(discountAmount.toFixed(2));
+    const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
 
     return NextResponse.json({
-      valid: false,
-      message: "Invalid coupon or referral code. Please check and try again.",
+      valid: true,
+      couponId: coupon.id,
+      code: coupon.code,
+      discountType: coupon.discountType,
+      discountValue: Number(coupon.discountValue),
+      discountAmount,
+      originalPrice: coursePrice,
+      finalPrice,
+      message: `Promo coupon "${coupon.code}" applied! You save ₹${discountAmount}.`,
     });
   } catch (error) {
-    console.error("Error validating coupon/referral code:", error);
+    console.error("Error validating coupon:", error);
     return NextResponse.json(
-      { valid: false, message: "An error occurred while validating the code." },
+      { valid: false, message: "An error occurred while validating the coupon." },
       { status: 500 }
     );
   }

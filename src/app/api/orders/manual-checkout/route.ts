@@ -199,52 +199,44 @@ export async function POST(req: Request) {
       );
     }
 
+    const brokerSettings = await getBrokerSettings();
+
+    // 1. Calculate Promo Coupon Discount
     let couponId: string | null = null;
-    let discountAmount = 0.0;
-    let finalPayable = Number(course.price);
+    let couponDiscount = 0.0;
+    const requestedCouponCode = (body.couponCode || "").trim().toUpperCase();
 
-    // Validate coupon if provided
-    if (couponCode && typeof couponCode === "string" && couponCode.trim().length > 0) {
-      const cleanCode = couponCode.trim().toUpperCase();
-      try {
-        const coupon = await prisma.coupon.findUnique({
-          where: { code: cleanCode },
-          include: { courses: { select: { courseId: true } } },
-        });
+    if (requestedCouponCode && brokerSettings.isCouponEnabled !== false) {
+      const couponRes = await validateAndCalculateCouponAction({
+        code: requestedCouponCode,
+        courseId: course.id,
+      });
 
-        if (coupon && coupon.isActive) {
-          const now = new Date();
-          if (now >= new Date(coupon.startDate) && now <= new Date(coupon.endDate)) {
-            if (coupon.usageLimit === null || coupon.usageCount < coupon.usageLimit) {
-              const isApplicable =
-                coupon.courses.length === 0 || coupon.courses.some((c) => c.courseId === course.id);
-
-              if (isApplicable) {
-                couponId = coupon.id;
-                if (coupon.discountType === "PERCENTAGE") {
-                  discountAmount = (finalPayable * Number(coupon.discountValue)) / 100;
-                  if (coupon.maxDiscountAmount) {
-                    discountAmount = Math.min(discountAmount, Number(coupon.maxDiscountAmount));
-                  }
-                } else {
-                  discountAmount = Math.min(finalPayable, Number(coupon.discountValue));
-                }
-                finalPayable = Math.max(0, finalPayable - discountAmount);
-              }
-            }
-          }
-        }
-      } catch {
-        // fallback coupon check
-        if (cleanCode === "SW30" || cleanCode === "SUPER30") {
-          discountAmount = Math.round(finalPayable * 0.3);
-          finalPayable = Math.max(0, finalPayable - discountAmount);
-        }
+      if (couponRes.valid && couponRes.couponId) {
+        couponId = couponRes.couponId;
+        couponDiscount = couponRes.discountAmount;
       }
     }
 
-    // Broker Offer Server-Side Processing
-    const brokerSettings = await getBrokerSettings();
+    // 2. Calculate Referral Discount
+    let referralDiscount = 0.0;
+    let appliedReferrerId: string | null = null;
+    const requestedReferralCode = (body.referralCode || "").trim().toUpperCase();
+
+    if (requestedReferralCode && brokerSettings.isReferralDiscountEnabled !== false) {
+      const referrerUser = await prisma.user.findUnique({
+        where: { referralCode: requestedReferralCode },
+        select: { id: true, name: true, referralCode: true, status: true },
+      });
+
+      if (referrerUser && referrerUser.status === "ACTIVE" && referrerUser.id !== user.id) {
+        appliedReferrerId = referrerUser.id;
+        const refPct = Number(brokerSettings.referralDiscountPercentage) || 10;
+        referralDiscount = Number(((Number(course.price) * refPct) / 100).toFixed(2));
+      }
+    }
+
+    // 3. Broker Offer Server-Side Processing
     let brokerClaimData: {
       brokerName: string;
       brokerMemberId: string;
@@ -257,6 +249,8 @@ export async function POST(req: Request) {
       calculatedAmount: Prisma.Decimal;
       cashbackStatus: "NOT_APPLICABLE" | "PENDING_VERIFICATION";
     } | null = null;
+
+    let brokerInstantDiscount = 0.0;
 
     const requestedBrokerMemberId =
       (body.brokerMemberId || body.memberId || "").trim();
@@ -334,19 +328,6 @@ export async function POST(req: Request) {
         );
       }
 
-      // 6. Stacking check: Stacking is OFF by default unless enabled by admin
-      const isStackingAllowed = Boolean(brokerSettings.allowCouponStacking || brokerSettings.allowReferralStacking);
-      if (discountAmount > 0 && !isStackingAllowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Coupon code / Referral discount and Broker Offer cannot be stacked together. Please choose one.",
-          },
-          { status: 400 }
-        );
-      }
-
       const offerPct = Number(brokerSettings.offerPercentage) || 40;
       let calculatedBrokerValue = (Number(course.price) * offerPct) / 100;
 
@@ -362,43 +343,70 @@ export async function POST(req: Request) {
       const cleanMemberId = requestedBrokerMemberId || "PARTNER-CLAIM";
 
       if (brokerSettings.mode === "INSTANT_DISCOUNT") {
-        // INSTANT DISCOUNT MODE: Apply discount server-side
-        discountAmount += calculatedBrokerValue;
-        finalPayable = Math.max(0, Number(course.price) - discountAmount);
-
-        let isAutoVerified = false;
-        if (brokerSettings.isAutoVerificationActive) {
-          const verifyResult = await verifyBrokerMemberIdServer(cleanMemberId, brokerSettings);
-          isAutoVerified = verifyResult.isVerified;
-        }
-
-        brokerClaimData = {
-          brokerName: brokerSettings.brokerName,
-          brokerMemberId: cleanMemberId,
-          proofUrl: requestedProofUrl,
-          mode: "INSTANT_DISCOUNT",
-          verificationStatus: isAutoVerified ? "VERIFIED" : "PENDING",
-          verifiedAt: isAutoVerified ? new Date() : undefined,
-          coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
-          offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
-          calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
-          cashbackStatus: "NOT_APPLICABLE",
-        };
-      } else {
-        // CASHBACK MODE: User pays FULL course amount (or course amount minus coupon only)
-        brokerClaimData = {
-          brokerName: brokerSettings.brokerName,
-          brokerMemberId: cleanMemberId,
-          proofUrl: requestedProofUrl,
-          mode: "CASHBACK",
-          verificationStatus: "PENDING",
-          coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
-          offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
-          calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
-          cashbackStatus: "PENDING_VERIFICATION",
-        };
+        brokerInstantDiscount = calculatedBrokerValue;
       }
+
+      let isAutoVerified = false;
+      if (brokerSettings.isAutoVerificationActive) {
+        const verifyResult = await verifyBrokerMemberIdServer(cleanMemberId, brokerSettings);
+        isAutoVerified = verifyResult.isVerified;
+      }
+
+      brokerClaimData = {
+        brokerName: brokerSettings.brokerName,
+        brokerMemberId: cleanMemberId,
+        proofUrl: requestedProofUrl,
+        mode: brokerSettings.mode,
+        verificationStatus: isAutoVerified ? "VERIFIED" : "PENDING",
+        verifiedAt: isAutoVerified ? new Date() : undefined,
+        coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
+        offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
+        calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
+        cashbackStatus:
+          brokerSettings.mode === "CASHBACK"
+            ? "PENDING_VERIFICATION"
+            : "NOT_APPLICABLE",
+      };
     }
+
+    // 4. Stacking Rules Validation
+    const hasCoupon = couponDiscount > 0;
+    const hasReferral = referralDiscount > 0;
+    const hasBroker = isBrokerRequested;
+
+    const allowAll = Boolean(brokerSettings.allowAllStacking || brokerSettings.allowReferralStacking);
+    const allowCouponBroker = Boolean(brokerSettings.allowCouponWithBroker || brokerSettings.allowCouponStacking || allowAll);
+    const allowReferralCoupon = Boolean(brokerSettings.allowReferralWithCoupon || allowAll);
+    const allowReferralBroker = Boolean(brokerSettings.allowReferralWithBroker || allowAll);
+
+    if (hasCoupon && hasReferral && hasBroker && !allowAll) {
+      return NextResponse.json(
+        { success: false, message: "Stacking all three discounts simultaneously is not allowed by policy." },
+        { status: 400 }
+      );
+    }
+    if (hasCoupon && hasBroker && !allowCouponBroker) {
+      return NextResponse.json(
+        { success: false, message: "Promo coupon and Broker Offer cannot be stacked together." },
+        { status: 400 }
+      );
+    }
+    if (hasReferral && hasCoupon && !allowReferralCoupon) {
+      return NextResponse.json(
+        { success: false, message: "Referral discount and Promo coupon cannot be stacked together." },
+        { status: 400 }
+      );
+    }
+    if (hasReferral && hasBroker && !allowReferralBroker) {
+      return NextResponse.json(
+        { success: false, message: "Referral discount and Broker Offer cannot be stacked together." },
+        { status: 400 }
+      );
+    }
+
+    const totalDiscount = couponDiscount + referralDiscount + brokerInstantDiscount;
+    const discountAmount = totalDiscount;
+    const finalPayable = Math.max(0, Number(course.price) - totalDiscount);
 
     const orderNumber = generateOrderNumber();
     const cleanUtr = utrRef.trim();

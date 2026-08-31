@@ -23,6 +23,7 @@ import {
   Mail,
   Lock,
   Phone,
+  Users,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { PaymentMethodItem } from "@/server/actions/payment-method.actions";
@@ -80,20 +81,37 @@ export function ManualCheckoutClient({
   const [guestPhone, setGuestPhone] = useState<string>("");
   const [guestPassword, setGuestPassword] = useState<string>("");
 
-  // Coupon / Referral Discount state
+  // ----------------------------------------------------
+  // 1. PROMO COUPON STATE
+  // ----------------------------------------------------
+  const isCouponModuleEnabled = brokerConfig?.isCouponEnabled !== false;
   const [couponInput, setCouponInput] = useState<string>("");
   const [isCheckingCoupon, setIsCheckingCoupon] = useState<boolean>(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
-    type?: "PROMO_COUPON" | "REFERRAL_DISCOUNT" | "REFERRAL";
     discountAmount: number;
-    discountPercentage?: number;
-    referrerName?: string;
     finalPrice: number;
   } | null>(null);
 
-  // Broker Offer state
+  // ----------------------------------------------------
+  // 2. AFFILIATE / REFERRAL DISCOUNT STATE
+  // ----------------------------------------------------
+  const isReferralModuleEnabled = brokerConfig?.isReferralDiscountEnabled !== false;
+  const referralDiscountPct = Number(brokerConfig?.referralDiscountPercentage) || 10;
+  const [referralInput, setReferralInput] = useState<string>("");
+  const [isCheckingReferral, setIsCheckingReferral] = useState<boolean>(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [appliedReferral, setAppliedReferral] = useState<{
+    code: string;
+    referrerName: string;
+    discountPercentage: number;
+    discountAmount: number;
+  } | null>(null);
+
+  // ----------------------------------------------------
+  // 3. BROKER PARTNER OFFER STATE
+  // ----------------------------------------------------
   const isCourseEligible =
     !brokerConfig?.eligibleCourseScope ||
     brokerConfig.eligibleCourseScope === "ALL_COURSES" ||
@@ -121,9 +139,15 @@ export function ManualCheckoutClient({
   const brokerPartnerUrl =
     brokerConfig?.brokerPartnerUrl ||
     "https://web.mygtc.app/login/register?ref=FtHnmAFV";
-  const isStackingAllowed = Boolean(brokerConfig?.allowCouponStacking || brokerConfig?.allowReferralStacking);
+
   const requireMemberId = brokerConfig?.requireMemberId !== false;
   const requireProof = Boolean(brokerConfig?.requireProof);
+
+  // Stacking Rule Toggles
+  const allowAllStacking = Boolean(brokerConfig?.allowAllStacking || brokerConfig?.allowReferralStacking);
+  const allowCouponWithBroker = Boolean(brokerConfig?.allowCouponWithBroker || brokerConfig?.allowCouponStacking || allowAllStacking);
+  const allowReferralWithCoupon = Boolean(brokerConfig?.allowReferralWithCoupon || allowAllStacking);
+  const allowReferralWithBroker = Boolean(brokerConfig?.allowReferralWithBroker || allowAllStacking);
 
   const [hasBrokerAccount, setHasBrokerAccount] = useState<boolean>(false);
   const [brokerMemberInput, setBrokerMemberInput] = useState<string>("");
@@ -134,7 +158,7 @@ export function ManualCheckoutClient({
   const [brokerVerified, setBrokerVerified] = useState<boolean>(false);
   const [appliedBrokerId, setAppliedBrokerId] = useState<string | null>(null);
 
-  // Benefit calculation
+  // Broker Benefit calculation
   let rawBenefit = Math.round((course.price * brokerOfferPct) / 100);
   if (brokerConfig?.maximumBenefitAmount && brokerConfig.maximumBenefitAmount > 0) {
     rawBenefit = Math.min(rawBenefit, brokerConfig.maximumBenefitAmount);
@@ -142,13 +166,15 @@ export function ManualCheckoutClient({
   const brokerDiscount = brokerMode === "INSTANT_DISCOUNT" && appliedBrokerId ? rawBenefit : 0;
   const potentialCashback = rawBenefit;
 
-  // Total payable
+  // ----------------------------------------------------
+  // TOTAL DISCOUNT & PAYABLE CALCULATIONS
+  // ----------------------------------------------------
   const couponDiscount = appliedCoupon?.discountAmount || 0;
+  const referralDiscount = appliedReferral?.discountAmount || 0;
   const isInstantDiscountApplied = brokerMode === "INSTANT_DISCOUNT" && Boolean(appliedBrokerId);
-  const finalPayableAmount = Math.max(
-    0,
-    course.price - couponDiscount - brokerDiscount
-  );
+
+  const totalDiscount = couponDiscount + referralDiscount + brokerDiscount;
+  const finalPayableAmount = Math.max(0, course.price - totalDiscount);
   const finalAmount = finalPayableAmount;
 
   // Submission state
@@ -178,17 +204,26 @@ export function ManualCheckoutClient({
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  // ----------------------------------------------------
+  // 1. APPLY PROMO COUPON
+  // ----------------------------------------------------
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponInput.trim()) return;
 
-    if (appliedBrokerId && !isStackingAllowed) {
+    if (appliedBrokerId && !allowCouponWithBroker) {
       toast.error(
-        "Coupon / Referral discount and Broker Offer cannot be stacked together. Please remove the broker offer first or enable stacking in Admin Settings."
+        "Promo coupon and Broker Offer cannot be stacked together by policy. Remove the broker offer or enable stacking."
       );
-      setCouponError(
-        "Coupon / Referral discount and Broker Offer cannot be stacked together. Please remove the broker offer first."
+      setCouponError("Promo coupon and Broker Offer cannot be combined.");
+      return;
+    }
+
+    if (appliedReferral && !allowReferralWithCoupon) {
+      toast.error(
+        "Promo coupon and Referral Discount cannot be combined by policy. Remove the referral code or enable stacking."
       );
+      setCouponError("Promo coupon and Referral discount cannot be combined.");
       return;
     }
 
@@ -209,26 +244,22 @@ export function ManualCheckoutClient({
       if (res.ok && data.valid) {
         setAppliedCoupon({
           code: data.code || couponInput.trim().toUpperCase(),
-          type: data.type || (data.referrerId ? "REFERRAL_DISCOUNT" : "PROMO_COUPON"),
           discountAmount: data.discountAmount,
-          discountPercentage: data.discountValue,
-          referrerName: data.referrerName,
           finalPrice: data.finalPrice,
         });
-        toast.success(data.message || `Code applied! Saved ₹${data.discountAmount}`);
+        toast.success(data.message || `Coupon applied! Saved ₹${data.discountAmount}`);
       } else {
         const clean = couponInput.trim().toUpperCase();
         if (clean === "SW30" || clean === "SUPER30") {
           const discount = Math.round(course.price * 0.3);
           setAppliedCoupon({
             code: clean,
-            type: "PROMO_COUPON",
             discountAmount: discount,
             finalPrice: Math.max(0, course.price - discount),
           });
           toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
         } else {
-          setCouponError(data.message || "Invalid coupon or referral code.");
+          setCouponError(data.message || "Invalid or expired promo coupon.");
         }
       }
     } catch {
@@ -237,13 +268,12 @@ export function ManualCheckoutClient({
         const discount = Math.round(course.price * 0.3);
         setAppliedCoupon({
           code: clean,
-          type: "PROMO_COUPON",
           discountAmount: discount,
           finalPrice: Math.max(0, course.price - discount),
         });
         toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
       } else {
-        setCouponError("Invalid or expired coupon code.");
+        setCouponError("Invalid or expired promo coupon.");
       }
     } finally {
       setIsCheckingCoupon(false);
@@ -256,27 +286,89 @@ export function ManualCheckoutClient({
     setCouponError(null);
   };
 
+  // ----------------------------------------------------
+  // 2. APPLY AFFILIATE REFERRAL CODE
+  // ----------------------------------------------------
+  const handleApplyReferral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!referralInput.trim()) return;
+
+    if (appliedBrokerId && !allowReferralWithBroker) {
+      toast.error(
+        "Referral discount and Broker Offer cannot be stacked together by policy. Remove the broker offer or enable stacking."
+      );
+      setReferralError("Referral discount and Broker Offer cannot be combined.");
+      return;
+    }
+
+    if (appliedCoupon && !allowReferralWithCoupon) {
+      toast.error(
+        "Referral discount and Promo Coupon cannot be stacked together by policy. Remove the promo coupon or enable stacking."
+      );
+      setReferralError("Referral discount and Promo coupon cannot be combined.");
+      return;
+    }
+
+    setIsCheckingReferral(true);
+    setReferralError(null);
+
+    try {
+      const res = await fetch("/api/referrals/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: referralInput.trim().toUpperCase(),
+          courseId: course.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setAppliedReferral({
+          code: data.code,
+          referrerName: data.referrerName,
+          discountPercentage: data.discountPercentage,
+          discountAmount: data.discountAmount,
+        });
+        toast.success(data.message || `Referral code applied! Saved ₹${data.discountAmount}`);
+      } else {
+        setReferralError(data.message || "Invalid affiliate referral code.");
+      }
+    } catch {
+      setReferralError("Failed to validate referral code.");
+    } finally {
+      setIsCheckingReferral(false);
+    }
+  };
+
+  const handleRemoveReferral = () => {
+    setAppliedReferral(null);
+    setReferralInput("");
+    setReferralError(null);
+  };
+
+  // ----------------------------------------------------
+  // 3. PROOF FILE UPLOAD & BROKER OFFER
+  // ----------------------------------------------------
   const handleProofFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Screenshot file size must be under 5MB.");
+      toast.error("Screenshot file size cannot exceed 5MB.");
       return;
     }
 
     setIsUploadingProof(true);
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setBrokerProofUrl(dataUrl);
+      setBrokerProofUrl(reader.result as string);
       setIsUploadingProof(false);
-      toast.success("Broker registration screenshot attached!");
+      toast.success("Broker screenshot uploaded successfully!");
     };
     reader.onerror = () => {
       setIsUploadingProof(false);
-      toast.error("Failed to read screenshot file.");
+      toast.error("Failed to read file.");
     };
     reader.readAsDataURL(file);
   };
@@ -284,12 +376,22 @@ export function ManualCheckoutClient({
   const handleVerifyBrokerMember = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (appliedCoupon && !isStackingAllowed) {
+    if (appliedCoupon && !allowCouponWithBroker) {
       toast.error(
-        "Coupon / Referral discount and Broker Offer cannot be combined. Please remove the coupon first or enable stacking in Admin Settings."
+        "Promo coupon and Broker Offer cannot be combined. Please remove the coupon first."
       );
       setBrokerStatusMessage(
-        "Coupon / Referral discount and Broker Offer cannot be combined. Please remove the coupon first."
+        "Promo coupon and Broker Offer cannot be combined. Please remove the coupon first."
+      );
+      return;
+    }
+
+    if (appliedReferral && !allowReferralWithBroker) {
+      toast.error(
+        "Referral discount and Broker Offer cannot be combined. Please remove the referral code first."
+      );
+      setBrokerStatusMessage(
+        "Referral discount and Broker Offer cannot be combined. Please remove the referral code first."
       );
       return;
     }
@@ -300,17 +402,16 @@ export function ManualCheckoutClient({
     }
 
     if (requireProof && !brokerProofUrl) {
-      toast.error("Please upload your broker account screenshot / proof.");
+      toast.error("Please upload a screenshot of your broker account proof.");
       return;
     }
 
     setIsCheckingBroker(true);
     setBrokerStatusMessage(null);
-    setBrokerVerified(false);
+
+    const idToApply = brokerMemberInput.trim().toUpperCase();
 
     try {
-      const idToApply = brokerMemberInput.trim() || "PARTNER-ACCOUNT";
-
       if (brokerMode === "INSTANT_DISCOUNT") {
         if (isAutoVerifyActive) {
           const res = await fetch("/api/broker/verify-member", {
@@ -336,7 +437,6 @@ export function ManualCheckoutClient({
             toast.error(data.message || "Invalid Broker Member ID.");
           }
         } else {
-          // Provisional Instant Discount applied server-side
           setBrokerVerified(true);
           setAppliedBrokerId(idToApply);
           setBrokerStatusMessage(
@@ -345,7 +445,6 @@ export function ManualCheckoutClient({
           toast.success(`Broker Partner ${brokerOfferPct}% discount applied!`);
         }
       } else {
-        // Cashback Mode
         setAppliedBrokerId(idToApply);
         setBrokerVerified(true);
         setBrokerStatusMessage(
@@ -393,13 +492,13 @@ export function ManualCheckoutClient({
     setIsSubmitting(true);
 
     try {
-      // 1. Create order on backend & get Razorpay Order ID
       const res = await fetch("/api/orders/create-gateway-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courseId: course.id,
           couponCode: appliedCoupon?.code,
+          referralCode: appliedReferral?.code,
           brokerMemberId: appliedBrokerId || (brokerMemberInput.trim() || undefined),
           brokerProofUrl: brokerProofUrl || undefined,
           hasBrokerAccount: hasBrokerAccount || Boolean(appliedBrokerId),
@@ -422,7 +521,6 @@ export function ManualCheckoutClient({
         throw new Error(data.message || "Failed to initialize payment gateway.");
       }
 
-      // Check if SDK is available
       if (typeof window !== "undefined" && window.Razorpay && data.keyId) {
         const options = {
           key: data.keyId,
@@ -457,12 +555,13 @@ export function ManualCheckoutClient({
                 toast.success("Payment successful! Course access unlocked.");
                 router.push(`/checkout/success/${data.orderId}`);
               } else {
-                toast.error(verifyData.message || "Payment verification failed.");
-                setIsSubmitting(false);
+                throw new Error(verifyData.message || "Payment verification failed.");
               }
             } catch (err: unknown) {
-              const msg = err instanceof Error ? err.message : "Verification error";
+              const msg = err instanceof Error ? err.message : "Payment verification failed.";
+              setErrorMessage(msg);
               toast.error(msg);
+            } finally {
               setIsSubmitting(false);
             }
           },
@@ -477,7 +576,6 @@ export function ManualCheckoutClient({
         const rzp = new window.Razorpay(options);
         rzp.open();
       } else {
-        // Fallback or Test Mock confirmation if keys are mock
         const verifyRes = await fetch("/api/orders/verify-gateway-payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -544,6 +642,7 @@ export function ManualCheckoutClient({
         body: JSON.stringify({
           courseId: course.id,
           couponCode: appliedCoupon?.code,
+          referralCode: appliedReferral?.code,
           brokerMemberId: appliedBrokerId || (brokerMemberInput.trim() || undefined),
           brokerProofUrl: brokerProofUrl || undefined,
           hasBrokerAccount: hasBrokerAccount || Boolean(appliedBrokerId),
@@ -572,11 +671,9 @@ export function ManualCheckoutClient({
         return;
       }
 
-      const msg = data.message || "Failed to submit order verification.";
-      setErrorMessage(msg);
-      toast.error(msg);
+      throw new Error(data.message || "Failed to submit order. Please try again.");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Network error. Please try again.";
+      const msg = err instanceof Error ? err.message : "Failed to submit payment. Please try again.";
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
@@ -585,524 +682,530 @@ export function ManualCheckoutClient({
   };
 
   return (
-    <div className="min-h-screen bg-background py-10">
-      <div className="container mx-auto max-w-4xl px-4">
-        <Link
-          href="/courses"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground mb-6"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Cancel and return to courses
-        </Link>
-
-        {/* Top Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <ShieldCheck className="h-5 w-5" />
-            </span>
-            <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-              Select Payment Method
-            </h1>
+    <div className="min-h-screen bg-background text-foreground py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header Breadcrumb */}
+        <div className="flex items-center justify-between">
+          <Link
+            href={`/courses/${course.slug}`}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to course details
+          </Link>
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+            <ShieldCheck className="h-4 w-4" /> 256-Bit SSL Encrypted Checkout
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1.5">
-            Pay online instantly via Razorpay (UPI, Cards, NetBanking) or choose manual transfer options.
-          </p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-12">
-          {/* LEFT COLUMN: Payment Options & Details (7 cols) */}
-          <div className="space-y-6 lg:col-span-7">
-            {/* Method Selector Tabs */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {activeMethods.map((method) => {
-                const isSelected = selectedMethod?.id === method.id;
-                return (
-                  <button
-                    key={method.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedMethodId(method.id);
-                      setErrorMessage(null);
-                    }}
-                    className={`relative flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-primary bg-primary/10 shadow-md shadow-primary/5 ring-2 ring-primary"
-                        : "border-border bg-card hover:border-primary/40 hover:bg-accent/40"
-                    }`}
-                  >
-                    {isSelected && (
-                      <div className="absolute right-2.5 top-2.5">
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                      </div>
-                    )}
+        {errorMessage && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-xs font-medium text-destructive flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
-                    <div
-                      className={`mb-2.5 rounded-xl p-2 ${
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* LEFT: Payment Methods Selector */}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
+              <div>
+                <h1 className="text-xl font-bold text-foreground">Select Payment Method</h1>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Pay online instantly via Razorpay (UPI, Cards, NetBanking) or choose manual transfer options.
+                </p>
+              </div>
+
+              {/* Methods Grid / Tabs */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {activeMethods.map((method) => {
+                  const isSelected = selectedMethodId === method.id;
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => setSelectedMethodId(method.id)}
+                      className={`relative flex flex-col items-start p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
+                          ? "border-primary bg-primary/10 shadow-sm"
+                          : "border-border hover:border-border/80 bg-background/50 hover:bg-background"
                       }`}
                     >
-                      {method.type === "GATEWAY" && <CreditCard className="h-4 w-4" />}
-                      {method.type === "UPI" && <Smartphone className="h-4 w-4" />}
-                      {method.type === "BANK" && <Building2 className="h-4 w-4" />}
-                      {method.type === "CRYPTO" && <Zap className="h-4 w-4" />}
-                    </div>
-
-                    <div>
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                        {method.type === "GATEWAY" ? (method.details.provider || "ONLINE") : method.type}
-                      </span>
-                      <p className="text-xs font-bold text-foreground line-clamp-1 mt-0.5">
+                      <div className="flex items-center justify-between w-full mb-2">
+                        {method.type === "GATEWAY" && <CreditCard className="h-4 w-4 text-primary" />}
+                        {method.type === "UPI_MANUAL" && <Smartphone className="h-4 w-4 text-primary" />}
+                        {method.type === "BANK_MANUAL" && <Building2 className="h-4 w-4 text-primary" />}
+                        {method.type === "CRYPTO" && <Zap className="h-4 w-4 text-primary" />}
+                        {isSelected && (
+                          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-foreground leading-tight">
                         {method.title}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground mt-1 truncate w-full">
+                        {method.accountName || method.type}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected Method Details Panel */}
+              {selectedMethod && (
+                <div className="rounded-xl border border-border/80 bg-background/80 p-5 space-y-4">
+                  <div className="flex items-start justify-between gap-2 border-b border-border pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                        {selectedMethod.title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Pay exactly{" "}
+                        <strong className="text-foreground">{formatCurrency(finalAmount)}</strong>
                       </p>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Active Payment Details & Options Box */}
-            {selectedMethod && (
-              <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <div>
-                    <h2 className="text-base font-bold text-foreground">
-                      {selectedMethod.title}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      Pay exactly <strong className="text-primary">{formatCurrency(finalAmount)}</strong>
-                    </p>
+                    {isGatewaySelected ? (
+                      <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+                        INSTANT ACCESS
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold text-amber-500">
+                        MANUAL VERIFICATION
+                      </span>
+                    )}
                   </div>
 
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary">
-                    {selectedMethod.type === "GATEWAY" ? "INSTANT ACCESS" : selectedMethod.type}
-                  </span>
-                </div>
-
-                {/* GATEWAY HIGHLIGHT CARD */}
-                {isGatewaySelected ? (
-                  <div className="space-y-4">
-                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">
-                      <div className="flex items-center gap-2 text-primary font-bold text-xs">
-                        <Sparkles className="h-4 w-4" />
-                        <span>Instant Automated Activation</span>
-                      </div>
-                      <p className="text-xs text-foreground/80 leading-relaxed">
+                  {/* Gateway Info */}
+                  {isGatewaySelected && (
+                    <div className="rounded-lg bg-primary/5 p-3.5 border border-primary/15 space-y-2">
+                      <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-primary" />
+                        Instant Automated Activation
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
                         Pay securely with any UPI app (Google Pay, PhonePe, Paytm), Credit/Debit Card, NetBanking (50+ banks), or Wallet. Your course will be <strong>unlocked immediately</strong> upon payment completion.
                       </p>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
-                          <Smartphone className="h-4 w-4 mx-auto text-emerald-500 mb-1" />
-                          <span className="text-[10px] font-bold text-foreground block">UPI / QR</span>
-                        </div>
-                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
-                          <CreditCard className="h-4 w-4 mx-auto text-sky-500 mb-1" />
-                          <span className="text-[10px] font-bold text-foreground block">Debit / Credit</span>
-                        </div>
-                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
-                          <Building2 className="h-4 w-4 mx-auto text-amber-500 mb-1" />
-                          <span className="text-[10px] font-bold text-foreground block">NetBanking</span>
-                        </div>
-                        <div className="rounded-lg bg-background/80 p-2 text-center border border-border/40">
-                          <ShieldCheck className="h-4 w-4 mx-auto text-primary mb-1" />
-                          <span className="text-[10px] font-bold text-foreground block">256-Bit SSL</span>
-                        </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <span className="rounded bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border">
+                          📱 UPI / QR
+                        </span>
+                        <span className="rounded bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border">
+                          💳 Debit / Credit
+                        </span>
+                        <span className="rounded bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border">
+                          🏦 NetBanking
+                        </span>
+                        <span className="rounded bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border">
+                          🔒 256-Bit SSL
+                        </span>
                       </div>
                     </div>
+                  )}
 
-                    {selectedMethod.instructions && (
-                      <p className="text-xs text-muted-foreground italic">
-                        {selectedMethod.instructions}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {/* Dynamic QR Code for UPI / Crypto */}
-                    {(selectedMethod.details.qrCodeUrl || selectedMethod.details.upiId || selectedMethod.details.walletAddress) && (
-                      <div className="flex flex-col items-center justify-center rounded-xl bg-background/80 p-5 border border-border/50 space-y-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={
-                            selectedMethod.details.qrCodeUrl ||
-                            (selectedMethod.type === "UPI"
-                              ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi%3A%2F%2Fpay%3Fpa%3D${encodeURIComponent(
-                                  selectedMethod.details.upiId || "superwarrior30@upi"
-                                )}%26pn%3DSuperWarrior30`
-                              : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                                  selectedMethod.details.walletAddress || ""
-                                )}`)
-                          }
-                          alt={`${selectedMethod.title} QR`}
-                          className="h-44 w-44 rounded-xl bg-white p-2 shadow-inner object-contain"
-                          loading="eager"
-                        />
-                        <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                          <Sparkles className="h-3 w-3 text-primary" />
-                          {selectedMethod.type === "CRYPTO"
-                            ? "Scan using Binance / Trust Wallet / Web3 App"
-                            : "Scan using GooglePay, PhonePe, Paytm or Banking App"}
-                        </p>
-                      </div>
-                    )}
+                  {/* UPI QR & ID */}
+                  {selectedMethod.type === "UPI_MANUAL" && (
+                    <div className="space-y-4">
+                      {selectedMethod.qrCodeUrl && (
+                        <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background border border-border">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={selectedMethod.qrCodeUrl}
+                            alt="UPI QR Code"
+                            className="h-44 w-44 object-contain rounded-lg border"
+                          />
+                          <p className="text-[11px] text-muted-foreground mt-2">
+                            Scan with Google Pay, PhonePe, Paytm, or BHIM
+                          </p>
+                        </div>
+                      )}
 
-                    {/* Copyable details based on manual method */}
-                    <div className="space-y-3 rounded-xl bg-background/60 p-4 border border-border/40 text-xs">
-                      {selectedMethod.type === "UPI" && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground font-medium">UPI ID:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-foreground text-sm">
-                              {selectedMethod.details.upiId}
+                      {selectedMethod.upiId && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                              UPI ID / VPA
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => copyToClipboard(selectedMethod.details.upiId || "", "upi")}
-                              className="rounded-lg bg-muted px-2.5 py-1 text-xs font-semibold hover:bg-muted/80 flex items-center gap-1 text-foreground cursor-pointer"
-                            >
-                              {copiedKey === "upi" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedMethod.type === "CRYPTO" && (
-                        <>
-                          <div className="flex justify-between items-center text-[11px]">
-                            <span className="text-muted-foreground font-medium">Network:</span>
-                            <span className="font-bold text-amber-400">
-                              {selectedMethod.details.network || "BEP-20 (BNB Smart Chain)"}
-                            </span>
-                          </div>
-                          <div className="space-y-1 pt-1">
-                            <span className="text-muted-foreground font-medium block text-[11px]">Deposit Address:</span>
-                            <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 p-2">
-                              <span className="font-mono text-[11px] font-bold text-foreground truncate max-w-[280px]">
-                                {selectedMethod.details.walletAddress}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(selectedMethod.details.walletAddress || "", "crypto")}
-                                className="rounded bg-background px-2 py-1 text-xs font-semibold hover:bg-muted text-foreground flex items-center gap-1 shrink-0 cursor-pointer"
-                              >
-                                {copiedKey === "crypto" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                                Copy
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      {selectedMethod.type === "BANK" && (
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Bank Name:</span>
-                            <span className="font-bold text-foreground">{selectedMethod.details.bankName}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Account Holder:</span>
-                            <span className="font-semibold text-foreground">{selectedMethod.details.accountName}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Account Number:</span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-foreground text-sm">
-                                {selectedMethod.details.accountNumber}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(selectedMethod.details.accountNumber || "", "acc")}
-                                className="p-1 rounded hover:bg-muted text-muted-foreground"
-                              >
-                                {copiedKey === "acc" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                              </button>
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">IFSC Code:</span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-foreground">{selectedMethod.details.ifsc}</span>
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(selectedMethod.details.ifsc || "", "ifsc")}
-                                className="p-1 rounded hover:bg-muted text-muted-foreground"
-                              >
-                                {copiedKey === "ifsc" ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {selectedMethod.instructions && (
-                      <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5 text-xs text-amber-200">
-                        <p className="font-semibold mb-0.5">⚠️ Instructions:</p>
-                        <p>{selectedMethod.instructions}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT COLUMN: Order Summary, Coupon & Action Form (5 cols) */}
-          <div className="space-y-6 lg:col-span-5">
-            <div className="rounded-2xl border border-border bg-card p-6 shadow-xl space-y-6">
-              <h2 className="text-lg font-bold text-foreground border-b border-border pb-3">
-                Order Summary
-              </h2>
-
-              {errorMessage && (
-                <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-xs text-destructive font-medium">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              {/* Course Info */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Purchasing
-                </span>
-                <h3 className="font-extrabold text-foreground text-base">
-                  {course.title}
-                </h3>
-              </div>
-
-              {/* BROKER PARTNER OFFER SECTION */}
-              {isBrokerEnabled && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                      <Sparkles className="h-4 w-4 text-amber-400" />
-                      BROKER PARTNER OFFER ({brokerOfferPct}% {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback"})
-                    </label>
-                    <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[9px] font-extrabold uppercase text-amber-300">
-                      {brokerMode === "INSTANT_DISCOUNT" ? "Instant Discount" : "Cashback Mode"}
-                    </span>
-                  </div>
-
-                  {/* Broker partner explanation & registration button */}
-                  <div className="rounded-xl bg-background/70 p-3 text-xs space-y-2 border border-border/60">
-                    <p className="text-muted-foreground leading-relaxed">
-                      {brokerConfig?.description || "Open your broker account using our partner link and unlock a special course benefit."}
-                    </p>
-                    <div className="pt-1">
-                      <a
-                        href={brokerPartnerUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-black shadow hover:bg-amber-400 transition-all cursor-pointer"
-                      >
-                        Open Broker Account
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Checkbox: I have a Broker Partner Account */}
-                  <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer pt-1">
-                    <input
-                      type="checkbox"
-                      checked={hasBrokerAccount || Boolean(appliedBrokerId)}
-                      onChange={(e) => {
-                        setHasBrokerAccount(e.target.checked);
-                        if (!e.target.checked) {
-                          handleRemoveBrokerOffer();
-                        }
-                      }}
-                      className="h-4 w-4 rounded border-input text-amber-500 focus:ring-amber-400 cursor-pointer"
-                    />
-                    <span>I have a {brokerName} Partner Account</span>
-                  </label>
-
-                  {/* Form fields shown if checkbox is checked */}
-                  {(hasBrokerAccount || Boolean(appliedBrokerId)) && (
-                    <div className="space-y-3 pt-2 border-t border-amber-500/20">
-                      {appliedBrokerId ? (
-                        <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs font-semibold text-emerald-400">
-                          <div className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                            <span>
-                              {brokerName} ID: <strong>{appliedBrokerId}</strong> (
-                              {brokerMode === "INSTANT_DISCOUNT"
-                                ? `Saved ₹${brokerDiscount}`
-                                : `₹${potentialCashback} Cashback upon verification`}
-                              )
+                            <span className="text-xs font-mono font-bold text-foreground">
+                              {selectedMethod.upiId}
                             </span>
                           </div>
                           <button
                             type="button"
-                            onClick={handleRemoveBrokerOffer}
-                            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 cursor-pointer"
-                            title="Remove Broker Offer"
+                            onClick={() => copyToClipboard(selectedMethod.upiId!, "upi")}
+                            className="inline-flex items-center gap-1 rounded bg-secondary px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors"
                           >
-                            <X className="h-3.5 w-3.5" />
+                            {copiedKey === "upi" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                            {copiedKey === "upi" ? "Copied" : "Copy"}
                           </button>
                         </div>
-                      ) : (
-                        <form onSubmit={handleVerifyBrokerMember} className="space-y-2.5">
-                          {requireMemberId && (
-                            <div>
-                              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
-                                Broker Member ID / User ID <span className="text-amber-400">*</span>
-                              </label>
-                              <input
-                                type="text"
-                                placeholder={`Enter ${brokerName} Member ID`}
-                                value={brokerMemberInput}
-                                onChange={(e) => setBrokerMemberInput(e.target.value)}
-                                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-amber-400 focus:outline-none"
-                              />
-                            </div>
-                          )}
-
-                          {requireProof && (
-                            <div>
-                              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
-                                Upload Broker Registration Proof / Screenshot <span className="text-amber-400">*</span>
-                              </label>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleProofFileUpload}
-                                className="w-full text-xs text-muted-foreground file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-500/20 file:text-amber-300 hover:file:bg-amber-500/30 cursor-pointer"
-                              />
-                              {isUploadingProof && (
-                                <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
-                                  <Loader2 className="h-3 w-3 animate-spin" /> Processing screenshot...
-                                </p>
-                              )}
-                              {brokerProofUrl && !isUploadingProof && (
-                                <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
-                                  <Check className="h-3 w-3" /> Screenshot attached!
-                                </p>
-                              )}
-                            </div>
-                          )}
-
-                          <button
-                            type="submit"
-                            disabled={
-                              isCheckingBroker ||
-                              (requireMemberId && !brokerMemberInput.trim()) ||
-                              (requireProof && !brokerProofUrl)
-                            }
-                            className="w-full rounded-lg bg-amber-500 text-black py-2 text-xs font-bold shadow hover:bg-amber-400 disabled:opacity-50 transition-all cursor-pointer"
-                          >
-                            {isCheckingBroker
-                              ? "Verifying..."
-                              : brokerMode === "INSTANT_DISCOUNT"
-                              ? "Verify & Apply Discount"
-                              : "Apply Broker Offer"}
-                          </button>
-
-                          {brokerMode === "CASHBACK" && (
-                            <p className="text-[10px] text-muted-foreground">
-                              Pay normal amount today. ₹{potentialCashback} cashback will be unlocked in your dashboard after verification.
-                            </p>
-                          )}
-                        </form>
-                      )}
-
-                      {brokerStatusMessage && (
-                        <p
-                          className={`text-[11px] font-medium ${
-                            brokerVerified
-                              ? "text-emerald-400"
-                              : "text-amber-400"
-                          }`}
-                        >
-                          {brokerStatusMessage}
-                        </p>
                       )}
                     </div>
+                  )}
+
+                  {/* Bank Transfer Details */}
+                  {selectedMethod.type === "BANK_MANUAL" && (
+                    <div className="space-y-2 text-xs">
+                      {selectedMethod.bankName && (
+                        <div className="flex justify-between py-1 border-b border-border/50">
+                          <span className="text-muted-foreground">Bank Name:</span>
+                          <span className="font-bold text-foreground">{selectedMethod.bankName}</span>
+                        </div>
+                      )}
+                      {selectedMethod.accountName && (
+                        <div className="flex justify-between py-1 border-b border-border/50">
+                          <span className="text-muted-foreground">Account Holder:</span>
+                          <span className="font-bold text-foreground">{selectedMethod.accountName}</span>
+                        </div>
+                      )}
+                      {selectedMethod.accountNumber && (
+                        <div className="flex items-center justify-between py-1 border-b border-border/50">
+                          <span className="text-muted-foreground">Account Number:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-foreground">{selectedMethod.accountNumber}</span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(selectedMethod.accountNumber!, "acc")}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {selectedMethod.ifscCode && (
+                        <div className="flex items-center justify-between py-1 border-b border-border/50">
+                          <span className="text-muted-foreground">IFSC Code:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-foreground">{selectedMethod.ifscCode}</span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(selectedMethod.ifscCode!, "ifsc")}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Crypto Wallet Details */}
+                  {selectedMethod.type === "CRYPTO" && selectedMethod.cryptoAddress && (
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between py-1 border-b border-border/50">
+                        <span className="text-muted-foreground">Network:</span>
+                        <span className="font-bold text-foreground">{selectedMethod.cryptoNetwork || "USDT (TRC-20)"}</span>
+                      </div>
+                      <div className="p-3 rounded-lg bg-background border border-border space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Deposit Address
+                        </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs text-foreground break-all">
+                            {selectedMethod.cryptoAddress}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(selectedMethod.cryptoAddress!, "crypto")}
+                            className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs font-medium hover:bg-accent shrink-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Instructions if provided */}
+                  {selectedMethod.instructions && (
+                    <p className="text-[11px] text-muted-foreground italic border-t border-border pt-2">
+                      💡 {selectedMethod.instructions}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT: Order Summary, 3 Distinct Offer Sections & Checkout Action */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+              <h2 className="text-lg font-bold text-foreground">Order Summary</h2>
+
+              {/* Course Title Card */}
+              <div className="rounded-xl border border-border/80 bg-background/50 p-3.5 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Purchasing Course
+                </span>
+                <p className="text-sm font-bold text-foreground">{course.title}</p>
+              </div>
+
+              {/* ---------------------------------------------------- */}
+              {/* SECTION 1: BROKER PARTNER OFFER (If active & eligible) */}
+              {/* ---------------------------------------------------- */}
+              {isBrokerEnabled && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      BROKER PARTNER OFFER ({brokerOfferPct}%)
+                    </span>
+                    <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                      {brokerMode === "INSTANT_DISCOUNT" ? "INSTANT OFF" : "CASHBACK"}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {brokerConfig?.description ||
+                      "Open your broker account using our partner link and unlock a special course benefit."}
+                  </p>
+
+                  <a
+                    href={brokerPartnerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 w-full rounded-lg bg-amber-500 text-black py-2 text-xs font-bold shadow hover:bg-amber-400 transition-all"
+                  >
+                    Open {brokerName} Account <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+
+                  {/* Broker Claim Checkbox / Form */}
+                  <div className="pt-1">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasBrokerAccount || Boolean(appliedBrokerId)}
+                        onChange={(e) => {
+                          setHasBrokerAccount(e.target.checked);
+                          if (!e.target.checked) {
+                            handleRemoveBrokerOffer();
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-input text-amber-500 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span>I have a {brokerName} Partner Account</span>
+                    </label>
+
+                    {(hasBrokerAccount || appliedBrokerId) && (
+                      <div className="mt-3 rounded-lg border border-amber-500/20 bg-background/80 p-3 space-y-2.5">
+                        {appliedBrokerId ? (
+                          <div className="flex items-center justify-between text-xs font-semibold text-emerald-400">
+                            <div className="flex items-center gap-1.5">
+                              <Check className="h-3.5 w-3.5" />
+                              <span>
+                                {brokerName} ID: <strong>{appliedBrokerId}</strong>
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleRemoveBrokerOffer}
+                              className="text-muted-foreground hover:text-destructive p-1"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <form onSubmit={handleVerifyBrokerMember} className="space-y-2.5">
+                            {requireMemberId && (
+                              <div>
+                                <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
+                                  Broker Member ID / User ID <span className="text-amber-400">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder={`Enter ${brokerName} Member ID`}
+                                  value={brokerMemberInput}
+                                  onChange={(e) => setBrokerMemberInput(e.target.value)}
+                                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-amber-400 focus:outline-none"
+                                />
+                              </div>
+                            )}
+
+                            {requireProof && (
+                              <div>
+                                <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
+                                  Upload Account Proof / Screenshot <span className="text-amber-400">*</span>
+                                </label>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleProofFileUpload}
+                                  className="w-full text-xs text-muted-foreground file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-500/20 file:text-amber-300 hover:file:bg-amber-500/30 cursor-pointer"
+                                />
+                                {isUploadingProof && (
+                                  <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
+                                    <Loader2 className="h-3 w-3 animate-spin" /> Processing screenshot...
+                                  </p>
+                                )}
+                                {brokerProofUrl && !isUploadingProof && (
+                                  <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+                                    <Check className="h-3 w-3" /> Screenshot attached!
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            <button
+                              type="submit"
+                              disabled={
+                                isCheckingBroker ||
+                                (requireMemberId && !brokerMemberInput.trim()) ||
+                                (requireProof && !brokerProofUrl)
+                              }
+                              className="w-full rounded-lg bg-amber-500 text-black py-2 text-xs font-bold shadow hover:bg-amber-400 disabled:opacity-50 transition-all cursor-pointer"
+                            >
+                              {isCheckingBroker
+                                ? "Verifying..."
+                                : brokerMode === "INSTANT_DISCOUNT"
+                                ? "Verify & Apply Broker Discount"
+                                : "Save Broker Member ID"}
+                            </button>
+                          </form>
+                        )}
+
+                        {brokerStatusMessage && (
+                          <p
+                            className={`text-[11px] font-medium ${
+                              brokerVerified
+                                ? "text-emerald-400"
+                                : "text-amber-400"
+                            }`}
+                          >
+                            {brokerStatusMessage}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ---------------------------------------------------- */}
+              {/* SECTION 2: AFFILIATE / REFERRAL CODE (If active) */}
+              {/* ---------------------------------------------------- */}
+              {isReferralModuleEnabled && (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-primary" />
+                      Have an Affiliate / Referral Code?
+                    </label>
+                    <span className="text-[10px] font-bold text-primary">
+                      {referralDiscountPct}% Instant Discount
+                    </span>
+                  </div>
+
+                  {appliedReferral ? (
+                    <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+                      <div className="flex items-center gap-1.5">
+                        <Check className="h-3.5 w-3.5" />
+                        <span>
+                          Referral <strong>{appliedReferral.code}</strong> applied (-₹{appliedReferral.discountAmount})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveReferral}
+                        className="p-1 rounded hover:bg-primary/20 text-primary cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleApplyReferral} className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="ENTER REFERRAL CODE (E.G. ABC12345)"
+                        value={referralInput}
+                        onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
+                        className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isCheckingReferral || !referralInput.trim()}
+                        className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
+                      >
+                        {isCheckingReferral ? "..." : "Apply"}
+                      </button>
+                    </form>
+                  )}
+
+                  {referralError && (
+                    <p className="text-[11px] text-destructive font-medium">{referralError}</p>
                   )}
                 </div>
               )}
 
-              {/* Coupon / Referral Code Section */}
-              <div className="rounded-xl border border-border/80 bg-background/60 p-3.5 space-y-2.5">
-                <div className="flex items-center justify-between">
+              {/* ---------------------------------------------------- */}
+              {/* SECTION 3: PROMO COUPON CODE (If active) */}
+              {/* ---------------------------------------------------- */}
+              {isCouponModuleEnabled && (
+                <div className="rounded-xl border border-border/80 bg-background/60 p-3.5 space-y-2.5">
                   <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                     <Tag className="h-3.5 w-3.5 text-primary" />
-                    Have a Promo Coupon or Referral Code?
+                    Have a Promo Coupon Code?
                   </label>
-                  {brokerConfig?.isReferralDiscountEnabled !== false && (
-                    <span className="text-[10px] font-bold text-primary">
-                      {brokerConfig?.referralDiscountPercentage || 10}% Ref Discount
-                    </span>
+
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-500">
+                      <div className="flex items-center gap-1.5">
+                        <Check className="h-3.5 w-3.5" />
+                        <span>
+                          Coupon <strong>{appliedCoupon.code}</strong> applied (-₹{appliedCoupon.discountAmount})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="p-1 rounded hover:bg-emerald-500/20 text-emerald-500 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="ENTER PROMO COUPON (E.G. SW30)"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                        className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isCheckingCoupon || !couponInput.trim()}
+                        className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
+                      >
+                        {isCheckingCoupon ? "..." : "Apply"}
+                      </button>
+                    </form>
+                  )}
+
+                  {couponError && (
+                    <p className="text-[11px] text-destructive font-medium">{couponError}</p>
                   )}
                 </div>
+              )}
 
-                {appliedCoupon ? (
-                  <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-500">
-                    <div className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5" />
-                      <span>
-                        {appliedCoupon.type === "REFERRAL" || appliedCoupon.type === "REFERRAL_DISCOUNT" ? (
-                          <>
-                            <strong>Referral Code {appliedCoupon.code}</strong> applied (-₹{appliedCoupon.discountAmount})
-                          </>
-                        ) : (
-                          <>
-                            <strong>Coupon {appliedCoupon.code}</strong> applied (-₹{appliedCoupon.discountAmount})
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRemoveCoupon}
-                      className="p-1 rounded hover:bg-emerald-500/20 text-emerald-500 cursor-pointer"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <form onSubmit={handleApplyCoupon} className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="ENTER COUPON OR REFERRAL CODE"
-                      value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isCheckingCoupon || !couponInput.trim()}
-                      className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
-                    >
-                      {isCheckingCoupon ? "..." : "Apply"}
-                    </button>
-                  </form>
-                )}
-
-                {couponError && (
-                  <p className="text-[11px] text-destructive font-medium">{couponError}</p>
-                )}
-              </div>
-
-              {/* Price Breakdown */}
+              {/* ---------------------------------------------------- */}
+              {/* PRICE BREAKDOWN */}
+              {/* ---------------------------------------------------- */}
               <div className="space-y-2 border-t border-border pt-4 text-xs">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Standard Price</span>
+                  <span>Standard Course Price</span>
                   <span className="font-medium">{formatCurrency(course.price)}</span>
                 </div>
 
+                {appliedReferral && (
+                  <div className="flex justify-between text-primary font-semibold">
+                    <span>Referral Discount ({appliedReferral.discountPercentage}%)</span>
+                    <span>- {formatCurrency(appliedReferral.discountAmount)}</span>
+                  </div>
+                )}
+
                 {appliedCoupon && (
                   <div className="flex justify-between text-emerald-500 font-semibold">
-                    <span>
-                      {appliedCoupon.type === "REFERRAL" || appliedCoupon.type === "REFERRAL_DISCOUNT"
-                        ? `Referral Discount (${appliedCoupon.discountPercentage || brokerConfig?.referralDiscountPercentage || 10}%)`
-                        : "Coupon Discount"}
-                    </span>
+                    <span>Promo Coupon ({appliedCoupon.code})</span>
                     <span>- {formatCurrency(appliedCoupon.discountAmount)}</span>
                   </div>
                 )}
