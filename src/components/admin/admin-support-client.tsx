@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   LifeBuoy,
   Search,
-  Filter,
   Mail,
   Phone,
   Clock,
@@ -14,11 +13,7 @@ import {
   MessageSquare,
   Trash2,
   Edit3,
-  ExternalLink,
-  ChevronDown,
-  Tag,
   Receipt,
-  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -57,6 +52,9 @@ interface AdminSupportClientProps {
     resolved: number;
     closed: number;
   };
+  currentStatus: string;
+  currentCategory: string;
+  currentSearch: string;
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
@@ -79,14 +77,14 @@ export function AdminSupportClient({
   inquiries,
   pagination,
   metrics,
+  currentStatus,
+  currentCategory,
+  currentSearch,
 }: AdminSupportClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const currentStatus = searchParams.get("status") || "ALL";
-  const currentCategory = searchParams.get("category") || "ALL";
-  const [searchInput, setSearchInput] = useState(searchParams.get("search") || "");
+  const [searchInput, setSearchInput] = useState(currentSearch || "");
 
   // Modal / Inline edit state
   const [selectedInquiry, setSelectedInquiry] = useState<InquiryItem | null>(null);
@@ -95,13 +93,24 @@ export function AdminSupportClient({
   const [isSaving, setIsSaving] = useState(false);
 
   const handleFilterChange = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams();
+    if (currentStatus && currentStatus !== "ALL" && key !== "status") {
+      params.set("status", currentStatus);
+    }
+    if (currentCategory && currentCategory !== "ALL" && key !== "category") {
+      params.set("category", currentCategory);
+    }
+    if (currentSearch && key !== "search") {
+      params.set("search", currentSearch);
+    }
+
     if (value && value !== "ALL") {
       params.set(key, value);
     } else {
       params.delete(key);
     }
     params.set("page", "1");
+
     startTransition(() => {
       router.push(`/admin/support?${params.toString()}`);
     });

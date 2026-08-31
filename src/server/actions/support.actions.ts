@@ -18,10 +18,7 @@ const contactInquirySchema = z.object({
 
 export type SubmitContactInquiryInput = z.infer<typeof contactInquirySchema>;
 
-let isTableVerified = false;
-
-async function ensureSupportInquiriesTable() {
-  if (isTableVerified) return;
+export async function ensureSupportInquiriesTable() {
   try {
     await prisma.$executeRawUnsafe(`
       DO $$ BEGIN
@@ -47,11 +44,11 @@ async function ensureSupportInquiriesTable() {
 
       CREATE INDEX IF NOT EXISTS "support_inquiries_email_idx" ON "support_inquiries"("email");
       CREATE INDEX IF NOT EXISTS "support_inquiries_status_idx" ON "support_inquiries"("status");
+      CREATE INDEX IF NOT EXISTS "support_inquiries_category_idx" ON "support_inquiries"("category");
       CREATE INDEX IF NOT EXISTS "support_inquiries_createdAt_idx" ON "support_inquiries"("createdAt" DESC);
     `);
-    isTableVerified = true;
   } catch (err) {
-    console.error("Auto table migration warning for support_inquiries:", err);
+    console.error("Table auto-migration notice:", err);
   }
 }
 
@@ -100,36 +97,36 @@ export async function getAdminSupportInquiriesAction(params: {
   category?: string;
   search?: string;
 }) {
-  await requireAdmin();
-  await ensureSupportInquiriesTable();
-
-  const page = Math.max(1, params.page || 1);
-  const pageSize = Math.min(100, Math.max(1, params.pageSize || 20));
-  const skip = (page - 1) * pageSize;
-
-  const where: any = {};
-
-  if (params.status && params.status !== "ALL") {
-    where.status = params.status as SupportInquiryStatus;
-  }
-
-  if (params.category && params.category !== "ALL") {
-    where.category = params.category;
-  }
-
-  if (params.search && params.search.trim()) {
-    const q = params.search.trim();
-    where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { email: { contains: q, mode: "insensitive" } },
-      { phone: { contains: q, mode: "insensitive" } },
-      { subject: { contains: q, mode: "insensitive" } },
-      { message: { contains: q, mode: "insensitive" } },
-      { orderNumber: { contains: q, mode: "insensitive" } },
-    ];
-  }
-
   try {
+    await requireAdmin();
+    await ensureSupportInquiriesTable();
+
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.min(100, Math.max(1, params.pageSize || 20));
+    const skip = (page - 1) * pageSize;
+
+    const where: any = {};
+
+    if (params.status && params.status !== "ALL") {
+      where.status = params.status as SupportInquiryStatus;
+    }
+
+    if (params.category && params.category !== "ALL") {
+      where.category = params.category;
+    }
+
+    if (params.search && params.search.trim()) {
+      const q = params.search.trim();
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q, mode: "insensitive" } },
+        { subject: { contains: q, mode: "insensitive" } },
+        { message: { contains: q, mode: "insensitive" } },
+        { orderNumber: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
     const [inquiries, totalCount, statsNew, statsInProgress, statsResolved, statsClosed] = await Promise.all([
       prisma.supportInquiry.findMany({
         where,
@@ -165,8 +162,7 @@ export async function getAdminSupportInquiriesAction(params: {
       },
     };
   } catch (err) {
-    console.error("Error fetching support inquiries:", err);
-    // Return graceful fallback so page never crashes
+    console.error("Error in getAdminSupportInquiriesAction:", err);
     return {
       inquiries: [],
       pagination: {
@@ -191,10 +187,10 @@ export async function updateSupportInquiryStatusAction(params: {
   status: SupportInquiryStatus;
   adminNotes?: string;
 }) {
-  await requireAdmin();
-  await ensureSupportInquiriesTable();
-
   try {
+    await requireAdmin();
+    await ensureSupportInquiriesTable();
+
     const updated = await prisma.supportInquiry.update({
       where: { id: params.id },
       data: {
@@ -215,10 +211,10 @@ export async function updateSupportInquiryStatusAction(params: {
 }
 
 export async function deleteSupportInquiryAction(id: string) {
-  await requireAdmin();
-  await ensureSupportInquiriesTable();
-
   try {
+    await requireAdmin();
+    await ensureSupportInquiriesTable();
+
     await prisma.supportInquiry.delete({
       where: { id },
     });

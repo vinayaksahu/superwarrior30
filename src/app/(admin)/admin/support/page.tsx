@@ -3,6 +3,7 @@ import { getAdminSupportInquiriesAction } from "@/server/actions/support.actions
 import { AdminSupportClient } from "@/components/admin/admin-support-client";
 import { requireAdmin } from "@/server/dal/auth";
 import { LifeBuoy } from "lucide-react";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -49,11 +50,16 @@ export default async function AdminSupportPage({
       </div>
 
       {/* Main Client Content */}
-      <AdminSupportClient
-        inquiries={data.inquiries}
-        pagination={data.pagination}
-        metrics={data.metrics}
-      />
+      <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground">Loading support desk...</div>}>
+        <AdminSupportClient
+          inquiries={data.inquiries}
+          pagination={data.pagination}
+          metrics={data.metrics}
+          currentStatus={status}
+          currentCategory={category}
+          currentSearch={search}
+        />
+      </Suspense>
     </div>
   );
 }
