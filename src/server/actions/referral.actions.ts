@@ -55,6 +55,8 @@ export async function getReferralSettingsAction() {
       level: l.level,
       commissionPercentage: Number(l.commissionRate) * 100,
       isEnabled: l.isEnabled,
+      requiresDirectReferralQualification: l.requiresDirectReferralQualification ?? false,
+      directReferralsRequired: l.directReferralsRequired ?? 0,
     })),
   };
 }
@@ -148,6 +150,8 @@ export async function saveReferralSettingsAction(
           level: lvl.level,
           commissionRate: decimalRate,
           isEnabled: lvl.isEnabled,
+          requiresDirectReferralQualification: lvl.requiresDirectReferralQualification ?? false,
+          directReferralsRequired: lvl.directReferralsRequired ?? 0,
         },
       });
     }
@@ -165,10 +169,14 @@ export async function saveReferralSettingsAction(
           isReferralEnabled,
           holdingPeriodDays,
           minWithdrawalAmount,
+          referralDiscountPercentage,
+          isReferralDiscountEnabled,
           levels: levels.map((l) => ({
             level: l.level,
             percentage: l.commissionPercentage,
             isEnabled: l.isEnabled,
+            requiresDirectReferralQualification: l.requiresDirectReferralQualification ?? false,
+            directReferralsRequired: l.directReferralsRequired ?? 0,
           })),
         },
       },
@@ -280,6 +288,8 @@ export async function calculateAndCreateOrderCommissions(
         level: lvl.level,
         rate: Number(lvl.commissionRate),
         isEnabled: lvl.isEnabled,
+        requiresDirectReferralQualification: lvl.requiresDirectReferralQualification ?? false,
+        directReferralsRequired: lvl.directReferralsRequired ?? 0,
       })),
     },
   });
@@ -293,6 +303,19 @@ export async function calculateAndCreateOrderCommissions(
     );
 
     if (matchingAncestor && matchingAncestor.ancestorId !== order.userId) {
+      // Check Direct Referral Qualification if required for this level
+      if (levelConfig.requiresDirectReferralQualification === true) {
+        const requiredCount = levelConfig.directReferralsRequired ?? 0;
+        const directReferralCount = await tx.referralRelationship.count({
+          where: { referrerId: matchingAncestor.ancestorId },
+        });
+
+        if (directReferralCount < requiredCount) {
+          // Beneficiary does not meet direct referral requirement for this level. Skip.
+          continue;
+        }
+      }
+
       const commissionAmountNum = Number(
         (eligibleBaseAmount * Number(levelConfig.commissionRate)).toFixed(2)
       );

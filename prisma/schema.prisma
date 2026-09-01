@@ -109,12 +109,14 @@ model PasswordResetToken {
 // ==========================================
 
 model ReferralLevel {
-  id               String  @id @default(cuid())
-  level            Int     @unique
-  commissionRate   Decimal @db.Decimal(5, 4) // e.g. 0.1000 = 10%
-  isEnabled        Boolean @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                                  String   @id @default(cuid())
+  level                               Int      @unique
+  commissionRate                      Decimal  @db.Decimal(5, 4) // e.g. 0.1000 = 10%
+  isEnabled                           Boolean  @default(true)
+  requiresDirectReferralQualification Boolean  @default(false)
+  directReferralsRequired             Int      @default(0)
+  createdAt                           DateTime @default(now())
+  updatedAt                           DateTime @updatedAt
 
   @@map("referral_levels")
 }

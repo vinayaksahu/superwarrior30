@@ -102,15 +102,20 @@ async function main() {
 
   // ---- 3. Create Referral Levels ----
   const levels = [
-    { level: 1, commissionRate: 0.10, isEnabled: true },
-    { level: 2, commissionRate: 0.05, isEnabled: true },
-    { level: 3, commissionRate: 0.03, isEnabled: true },
+    { level: 1, commissionRate: 0.10, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
+    { level: 2, commissionRate: 0.05, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
+    { level: 3, commissionRate: 0.03, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
   ];
 
   for (const lvl of levels) {
     await prisma.referralLevel.upsert({
       where: { level: lvl.level },
-      update: { commissionRate: lvl.commissionRate, isEnabled: lvl.isEnabled },
+      update: {
+        commissionRate: lvl.commissionRate,
+        isEnabled: lvl.isEnabled,
+        requiresDirectReferralQualification: lvl.requiresDirectReferralQualification,
+        directReferralsRequired: lvl.directReferralsRequired,
+      },
       create: lvl,
     });
   }

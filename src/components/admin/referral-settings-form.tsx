@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveReferralSettingsAction } from "@/server/actions/referral.actions";
-import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Clock, IndianRupee, Tag, Sparkles } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Clock, IndianRupee, Tag, Sparkles, Info, Users } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReferralLevelItem {
@@ -10,6 +10,8 @@ interface ReferralLevelItem {
   level: number;
   commissionPercentage: number;
   isEnabled: boolean;
+  requiresDirectReferralQualification: boolean;
+  directReferralsRequired: number;
 }
 
 interface ReferralSettingsFormProps {
@@ -18,7 +20,14 @@ interface ReferralSettingsFormProps {
   initialMinWithdrawalAmount?: number;
   initialReferralDiscountPercentage?: number;
   initialIsReferralDiscountEnabled?: boolean;
-  initialLevels: ReferralLevelItem[];
+  initialLevels: Array<{
+    id?: string;
+    level: number;
+    commissionPercentage: number;
+    isEnabled: boolean;
+    requiresDirectReferralQualification?: boolean;
+    directReferralsRequired?: number;
+  }>;
 }
 
 export function ReferralSettingsForm({
@@ -36,11 +45,18 @@ export function ReferralSettingsForm({
   const [isReferralDiscountEnabled, setIsReferralDiscountEnabled] = useState(initialIsReferralDiscountEnabled);
   const [levels, setLevels] = useState<ReferralLevelItem[]>(
     initialLevels.length > 0
-      ? initialLevels
+      ? initialLevels.map((l) => ({
+          id: l.id,
+          level: l.level,
+          commissionPercentage: l.commissionPercentage,
+          isEnabled: l.isEnabled,
+          requiresDirectReferralQualification: Boolean(l.requiresDirectReferralQualification),
+          directReferralsRequired: Number(l.directReferralsRequired) || 0,
+        }))
       : [
-          { level: 1, commissionPercentage: 10, isEnabled: true },
-          { level: 2, commissionPercentage: 5, isEnabled: true },
-          { level: 3, commissionPercentage: 3, isEnabled: true },
+          { level: 1, commissionPercentage: 10, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
+          { level: 2, commissionPercentage: 5, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
+          { level: 3, commissionPercentage: 3, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
         ]
   );
   const [isPending, startTransition] = useTransition();
@@ -49,7 +65,13 @@ export function ReferralSettingsForm({
     const nextLevelNumber = levels.length > 0 ? Math.max(...levels.map((l) => l.level)) + 1 : 1;
     setLevels([
       ...levels,
-      { level: nextLevelNumber, commissionPercentage: 2, isEnabled: true },
+      {
+        level: nextLevelNumber,
+        commissionPercentage: 2,
+        isEnabled: true,
+        requiresDirectReferralQualification: false,
+        directReferralsRequired: 0,
+      },
     ]);
   };
 
@@ -65,14 +87,18 @@ export function ReferralSettingsForm({
 
   const handleLevelChange = (
     index: number,
-    field: "commissionPercentage" | "isEnabled",
+    field: "commissionPercentage" | "isEnabled" | "requiresDirectReferralQualification" | "directReferralsRequired",
     value: number | boolean
   ) => {
     const updated = [...levels];
     if (field === "commissionPercentage") {
       updated[index].commissionPercentage = Math.max(0, Math.min(100, Number(value)));
-    } else {
+    } else if (field === "isEnabled") {
       updated[index].isEnabled = Boolean(value);
+    } else if (field === "requiresDirectReferralQualification") {
+      updated[index].requiresDirectReferralQualification = Boolean(value);
+    } else if (field === "directReferralsRequired") {
+      updated[index].directReferralsRequired = Math.max(0, Math.min(1000000, Math.floor(Number(value) || 0)));
     }
     setLevels(updated);
   };
@@ -301,7 +327,7 @@ export function ReferralSettingsForm({
           <div>
             <h2 className="text-lg font-bold text-foreground">Commission Tiers & Levels</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Configure dynamic payout percentages for each tier in the referral closure tree
+              Configure dynamic payout percentages and optional direct referral qualification requirements for each tier
             </p>
           </div>
 
@@ -315,19 +341,28 @@ export function ReferralSettingsForm({
           </button>
         </div>
 
+        {/* Info banner explaining direct referrals */}
+        <div className="flex items-start gap-2.5 rounded-xl border border-border/80 bg-background/50 p-3.5 text-xs text-muted-foreground">
+          <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <span>
+            <strong>Direct Referrals:</strong> Direct referrals are users personally referred by a member (depth 1). Indirect/network members and deeper downline tiers are not counted towards qualification. If qualification is disabled, any active member receives commission at that level without restriction.
+          </span>
+        </div>
+
         {/* Levels list */}
         <div className="space-y-3">
           {levels.map((lvl, index) => (
             <div
               key={lvl.level}
-              className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4 transition-colors ${
+              className={`flex flex-col gap-4 rounded-xl border p-4 transition-colors lg:flex-row lg:items-center lg:justify-between ${
                 lvl.isEnabled
                   ? "border-border/80 bg-background/60"
                   : "border-border/40 bg-muted/20 opacity-60"
               }`}
             >
-              <div className="flex items-center gap-3">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary font-mono">
+              {/* Level Badge & Label */}
+              <div className="flex items-center gap-3 min-w-[180px]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary font-mono">
                   L{lvl.level}
                 </span>
                 <div>
@@ -347,10 +382,52 @@ export function ReferralSettingsForm({
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              {/* Direct Referral Qualification Control */}
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    disabled={!lvl.isEnabled}
+                    checked={Boolean(lvl.requiresDirectReferralQualification)}
+                    onChange={(e) =>
+                      handleLevelChange(index, "requiresDirectReferralQualification", e.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer disabled:opacity-50"
+                  />
+                  <span>Require Direct Referral Qualification:</span>
+                </label>
+
+                {lvl.requiresDirectReferralQualification ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      max="1000000"
+                      step="1"
+                      disabled={!lvl.isEnabled}
+                      value={lvl.directReferralsRequired ?? 0}
+                      onChange={(e) =>
+                        handleLevelChange(index, "directReferralsRequired", Math.max(0, parseInt(e.target.value, 10) || 0))
+                      }
+                      title="Minimum number of personally referred members required to earn commission at this level."
+                      className="flex h-8 w-18 rounded-md border border-input bg-background px-2 text-center text-xs font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    />
+                    <span className="text-[11px] text-muted-foreground whitespace-nowrap font-medium">
+                      direct referrals
+                    </span>
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground border border-border/40">
+                    Not Required
+                  </span>
+                )}
+              </div>
+
+              {/* Commission % & Actions */}
+              <div className="flex items-center justify-between gap-4 lg:justify-end">
                 {/* Commission % Input */}
-                <div className="flex items-center gap-2">
-                  <div className="relative w-28">
+                <div className="flex items-center gap-1.5">
+                  <div className="relative w-24">
                     <input
                       type="number"
                       step="0.1"
@@ -370,7 +447,7 @@ export function ReferralSettingsForm({
                 </div>
 
                 {/* Level Toggle */}
-                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={lvl.isEnabled}

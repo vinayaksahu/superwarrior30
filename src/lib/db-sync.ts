@@ -57,6 +57,10 @@ export async function ensureDatabaseSchemaSync() {
     `ALTER TABLE "referral_commission_records" ADD COLUMN IF NOT EXISTS "clearedReason" TEXT;`,
     `CREATE INDEX IF NOT EXISTS "referral_commission_records_status_availableAt_idx" ON "referral_commission_records"("status", "availableAt");`,
 
+    // referral_levels columns
+    `ALTER TABLE "referral_levels" ADD COLUMN IF NOT EXISTS "requiresDirectReferralQualification" BOOLEAN DEFAULT false;`,
+    `ALTER TABLE "referral_levels" ADD COLUMN IF NOT EXISTS "directReferralsRequired" INTEGER DEFAULT 0;`,
+
     // users columns
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" TEXT DEFAULT 'STUDENT';`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kycStatus" TEXT DEFAULT 'NOT_SUBMITTED';`,

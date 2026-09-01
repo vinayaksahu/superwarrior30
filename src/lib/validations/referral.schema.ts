@@ -8,6 +8,13 @@ export const referralLevelItemSchema = z.object({
     .min(0, "Commission cannot be negative")
     .max(100, "Commission cannot exceed 100%"),
   isEnabled: z.coerce.boolean().default(true),
+  requiresDirectReferralQualification: z.coerce.boolean().default(false),
+  directReferralsRequired: z.coerce
+    .number()
+    .int("Direct referrals required must be an integer")
+    .min(0, "Direct referrals required cannot be negative")
+    .max(1000000, "Direct referrals required cannot exceed 1,000,000")
+    .default(0),
 });
 
 export const referralSettingsSchema = z.object({
