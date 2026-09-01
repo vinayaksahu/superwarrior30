@@ -374,6 +374,13 @@ export async function toggleStaffStatusAction(staffId: string): Promise<ActionSt
       },
     });
 
+    if (nextStatus === UserStatus.ACTIVE) {
+      // Clear past device locks so staff can log in freely
+      await prisma.userDevice.deleteMany({
+        where: { userId: staffId },
+      }).catch(() => {});
+    }
+
     await prisma.auditLog.create({
       data: {
         actorId: superAdmin.id,

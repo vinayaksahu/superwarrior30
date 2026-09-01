@@ -176,6 +176,13 @@ export async function loginAction(
   const deviceMeta = await getClientDeviceMetadata();
   await setDeviceCookie(deviceMeta.deviceToken);
 
+  const isStaffOrAdmin =
+    isSuper ||
+    isAdminStaff ||
+    user.role === "SUPER_ADMIN" ||
+    user.role === "ADMIN" ||
+    user.role === "SUPPORT";
+
   let activeDeviceId: string | undefined = undefined;
 
   // Execute device verification in an atomic database transaction
@@ -186,8 +193,15 @@ export async function loginAction(
       orderBy: { firstSeenAt: "asc" },
     });
 
+    // Smart Device Recognition:
+    // 1. Direct cookie token match
+    // 2. Hardware signature match (same browser + same OS + matching device or user-agent)
     const recognizedDevice = existingDevices.find(
-      (d) => d.deviceTokenHash === deviceMeta.deviceTokenHash
+      (d) =>
+        d.deviceTokenHash === deviceMeta.deviceTokenHash ||
+        (d.browser === deviceMeta.browser &&
+          d.operatingSystem === deviceMeta.operatingSystem &&
+          (d.deviceName === deviceMeta.deviceName || d.userAgent === deviceMeta.userAgent))
     );
 
     if (recognizedDevice) {
@@ -203,10 +217,11 @@ export async function loginAction(
         data: { isActive: false },
       });
 
-      // Update current recognized device
+      // Update current recognized device with latest token and session metadata
       const updated = await tx.userDevice.update({
         where: { id: recognizedDevice.id },
         data: {
+          deviceTokenHash: deviceMeta.deviceTokenHash,
           isActive: true,
           revokedAt: null,
           revokedBy: null,
@@ -240,128 +255,130 @@ export async function loginAction(
       });
 
       return { allowed: true, deviceId: updated.id };
+    } else if (isStaffOrAdmin || existingDevices.length < 2) {
+      // ----------------------------------------------------
+      // CASE B: NEW DEVICE (Within limit OR Administrator / Staff)
+      // ----------------------------------------------------
+      // Enforce One Active Session: deactivate all previous devices
+      await tx.userDevice.updateMany({
+        where: { userId: user.id },
+        data: { isActive: false },
+      });
+
+      // If staff has old devices, keep device table clean by removing oldest if > 3
+      if (isStaffOrAdmin && existingDevices.length >= 3) {
+        const oldestId = existingDevices[0].id;
+        await tx.userDevice.delete({ where: { id: oldestId } }).catch(() => {});
+      }
+
+      // Create new device record
+      const newDevice = await tx.userDevice.create({
+        data: {
+          userId: user.id,
+          deviceTokenHash: deviceMeta.deviceTokenHash,
+          deviceName: deviceMeta.deviceName,
+          browser: deviceMeta.browser,
+          operatingSystem: deviceMeta.operatingSystem,
+          userAgent: deviceMeta.userAgent,
+          lastIpAddress: deviceMeta.ipAddress,
+          isActive: true,
+          lastLoginAt: new Date(),
+          lastSeenAt: new Date(),
+        },
+      });
+
+      // Log new device detection
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: "NEW_DEVICE_DETECTED",
+          entityType: "UserDevice",
+          entityId: newDevice.id,
+          ipAddress: deviceMeta.ipAddress,
+          userAgent: deviceMeta.userAgent,
+          newValues: {
+            deviceNumber: existingDevices.length + 1,
+            deviceName: newDevice.deviceName,
+            browser: newDevice.browser,
+            isStaffOrAdmin,
+          },
+        },
+      });
+
+      // Log successful login
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: "LOGIN_SUCCESS",
+          entityType: "UserDevice",
+          entityId: newDevice.id,
+          ipAddress: deviceMeta.ipAddress,
+          userAgent: deviceMeta.userAgent,
+          newValues: {
+            deviceId: newDevice.id,
+            deviceName: newDevice.deviceName,
+            browser: newDevice.browser,
+          },
+        },
+      });
+
+      return { allowed: true, deviceId: newDevice.id };
     } else {
       // ----------------------------------------------------
-      // CASE B: NEW UNRECOGNIZED DEVICE
+      // CASE C: 3RD DISTINCT DEVICE DETECTED FOR STUDENT -> AUTO-BLOCK ACCOUNT!
       // ----------------------------------------------------
-      const distinctCount = existingDevices.length;
+      // 1. Block account status & increment tokenVersion to revoke all active sessions immediately
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          status: "BLOCKED",
+          tokenVersion: { increment: 1 },
+        },
+      });
 
-      if (distinctCount < 2) {
-        // ALLOWED: Distinct devices count is 0 or 1. This becomes device #1 or #2.
-        // Enforce One Active Session: deactivate all previous devices
-        await tx.userDevice.updateMany({
-          where: { userId: user.id },
-          data: { isActive: false },
-        });
+      // 2. Revoke and deactivate all user devices
+      await tx.userDevice.updateMany({
+        where: { userId: user.id },
+        data: {
+          isActive: false,
+          revokedAt: new Date(),
+          revokedBy: "SYSTEM_AUTO_BLOCK_3RD_DEVICE",
+        },
+      });
 
-        // Create new device record
-        const newDevice = await tx.userDevice.create({
-          data: {
-            userId: user.id,
-            deviceTokenHash: deviceMeta.deviceTokenHash,
-            deviceName: deviceMeta.deviceName,
-            browser: deviceMeta.browser,
-            operatingSystem: deviceMeta.operatingSystem,
-            userAgent: deviceMeta.userAgent,
-            lastIpAddress: deviceMeta.ipAddress,
-            isActive: true,
-            lastLoginAt: new Date(),
-            lastSeenAt: new Date(),
-          },
-        });
-
-        // Log new device detection
-        await tx.auditLog.create({
-          data: {
-            actorId: user.id,
-            actorEmail: user.email,
-            actorRole: user.role,
-            action: "NEW_DEVICE_DETECTED",
-            entityType: "UserDevice",
-            entityId: newDevice.id,
-            ipAddress: deviceMeta.ipAddress,
-            userAgent: deviceMeta.userAgent,
-            newValues: {
-              deviceNumber: distinctCount + 1,
-              deviceName: newDevice.deviceName,
-              browser: newDevice.browser,
+      // 3. Record high-priority security audit log
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: "ACCOUNT_AUTO_BLOCKED",
+          entityType: "User",
+          entityId: user.id,
+          ipAddress: deviceMeta.ipAddress,
+          userAgent: deviceMeta.userAgent,
+          newValues: {
+            reason: "EXCEEDED_2_DEVICE_LIMIT",
+            attempted3rdDevice: {
+              deviceName: deviceMeta.deviceName,
+              browser: deviceMeta.browser,
+              os: deviceMeta.operatingSystem,
             },
+            registeredDevicesCount: existingDevices.length,
           },
-        });
+        },
+      });
 
-        // Log successful login
-        await tx.auditLog.create({
-          data: {
-            actorId: user.id,
-            actorEmail: user.email,
-            actorRole: user.role,
-            action: "LOGIN_SUCCESS",
-            entityType: "UserDevice",
-            entityId: newDevice.id,
-            ipAddress: deviceMeta.ipAddress,
-            userAgent: deviceMeta.userAgent,
-            newValues: {
-              deviceId: newDevice.id,
-              deviceName: newDevice.deviceName,
-              browser: newDevice.browser,
-            },
-          },
-        });
-
-        return { allowed: true, deviceId: newDevice.id };
-      } else {
-        // ----------------------------------------------------
-        // CASE C: 3RD DISTINCT DEVICE DETECTED -> AUTO-BLOCK ACCOUNT!
-        // ----------------------------------------------------
-        // 1. Block account status & increment tokenVersion to revoke all active sessions immediately
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            status: "BLOCKED",
-            tokenVersion: { increment: 1 },
-          },
-        });
-
-        // 2. Revoke and deactivate all user devices
-        await tx.userDevice.updateMany({
-          where: { userId: user.id },
-          data: {
-            isActive: false,
-            revokedAt: new Date(),
-            revokedBy: "SYSTEM_AUTO_BLOCK_3RD_DEVICE",
-          },
-        });
-
-        // 3. Record high-priority security audit log
-        await tx.auditLog.create({
-          data: {
-            actorId: user.id,
-            actorEmail: user.email,
-            actorRole: user.role,
-            action: "ACCOUNT_AUTO_BLOCKED",
-            entityType: "User",
-            entityId: user.id,
-            ipAddress: deviceMeta.ipAddress,
-            userAgent: deviceMeta.userAgent,
-            newValues: {
-              reason: "EXCEEDED_2_DEVICE_LIMIT",
-              attempted3rdDevice: {
-                deviceName: deviceMeta.deviceName,
-                browser: deviceMeta.browser,
-                os: deviceMeta.operatingSystem,
-              },
-              registeredDevicesCount: distinctCount,
-            },
-          },
-        });
-
-        return {
-          allowed: false,
-          blocked: true,
-          message:
-            "Your account has been blocked for security because it was accessed from more than the allowed number of devices. Please contact the administrator.",
-        };
-      }
+      return {
+        allowed: false,
+        blocked: true,
+        message:
+          "Your account has been blocked for security because it was accessed from more than the allowed number of devices. Please contact the administrator.",
+      };
     }
   });
 

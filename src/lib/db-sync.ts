@@ -569,6 +569,18 @@ export async function ensureDatabaseSchemaSync() {
       CREATE INDEX IF NOT EXISTS "email_otps_userId_purpose_idx" ON "email_otps"("userId", "purpose");
       CREATE INDEX IF NOT EXISTS "email_otps_expiresAt_idx" ON "email_otps"("expiresAt");
       CREATE INDEX IF NOT EXISTS "email_otps_createdAt_idx" ON "email_otps"("createdAt");
+
+      -- Auto-heal any staff accounts mistakenly set to BLOCKED by device limit
+      UPDATE "users" 
+      SET "status" = 'ACTIVE' 
+      WHERE "role" IN ('SUPER_ADMIN', 'ADMIN', 'SUPPORT') 
+        AND "status" = 'BLOCKED';
+
+      -- Clear device limit locks for staff accounts
+      DELETE FROM "user_devices" 
+      WHERE "userId" IN (
+        SELECT "id" FROM "users" WHERE "role" IN ('SUPER_ADMIN', 'ADMIN', 'SUPPORT')
+      );
     `);
   } catch {
     // ignore
