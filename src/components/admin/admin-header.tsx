@@ -67,7 +67,7 @@ const mobileNavLinks: MobileNavLink[] = [
   { href: "/admin/leads", label: "Leads", icon: ContactRound, requiredPermission: "leads.view" },
   { href: "/admin/funnel", label: "Funnel Analytics", icon: BarChart3, requiredPermission: "funnel.view" },
   { href: "/admin/testimonials", label: "Testimonials", icon: Star, requiredPermission: "testimonials.view" },
-  { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck, requiredPermission: "staff.roles_assign" },
+  { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck, requiredPermission: "staff.view" },
   { href: "/admin/settings", label: "Settings", icon: Settings, requiredPermission: "settings.general.manage" },
   { href: "/admin/recycle-bin", label: "Recycle Bin", icon: Trash2, requiredPermission: "recycle_bin.view" },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, requiredPermission: "audit_logs.view" },
