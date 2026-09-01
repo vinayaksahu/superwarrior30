@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireSuperAdmin } from "@/server/dal/auth";
+import { requireAdmin, requireSuperAdmin } from "@/server/dal/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { generateReferralCode } from "@/lib/utils";
 import { UserRole, UserStatus } from "@/generated/prisma";
