@@ -37,11 +37,10 @@ export async function getStaffMembersAction(): Promise<{
   staff: StaffMember[];
 }> {
   const currentUser = await requireAdmin();
+  const email = (currentUser.email || "").toLowerCase().trim();
   const isSuper =
-    currentUser.role === "SUPER_ADMIN" ||
-    currentUser.adminRole === "SUPER_ADMIN" ||
-    currentUser.email === "vinayaksahu3@gmail.com" ||
-    currentUser.email === "admin@superwarrior30.com";
+    email === "vinayaksahu3@gmail.com" ||
+    email === "admin@superwarrior30.com";
 
   try {
     const users = await prisma.user.findMany({
