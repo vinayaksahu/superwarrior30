@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { ActionState } from "@/types";
 
 const emailSettingsSchema = z.object({
-  isEmailOtpEnabled: z.coerce.boolean().default(true),
+  isEmailOtpEnabled: z.coerce.boolean().default(false),
   expirationMinutes: z.coerce.number().int().min(1).max(60).default(5),
   resendCooldownSeconds: z.coerce.number().int().min(15).max(300).default(60),
   maxAttempts: z.coerce.number().int().min(1).max(10).default(5),

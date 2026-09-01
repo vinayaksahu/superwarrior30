@@ -80,19 +80,17 @@ export function maskEmail(email: string): string {
  * Check if global email OTP authentication is enabled via SiteSetting
  */
 export async function isEmailOtpEnabled(): Promise<boolean> {
-  // If SMTP password is not configured on the server, disable OTP to prevent lockout
-  if (!getSmtpPassword()) {
-    return false;
-  }
-
   try {
     const setting = await prisma.siteSetting.findUnique({
       where: { key: "auth_email_otp_enabled" },
     });
-    if (!setting) return true; // Enabled by default in production
-    return setting.value === "true" || setting.value === "1";
+    // Disabled by default (bina OTP direct login); only enabled if explicitly turned on in Admin Settings
+    if (!setting || setting.value !== "true") {
+      return false;
+    }
+    return Boolean(getSmtpPassword());
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -124,7 +122,7 @@ export async function getOtpSecurityConfig(): Promise<{
     const map = new Map(settings.map((s) => [s.key, s.value]));
 
     return {
-      isEnabled: map.get("auth_email_otp_enabled") !== "false",
+      isEnabled: map.get("auth_email_otp_enabled") === "true",
       expirationMinutes: Math.max(1, parseInt(map.get("auth_otp_expiration_minutes") || "5", 10)),
       resendCooldownSeconds: Math.max(15, parseInt(map.get("auth_otp_resend_cooldown_seconds") || "60", 10)),
       maxAttempts: Math.max(1, parseInt(map.get("auth_otp_max_attempts") || "5", 10)),
@@ -132,7 +130,7 @@ export async function getOtpSecurityConfig(): Promise<{
     };
   } catch {
     return {
-      isEnabled: true,
+      isEnabled: false,
       expirationMinutes: 5,
       resendCooldownSeconds: 60,
       maxAttempts: 5,
