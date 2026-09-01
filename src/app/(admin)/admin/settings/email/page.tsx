@@ -4,6 +4,9 @@ import { EmailSettingsForm } from "@/components/admin/email-settings-form";
 import { SettingsNav } from "@/components/admin/settings-nav";
 import { requireSuperAdmin } from "@/server/dal/auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Email & OTP Security | Admin",
   description: "Configure Namecheap SMTP delivery and Email OTP two-factor verification policies",

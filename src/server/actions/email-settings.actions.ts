@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/server/dal/auth";
 import { verifySmtpConnection, sendTestEmail, SMTP_CONFIG } from "@/lib/email";
@@ -171,6 +172,7 @@ export async function saveEmailSettingsAction(
     });
   });
 
+  revalidatePath("/admin/settings/email");
   return {
     success: true,
     message: "Email & OTP security settings saved successfully.",
