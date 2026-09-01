@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getDatabaseBackupDataAction } from "@/server/actions/admin.actions";
 import { AdminBackupsClient } from "@/components/admin/admin-backups-client";
 import { SettingsNav } from "@/components/admin/settings-nav";
-import { requireAdmin } from "@/server/dal/auth";
+import { requirePermission } from "@/server/dal/auth";
 
 export const metadata: Metadata = {
   title: "Database Backups & Maintenance | Settings",
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminBackupsSettingsPage() {
-  await requireAdmin();
+  await requirePermission("settings.backups.manage");
 
   const res = await getDatabaseBackupDataAction();
 

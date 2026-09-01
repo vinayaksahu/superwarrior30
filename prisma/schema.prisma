@@ -32,10 +32,12 @@ model User {
   name          String?
   phone         String?
   avatarUrl     String?
-  role          UserRole   @default(STUDENT)
-  status        UserStatus @default(ACTIVE)
-  referralCode  String     @unique
-  tokenVersion  Int        @default(1)
+  role              UserRole   @default(STUDENT)
+  adminRole         String?    // SUPER_ADMIN, FULL_ACCESS_ADMIN, SUPPORT, VIEWER, FINANCE, MARKETING, CUSTOM_ROLE
+  customPermissions Json?      @db.JsonB
+  status            UserStatus @default(ACTIVE)
+  referralCode      String     @unique
+  tokenVersion      Int        @default(1)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 

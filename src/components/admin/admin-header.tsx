@@ -12,7 +12,6 @@ import {
   BookOpen,
   Users,
   ShoppingCart,
-  Tag,
   GitBranch,
   Wallet,
   ArrowDownToLine,
@@ -24,6 +23,9 @@ import {
   BarChart3,
   Star,
   LifeBuoy,
+  Radio,
+  Sparkles,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,45 +36,60 @@ interface AdminHeaderProps {
     name: string | null;
     email: string;
     role: string;
+    adminRole?: string | null;
+    customPermissions?: unknown;
+    permissions?: string[];
+    displayName?: string;
+    badgeLabel?: string;
+    badgeColorClass?: string;
   };
 }
 
-interface SidebarLink {
+interface MobileNavLink {
   href: string;
   label: string;
   icon: LucideIcon;
-  allowedRoles: ("SUPER_ADMIN" | "ADMIN" | "SUPPORT")[];
+  requiredPermission?: string;
 }
 
-const allSidebarLinks: SidebarLink[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/courses", label: "Courses", icon: BookOpen, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/students", label: "Students", icon: Users, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/referrals", label: "Affiliate", icon: GitBranch, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingCart, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/support", label: "Support Desk", icon: LifeBuoy, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/wallet", label: "Wallet", icon: Wallet, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/coupons", label: "Coupons", icon: Tag, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
-  { href: "/admin/payment-methods", label: "Payment Methods", icon: CreditCard, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
-  { href: "/admin/leads", label: "Leads", icon: ContactRound, allowedRoles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
-  { href: "/admin/funnel", label: "Funnel Analytics", icon: BarChart3, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
-  { href: "/admin/testimonials", label: "Testimonials", icon: Star, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
-  { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck, allowedRoles: ["SUPER_ADMIN"] },
-  { href: "/admin/settings", label: "Settings", icon: Settings, allowedRoles: ["SUPER_ADMIN", "ADMIN"] },
-  { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, allowedRoles: ["SUPER_ADMIN"] },
+const mobileNavLinks: MobileNavLink[] = [
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, requiredPermission: "dashboard.view" },
+  { href: "/admin/courses", label: "Courses", icon: BookOpen, requiredPermission: "courses.view" },
+  { href: "/admin/live-sessions", label: "Live Sessions", icon: Radio, requiredPermission: "live_sessions.view" },
+  { href: "/admin/students", label: "Students", icon: Users, requiredPermission: "students.view" },
+  { href: "/admin/referrals", label: "Affiliate", icon: GitBranch, requiredPermission: "affiliate.view" },
+  { href: "/admin/orders", label: "Orders", icon: ShoppingCart, requiredPermission: "orders.view" },
+  { href: "/admin/support", label: "Support Desk", icon: LifeBuoy, requiredPermission: "support.view" },
+  { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine, requiredPermission: "withdrawals.view" },
+  { href: "/admin/wallet", label: "Wallet", icon: Wallet, requiredPermission: "wallet.view" },
+  { href: "/admin/broker-offers", label: "Offers & Discounts", icon: Sparkles, requiredPermission: "offers.view" },
+  { href: "/admin/payment-methods", label: "Payment Methods", icon: CreditCard, requiredPermission: "payment_methods.view" },
+  { href: "/admin/leads", label: "Leads", icon: ContactRound, requiredPermission: "leads.view" },
+  { href: "/admin/funnel", label: "Funnel Analytics", icon: BarChart3, requiredPermission: "funnel.view" },
+  { href: "/admin/testimonials", label: "Testimonials", icon: Star, requiredPermission: "testimonials.view" },
+  { href: "/admin/staff", label: "Admin Roles & Staff", icon: ShieldCheck, requiredPermission: "staff.view" },
+  { href: "/admin/settings", label: "Settings", icon: Settings, requiredPermission: "settings.general.manage" },
+  { href: "/admin/recycle-bin", label: "Recycle Bin", icon: Trash2, requiredPermission: "recycle_bin.view" },
+  { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, requiredPermission: "audit_logs.view" },
 ];
 
 export function AdminHeader({ user }: AdminHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
-  const isSuper = user.role === "SUPER_ADMIN" || user.email === "vinayaksahu3@gmail.com" || user.email === "admin@superwarrior30.com";
-  const effectiveRole = isSuper ? "SUPER_ADMIN" : (user.role as "ADMIN" | "SUPPORT");
+  const isSuper =
+    user.role === "SUPER_ADMIN" ||
+    user.adminRole === "SUPER_ADMIN" ||
+    user.email === "vinayaksahu3@gmail.com" ||
+    user.email === "admin@superwarrior30.com";
 
-  const visibleLinks = allSidebarLinks.filter((link) =>
-    link.allowedRoles.includes(effectiveRole)
-  );
+  const permsSet = new Set(user.permissions || []);
+
+  const visibleLinks = mobileNavLinks.filter((link) => {
+    if (isSuper) return true;
+    if (!link.requiredPermission) return true;
+    return permsSet.has(link.requiredPermission);
+  });
 
   return (
     <>
@@ -80,7 +97,7 @@ export function AdminHeader({ user }: AdminHeaderProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileMenuOpen(true)}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-accent lg:hidden"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-accent lg:hidden cursor-pointer"
             aria-label="Open mobile navigation"
           >
             <Menu className="h-5 w-5" />
@@ -99,14 +116,13 @@ export function AdminHeader({ user }: AdminHeaderProps) {
             <div className="flex items-center justify-end gap-1 mt-0.5">
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
-                  isSuper
+                  user.badgeColorClass ||
+                  (isSuper
                     ? "bg-destructive/15 text-destructive border border-destructive/30"
-                    : user.role === "ADMIN"
-                    ? "bg-primary/15 text-primary border border-primary/30"
-                    : "bg-sky-500/15 text-sky-400 border border-sky-500/30"
+                    : "bg-primary/15 text-primary border border-primary/30")
                 }`}
               >
-                {effectiveRole}
+                {user.badgeLabel || (isSuper ? "SUPER_ADMIN" : "ADMIN")}
               </span>
             </div>
           </div>
@@ -129,25 +145,26 @@ export function AdminHeader({ user }: AdminHeaderProps) {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="relative flex w-72 flex-col bg-card border-r border-border p-5 shadow-2xl z-50">
-            <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-primary">SW30 Admin</span>
-              </div>
+          <div className="relative flex w-full max-w-xs flex-1 flex-col bg-background p-4 shadow-xl border-r border-border">
+            <div className="flex items-center justify-between border-b border-border pb-4 mb-3">
+              <span className="text-sm font-bold text-primary">Administration</span>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
-                aria-label="Close navigation"
+                className="rounded-lg p-1 text-muted-foreground hover:bg-accent cursor-pointer"
+                aria-label="Close navigation menu"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <nav className="flex-1 space-y-1 overflow-y-auto">
+            <nav className="flex flex-col gap-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
               {visibleLinks.map((link) => {
+                const Icon = link.icon;
                 const isActive =
-                  pathname === link.href ||
-                  (link.href !== "/admin" && pathname.startsWith(link.href));
+                  link.href === "/admin"
+                    ? pathname === "/admin"
+                    : pathname.startsWith(link.href);
+
                 return (
                   <Link
                     key={link.href}
@@ -156,28 +173,16 @@ export function AdminHeader({ user }: AdminHeaderProps) {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                       isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-primary text-primary-foreground font-bold"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     )}
                   >
-                    <link.icon className="h-4 w-4" />
-                    {link.label}
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{link.label}</span>
                   </Link>
                 );
               })}
             </nav>
-
-            <div className="border-t border-border pt-4 mt-4">
-              <form action={logoutAction}>
-                <button
-                  type="submit"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sign Out
-                </button>
-              </form>
-            </div>
           </div>
         </div>
       )}

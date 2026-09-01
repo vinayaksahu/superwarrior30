@@ -8,16 +8,24 @@ import {
   type StaffMember,
 } from "@/server/actions/staff.actions";
 import {
+  type AdminRoleType,
+  ROLE_PRESETS,
+  ALL_MODULES,
+  ALL_PERMISSION_KEYS,
+} from "@/lib/permissions";
+import { StaffRoleModal } from "@/components/admin/staff-role-modal";
+import {
   ShieldCheck,
   UserPlus,
   ShieldAlert,
   Edit2,
   Power,
-  CheckCircle2,
   X,
   Loader2,
   Eye,
   EyeOff,
+  Layers,
+  KeyRound,
 } from "lucide-react";
 
 interface StaffManagementClientProps {
@@ -35,37 +43,54 @@ export function StaffManagementClient({
   const [feedback, setFeedback] = useState<{ success: boolean; message?: string } | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
+  const [createFormData, setCreateFormData] = useState({
     name: "",
     email: "",
     password: "",
-    role: "ADMIN" as "ADMIN" | "SUPPORT",
+    adminRole: "FULL_ACCESS_ADMIN" as AdminRoleType,
   });
+
+  const [createCustomPerms, setCreateCustomPerms] = useState<Set<string>>(
+    new Set(["dashboard.view", "settings.profile.manage"])
+  );
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
     const fd = new FormData();
-    fd.append("name", formData.name);
-    fd.append("email", formData.email);
-    fd.append("password", formData.password);
-    fd.append("role", formData.role);
+    fd.append("name", createFormData.name);
+    fd.append("email", createFormData.email);
+    fd.append("password", createFormData.password);
+    fd.append("adminRole", createFormData.adminRole);
+
+    if (createFormData.adminRole === "CUSTOM_ROLE") {
+      fd.append("customPermissions", JSON.stringify(Array.from(createCustomPerms)));
+    }
 
     startTransition(async () => {
       const res = await createStaffAccountAction(null, fd);
       setFeedback(res);
       if (res.success) {
         setIsCreateOpen(false);
-        setFormData({ name: "", email: "", password: "", role: "ADMIN" });
+        setCreateFormData({
+          name: "",
+          email: "",
+          password: "",
+          adminRole: "FULL_ACCESS_ADMIN",
+        });
       }
     });
   };
 
-  const handleRoleChange = (staffId: string, newRole: "ADMIN" | "SUPPORT") => {
+  const handleRoleChangeConfirm = (
+    staffId: string,
+    newAdminRole: AdminRoleType,
+    customPermissions: string[]
+  ) => {
     setFeedback(null);
     startTransition(async () => {
-      const res = await updateStaffRoleAction(staffId, newRole);
+      const res = await updateStaffRoleAction(staffId, newAdminRole, customPermissions);
       setFeedback(res);
       setEditRoleStaff(null);
     });
@@ -79,6 +104,15 @@ export function StaffManagementClient({
     });
   };
 
+  const assignableRoles: AdminRoleType[] = [
+    "FULL_ACCESS_ADMIN",
+    "SUPPORT",
+    "VIEWER",
+    "FINANCE",
+    "MARKETING",
+    "CUSTOM_ROLE",
+  ];
+
   return (
     <div className="space-y-6">
       {/* Top Banner & Action */}
@@ -89,7 +123,7 @@ export function StaffManagementClient({
             System Administrators ({initialStaff.length})
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            All active and staff administrative accounts across platform authority tiers
+            Role-Based Access Control (RBAC) &amp; staff permission management
           </p>
         </div>
 
@@ -107,7 +141,7 @@ export function StaffManagementClient({
       {/* Feedback Alert */}
       {feedback && (
         <div
-          className={`rounded-xl p-4 text-xs font-medium border flex items-center justify-between ${
+          className={`rounded-xl p-4 text-xs font-medium border flex items-center justify-between animate-in fade-in ${
             feedback.success
               ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
               : "bg-destructive/10 border-destructive/20 text-destructive"
@@ -127,8 +161,8 @@ export function StaffManagementClient({
             <thead>
               <tr className="border-b border-border/80 bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 <th className="px-5 py-4">Staff Name</th>
-                <th className="px-5 py-4">Username & Email</th>
-                <th className="px-5 py-4">Role</th>
+                <th className="px-5 py-4">Username &amp; Email</th>
+                <th className="px-5 py-4">Role &amp; Access</th>
                 <th className="px-5 py-4">Permissions Scope</th>
                 <th className="px-5 py-4">Status</th>
                 <th className="px-5 py-4 text-right">Actions</th>
@@ -136,7 +170,7 @@ export function StaffManagementClient({
             </thead>
             <tbody className="divide-y divide-border/60">
               {initialStaff.map((staff) => {
-                const isSuper = staff.role === "SUPER_ADMIN";
+                const isSuper = staff.adminRole === "SUPER_ADMIN";
                 const initials = staff.name
                   .split(" ")
                   .map((n) => n[0])
@@ -156,9 +190,7 @@ export function StaffManagementClient({
                           className={`h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${
                             isSuper
                               ? "bg-destructive/20 text-destructive border border-destructive/30"
-                              : staff.role === "ADMIN"
-                              ? "bg-primary/20 text-primary border border-primary/30"
-                              : "bg-sky-500/20 text-sky-400 border border-sky-500/30"
+                              : "bg-primary/20 text-primary border border-primary/30"
                           }`}
                         >
                           {initials}
@@ -180,24 +212,21 @@ export function StaffManagementClient({
 
                     {/* Role Badge */}
                     <td className="px-5 py-4">
-                      {isSuper ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-destructive/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-destructive border border-destructive/30">
-                          SUPER_ADMIN
+                      <div className="space-y-1">
+                        <span className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${staff.badgeColorClass}`}>
+                          {staff.badgeLabel}
                         </span>
-                      ) : staff.role === "ADMIN" ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary border border-primary/30">
-                          ADMIN
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-400 border border-sky-500/30">
-                          VIEWER / STAFF
-                        </span>
-                      )}
+                        <p className="text-[10px] text-muted-foreground font-medium">{staff.displayName}</p>
+                      </div>
                     </td>
 
                     {/* Permissions Scope */}
                     <td className="px-5 py-4 text-[11px] text-muted-foreground max-w-xs">
-                      {staff.permissionsScope}
+                      <p className="line-clamp-2">{staff.permissionsScope}</p>
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-primary mt-1">
+                        <KeyRound className="h-2.5 w-2.5" />
+                        {staff.permissionsCount} active permissions
+                      </span>
                     </td>
 
                     {/* Status */}
@@ -216,7 +245,7 @@ export function StaffManagementClient({
                     {/* Actions */}
                     <td className="px-5 py-4 text-right">
                       {isSuper ? (
-                        <span className="text-[11px] italic font-semibold text-muted-foreground">
+                        <span className="text-[11px] italic font-bold text-destructive bg-destructive/10 px-2 py-1 rounded border border-destructive/20">
                           Root Authority
                         </span>
                       ) : currentUserRole === "SUPER_ADMIN" ? (
@@ -259,8 +288,8 @@ export function StaffManagementClient({
 
       {/* Modal: Create Staff / Admin */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 my-8 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="h-5 w-5 text-primary" />
@@ -268,7 +297,7 @@ export function StaffManagementClient({
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -280,9 +309,9 @@ export function StaffManagementClient({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. John Doe"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. Rahul Sharma"
+                  value={createFormData.name}
+                  onChange={(e) => setCreateFormData({ ...createFormData, name: e.target.value })}
                   className="w-full h-10 rounded-xl border border-input bg-background px-3.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -293,8 +322,8 @@ export function StaffManagementClient({
                   type="email"
                   required
                   placeholder="e.g. staff@superwarrior30.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  value={createFormData.email}
+                  onChange={(e) => setCreateFormData({ ...createFormData, email: e.target.value })}
                   className="w-full h-10 rounded-xl border border-input bg-background px-3.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -306,8 +335,8 @@ export function StaffManagementClient({
                     type={showPassword ? "text" : "password"}
                     required
                     placeholder="Min. 6 characters"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    value={createFormData.password}
+                    onChange={(e) => setCreateFormData({ ...createFormData, password: e.target.value })}
                     className="w-full h-10 rounded-xl border border-input bg-background pl-3.5 pr-10 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <button
@@ -327,16 +356,32 @@ export function StaffManagementClient({
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground">Administrative Role & Scope</label>
+                <label className="font-semibold text-foreground">Assigned Administrative Role</label>
                 <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as "ADMIN" | "SUPPORT" })}
+                  value={createFormData.adminRole}
+                  onChange={(e) => setCreateFormData({ ...createFormData, adminRole: e.target.value as AdminRoleType })}
                   className="w-full h-10 rounded-xl border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="ADMIN">ADMIN — Full Operations (Courses, Orders, Students, Payouts)</option>
-                  <option value="SUPPORT">SUPPORT / VIEWER — Read-Only Customer Support</option>
+                  {assignableRoles.map((roleKey) => (
+                    <option key={roleKey} value={roleKey}>
+                      {ROLE_PRESETS[roleKey].displayName} — {ROLE_PRESETS[roleKey].shortDescription}
+                    </option>
+                  ))}
                 </select>
               </div>
+
+              {/* Custom Role Granular Permissions Quick Checklist */}
+              {createFormData.adminRole === "CUSTOM_ROLE" && (
+                <div className="p-3 rounded-xl border border-border bg-background/50 space-y-2">
+                  <p className="font-bold text-[11px] text-foreground flex items-center gap-1">
+                    <Layers className="h-3.5 w-3.5 text-purple-400" />
+                    Custom Permissions: {createCustomPerms.size} selected
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    You can further edit all granular permissions in detail via the &ldquo;Change Role&rdquo; modal after creating this account.
+                  </p>
+                </div>
+              )}
 
               <div className="pt-3 flex items-center justify-end gap-2.5">
                 <button
@@ -360,68 +405,14 @@ export function StaffManagementClient({
         </div>
       )}
 
-      {/* Modal: Change Role */}
+      {/* Modal: Change Role & Granular Permissions */}
       {editRoleStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-foreground">Change Role for {editRoleStaff.name}</h3>
-              <button
-                onClick={() => setEditRoleStaff(null)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <p className="text-muted-foreground">Select the new permission level for this staff member:</p>
-              
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleRoleChange(editRoleStaff.id, "ADMIN")}
-                  disabled={isPending}
-                  className={`w-full p-3 rounded-xl border text-left flex items-center justify-between cursor-pointer transition-all ${
-                    editRoleStaff.role === "ADMIN"
-                      ? "border-primary bg-primary/10 text-primary font-bold"
-                      : "border-border hover:border-primary/40 text-foreground"
-                  }`}
-                >
-                  <div>
-                    <p className="font-bold">ADMIN</p>
-                    <p className="text-[10px] text-muted-foreground">Manage courses, orders, students & payouts</p>
-                  </div>
-                  {editRoleStaff.role === "ADMIN" && <CheckCircle2 className="h-4 w-4" />}
-                </button>
-
-                <button
-                  onClick={() => handleRoleChange(editRoleStaff.id, "SUPPORT")}
-                  disabled={isPending}
-                  className={`w-full p-3 rounded-xl border text-left flex items-center justify-between cursor-pointer transition-all ${
-                    editRoleStaff.role === "SUPPORT"
-                      ? "border-sky-500 bg-sky-500/10 text-sky-400 font-bold"
-                      : "border-border hover:border-sky-500/40 text-foreground"
-                  }`}
-                >
-                  <div>
-                    <p className="font-bold">SUPPORT / VIEWER</p>
-                    <p className="text-[10px] text-muted-foreground">Read-only monitoring and audit logs</p>
-                  </div>
-                  {editRoleStaff.role === "SUPPORT" && <CheckCircle2 className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setEditRoleStaff(null)}
-                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <StaffRoleModal
+          staff={editRoleStaff}
+          onClose={() => setEditRoleStaff(null)}
+          onConfirm={handleRoleChangeConfirm}
+          isPending={isPending}
+        />
       )}
     </div>
   );

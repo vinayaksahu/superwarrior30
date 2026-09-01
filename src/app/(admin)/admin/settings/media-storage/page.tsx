@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/server/dal/auth";
+import { requirePermission } from "@/server/dal/auth";
 import { getBunnyAdminConfigAction } from "@/server/actions/bunny-admin.actions";
 import { AdminBunnyWizardClient } from "@/components/admin/admin-bunny-wizard-client";
 import { SettingsNav } from "@/components/admin/settings-nav";
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminMediaStoragePage() {
-  await requireAdmin();
+  await requirePermission("settings.media_storage.manage");
   await ensureDatabaseSchemaSync();
 
   const config = await getBunnyAdminConfigAction();

@@ -63,6 +63,8 @@ export async function ensureDatabaseSchemaSync() {
 
     // users columns
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" TEXT DEFAULT 'STUDENT';`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "adminRole" TEXT;`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "customPermissions" JSONB DEFAULT '[]'::jsonb;`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kycStatus" TEXT DEFAULT 'NOT_SUBMITTED';`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referralCode" TEXT;`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referredById" TEXT;`,

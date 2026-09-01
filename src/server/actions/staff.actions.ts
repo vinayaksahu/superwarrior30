@@ -6,16 +6,29 @@ import { requireSuperAdmin } from "@/server/dal/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { generateReferralCode } from "@/lib/utils";
 import { UserRole, UserStatus } from "@/generated/prisma";
+import {
+  type AdminRoleType,
+  ROLE_PRESETS,
+  getRolePresentation,
+  getEffectivePermissions,
+  ALL_PERMISSION_KEYS,
+} from "@/lib/permissions";
 import type { ActionState } from "@/types";
 
 export interface StaffMember {
   id: string;
   name: string;
   email: string;
-  role: "SUPER_ADMIN" | "ADMIN" | "SUPPORT";
+  baseRole: string;
+  adminRole: AdminRoleType;
+  displayName: string;
+  badgeLabel: string;
+  badgeColorClass: string;
+  customPermissions: string[];
+  permissionsScope: string;
+  permissionsCount: number;
   status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
   createdAt: Date;
-  permissionsScope: string;
 }
 
 export async function getStaffMembersAction(): Promise<{
@@ -35,37 +48,60 @@ export async function getStaffMembersAction(): Promise<{
         name: true,
         email: true,
         role: true,
+        adminRole: true,
+        customPermissions: true,
         status: true,
         createdAt: true,
       },
     });
 
     const staff: StaffMember[] = (users || []).map((u) => {
-      const isRoot =
-        u.role === UserRole.SUPER_ADMIN ||
-        u.email === "vinayaksahu3@gmail.com" ||
-        u.email === "admin@superwarrior30.com";
-      const effectiveRole: "SUPER_ADMIN" | "ADMIN" | "SUPPORT" = isRoot
-        ? "SUPER_ADMIN"
-        : (u.role === UserRole.SUPPORT ? "SUPPORT" : "ADMIN");
+      const presentation = getRolePresentation(u.role, u.adminRole, u.email);
+      const isSuper = presentation.effectiveRoleKey === "SUPER_ADMIN";
+
+      let customPerms: string[] = [];
+      if (Array.isArray(u.customPermissions)) {
+        customPerms = u.customPermissions.map(String);
+      }
+
+      const effectivePerms = getEffectivePermissions({
+        role: u.role,
+        adminRole: u.adminRole || (isSuper ? "SUPER_ADMIN" : u.role === "SUPPORT" ? "SUPPORT" : "FULL_ACCESS_ADMIN"),
+        customPermissions: customPerms,
+        email: u.email,
+      });
 
       let permissionsScope = "";
-      if (effectiveRole === "SUPER_ADMIN") {
-        permissionsScope = "Full platform authority. Manages administrators, system settings, financials & payouts.";
-      } else if (effectiveRole === "ADMIN") {
-        permissionsScope = "General administration with standard operations: courses, students, orders & coupon control.";
+      if (isSuper) {
+        permissionsScope = "Full platform authority. Unrestricted management of administrators, financials & security.";
+      } else if (presentation.effectiveRoleKey === "FULL_ACCESS_ADMIN") {
+        permissionsScope = "Full operations: courses, orders, students, referrals, marketing & settings.";
+      } else if (presentation.effectiveRoleKey === "SUPPORT") {
+        permissionsScope = "Support Desk operations, student inquiries and view-only order details.";
+      } else if (presentation.effectiveRoleKey === "VIEWER") {
+        permissionsScope = "Read-only auditing across permitted platform modules.";
+      } else if (presentation.effectiveRoleKey === "FINANCE") {
+        permissionsScope = "Orders, ledger, withdrawal processing, payment methods & cashback payouts.";
+      } else if (presentation.effectiveRoleKey === "MARKETING") {
+        permissionsScope = "Affiliate tiers, coupons, leads CRM, testimonials & conversion funnels.";
       } else {
-        permissionsScope = "Read-only access for auditing dashboards, students, orders, and customer support inquiries.";
+        permissionsScope = `Custom granular permission matrix (${effectivePerms.size} assigned permissions).`;
       }
 
       return {
         id: u.id,
         name: u.name || "Administrator",
         email: u.email,
-        role: effectiveRole,
+        baseRole: u.role,
+        adminRole: presentation.effectiveRoleKey,
+        displayName: presentation.displayName,
+        badgeLabel: presentation.badgeLabel,
+        badgeColorClass: presentation.badgeColorClass,
+        customPermissions: customPerms,
+        permissionsScope,
+        permissionsCount: isSuper ? ALL_PERMISSION_KEYS.length : effectivePerms.size,
         status: u.status as "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
         createdAt: u.createdAt,
-        permissionsScope,
       };
     });
 
@@ -75,10 +111,16 @@ export async function getStaffMembersAction(): Promise<{
         id: currentSuperAdmin.id,
         name: currentSuperAdmin.name || "Super Admin",
         email: currentSuperAdmin.email,
-        role: "SUPER_ADMIN",
+        baseRole: "SUPER_ADMIN",
+        adminRole: "SUPER_ADMIN",
+        displayName: "Super Admin",
+        badgeLabel: "SUPER_ADMIN",
+        badgeColorClass: "bg-destructive/15 text-destructive border border-destructive/30",
+        customPermissions: [],
+        permissionsScope: "Full platform authority. Unrestricted management of administrators, financials & security.",
+        permissionsCount: ALL_PERMISSION_KEYS.length,
         status: "ACTIVE",
         createdAt: currentSuperAdmin.createdAt,
-        permissionsScope: "Full platform authority. Manages administrators, system settings, financials & payouts.",
       });
     }
 
@@ -95,10 +137,16 @@ export async function getStaffMembersAction(): Promise<{
           id: currentSuperAdmin.id,
           name: currentSuperAdmin.name || "Super Admin",
           email: currentSuperAdmin.email,
-          role: "SUPER_ADMIN",
+          baseRole: "SUPER_ADMIN",
+          adminRole: "SUPER_ADMIN",
+          displayName: "Super Admin",
+          badgeLabel: "SUPER_ADMIN",
+          badgeColorClass: "bg-destructive/15 text-destructive border border-destructive/30",
+          customPermissions: [],
+          permissionsScope: "Full platform authority. Unrestricted management of administrators, financials & security.",
+          permissionsCount: ALL_PERMISSION_KEYS.length,
           status: "ACTIVE",
           createdAt: currentSuperAdmin.createdAt,
-          permissionsScope: "Full platform authority. Manages administrators, system settings, financials & payouts.",
         },
       ],
     };
@@ -114,7 +162,8 @@ export async function createStaffAccountAction(
   const name = formData.get("name")?.toString().trim();
   const email = formData.get("email")?.toString().toLowerCase().trim();
   const password = formData.get("password")?.toString();
-  const role = formData.get("role")?.toString() as "ADMIN" | "SUPPORT";
+  const adminRole = (formData.get("adminRole")?.toString() || "FULL_ACCESS_ADMIN") as AdminRoleType;
+  const customPermissionsRaw = formData.get("customPermissions")?.toString();
 
   if (!name || name.length < 2) {
     return { success: false, message: "Please provide a valid full name." };
@@ -128,13 +177,33 @@ export async function createStaffAccountAction(
     return { success: false, message: "Password must be at least 6 characters long." };
   }
 
-  if (!["ADMIN", "SUPPORT"].includes(role)) {
+  // Super Admin creation protection
+  if (adminRole === "SUPER_ADMIN") {
+    return { success: false, message: "Root SUPER_ADMIN accounts cannot be created through this action." };
+  }
+
+  if (!(adminRole in ROLE_PRESETS)) {
     return { success: false, message: "Invalid role selected." };
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { success: false, message: "A user account with this email already exists." };
+  }
+
+  let customPermissions: string[] = [];
+  if (adminRole === "CUSTOM_ROLE" && customPermissionsRaw) {
+    try {
+      customPermissions = JSON.parse(customPermissionsRaw);
+    } catch {
+      customPermissions = [];
+    }
+  }
+
+  // Base role mapping for backward compatibility
+  let baseRole: UserRole = UserRole.ADMIN;
+  if (adminRole === "SUPPORT" || adminRole === "VIEWER") {
+    baseRole = UserRole.SUPPORT;
   }
 
   const passwordHash = await hashPassword(password);
@@ -146,7 +215,9 @@ export async function createStaffAccountAction(
         name,
         email,
         passwordHash,
-        role: role as UserRole,
+        role: baseRole,
+        adminRole,
+        customPermissions: adminRole === "CUSTOM_ROLE" ? customPermissions : [],
         status: UserStatus.ACTIVE,
         referralCode,
         tokenVersion: 1,
@@ -165,12 +236,20 @@ export async function createStaffAccountAction(
         action: "STAFF_CREATED",
         entityType: "User",
         entityId: newUser.id,
-        newValues: { name, email, role },
+        newValues: {
+          name,
+          email,
+          adminRole,
+          customPermissionsCount: customPermissions.length,
+        },
       },
     });
 
     revalidatePath("/admin/staff");
-    return { success: true, message: `Staff member ${name} created successfully with role ${role}.` };
+    return {
+      success: true,
+      message: `Staff member ${name} created successfully with role ${ROLE_PRESETS[adminRole].displayName}.`,
+    };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to create staff account";
     return { success: false, message: msg };
@@ -179,12 +258,22 @@ export async function createStaffAccountAction(
 
 export async function updateStaffRoleAction(
   staffId: string,
-  newRole: "ADMIN" | "SUPPORT"
+  newAdminRole: AdminRoleType,
+  customPermissions: string[] = []
 ): Promise<ActionState> {
   const superAdmin = await requireSuperAdmin();
 
   if (superAdmin.id === staffId) {
-    return { success: false, message: "You cannot demote your own Super Admin root account." };
+    return { success: false, message: "You cannot modify or demote your own Super Admin root account." };
+  }
+
+  // Reject promoting another account to SUPER_ADMIN
+  if (newAdminRole === "SUPER_ADMIN") {
+    return { success: false, message: "Only one Root Super Admin account is permitted. Promotion to SUPER_ADMIN is forbidden." };
+  }
+
+  if (!(newAdminRole in ROLE_PRESETS)) {
+    return { success: false, message: "Invalid role selected." };
   }
 
   const target = await prisma.user.findUnique({ where: { id: staffId } });
@@ -192,20 +281,33 @@ export async function updateStaffRoleAction(
     return { success: false, message: "Staff account not found." };
   }
 
+  // Super Admin target protection
+  const targetPresentation = getRolePresentation(target.role, target.adminRole, target.email);
   if (
+    targetPresentation.effectiveRoleKey === "SUPER_ADMIN" ||
     target.role === "SUPER_ADMIN" ||
     target.email === "vinayaksahu3@gmail.com" ||
     target.email === "admin@superwarrior30.com"
   ) {
-    return { success: false, message: "Root Super Admin role cannot be modified." };
+    return { success: false, message: "Root Super Admin account cannot be modified or downgraded." };
   }
+
+  // Calculate base role mapping
+  let baseRole: UserRole = UserRole.ADMIN;
+  if (newAdminRole === "SUPPORT" || newAdminRole === "VIEWER") {
+    baseRole = UserRole.SUPPORT;
+  }
+
+  const finalCustomPermissions = newAdminRole === "CUSTOM_ROLE" ? customPermissions : [];
 
   try {
     await prisma.user.update({
       where: { id: staffId },
       data: {
-        role: newRole as UserRole,
-        tokenVersion: { increment: 1 },
+        role: baseRole,
+        adminRole: newAdminRole,
+        customPermissions: finalCustomPermissions,
+        tokenVersion: { increment: 1 }, // Invalidate active JWT sessions for security
       },
     });
 
@@ -217,13 +319,22 @@ export async function updateStaffRoleAction(
         action: "STAFF_ROLE_UPDATED",
         entityType: "User",
         entityId: staffId,
-        oldValues: { role: target.role },
-        newValues: { role: newRole },
+        oldValues: {
+          previousAdminRole: target.adminRole || target.role,
+          previousPermissions: target.customPermissions,
+        },
+        newValues: {
+          newAdminRole,
+          customPermissionsCount: finalCustomPermissions.length,
+        },
       },
     });
 
     revalidatePath("/admin/staff");
-    return { success: true, message: `Role updated to ${newRole}. Active sessions revoked.` };
+    return {
+      success: true,
+      message: `Role for ${target.name || target.email} updated to ${ROLE_PRESETS[newAdminRole].displayName}. Active sessions refreshed.`,
+    };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to update staff role";
     return { success: false, message: msg };
@@ -242,7 +353,9 @@ export async function toggleStaffStatusAction(staffId: string): Promise<ActionSt
     return { success: false, message: "Staff account not found." };
   }
 
+  const targetPresentation = getRolePresentation(target.role, target.adminRole, target.email);
   if (
+    targetPresentation.effectiveRoleKey === "SUPER_ADMIN" ||
     target.role === "SUPER_ADMIN" ||
     target.email === "vinayaksahu3@gmail.com" ||
     target.email === "admin@superwarrior30.com"

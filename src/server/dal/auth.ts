@@ -30,6 +30,8 @@ export const getCurrentUser = cache(async () => {
       name: true,
       phone: true,
       role: true,
+      adminRole: true,
+      customPermissions: true,
       status: true,
       avatarUrl: true,
       referralCode: true,
@@ -127,6 +129,30 @@ export async function requireAdminWrite() {
   const writeRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN];
   if (!writeRoles.includes(user.role)) {
     throw new Error("Action denied. Your staff account has read-only/support permissions.");
+  }
+  return user;
+}
+
+export async function requirePermission(permission: string) {
+  const user = await requireAdmin();
+  if (isSuperAdminUser(user)) {
+    return user;
+  }
+  const { hasPermission } = await import("@/lib/permissions");
+  if (!hasPermission(user, permission)) {
+    throw new Error(`Access Denied: Missing required permission [${permission}].`);
+  }
+  return user;
+}
+
+export async function requireAnyPermission(permissions: string[]) {
+  const user = await requireAdmin();
+  if (isSuperAdminUser(user)) {
+    return user;
+  }
+  const { hasAnyPermission } = await import("@/lib/permissions");
+  if (!hasAnyPermission(user, permissions)) {
+    throw new Error(`Access Denied: Missing required permissions.`);
   }
   return user;
 }
