@@ -8,18 +8,21 @@ import nodemailer from "nodemailer";
  * User: noreply@superwarrior30.com
  */
 export const SMTP_CONFIG = {
-  host: process.env.SMTP_HOST || "mail.privateemail.com",
-  port: parseInt(process.env.SMTP_PORT || "465", 10),
+  host: process.env.SMTP_HOST || process.env.EMAIL_SERVER_HOST || "mail.privateemail.com",
+  port: parseInt(process.env.SMTP_PORT || process.env.EMAIL_SERVER_PORT || "465", 10),
   secure: process.env.SMTP_SECURE !== "false", // true for 465 SSL/TLS
-  user: process.env.SMTP_USER || "noreply@superwarrior30.com",
+  user: process.env.SMTP_USER || process.env.EMAIL_SERVER_USER || process.env.MAIL_USER || "noreply@superwarrior30.com",
   fromName: process.env.SMTP_FROM_NAME || "Rahul Trade Warrior Academy",
-  fromEmail: process.env.SMTP_FROM_EMAIL || "noreply@superwarrior30.com",
+  fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "noreply@superwarrior30.com",
 };
 
 export function getSmtpPassword(): string {
   return (
     process.env.SMTP_PASSWORD ||
     process.env.EMAIL_SERVER_PASSWORD ||
+    process.env.MAIL_PASSWORD ||
+    process.env.NAMECHEAP_SMTP_PASSWORD ||
+    process.env.PRIVATEEMAIL_PASSWORD ||
     ""
   );
 }

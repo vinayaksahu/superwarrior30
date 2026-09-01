@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 import { sendLoginOtpEmail } from "@/lib/email";
+import { getSmtpPassword } from "@/lib/email/transporter";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 const OTP_SECRET = process.env.JWT_SECRET_KEY || "trade_warrior_otp_salt_default_key_64_characters_min_length";
@@ -79,6 +80,11 @@ export function maskEmail(email: string): string {
  * Check if global email OTP authentication is enabled via SiteSetting
  */
 export async function isEmailOtpEnabled(): Promise<boolean> {
+  // If SMTP password is not configured on the server, disable OTP to prevent lockout
+  if (!getSmtpPassword()) {
+    return false;
+  }
+
   try {
     const setting = await prisma.siteSetting.findUnique({
       where: { key: "auth_email_otp_enabled" },
