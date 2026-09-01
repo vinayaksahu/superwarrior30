@@ -343,6 +343,62 @@ This link is valid for 1 hour. If you did not request this, please ignore this e
 }
 
 /**
+ * Send Password Reset OTP Email
+ */
+export async function sendPasswordResetOtpEmail({
+  to,
+  name,
+  otp,
+  expirationMinutes = 10,
+}: {
+  to: string;
+  name?: string | null;
+  otp: string;
+  expirationMinutes?: number;
+}): Promise<{ success: boolean; error?: string }> {
+  const greetingName = name?.trim() ? name.trim() : "Trader";
+  const subject = `${otp} is your Rahul Trade Warrior password reset verification code`;
+  const preheader = `Your 6-digit password reset verification code is ${otp}. Valid for ${expirationMinutes} minutes.`;
+
+  const html = renderBrandedTemplate({
+    title: "Password Reset Verification",
+    preheader,
+    contentHtml: `
+      <h2 style="color: #ffffff; font-size: 18px; margin: 0 0 12px 0;">Reset Your Password</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1; margin: 0 0 16px 0;">
+        Hello <strong>${greetingName}</strong>,
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1; margin: 0 0 16px 0;">
+        We received a request to reset the password for your Rahul Trade Warrior account. Use the 6-digit verification code below to authorize your password change:
+      </p>
+
+      <div class="otp-box">
+        <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin: 0 0 8px 0;">Password Reset Code</p>
+        <div class="otp-code">${otp}</div>
+        <p style="font-size: 11px; color: #94a3b8; margin: 8px 0 0 0;">Expires in ${expirationMinutes} minutes</p>
+      </div>
+
+      <div class="warning-box">
+        <strong>Security Notice:</strong> Never share this code with anyone. If you did not request a password reset, your account is still secure, but we recommend checking your account security.
+      </div>
+    `,
+  });
+
+  const text = `
+Rahul Trade Warrior Academy - Password Reset Code
+
+Hello ${greetingName},
+
+Your 6-digit password reset code is: ${otp}
+
+This code will expire in ${expirationMinutes} minutes.
+Never share this code with anyone.
+  `.trim();
+
+  return sendEmail({ to, subject, html, text });
+}
+
+/**
  * Send Generic Transactional Email
  */
 export async function sendTransactionalEmail({

@@ -1,9 +1,26 @@
 "use client";
 
-import { useActionState, use, useState, useEffect } from "react";
-import { registerAction } from "@/server/actions/auth.actions";
+import { useActionState, use, useState, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  registerAction,
+  verifyRegistrationOtpAction,
+  resendRegistrationOtpAction,
+} from "@/server/actions/auth.actions";
 import type { ActionState } from "@/types";
-import { Sparkles, Tag, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import {
+  Sparkles,
+  Tag,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Mail,
+  Loader2,
+  RefreshCw,
+  ArrowLeft,
+  AlertCircle,
+} from "lucide-react";
 
 interface RegisterFormProps {
   searchParams: Promise<{ ref?: string }>;
@@ -16,15 +33,209 @@ export function RegisterForm({
   referralDiscountPercentage = 10,
   isReferralDiscountEnabled = true,
 }: RegisterFormProps) {
+  const router = useRouter();
   const { ref: initialRef } = use(searchParams);
   const [refCode, setRefCode] = useState(initialRef || "");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // OTP Verification Step State
+  const [step, setStep] = useState<"DETAILS" | "OTP">("DETAILS");
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [emailMasked, setEmailMasked] = useState<string>("");
+  const [otpValue, setOtpValue] = useState("");
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpSuccessMessage, setOtpSuccessMessage] = useState<string | null>(null);
+  const [isVerifyingOtp, startVerifyTransition] = useTransition();
+  const [isResending, startResendTransition] = useTransition();
+  const [cooldownSeconds, setCooldownSeconds] = useState(60);
+
   const [state, formAction, isPending] = useActionState<ActionState | null, FormData>(
     registerAction,
     null
   );
+
+  // Transition to OTP step when registration requires OTP
+  useEffect(() => {
+    if (state?.success && state?.data && typeof state.data === "object") {
+      const data = state.data as {
+        requiresOtp?: boolean;
+        pendingToken?: string;
+        emailMasked?: string;
+        cooldownSeconds?: number;
+      };
+
+      if (data.requiresOtp && data.pendingToken) {
+        setPendingToken(data.pendingToken);
+        setEmailMasked(data.emailMasked || "");
+        setCooldownSeconds(data.cooldownSeconds || 60);
+        setOtpError(null);
+        setOtpSuccessMessage(state.message || "Verification code sent to your email.");
+        setStep("OTP");
+      }
+    }
+  }, [state]);
+
+  // Resend Countdown Timer
+  useEffect(() => {
+    if (step !== "OTP" || cooldownSeconds <= 0) return;
+
+    const timer = setInterval(() => {
+      setCooldownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [step, cooldownSeconds]);
+
+  // Handle OTP Submission
+  const handleVerifyOtp = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!pendingToken) return;
+
+    const cleanOtp = otpValue.replace(/\D/g, "");
+    if (cleanOtp.length !== 6) {
+      setOtpError("Please enter the complete 6-digit verification code.");
+      return;
+    }
+
+    setOtpError(null);
+    startVerifyTransition(async () => {
+      const result = await verifyRegistrationOtpAction(pendingToken, cleanOtp);
+      if (result.success && result.data?.destination) {
+        router.push(result.data.destination);
+      } else {
+        setOtpError(result.message || "Invalid verification code. Please try again.");
+      }
+    });
+  };
+
+  // Handle Resend OTP
+  const handleResendOtp = () => {
+    if (!pendingToken || cooldownSeconds > 0 || isResending) return;
+
+    setOtpError(null);
+    startResendTransition(async () => {
+      const result = await resendRegistrationOtpAction(pendingToken);
+      if (result.success) {
+        setCooldownSeconds(result.data?.cooldownSeconds || 60);
+        setOtpSuccessMessage(result.message || "A new verification code has been sent.");
+      } else {
+        setOtpError(result.message || "Could not resend verification code. Please try again.");
+      }
+    });
+  };
+
+  // ----------------------------------------------------
+  // STEP 2: REGISTRATION OTP VERIFICATION VIEW
+  // ----------------------------------------------------
+  if (step === "OTP") {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+        <div className="flex items-center gap-2 text-primary">
+          <ShieldCheck className="h-5 w-5" />
+          <h2 className="text-base font-bold text-foreground">Verify Your Email Address</h2>
+        </div>
+
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 flex items-start gap-3">
+          <Mail className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <p className="font-semibold text-foreground">
+              We dispatched a 6-digit verification code to:
+            </p>
+            <p className="font-mono font-bold text-primary text-sm">{emailMasked}</p>
+            <p className="text-[11px] text-muted-foreground">
+              Please enter the code below to complete your registration.
+            </p>
+          </div>
+        </div>
+
+        {otpSuccessMessage && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center gap-2 text-xs font-semibold text-emerald-400">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>{otpSuccessMessage}</span>
+          </div>
+        )}
+
+        {otpError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 flex items-center gap-2 text-xs font-semibold text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{otpError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleVerifyOtp} className="space-y-5">
+          <div className="space-y-2">
+            <label htmlFor="reg-otp" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block text-center">
+              Enter 6-Digit Verification Code
+            </label>
+            <input
+              id="reg-otp"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              autoComplete="one-time-code"
+              autoFocus
+              value={otpValue}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "");
+                setOtpValue(val);
+                if (val.length === 6) {
+                  // Auto-submit on 6th digit
+                  setTimeout(() => {
+                    const btn = document.getElementById("reg-otp-submit-btn");
+                    if (btn) btn.click();
+                  }, 50);
+                }
+              }}
+              placeholder="••••••"
+              className="w-full text-center text-2xl font-mono tracking-[0.5em] h-14 rounded-xl border-2 border-input bg-background font-bold focus:border-primary focus:outline-none transition-all"
+            />
+          </div>
+
+          <button
+            id="reg-otp-submit-btn"
+            type="submit"
+            disabled={otpValue.length !== 6 || isVerifyingOtp}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {isVerifyingOtp ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Verifying Code...
+              </>
+            ) : (
+              "Verify & Complete Registration"
+            )}
+          </button>
+        </form>
+
+        <div className="flex items-center justify-between pt-3 border-t border-border/80 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setStep("DETAILS");
+              setOtpError(null);
+            }}
+            className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Details
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResendOtp}
+            disabled={cooldownSeconds > 0 || isResending}
+            className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline disabled:opacity-50 disabled:no-underline cursor-pointer"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isResending ? "animate-spin" : ""}`} />
+            {cooldownSeconds > 0 ? `Resend code in ${cooldownSeconds}s` : "Resend Code"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-4">

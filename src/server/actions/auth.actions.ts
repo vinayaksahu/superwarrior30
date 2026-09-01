@@ -18,6 +18,9 @@ import {
   isEmailOtpEnabled,
   isStaffLoginOtpEnabled,
   isStudentLoginOtpEnabled,
+  isRegistrationOtpEnabled,
+  createAndSendRegistrationOtp,
+  verifyRegistrationOtp,
   verifyPendingOtpToken,
 } from "@/lib/otp/service";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
@@ -411,10 +414,10 @@ export async function loginAction(
   // STEP 4: EMAIL OTP AUTHENTICATION CHECK
   // ----------------------------------------------------
   // NOTE: Root Super Admin NEVER requires OTP (Instant Direct Access for Root Authority)
-  const isSuper = isSuperAdminUser(user);
+  const isRootSuper = isSuper || isSuperAdminUser(user);
   let requiresOtp = false;
 
-  if (!isSuper) {
+  if (!isRootSuper) {
     const isStaff = user.role === "ADMIN" || user.role === "SUPPORT" || Boolean(user.adminRole);
     if (isStaff) {
       requiresOtp = await isStaffLoginOtpEnabled();
@@ -688,6 +691,69 @@ export async function registerAction(
 
   const passwordHash = await hashPassword(password);
 
+  // Check if Registration OTP verification is enabled
+  const isOtpRequired = await isRegistrationOtpEnabled();
+  if (isOtpRequired) {
+    const otpDispatch = await createAndSendRegistrationOtp({
+      name,
+      email: cleanEmail,
+      passwordHash,
+      referralCode: referralCode?.trim(),
+      ipAddress: (await getClientDeviceMetadata()).ipAddress,
+      userAgent: (await getClientDeviceMetadata()).userAgent,
+    });
+
+    if (!otpDispatch.success) {
+      return {
+        success: false,
+        message: otpDispatch.message || "Could not send verification email. Please try again.",
+      };
+    }
+
+    return {
+      success: true,
+      message: `A 6-digit verification code has been sent to ${otpDispatch.emailMasked}.`,
+      data: {
+        requiresOtp: true,
+        pendingToken: otpDispatch.pendingToken,
+        emailMasked: otpDispatch.emailMasked,
+        cooldownSeconds: otpDispatch.cooldownSeconds,
+      },
+    };
+  }
+
+  // Direct registration when OTP is OFF
+  await finalizeUserRegistration({
+    name,
+    email: cleanEmail,
+    passwordHash,
+    referralCode: referralCode?.trim(),
+  });
+
+  redirect("/dashboard");
+}
+
+async function finalizeUserRegistration({
+  name,
+  email,
+  passwordHash,
+  referralCode,
+}: {
+  name: string;
+  email: string;
+  passwordHash: string;
+  referralCode?: string;
+}): Promise<void> {
+  const cleanEmail = email.toLowerCase().trim();
+
+  // Validate referral code if provided
+  let referrer = null;
+  if (referralCode && referralCode.trim()) {
+    referrer = await prisma.user.findUnique({
+      where: { referralCode: referralCode.trim().toUpperCase() },
+    });
+  }
+
   // Generate unique referral code for new user
   let newReferralCode: string;
   let codeExists = true;
@@ -741,11 +807,7 @@ export async function registerAction(
     });
 
     // Handle referral relationship
-    if (referrer) {
-      if (referrer.id === user.id) {
-        throw new Error("Self-referral is not allowed.");
-      }
-
+    if (referrer && referrer.id !== user.id) {
       await tx.referralRelationship.create({
         data: {
           referrerId: referrer.id,
@@ -779,8 +841,93 @@ export async function registerAction(
     // Create session for the new user
     await createSession(user.id, user.email, user.role, user.tokenVersion, initialDeviceId);
   });
+}
 
-  redirect("/dashboard");
+export async function verifyRegistrationOtpAction(
+  pendingToken: string,
+  otp: string
+): Promise<ActionState<{ destination?: string; remainingAttempts?: number }>> {
+  await ensureDatabaseSchemaSync();
+
+  const deviceMeta = await getClientDeviceMetadata();
+  const verifyResult = await verifyRegistrationOtp({
+    pendingToken,
+    otp,
+    ipAddress: deviceMeta.ipAddress,
+  });
+
+  if (!verifyResult.success || !verifyResult.email || !verifyResult.name || !verifyResult.passwordHash) {
+    return {
+      success: false,
+      message: verifyResult.message || "Invalid verification code.",
+      data: {
+        remainingAttempts: verifyResult.remainingAttempts,
+      },
+    };
+  }
+
+  // Check if user was somehow registered in parallel
+  const existing = await prisma.user.findUnique({
+    where: { email: verifyResult.email },
+  });
+
+  if (existing) {
+    return {
+      success: false,
+      message: "An account with this email already exists. Please log in.",
+    };
+  }
+
+  await finalizeUserRegistration({
+    name: verifyResult.name,
+    email: verifyResult.email,
+    passwordHash: verifyResult.passwordHash,
+    referralCode: verifyResult.referralCode,
+  });
+
+  return {
+    success: true,
+    message: "Registration successful!",
+    data: { destination: "/dashboard" },
+  };
+}
+
+export async function resendRegistrationOtpAction(
+  pendingToken: string
+): Promise<ActionState<{ cooldownSeconds?: number }>> {
+  await ensureDatabaseSchemaSync();
+
+  const payload = await verifyPendingOtpToken(pendingToken);
+  if (!payload || !payload.email || !payload.name || !payload.passwordHash) {
+    return {
+      success: false,
+      message: "Your registration session has expired. Please sign up again.",
+    };
+  }
+
+  const deviceMeta = await getClientDeviceMetadata();
+  const dispatch = await createAndSendRegistrationOtp({
+    name: payload.name,
+    email: payload.email,
+    passwordHash: payload.passwordHash,
+    referralCode: payload.referralCode,
+    ipAddress: deviceMeta.ipAddress,
+    userAgent: deviceMeta.userAgent,
+  });
+
+  if (!dispatch.success) {
+    return {
+      success: false,
+      message: dispatch.message || "Failed to resend verification code.",
+      data: { cooldownSeconds: dispatch.cooldownSeconds },
+    };
+  }
+
+  return {
+    success: true,
+    message: `A new 6-digit verification code has been sent to ${dispatch.emailMasked}.`,
+    data: { cooldownSeconds: dispatch.cooldownSeconds },
+  };
 }
 
 export async function logoutAction(): Promise<void> {

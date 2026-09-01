@@ -2,7 +2,11 @@ import "server-only";
 import crypto from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
-import { sendLoginOtpEmail } from "@/lib/email";
+import {
+  sendLoginOtpEmail,
+  sendEmailVerificationOtp,
+  sendPasswordResetOtpEmail,
+} from "@/lib/email";
 import { getSmtpPassword } from "@/lib/email/transporter";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -14,6 +18,9 @@ export interface PendingOtpPayload {
   email: string;
   purpose: "LOGIN_VERIFICATION" | "EMAIL_VERIFICATION" | "PASSWORD_RESET";
   deviceId?: string;
+  name?: string;
+  passwordHash?: string;
+  referralCode?: string;
   requiresOtp: true;
 }
 
@@ -35,11 +42,14 @@ export async function createPendingOtpToken(payload: PendingOtpPayload): Promise
     email: payload.email.toLowerCase().trim(),
     purpose: payload.purpose,
     deviceId: payload.deviceId,
+    name: payload.name,
+    passwordHash: payload.passwordHash,
+    referralCode: payload.referralCode,
     requiresOtp: true,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("10m")
+    .setExpirationTime("15m")
     .sign(encodedOtpSecret);
 }
 
@@ -56,6 +66,9 @@ export async function verifyPendingOtpToken(token: string): Promise<PendingOtpPa
       email: payload.email as string,
       purpose: payload.purpose as "LOGIN_VERIFICATION" | "EMAIL_VERIFICATION" | "PASSWORD_RESET",
       deviceId: payload.deviceId as string | undefined,
+      name: payload.name as string | undefined,
+      passwordHash: payload.passwordHash as string | undefined,
+      referralCode: payload.referralCode as string | undefined,
       requiresOtp: true,
     };
   } catch {
@@ -499,5 +512,237 @@ export async function verifyLoginOtp({
     userId: payload.userId || activeOtp.userId || undefined,
     email: cleanEmail,
     deviceId: payload.deviceId,
+  };
+}
+
+/**
+ * Generate, persist, and dispatch a Registration Verification OTP
+ */
+export async function createAndSendRegistrationOtp({
+  name,
+  email,
+  passwordHash,
+  referralCode,
+  ipAddress,
+  userAgent,
+}: {
+  name: string;
+  email: string;
+  passwordHash: string;
+  referralCode?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<{
+  success: boolean;
+  message?: string;
+  pendingToken?: string;
+  emailMasked?: string;
+  cooldownSeconds?: number;
+  expiresAt?: Date;
+}> {
+  const cleanEmail = email.toLowerCase().trim();
+  const config = await getOtpSecurityConfig();
+
+  // 1. Check 60-second resend cooldown
+  const latestOtp = await prisma.emailOtp.findFirst({
+    where: {
+      email: cleanEmail,
+      purpose: "EMAIL_VERIFICATION",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (latestOtp) {
+    const elapsedSeconds = Math.floor((Date.now() - latestOtp.createdAt.getTime()) / 1000);
+    if (elapsedSeconds < config.resendCooldownSeconds) {
+      const remainingCooldown = config.resendCooldownSeconds - elapsedSeconds;
+      return {
+        success: false,
+        message: `Please wait ${remainingCooldown} seconds before requesting a new verification code.`,
+        cooldownSeconds: remainingCooldown,
+      };
+    }
+  }
+
+  // 2. Check maximum OTPs per 15-minute window
+  const windowLimit = await checkRateLimit({
+    key: `otp_register:${cleanEmail}`,
+    limit: config.maxResendsPerWindow,
+    windowSeconds: 15 * 60,
+  });
+
+  if (!windowLimit.success) {
+    return {
+      success: false,
+      message: "Too many verification attempts. Please wait 15 minutes before trying again.",
+    };
+  }
+
+  // 3. Invalidate previous active registration OTPs for this email
+  await prisma.emailOtp.updateMany({
+    where: {
+      email: cleanEmail,
+      purpose: "EMAIL_VERIFICATION",
+      usedAt: null,
+    },
+    data: {
+      usedAt: new Date(),
+    },
+  });
+
+  // 4. Generate secure OTP
+  const rawOtp = generateSecureOtp();
+  const otpHash = hashOtp(rawOtp, cleanEmail);
+  const expiresAt = new Date(Date.now() + config.expirationMinutes * 60 * 1000);
+
+  // 5. Store OTP hash in database
+  await prisma.emailOtp.create({
+    data: {
+      email: cleanEmail,
+      purpose: "EMAIL_VERIFICATION",
+      otpHash,
+      expiresAt,
+      maxAttempts: config.maxAttempts,
+      ipAddress,
+      userAgent,
+    },
+  });
+
+  // 6. Send email verification OTP
+  const emailResult = await sendEmailVerificationOtp({
+    to: cleanEmail,
+    name,
+    otp: rawOtp,
+    expirationMinutes: config.expirationMinutes,
+  });
+
+  if (!emailResult.success) {
+    return {
+      success: false,
+      message: "Could not send verification email. Please check your email address or try again.",
+    };
+  }
+
+  // 7. Create signed pending token carrying registration payload securely
+  const pendingToken = await createPendingOtpToken({
+    email: cleanEmail,
+    name,
+    passwordHash,
+    referralCode,
+    purpose: "EMAIL_VERIFICATION",
+    requiresOtp: true,
+  });
+
+  return {
+    success: true,
+    pendingToken,
+    emailMasked: maskEmail(cleanEmail),
+    cooldownSeconds: config.resendCooldownSeconds,
+    expiresAt,
+  };
+}
+
+/**
+ * Verify submitted registration OTP
+ */
+export async function verifyRegistrationOtp({
+  pendingToken,
+  otp,
+  ipAddress,
+}: {
+  pendingToken: string;
+  otp: string;
+  ipAddress?: string;
+}): Promise<{
+  success: boolean;
+  message?: string;
+  email?: string;
+  name?: string;
+  passwordHash?: string;
+  referralCode?: string;
+  remainingAttempts?: number;
+}> {
+  const payload = await verifyPendingOtpToken(pendingToken);
+  if (!payload || !payload.email || payload.purpose !== "EMAIL_VERIFICATION") {
+    return {
+      success: false,
+      message: "Your registration session has expired. Please sign up again.",
+    };
+  }
+
+  const cleanEmail = payload.email.toLowerCase().trim();
+  const cleanOtp = otp.trim().replace(/\D/g, "");
+
+  if (cleanOtp.length !== 6) {
+    return {
+      success: false,
+      message: "Please enter a valid 6-digit verification code.",
+    };
+  }
+
+  const activeOtp = await prisma.emailOtp.findFirst({
+    where: {
+      email: cleanEmail,
+      purpose: "EMAIL_VERIFICATION",
+      usedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!activeOtp) {
+    return {
+      success: false,
+      message: "No active verification code found or it has already been used.",
+    };
+  }
+
+  if (activeOtp.expiresAt.getTime() < Date.now()) {
+    return {
+      success: false,
+      message: "Verification code has expired. Please request a new code.",
+    };
+  }
+
+  if (activeOtp.attempts >= activeOtp.maxAttempts) {
+    return {
+      success: false,
+      message: "Too many failed attempts. Please request a new verification code.",
+    };
+  }
+
+  const submittedHash = hashOtp(cleanOtp, cleanEmail);
+  const isMatch =
+    submittedHash.length === activeOtp.otpHash.length &&
+    crypto.timingSafeEqual(
+      Buffer.from(submittedHash, "utf-8"),
+      Buffer.from(activeOtp.otpHash, "utf-8")
+    );
+
+  if (!isMatch) {
+    const updated = await prisma.emailOtp.update({
+      where: { id: activeOtp.id },
+      data: { attempts: { increment: 1 } },
+    });
+
+    const remaining = Math.max(0, updated.maxAttempts - updated.attempts);
+    return {
+      success: false,
+      message: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
+      remainingAttempts: remaining,
+    };
+  }
+
+  // Mark OTP as used
+  await prisma.emailOtp.update({
+    where: { id: activeOtp.id },
+    data: { usedAt: new Date() },
+  });
+
+  return {
+    success: true,
+    email: cleanEmail,
+    name: payload.name,
+    passwordHash: payload.passwordHash,
+    referralCode: payload.referralCode,
   };
 }

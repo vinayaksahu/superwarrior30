@@ -395,9 +395,9 @@ export async function toggleStaffStatusAction(staffId: string): Promise<ActionSt
 
     await prisma.auditLog.create({
       data: {
-        actorId: superAdmin.id,
-        actorEmail: superAdmin.email,
-        actorRole: superAdmin.role,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorRole: actor.role,
         action: nextStatus === UserStatus.ACTIVE ? "STAFF_ACTIVATED" : "STAFF_DEACTIVATED",
         entityType: "User",
         entityId: staffId,

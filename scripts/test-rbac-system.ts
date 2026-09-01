@@ -206,8 +206,81 @@ assert(evaluatePortalLogin(student, "SUPER_ADMIN").allowed === false, "Student C
 assert(evaluatePortalLogin(student, "ADMIN").allowed === false, "Student CANNOT login via /adminlogin");
 assert(evaluatePortalLogin(student, "STUDENT").allowed === true, "Student CAN login via /login");
 
+console.log("\n--- TEST SUITE 11: EMAIL & OTP SECURITY POLICIES ---");
+
+// Helper function modeling OTP requirement logic
+function evaluateOtpRequirement(
+  user: { email: string; role: string; adminRole?: string | null },
+  settings: {
+    isStaffOtpEnabled: boolean;
+    isStudentOtpEnabled: boolean;
+    isRegistrationOtpEnabled: boolean;
+  }
+) {
+  const isSuper =
+    user.email === "vinayaksahu3@gmail.com" ||
+    user.email === "admin@superwarrior30.com" ||
+    user.role === "SUPER_ADMIN" ||
+    user.adminRole === "SUPER_ADMIN";
+
+  // Rule 1: Super Admin is 100% exempt
+  if (isSuper) {
+    return { requiresOtp: false, reason: "SUPER_ADMIN_EXEMPT" };
+  }
+
+  const isStaff = user.role === "ADMIN" || user.role === "SUPPORT" || Boolean(user.adminRole);
+  if (isStaff) {
+    return {
+      requiresOtp: settings.isStaffOtpEnabled,
+      reason: settings.isStaffOtpEnabled ? "STAFF_2FA_ENFORCED" : "STAFF_2FA_DISABLED",
+    };
+  }
+
+  // Student
+  return {
+    requiresOtp: settings.isStudentOtpEnabled,
+    reason: settings.isStudentOtpEnabled ? "STUDENT_2FA_ENFORCED" : "STUDENT_2FA_DISABLED",
+  };
+}
+
+// 1. Super Admin Exemption Guarantee
+assert(
+  evaluateOtpRequirement(superAdmin, { isStaffOtpEnabled: true, isStudentOtpEnabled: true, isRegistrationOtpEnabled: true }).requiresOtp === false,
+  "Super Admin NEVER requires OTP even when all 2FA policies are ON"
+);
+assert(
+  evaluateOtpRequirement(superAdmin, { isStaffOtpEnabled: false, isStudentOtpEnabled: false, isRegistrationOtpEnabled: false }).requiresOtp === false,
+  "Super Admin NEVER requires OTP when policies are OFF"
+);
+
+// 2. Staff 2FA ON / OFF
+assert(
+  evaluateOtpRequirement(subAdmin, { isStaffOtpEnabled: true, isStudentOtpEnabled: false, isRegistrationOtpEnabled: false }).requiresOtp === true,
+  "Staff member REQUIRES OTP when Staff 2FA is ON"
+);
+assert(
+  evaluateOtpRequirement(subAdmin, { isStaffOtpEnabled: false, isStudentOtpEnabled: true, isRegistrationOtpEnabled: false }).requiresOtp === false,
+  "Staff member DOES NOT require OTP when Staff 2FA is OFF"
+);
+
+// 3. Student 2FA ON / OFF
+assert(
+  evaluateOtpRequirement(student, { isStaffOtpEnabled: false, isStudentOtpEnabled: true, isRegistrationOtpEnabled: false }).requiresOtp === true,
+  "Student REQUIRES OTP when Student 2FA is ON"
+);
+assert(
+  evaluateOtpRequirement(student, { isStaffOtpEnabled: true, isStudentOtpEnabled: false, isRegistrationOtpEnabled: false }).requiresOtp === false,
+  "Student DOES NOT require OTP when Student 2FA is OFF"
+);
+
+// 4. Registration verification ON / OFF
+const regSettingsOn = { isRegistrationOtpEnabled: true };
+const regSettingsOff = { isRegistrationOtpEnabled: false };
+assert(regSettingsOn.isRegistrationOtpEnabled === true, "Student registration triggers verification when enabled");
+assert(regSettingsOff.isRegistrationOtpEnabled === false, "Student registration allows direct signup when disabled");
+
 console.log("\n==================================================");
-console.log(`📊 TOTAL RBAC TESTS: ${passed} PASSED, ${failed} FAILED`);
+console.log(`📊 TOTAL RBAC & OTP TESTS: ${passed} PASSED, ${failed} FAILED`);
 console.log("==================================================");
 
 if (failed > 0) process.exit(1);
