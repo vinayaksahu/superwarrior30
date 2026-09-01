@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   loginAction,
   verifyLoginOtpAction,
@@ -318,12 +319,20 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
           </div>
 
           <div className="space-y-2">
-            <label
-              htmlFor="password"
-              className="text-sm font-medium leading-none"
-            >
-              Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium leading-none"
+              >
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-xs font-semibold text-primary hover:underline transition-colors cursor-pointer"
+              >
+                Forgot Password?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 id="password"
