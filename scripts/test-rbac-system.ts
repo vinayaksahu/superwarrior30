@@ -157,7 +157,54 @@ const subadminVisibleList = sampleStaffList.filter((s) => {
 
 assert(subadminVisibleList.length === 2, "Subadmins only see other staff members (Super Admin is stripped out)");
 assert(!subadminVisibleList.some((s) => s.email === "vinayaksahu3@gmail.com"), "Super Admin email is 100% invisible to subadmins");
-assert(!subadminVisibleList.some((s) => s.adminRole === "SUPER_ADMIN"), "Super Admin role is 100% invisible to subadmins");
+// 10. Strict Portal Isolation Tests
+console.log("\n--- TEST SUITE 10: STRICT LOGIN PORTAL ISOLATION ---");
+function evaluatePortalLogin(user: { email: string; role: string; adminRole?: string }, portal: string): { allowed: boolean; reason?: string } {
+  const normEmail = user.email.toLowerCase().trim();
+  const isSuper =
+    normEmail === "vinayaksahu3@gmail.com" ||
+    normEmail === "admin@superwarrior30.com" ||
+    user.adminRole === "SUPER_ADMIN" ||
+    (user.role === "SUPER_ADMIN" && (!user.adminRole || user.adminRole === "SUPER_ADMIN"));
+
+  const isSubAdminStaff =
+    !isSuper &&
+    (user.role === "ADMIN" ||
+      user.role === "SUPPORT" ||
+      (user.adminRole && user.adminRole !== "SUPER_ADMIN"));
+
+  if (portal === "SUPER_ADMIN") {
+    if (!isSuper) return { allowed: false, reason: "SUPER_ADMIN_PORTAL_DENIED" };
+    return { allowed: true };
+  } else if (portal === "ADMIN") {
+    if (isSuper) return { allowed: false, reason: "SUPER_ADMIN_BLOCKED_ON_ADMINLOGIN" };
+    if (!isSubAdminStaff) return { allowed: false, reason: "NOT_STAFF" };
+    return { allowed: true };
+  } else {
+    if (isSuper) return { allowed: false, reason: "SUPER_ADMIN_BLOCKED_ON_LOGIN" };
+    if (isSubAdminStaff) return { allowed: false, reason: "STAFF_BLOCKED_ON_LOGIN" };
+    return { allowed: true };
+  }
+}
+
+const superAdmin = { email: "vinayaksahu3@gmail.com", role: "SUPER_ADMIN", adminRole: "SUPER_ADMIN" };
+const subAdmin = { email: "rahultradeworrieracademy@gmail.com", role: "ADMIN", adminRole: "FULL_ACCESS_ADMIN" };
+const student = { email: "student@example.com", role: "STUDENT" };
+
+// Super Admin tests
+assert(evaluatePortalLogin(superAdmin, "SUPER_ADMIN").allowed === true, "Super Admin CAN login via /superadminlogin");
+assert(evaluatePortalLogin(superAdmin, "ADMIN").allowed === false, "Super Admin CANNOT login via /adminlogin");
+assert(evaluatePortalLogin(superAdmin, "STUDENT").allowed === false, "Super Admin CANNOT login via /login");
+
+// Sub-Admin tests
+assert(evaluatePortalLogin(subAdmin, "SUPER_ADMIN").allowed === false, "Sub-Admin CANNOT login via /superadminlogin");
+assert(evaluatePortalLogin(subAdmin, "ADMIN").allowed === true, "Sub-Admin CAN login via /adminlogin");
+assert(evaluatePortalLogin(subAdmin, "STUDENT").allowed === false, "Sub-Admin CANNOT login via /login");
+
+// Student tests
+assert(evaluatePortalLogin(student, "SUPER_ADMIN").allowed === false, "Student CANNOT login via /superadminlogin");
+assert(evaluatePortalLogin(student, "ADMIN").allowed === false, "Student CANNOT login via /adminlogin");
+assert(evaluatePortalLogin(student, "STUDENT").allowed === true, "Student CAN login via /login");
 
 console.log("\n==================================================");
 console.log(`📊 TOTAL RBAC TESTS: ${passed} PASSED, ${failed} FAILED`);

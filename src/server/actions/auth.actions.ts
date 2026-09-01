@@ -104,15 +104,18 @@ export async function loginAction(
   // 2.5 Portal-Specific Server-Side Role Enforcement
   const portal = (formData.get("loginPortal")?.toString() || "STUDENT").toUpperCase();
 
+  const normEmail = user.email.toLowerCase().trim();
   const isSuper =
-    user.role === "SUPER_ADMIN" ||
-    user.email === "vinayaksahu3@gmail.com" ||
-    user.email === "admin@superwarrior30.com";
+    normEmail === "vinayaksahu3@gmail.com" ||
+    normEmail === "admin@superwarrior30.com" ||
+    user.adminRole === "SUPER_ADMIN" ||
+    (user.role === "SUPER_ADMIN" && (!user.adminRole || user.adminRole === "SUPER_ADMIN"));
 
-  const isAdminStaff =
-    isSuper ||
-    user.role === "ADMIN" ||
-    user.role === "SUPPORT";
+  const isSubAdminStaff =
+    !isSuper &&
+    (user.role === "ADMIN" ||
+      user.role === "SUPPORT" ||
+      (user.adminRole && user.adminRole !== "SUPER_ADMIN"));
 
   if (portal === "SUPER_ADMIN") {
     if (!isSuper) {
@@ -136,7 +139,16 @@ export async function loginAction(
       };
     }
   } else if (portal === "ADMIN") {
-    if (!isAdminStaff) {
+    // STRICT RULE: Super Admin is NOT allowed to login via /adminlogin
+    if (isSuper) {
+      return {
+        success: false,
+        message:
+          "Super Admin accounts must sign in exclusively through the Super Admin portal: https://www.superwarrior30.com/superadminlogin",
+      };
+    }
+
+    if (!isSubAdminStaff) {
       await prisma.auditLog
         .create({
           data: {
@@ -153,7 +165,7 @@ export async function loginAction(
 
       return {
         success: false,
-        message: "Access denied. Only authorized administrators and staff can sign in through this portal.",
+        message: "Access denied. Only authorized staff and sub-administrators can sign in through this portal.",
       };
     }
   } else {
@@ -161,13 +173,15 @@ export async function loginAction(
     if (isSuper) {
       return {
         success: false,
-        message: "Super Admin accounts must sign in using the dedicated Super Admin portal: /superadminlogin",
+        message:
+          "Super Admin accounts must sign in using the dedicated Super Admin portal: https://www.superwarrior30.com/superadminlogin",
       };
     }
-    if (isAdminStaff) {
+    if (isSubAdminStaff) {
       return {
         success: false,
-        message: "Admin and staff accounts must sign in using the dedicated Admin portal: /adminlogin",
+        message:
+          "Admin and staff accounts must sign in using the dedicated Admin portal: https://www.superwarrior30.com/adminlogin",
       };
     }
   }
