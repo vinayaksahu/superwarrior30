@@ -544,6 +544,26 @@ export async function ensureDatabaseSchemaSync() {
 
       CREATE INDEX IF NOT EXISTS "support_inquiry_messages_inquiryId_idx" ON "support_inquiry_messages"("inquiryId");
       CREATE INDEX IF NOT EXISTS "support_inquiry_messages_createdAt_idx" ON "support_inquiry_messages"("createdAt");
+
+      CREATE TABLE IF NOT EXISTS "email_otps" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT REFERENCES "users"("id") ON DELETE CASCADE,
+        "email" TEXT NOT NULL,
+        "purpose" TEXT NOT NULL DEFAULT 'LOGIN_VERIFICATION',
+        "otpHash" TEXT NOT NULL,
+        "expiresAt" TIMESTAMP(3) NOT NULL,
+        "attempts" INTEGER NOT NULL DEFAULT 0,
+        "maxAttempts" INTEGER NOT NULL DEFAULT 5,
+        "usedAt" TIMESTAMP(3),
+        "ipAddress" VARCHAR(45),
+        "userAgent" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "email_otps_email_purpose_idx" ON "email_otps"("email", "purpose");
+      CREATE INDEX IF NOT EXISTS "email_otps_userId_purpose_idx" ON "email_otps"("userId", "purpose");
+      CREATE INDEX IF NOT EXISTS "email_otps_expiresAt_idx" ON "email_otps"("expiresAt");
+      CREATE INDEX IF NOT EXISTS "email_otps_createdAt_idx" ON "email_otps"("createdAt");
     `);
   } catch {
     // ignore

@@ -12,6 +12,12 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { APP_URL } from "@/lib/constants";
 import { getClientDeviceMetadata, setDeviceCookie } from "@/lib/auth/device";
+import {
+  createAndSendLoginOtp,
+  verifyLoginOtp,
+  isEmailOtpEnabled,
+  verifyPendingOtpToken,
+} from "@/lib/otp/service";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { z } from "zod";
 import type { ActionState } from "@/types";
@@ -297,6 +303,42 @@ export async function loginAction(
 
   activeDeviceId = deviceCheckResult.deviceId;
 
+  // ----------------------------------------------------
+  // STEP 4: EMAIL OTP AUTHENTICATION CHECK
+  // ----------------------------------------------------
+  const otpEnabled = await isEmailOtpEnabled();
+
+  if (otpEnabled) {
+    const otpDispatch = await createAndSendLoginOtp({
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      deviceId: activeDeviceId,
+      ipAddress: deviceMeta.ipAddress,
+      userAgent: deviceMeta.userAgent,
+    });
+
+    if (!otpDispatch.success) {
+      return {
+        success: false,
+        message:
+          otpDispatch.message ||
+          "We could not send the verification code. Please try again later.",
+      };
+    }
+
+    return {
+      success: true,
+      message: `A 6-digit verification code has been sent to ${otpDispatch.emailMasked}.`,
+      data: {
+        requiresOtp: true,
+        pendingToken: otpDispatch.pendingToken,
+        emailMasked: otpDispatch.emailMasked,
+        cooldownSeconds: otpDispatch.cooldownSeconds,
+      },
+    };
+  }
+
   // Increment tokenVersion on every login to immediately invalidate ALL previous JWT sessions.
   // This enforces the "1 active device at a time" rule at the JWT level — any other device's
   // old JWT will have a stale tokenVersion and will be rejected by getCurrentUser().
@@ -316,6 +358,156 @@ export async function loginAction(
 
   const destination = user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
   redirect(destination);
+}
+
+export async function verifyLoginOtpAction(
+  pendingToken: string,
+  otp: string
+): Promise<ActionState<{ destination?: string; remainingAttempts?: number }>> {
+  await ensureDatabaseSchemaSync();
+
+  const deviceMeta = await getClientDeviceMetadata();
+  const verifyResult = await verifyLoginOtp({
+    pendingToken,
+    otp,
+    ipAddress: deviceMeta.ipAddress,
+  });
+
+  if (!verifyResult.success || !verifyResult.email) {
+    // Record audit log for failed OTP attempt if email is present
+    if (verifyResult.email) {
+      await prisma.auditLog
+        .create({
+          data: {
+            actorEmail: verifyResult.email,
+            actorId: verifyResult.userId,
+            action: "LOGIN_OTP_FAILED",
+            entityType: "User",
+            entityId: verifyResult.userId || verifyResult.email,
+            ipAddress: deviceMeta.ipAddress,
+            userAgent: deviceMeta.userAgent,
+            newValues: {
+              reason: verifyResult.message,
+              remainingAttempts: verifyResult.remainingAttempts,
+            },
+          },
+        })
+        .catch(() => {});
+    }
+
+    return {
+      success: false,
+      message: verifyResult.message || "Invalid verification code.",
+      data: {
+        remainingAttempts: verifyResult.remainingAttempts,
+      },
+    };
+  }
+
+  // Fetch verified user
+  const user = await prisma.user.findUnique({
+    where: { email: verifyResult.email },
+  });
+
+  if (!user || user.status !== "ACTIVE") {
+    return {
+      success: false,
+      message: "Your account is not active. Please contact support.",
+    };
+  }
+
+  // Increment tokenVersion on successful OTP login
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: { tokenVersion: { increment: 1 } },
+  });
+
+  // Create active JWT session
+  await createSession(
+    user.id,
+    user.email,
+    user.role,
+    updatedUser.tokenVersion,
+    verifyResult.deviceId
+  );
+
+  // Record successful login audit log
+  await prisma.auditLog
+    .create({
+      data: {
+        actorId: user.id,
+        actorEmail: user.email,
+        actorRole: user.role,
+        action: "LOGIN_OTP_SUCCESS",
+        entityType: "User",
+        entityId: user.id,
+        ipAddress: deviceMeta.ipAddress,
+        userAgent: deviceMeta.userAgent,
+        newValues: {
+          deviceId: verifyResult.deviceId,
+        },
+      },
+    })
+    .catch(() => {});
+
+  const destination =
+    user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+
+  return {
+    success: true,
+    message: "Login successful!",
+    data: { destination },
+  };
+}
+
+export async function resendLoginOtpAction(
+  pendingToken: string
+): Promise<ActionState<{ cooldownSeconds?: number }>> {
+  await ensureDatabaseSchemaSync();
+
+  const payload = await verifyPendingOtpToken(pendingToken);
+  if (!payload || !payload.email) {
+    return {
+      success: false,
+      message: "Your verification session has expired. Please sign in again.",
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: payload.email },
+    select: { id: true, email: true, name: true, status: true },
+  });
+
+  if (!user || user.status !== "ACTIVE") {
+    return {
+      success: false,
+      message: "User account is not active.",
+    };
+  }
+
+  const deviceMeta = await getClientDeviceMetadata();
+  const dispatch = await createAndSendLoginOtp({
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    deviceId: payload.deviceId,
+    ipAddress: deviceMeta.ipAddress,
+    userAgent: deviceMeta.userAgent,
+  });
+
+  if (!dispatch.success) {
+    return {
+      success: false,
+      message: dispatch.message || "Failed to resend verification code.",
+      data: { cooldownSeconds: dispatch.cooldownSeconds },
+    };
+  }
+
+  return {
+    success: true,
+    message: `A new 6-digit verification code has been sent to ${dispatch.emailMasked}.`,
+    data: { cooldownSeconds: dispatch.cooldownSeconds },
+  };
 }
 
 export async function registerAction(

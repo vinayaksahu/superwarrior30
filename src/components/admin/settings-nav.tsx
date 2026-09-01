@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Globe, UserCheck, Cloud, Database, Sliders } from "lucide-react";
+import { Globe, UserCheck, Cloud, Database, Sliders, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const settingsTabs = [
@@ -16,6 +16,12 @@ const settingsTabs = [
     href: "/admin/settings/profile",
     label: "Profile & Password",
     icon: UserCheck,
+    exact: true,
+  },
+  {
+    href: "/admin/settings/email",
+    label: "Email & OTP Security",
+    icon: Mail,
     exact: true,
   },
   {

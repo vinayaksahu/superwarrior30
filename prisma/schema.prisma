@@ -83,10 +83,36 @@ model User {
   // Support System
   supportInquiries       SupportInquiry[]
 
+  // Email OTPs
+  otps                   EmailOtp[]
+
   @@index([role])
   @@index([status])
   @@index([referralCode])
   @@map("users")
+}
+
+model EmailOtp {
+  id          String    @id @default(cuid())
+  userId      String?
+  email       String
+  purpose     String    @default("LOGIN_VERIFICATION")
+  otpHash     String
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  usedAt      DateTime?
+  ipAddress   String?   @db.VarChar(45)
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose])
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@map("email_otps")
 }
 
 model PasswordResetToken {
