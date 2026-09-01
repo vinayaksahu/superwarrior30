@@ -31,11 +31,17 @@ import {
 interface StaffManagementClientProps {
   initialStaff: StaffMember[];
   currentUserRole: string;
+  isSuperAdmin?: boolean;
+  canAssignRoles?: boolean;
+  canCreateDeactivate?: boolean;
 }
 
 export function StaffManagementClient({
   initialStaff,
   currentUserRole,
+  isSuperAdmin = false,
+  canAssignRoles = false,
+  canCreateDeactivate = false,
 }: StaffManagementClientProps) {
   const [isPending, startTransition] = useTransition();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -127,7 +133,7 @@ export function StaffManagementClient({
           </p>
         </div>
 
-        {currentUserRole === "SUPER_ADMIN" && (
+        {(isSuperAdmin || canCreateDeactivate) && (
           <button
             onClick={() => setIsCreateOpen(true)}
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-md hover:bg-primary/90 transition-all cursor-pointer"
@@ -248,31 +254,35 @@ export function StaffManagementClient({
                         <span className="text-[11px] italic font-bold text-destructive bg-destructive/10 px-2 py-1 rounded border border-destructive/20">
                           Root Authority
                         </span>
-                      ) : currentUserRole === "SUPER_ADMIN" ? (
+                      ) : (isSuperAdmin || canAssignRoles || canCreateDeactivate) ? (
                         <div className="inline-flex items-center gap-2 justify-end">
                           {/* Change Role Button */}
-                          <button
-                            onClick={() => setEditRoleStaff(staff)}
-                            disabled={isPending}
-                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-foreground hover:border-primary/50 hover:bg-primary/10 transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            <Edit2 className="h-3 w-3 text-amber-400" />
-                            Change Role
-                          </button>
+                          {(isSuperAdmin || canAssignRoles) && (
+                            <button
+                              onClick={() => setEditRoleStaff(staff)}
+                              disabled={isPending}
+                              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-foreground hover:border-primary/50 hover:bg-primary/10 transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              <Edit2 className="h-3 w-3 text-amber-400" />
+                              Change Role
+                            </button>
+                          )}
 
                           {/* Deactivate / Activate Button */}
-                          <button
-                            onClick={() => handleToggleStatus(staff.id)}
-                            disabled={isPending}
-                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer disabled:opacity-50 ${
-                              staff.status === "ACTIVE"
-                                ? "text-destructive hover:bg-destructive/10"
-                                : "text-emerald-400 hover:bg-emerald-500/10"
-                            }`}
-                          >
-                            <Power className="h-3 w-3" />
-                            {staff.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                          </button>
+                          {(isSuperAdmin || canCreateDeactivate) && (
+                            <button
+                              onClick={() => handleToggleStatus(staff.id)}
+                              disabled={isPending}
+                              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer disabled:opacity-50 ${
+                                staff.status === "ACTIVE"
+                                  ? "text-destructive hover:bg-destructive/10"
+                                  : "text-emerald-400 hover:bg-emerald-500/10"
+                              }`}
+                            >
+                              <Power className="h-3 w-3" />
+                              {staff.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[11px] text-muted-foreground">Protected</span>

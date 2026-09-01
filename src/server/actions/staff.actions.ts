@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSuperAdmin } from "@/server/dal/auth";
+import { requireAdmin, requireSuperAdmin, requirePermission } from "@/server/dal/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { generateReferralCode } from "@/lib/utils";
 import { UserRole, UserStatus } from "@/generated/prisma";
@@ -34,14 +34,19 @@ export interface StaffMember {
 export async function getStaffMembersAction(): Promise<{
   currentUserRole: string;
   isSuperAdmin: boolean;
+  canAssignRoles: boolean;
+  canCreateDeactivate: boolean;
   staff: StaffMember[];
 }> {
   const currentUser = await requireAdmin();
+  const email = (currentUser.email || "").toLowerCase().trim();
   const isSuper =
-    currentUser.role === "SUPER_ADMIN" ||
-    currentUser.adminRole === "SUPER_ADMIN" ||
-    currentUser.email === "vinayaksahu3@gmail.com" ||
-    currentUser.email === "admin@superwarrior30.com";
+    email === "vinayaksahu3@gmail.com" ||
+    email === "admin@superwarrior30.com";
+
+  const userPerms = getEffectivePermissions(currentUser);
+  const canAssignRoles = isSuper || userPerms.has("staff.roles_assign");
+  const canCreateDeactivate = isSuper || userPerms.has("staff.create_deactivate");
 
   try {
     const users = await prisma.user.findMany({
@@ -144,6 +149,8 @@ export async function getStaffMembersAction(): Promise<{
     return {
       currentUserRole: isSuper ? "SUPER_ADMIN" : "SUB_ADMIN",
       isSuperAdmin: isSuper,
+      canAssignRoles,
+      canCreateDeactivate,
       staff: visibleStaff,
     };
   } catch (error) {
@@ -151,6 +158,8 @@ export async function getStaffMembersAction(): Promise<{
     return {
       currentUserRole: isSuper ? "SUPER_ADMIN" : "SUB_ADMIN",
       isSuperAdmin: isSuper,
+      canAssignRoles: isSuper,
+      canCreateDeactivate: isSuper,
       staff: [],
     };
   }
@@ -160,7 +169,7 @@ export async function createStaffAccountAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const superAdmin = await requireSuperAdmin();
+  const actor = await requirePermission("staff.create_deactivate");
 
   const name = formData.get("name")?.toString().trim();
   const email = formData.get("email")?.toString().toLowerCase().trim();
@@ -233,9 +242,9 @@ export async function createStaffAccountAction(
 
     await prisma.auditLog.create({
       data: {
-        actorId: superAdmin.id,
-        actorEmail: superAdmin.email,
-        actorRole: superAdmin.role,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorRole: actor.role,
         action: "STAFF_CREATED",
         entityType: "User",
         entityId: newUser.id,
@@ -264,10 +273,10 @@ export async function updateStaffRoleAction(
   newAdminRole: AdminRoleType,
   customPermissions: string[] = []
 ): Promise<ActionState> {
-  const superAdmin = await requireSuperAdmin();
+  const actor = await requirePermission("staff.roles_assign");
 
-  if (superAdmin.id === staffId) {
-    return { success: false, message: "You cannot modify or demote your own Super Admin root account." };
+  if (actor.id === staffId) {
+    return { success: false, message: "You cannot modify or demote your own account role directly." };
   }
 
   // Reject promoting another account to SUPER_ADMIN
@@ -316,9 +325,9 @@ export async function updateStaffRoleAction(
 
     await prisma.auditLog.create({
       data: {
-        actorId: superAdmin.id,
-        actorEmail: superAdmin.email,
-        actorRole: superAdmin.role,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorRole: actor.role,
         action: "STAFF_ROLE_UPDATED",
         entityType: "User",
         entityId: staffId,
@@ -345,10 +354,10 @@ export async function updateStaffRoleAction(
 }
 
 export async function toggleStaffStatusAction(staffId: string): Promise<ActionState> {
-  const superAdmin = await requireSuperAdmin();
+  const actor = await requirePermission("staff.create_deactivate");
 
-  if (superAdmin.id === staffId) {
-    return { success: false, message: "You cannot deactivate your own Super Admin root account." };
+  if (actor.id === staffId) {
+    return { success: false, message: "You cannot deactivate your own account." };
   }
 
   const target = await prisma.user.findUnique({ where: { id: staffId } });

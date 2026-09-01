@@ -10,8 +10,17 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminStaffPage() {
-  await requireAnyPermission(["staff.view", "staff.roles_assign"]);
-  const { staff, currentUserRole } = await getStaffMembersAction();
+  await requireAnyPermission(["staff.view", "staff.roles_assign", "staff.create_deactivate"]);
+  const { staff, currentUserRole, canAssignRoles, canCreateDeactivate, isSuperAdmin } =
+    await getStaffMembersAction();
 
-  return <StaffManagementClient initialStaff={staff} currentUserRole={currentUserRole} />;
+  return (
+    <StaffManagementClient
+      initialStaff={staff}
+      currentUserRole={currentUserRole}
+      isSuperAdmin={isSuperAdmin}
+      canAssignRoles={canAssignRoles}
+      canCreateDeactivate={canCreateDeactivate}
+    />
+  );
 }
