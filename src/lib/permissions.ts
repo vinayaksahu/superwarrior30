@@ -385,10 +385,10 @@ export const ROLE_PRESETS: Record<AdminRoleType, RolePreset> = {
   },
   CUSTOM_ROLE: {
     key: "CUSTOM_ROLE",
-    displayName: "Custom Role",
-    shortDescription: "Custom administrator with manually selected granular permissions.",
-    badgeLabel: "CUSTOM_ROLE",
-    badgeColorClass: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+    displayName: "Staff Admin",
+    shortDescription: "Custom administrator with assigned granular permissions.",
+    badgeLabel: "STAFF_ADMIN",
+    badgeColorClass: "bg-primary/15 text-primary border-primary/30",
     defaultPermissions: ["dashboard.view", "settings.profile.manage"],
   },
 };
