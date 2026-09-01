@@ -38,6 +38,10 @@ export function EmailSettingsForm({ initialSettings }: EmailSettingsFormProps) {
   );
 
   const [isOtpEnabled, setIsOtpEnabled] = useState(initialSettings.otp.isEnabled);
+  const [isStaffOtpEnabled, setIsStaffOtpEnabled] = useState(initialSettings.otp.isStaffOtpEnabled);
+  const [isStudentOtpEnabled, setIsStudentOtpEnabled] = useState(initialSettings.otp.isStudentOtpEnabled);
+  const [isRegistrationOtpEnabled, setIsRegistrationOtpEnabled] = useState(initialSettings.otp.isRegistrationOtpEnabled);
+  const [isPasswordResetOtpEnabled, setIsPasswordResetOtpEnabled] = useState(initialSettings.otp.isPasswordResetOtpEnabled);
   const [testEmailInput, setTestEmailInput] = useState("");
 
   const isConnected = initialSettings.smtp.connection.connected;
@@ -137,7 +141,7 @@ export function EmailSettingsForm({ initialSettings }: EmailSettingsFormProps) {
           <div>
             <h2 className="text-base font-bold text-foreground">Email OTP Security Policies</h2>
             <p className="text-xs text-muted-foreground">
-              Configure two-factor email verification rules for Super Admins, Staff, and Students
+              Configure two-factor email verification rules for Sub-Admins, Staff, and Students
             </p>
           </div>
         </div>
@@ -159,26 +163,129 @@ export function EmailSettingsForm({ initialSettings }: EmailSettingsFormProps) {
           </div>
         )}
 
-        <div className="space-y-5">
-          {/* Global Toggle */}
-          <div className="flex items-start gap-3 rounded-xl border border-border/80 bg-background/60 p-4">
+        {/* Super Admin Exemption Banner */}
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3">
+          <ShieldCheck className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-foreground">
+              Super Admin Direct Access (No OTP Required)
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Super Admin (<span className="font-bold text-amber-400">vinayaksahu3@gmail.com</span> / Root Authority) <span className="font-bold text-foreground">never requires OTP for sign-in</span>. Direct credential login ensures zero system lockouts regardless of email server availability.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Role-Based &amp; Event-Based OTP Rules
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Staff / Sub-Admin Login 2FA */}
+            <div className="flex items-start gap-3 rounded-xl border border-border/80 bg-background/60 p-4 hover:border-primary/40 transition-colors">
+              <input
+                type="checkbox"
+                id="isStaffOtpEnabled"
+                name="isStaffOtpEnabled"
+                checked={isStaffOtpEnabled}
+                onChange={(e) => setIsStaffOtpEnabled(e.target.checked)}
+                className="h-5 w-5 rounded border-input text-primary focus:ring-primary cursor-pointer mt-0.5"
+              />
+              <div className="space-y-1">
+                <label htmlFor="isStaffOtpEnabled" className="text-xs font-bold text-foreground cursor-pointer block">
+                  Staff &amp; Sub-Admins Login (2FA)
+                </label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Require a 6-digit email OTP verification code when Sub-Admins, Support, and Staff members sign in at <code>/adminlogin</code>.
+                </p>
+              </div>
+            </div>
+
+            {/* Student Login 2FA */}
+            <div className="flex items-start gap-3 rounded-xl border border-border/80 bg-background/60 p-4 hover:border-primary/40 transition-colors">
+              <input
+                type="checkbox"
+                id="isStudentOtpEnabled"
+                name="isStudentOtpEnabled"
+                checked={isStudentOtpEnabled}
+                onChange={(e) => setIsStudentOtpEnabled(e.target.checked)}
+                className="h-5 w-5 rounded border-input text-primary focus:ring-primary cursor-pointer mt-0.5"
+              />
+              <div className="space-y-1">
+                <label htmlFor="isStudentOtpEnabled" className="text-xs font-bold text-foreground cursor-pointer block">
+                  Student Accounts Login (2FA)
+                </label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Require a 6-digit email OTP verification code when enrolled students sign in at <code>/login</code>.
+                </p>
+              </div>
+            </div>
+
+            {/* Student Registration / Signup Verification */}
+            <div className="flex items-start gap-3 rounded-xl border border-border/80 bg-background/60 p-4 hover:border-primary/40 transition-colors">
+              <input
+                type="checkbox"
+                id="isRegistrationOtpEnabled"
+                name="isRegistrationOtpEnabled"
+                checked={isRegistrationOtpEnabled}
+                onChange={(e) => setIsRegistrationOtpEnabled(e.target.checked)}
+                className="h-5 w-5 rounded border-input text-primary focus:ring-primary cursor-pointer mt-0.5"
+              />
+              <div className="space-y-1">
+                <label htmlFor="isRegistrationOtpEnabled" className="text-xs font-bold text-foreground cursor-pointer block">
+                  Student Registration Verification
+                </label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Require email verification via OTP before activating new student accounts or completing course registrations.
+                </p>
+              </div>
+            </div>
+
+            {/* Password Reset OTP */}
+            <div className="flex items-start gap-3 rounded-xl border border-border/80 bg-background/60 p-4 hover:border-primary/40 transition-colors">
+              <input
+                type="checkbox"
+                id="isPasswordResetOtpEnabled"
+                name="isPasswordResetOtpEnabled"
+                checked={isPasswordResetOtpEnabled}
+                onChange={(e) => setIsPasswordResetOtpEnabled(e.target.checked)}
+                className="h-5 w-5 rounded border-input text-primary focus:ring-primary cursor-pointer mt-0.5"
+              />
+              <div className="space-y-1">
+                <label htmlFor="isPasswordResetOtpEnabled" className="text-xs font-bold text-foreground cursor-pointer block">
+                  Forgot Password Recovery OTP
+                </label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Require email OTP verification code before allowing users to reset their account passwords.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Master Email OTP Fallback Toggle */}
+          <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/20 p-3.5 mt-2">
             <input
               type="checkbox"
               id="isEmailOtpEnabled"
               name="isEmailOtpEnabled"
               checked={isOtpEnabled}
               onChange={(e) => setIsOtpEnabled(e.target.checked)}
-              className="h-5 w-5 rounded border-input text-primary focus:ring-primary cursor-pointer mt-0.5"
+              className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer mt-0.5"
             />
             <div className="space-y-0.5">
-              <label htmlFor="isEmailOtpEnabled" className="text-sm font-bold text-foreground cursor-pointer">
-                Require Email OTP for Login Verification
+              <label htmlFor="isEmailOtpEnabled" className="text-xs font-bold text-foreground cursor-pointer">
+                Global Master OTP Switch
               </label>
-              <p className="text-xs text-muted-foreground">
-                When enabled, all users (Super Admin, Sub-Admins / Staff, and Students) must enter a 6-digit verification code sent to their registered Namecheap email before completing sign in.
+              <p className="text-[10px] text-muted-foreground">
+                Fallback master toggle. When individual role flags are not set, this controls platform-wide 2FA.
               </p>
             </div>
           </div>
+
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-2">
+            Security &amp; Rate-Limiting Tuning
+          </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* OTP Expiration */}

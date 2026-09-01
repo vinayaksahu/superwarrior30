@@ -10,6 +10,10 @@ import type { ActionState } from "@/types";
 
 const emailSettingsSchema = z.object({
   isEmailOtpEnabled: z.coerce.boolean().default(false),
+  isStaffOtpEnabled: z.coerce.boolean().default(false),
+  isStudentOtpEnabled: z.coerce.boolean().default(false),
+  isRegistrationOtpEnabled: z.coerce.boolean().default(false),
+  isPasswordResetOtpEnabled: z.coerce.boolean().default(true),
   expirationMinutes: z.coerce.number().int().min(1).max(60).default(5),
   resendCooldownSeconds: z.coerce.number().int().min(15).max(300).default(60),
   maxAttempts: z.coerce.number().int().min(1).max(10).default(5),
@@ -32,6 +36,10 @@ export interface EmailSettingsData {
   };
   otp: {
     isEnabled: boolean;
+    isStaffOtpEnabled: boolean;
+    isStudentOtpEnabled: boolean;
+    isRegistrationOtpEnabled: boolean;
+    isPasswordResetOtpEnabled: boolean;
     expirationMinutes: number;
     resendCooldownSeconds: number;
     maxAttempts: number;
@@ -67,6 +75,10 @@ export async function getEmailSettingsAction(): Promise<EmailSettingsData> {
     },
     otp: {
       isEnabled: otpConfig.isEnabled,
+      isStaffOtpEnabled: otpConfig.isStaffOtpEnabled,
+      isStudentOtpEnabled: otpConfig.isStudentOtpEnabled,
+      isRegistrationOtpEnabled: otpConfig.isRegistrationOtpEnabled,
+      isPasswordResetOtpEnabled: otpConfig.isPasswordResetOtpEnabled,
       expirationMinutes: otpConfig.expirationMinutes,
       resendCooldownSeconds: otpConfig.resendCooldownSeconds,
       maxAttempts: otpConfig.maxAttempts,
@@ -87,6 +99,10 @@ export async function saveEmailSettingsAction(
 
   const raw = {
     isEmailOtpEnabled: formData.get("isEmailOtpEnabled") === "on" || formData.get("isEmailOtpEnabled") === "true",
+    isStaffOtpEnabled: formData.get("isStaffOtpEnabled") === "on" || formData.get("isStaffOtpEnabled") === "true",
+    isStudentOtpEnabled: formData.get("isStudentOtpEnabled") === "on" || formData.get("isStudentOtpEnabled") === "true",
+    isRegistrationOtpEnabled: formData.get("isRegistrationOtpEnabled") === "on" || formData.get("isRegistrationOtpEnabled") === "true",
+    isPasswordResetOtpEnabled: formData.get("isPasswordResetOtpEnabled") === "on" || formData.get("isPasswordResetOtpEnabled") === "true",
     expirationMinutes: formData.get("expirationMinutes"),
     resendCooldownSeconds: formData.get("resendCooldownSeconds"),
     maxAttempts: formData.get("maxAttempts"),
@@ -104,6 +120,10 @@ export async function saveEmailSettingsAction(
 
   const {
     isEmailOtpEnabled,
+    isStaffOtpEnabled,
+    isStudentOtpEnabled,
+    isRegistrationOtpEnabled,
+    isPasswordResetOtpEnabled,
     expirationMinutes,
     resendCooldownSeconds,
     maxAttempts,
@@ -112,6 +132,10 @@ export async function saveEmailSettingsAction(
 
   const settingsToUpsert = [
     { key: "auth_email_otp_enabled", value: String(isEmailOtpEnabled), type: "boolean" },
+    { key: "auth_otp_staff_login_enabled", value: String(isStaffOtpEnabled), type: "boolean" },
+    { key: "auth_otp_student_login_enabled", value: String(isStudentOtpEnabled), type: "boolean" },
+    { key: "auth_otp_registration_enabled", value: String(isRegistrationOtpEnabled), type: "boolean" },
+    { key: "auth_otp_password_reset_enabled", value: String(isPasswordResetOtpEnabled), type: "boolean" },
     { key: "auth_otp_expiration_minutes", value: String(expirationMinutes), type: "number" },
     { key: "auth_otp_resend_cooldown_seconds", value: String(resendCooldownSeconds), type: "number" },
     { key: "auth_otp_max_attempts", value: String(maxAttempts), type: "number" },

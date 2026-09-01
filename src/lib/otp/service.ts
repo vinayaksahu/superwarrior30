@@ -95,10 +95,84 @@ export async function isEmailOtpEnabled(): Promise<boolean> {
 }
 
 /**
+ * Check if Staff / Sub-Admin login requires 2FA OTP
+ */
+export async function isStaffLoginOtpEnabled(): Promise<boolean> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: "auth_otp_staff_login_enabled" },
+    });
+    if (setting) {
+      return setting.value === "true" && Boolean(getSmtpPassword());
+    }
+    // Fallback to global setting
+    return await isEmailOtpEnabled();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if Student login requires 2FA OTP
+ */
+export async function isStudentLoginOtpEnabled(): Promise<boolean> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: "auth_otp_student_login_enabled" },
+    });
+    if (setting) {
+      return setting.value === "true" && Boolean(getSmtpPassword());
+    }
+    // Fallback to global setting
+    return await isEmailOtpEnabled();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if Student Registration requires OTP verification
+ */
+export async function isRegistrationOtpEnabled(): Promise<boolean> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: "auth_otp_registration_enabled" },
+    });
+    if (!setting || setting.value !== "true") {
+      return false;
+    }
+    return Boolean(getSmtpPassword());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if Password Reset requires OTP verification
+ */
+export async function isPasswordResetOtpEnabled(): Promise<boolean> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: "auth_otp_password_reset_enabled" },
+    });
+    if (!setting) {
+      return true; // Enabled by default for security
+    }
+    return setting.value === "true";
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Get OTP security configurations
  */
 export async function getOtpSecurityConfig(): Promise<{
   isEnabled: boolean;
+  isStaffOtpEnabled: boolean;
+  isStudentOtpEnabled: boolean;
+  isRegistrationOtpEnabled: boolean;
+  isPasswordResetOtpEnabled: boolean;
   expirationMinutes: number;
   resendCooldownSeconds: number;
   maxAttempts: number;
@@ -110,6 +184,10 @@ export async function getOtpSecurityConfig(): Promise<{
         key: {
           in: [
             "auth_email_otp_enabled",
+            "auth_otp_staff_login_enabled",
+            "auth_otp_student_login_enabled",
+            "auth_otp_registration_enabled",
+            "auth_otp_password_reset_enabled",
             "auth_otp_expiration_minutes",
             "auth_otp_resend_cooldown_seconds",
             "auth_otp_max_attempts",
@@ -120,9 +198,18 @@ export async function getOtpSecurityConfig(): Promise<{
     });
 
     const map = new Map(settings.map((s) => [s.key, s.value]));
+    const isGlobal = map.get("auth_email_otp_enabled") === "true";
 
     return {
-      isEnabled: map.get("auth_email_otp_enabled") === "true",
+      isEnabled: isGlobal,
+      isStaffOtpEnabled: map.has("auth_otp_staff_login_enabled")
+        ? map.get("auth_otp_staff_login_enabled") === "true"
+        : isGlobal,
+      isStudentOtpEnabled: map.has("auth_otp_student_login_enabled")
+        ? map.get("auth_otp_student_login_enabled") === "true"
+        : isGlobal,
+      isRegistrationOtpEnabled: map.get("auth_otp_registration_enabled") === "true",
+      isPasswordResetOtpEnabled: map.get("auth_otp_password_reset_enabled") !== "false",
       expirationMinutes: Math.max(1, parseInt(map.get("auth_otp_expiration_minutes") || "5", 10)),
       resendCooldownSeconds: Math.max(15, parseInt(map.get("auth_otp_resend_cooldown_seconds") || "60", 10)),
       maxAttempts: Math.max(1, parseInt(map.get("auth_otp_max_attempts") || "5", 10)),
@@ -131,6 +218,10 @@ export async function getOtpSecurityConfig(): Promise<{
   } catch {
     return {
       isEnabled: false,
+      isStaffOtpEnabled: false,
+      isStudentOtpEnabled: false,
+      isRegistrationOtpEnabled: false,
+      isPasswordResetOtpEnabled: true,
       expirationMinutes: 5,
       resendCooldownSeconds: 60,
       maxAttempts: 5,

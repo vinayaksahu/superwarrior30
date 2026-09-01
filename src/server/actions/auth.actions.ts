@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/auth/session";
-import { verifySession } from "@/server/dal/auth";
+import { verifySession, isSuperAdminUser } from "@/server/dal/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { loginSchema, registerSchema } from "@/lib/validations/auth.schema";
 import { generateReferralCode } from "@/lib/utils";
@@ -16,6 +16,8 @@ import {
   createAndSendLoginOtp,
   verifyLoginOtp,
   isEmailOtpEnabled,
+  isStaffLoginOtpEnabled,
+  isStudentLoginOtpEnabled,
   verifyPendingOtpToken,
 } from "@/lib/otp/service";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
@@ -408,9 +410,20 @@ export async function loginAction(
   // ----------------------------------------------------
   // STEP 4: EMAIL OTP AUTHENTICATION CHECK
   // ----------------------------------------------------
-  const otpEnabled = await isEmailOtpEnabled();
+  // NOTE: Root Super Admin NEVER requires OTP (Instant Direct Access for Root Authority)
+  const isSuper = isSuperAdminUser(user);
+  let requiresOtp = false;
 
-  if (otpEnabled) {
+  if (!isSuper) {
+    const isStaff = user.role === "ADMIN" || user.role === "SUPPORT" || Boolean(user.adminRole);
+    if (isStaff) {
+      requiresOtp = await isStaffLoginOtpEnabled();
+    } else {
+      requiresOtp = await isStudentLoginOtpEnabled();
+    }
+  }
+
+  if (requiresOtp) {
     const otpDispatch = await createAndSendLoginOtp({
       userId: user.id,
       email: user.email,
