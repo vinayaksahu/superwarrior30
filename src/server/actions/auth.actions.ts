@@ -192,7 +192,7 @@ export async function loginAction(
 
   const isStaffOrAdmin =
     isSuper ||
-    isAdminStaff ||
+    isSubAdminStaff ||
     user.role === "SUPER_ADMIN" ||
     user.role === "ADMIN" ||
     user.role === "SUPPORT";
