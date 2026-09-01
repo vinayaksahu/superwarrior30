@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSuperAdmin, requirePermission } from "@/server/dal/auth";
+import { requireAdmin, requireSuperAdmin, requirePermission, requireAnyPermission } from "@/server/dal/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { generateReferralCode } from "@/lib/utils";
 import { UserRole, UserStatus } from "@/generated/prisma";
@@ -45,8 +45,8 @@ export async function getStaffMembersAction(): Promise<{
     email === "admin@superwarrior30.com";
 
   const userPerms = getEffectivePermissions(currentUser);
-  const canAssignRoles = isSuper || userPerms.has("staff.roles_assign");
-  const canCreateDeactivate = isSuper || userPerms.has("staff.create_deactivate");
+  const canAssignRoles = isSuper || userPerms.has("staff.roles_assign") || userPerms.has("staff.manage");
+  const canCreateDeactivate = isSuper || userPerms.has("staff.manage") || userPerms.has("staff.create_deactivate");
 
   try {
     const users = await prisma.user.findMany({
@@ -169,7 +169,7 @@ export async function createStaffAccountAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const actor = await requirePermission("staff.create_deactivate");
+  const actor = await requireAnyPermission(["staff.manage", "staff.create_deactivate", "staff.roles_assign"]);
 
   const name = formData.get("name")?.toString().trim();
   const email = formData.get("email")?.toString().toLowerCase().trim();
@@ -354,7 +354,7 @@ export async function updateStaffRoleAction(
 }
 
 export async function toggleStaffStatusAction(staffId: string): Promise<ActionState> {
-  const actor = await requirePermission("staff.create_deactivate");
+  const actor = await requireAnyPermission(["staff.manage", "staff.create_deactivate", "staff.roles_assign"]);
 
   if (actor.id === staffId) {
     return { success: false, message: "You cannot deactivate your own account." };

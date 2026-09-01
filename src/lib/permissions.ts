@@ -430,7 +430,12 @@ export function getEffectivePermissions(user: {
         // ignore
       }
     }
-    // Always grant personal profile access
+    // Alias staff permissions so UI and backend checks are 100% synchronized
+    if (perms.includes("staff.manage")) perms.push("staff.create_deactivate");
+    if (perms.includes("staff.create_deactivate")) perms.push("staff.manage");
+    if (perms.includes("staff.roles_assign")) perms.push("staff.view");
+    // Always grant personal profile & dashboard access
+    perms.push("dashboard.view");
     perms.push("settings.profile.manage");
     return new Set(perms);
   }
