@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState, useActionState } from "react";
 import Link from "next/link";
 import { resetPasswordAction } from "@/server/actions/auth.actions";
-import { Loader2, Lock, CheckCircle } from "lucide-react";
+import { Loader2, Lock, CheckCircle, Eye, EyeOff } from "lucide-react";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [state, formAction, isPending] = useActionState(resetPasswordAction, null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   if (state?.success) {
     return (
@@ -45,12 +47,25 @@ export function ResetPasswordForm({ token }: { token: string }) {
           <input
             id="password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             required
             minLength={8}
             placeholder="At least 8 characters"
-            className="w-full rounded-xl border border-input bg-card pl-10 pr-4 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+            className="w-full rounded-xl border border-input bg-card pl-10 pr-10 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3.5 top-3 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+            tabIndex={-1}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
         </div>
         {state?.errors?.password && (
           <p className="text-[11px] text-destructive">{state.errors.password[0]}</p>
@@ -66,12 +81,25 @@ export function ResetPasswordForm({ token }: { token: string }) {
           <input
             id="confirmPassword"
             name="confirmPassword"
-            type="password"
+            type={showConfirmPassword ? "text" : "password"}
             required
             minLength={8}
             placeholder="Re-type your password"
-            className="w-full rounded-xl border border-input bg-card pl-10 pr-4 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+            className="w-full rounded-xl border border-input bg-card pl-10 pr-10 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
           />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
+            className="absolute right-3.5 top-3 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+            tabIndex={-1}
+            aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+          >
+            {showConfirmPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
         </div>
         {state?.errors?.confirmPassword && (
           <p className="text-[11px] text-destructive">{state.errors.confirmPassword[0]}</p>

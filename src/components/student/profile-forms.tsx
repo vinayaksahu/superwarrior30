@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useTheme } from "next-themes";
 import { updateProfileAction, changePasswordAction } from "@/server/actions/profile.actions";
-import { Loader2, Save, KeyRound, User, Lock, Sun, Moon, Laptop } from "lucide-react";
+import { Loader2, Save, KeyRound, User, Lock, Sun, Moon, Laptop, Eye, EyeOff } from "lucide-react";
 import type { ActionState } from "@/types";
 
 interface ProfileFormsProps {
@@ -27,6 +27,10 @@ export function ProfileForms({
     ActionState | null,
     FormData
   >(changePasswordAction, null);
+
+  const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
@@ -137,13 +141,28 @@ export function ProfileForms({
             <label htmlFor="currentPassword" className="text-xs font-semibold text-foreground">
               Current Password <span className="text-destructive">*</span>
             </label>
-            <input
-              id="currentPassword"
-              name="currentPassword"
-              type="password"
-              required
-              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-xs ring-offset-background"
-            />
+            <div className="relative">
+              <input
+                id="currentPassword"
+                name="currentPassword"
+                type={showCurrentPassword ? "text" : "password"}
+                required
+                className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-10 text-xs ring-offset-background"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                tabIndex={-1}
+                aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+              >
+                {showCurrentPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {passwordState?.errors?.currentPassword && (
               <p className="text-[11px] text-destructive">{passwordState.errors.currentPassword[0]}</p>
             )}
@@ -153,14 +172,29 @@ export function ProfileForms({
             <label htmlFor="newPassword" className="text-xs font-semibold text-foreground">
               New Password <span className="text-destructive">*</span>
             </label>
-            <input
-              id="newPassword"
-              name="newPassword"
-              type="password"
-              minLength={8}
-              required
-              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-xs ring-offset-background"
-            />
+            <div className="relative">
+              <input
+                id="newPassword"
+                name="newPassword"
+                type={showNewPassword ? "text" : "password"}
+                minLength={8}
+                required
+                className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-10 text-xs ring-offset-background"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                tabIndex={-1}
+                aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+              >
+                {showNewPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {passwordState?.errors?.newPassword && (
               <p className="text-[11px] text-destructive">{passwordState.errors.newPassword[0]}</p>
             )}
@@ -170,14 +204,29 @@ export function ProfileForms({
             <label htmlFor="confirmPassword" className="text-xs font-semibold text-foreground">
               Confirm New Password <span className="text-destructive">*</span>
             </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              minLength={8}
-              required
-              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-xs ring-offset-background"
-            />
+            <div className="relative">
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                minLength={8}
+                required
+                className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-10 text-xs ring-offset-background"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                tabIndex={-1}
+                aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {passwordState?.errors?.confirmPassword && (
               <p className="text-[11px] text-destructive">{passwordState.errors.confirmPassword[0]}</p>
             )}

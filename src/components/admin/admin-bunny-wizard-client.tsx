@@ -27,6 +27,8 @@ import {
   Copy,
   Lock,
   Search,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -61,6 +63,7 @@ export function AdminBunnyWizardClient({ initialConfig }: AdminBunnyWizardClient
 
   // Step 1: Connect API Key State
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [discoveredResources, setDiscoveredResources] = useState<BunnyAccountResources | null>(null);
 
@@ -79,10 +82,13 @@ export function AdminBunnyWizardClient({ initialConfig }: AdminBunnyWizardClient
   // Step 4: LMS Media Configuration Form
   const [storageZoneNameInput, setStorageZoneNameInput] = useState(config.storageZoneName || "");
   const [storagePasswordInput, setStoragePasswordInput] = useState("");
+  const [showStoragePassword, setShowStoragePassword] = useState(false);
   const [cdnHostnameInput, setCdnHostnameInput] = useState(config.cdnHostname || "");
   const [streamLibraryIdInput, setStreamLibraryIdInput] = useState(config.streamLibraryId || "");
   const [streamApiKeyInput, setStreamApiKeyInput] = useState("");
+  const [showStreamApiKey, setShowStreamApiKey] = useState(false);
   const [tokenSecurityKeyInput, setTokenSecurityKeyInput] = useState("");
+  const [showTokenSecurityKey, setShowTokenSecurityKey] = useState(false);
   const [enableTokenAuthInput, setEnableTokenAuthInput] = useState(config.enableTokenAuth || false);
   const [isSavingMediaConfig, setIsSavingMediaConfig] = useState(false);
 
@@ -555,14 +561,29 @@ export function AdminBunnyWizardClient({ initialConfig }: AdminBunnyWizardClient
               <label className="text-xs font-semibold text-foreground block mb-1">
                 {config.hasAccountKey ? "Replace / Update Account API Key" : "Enter Account API Key"} *
               </label>
-              <input
-                type="password"
-                required
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="e.g. 54a8b792-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-                className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  required
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="e.g. 54a8b792-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                  className="w-full rounded-xl border border-input bg-background pl-3.5 pr-10 py-2.5 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey((prev) => !prev)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                  tabIndex={-1}
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
               <p className="text-[11px] text-muted-foreground mt-1">
                 Credentials are encrypted using AES-256-GCM and never exposed to client browsers or logs.
               </p>
@@ -885,13 +906,28 @@ export function AdminBunnyWizardClient({ initialConfig }: AdminBunnyWizardClient
                 <label className="text-xs font-semibold text-foreground block mb-1">
                   Storage Password / AccessKey {config.hasStoragePassword && "(Leave blank to keep current)"}
                 </label>
-                <input
-                  type="password"
-                  value={storagePasswordInput}
-                  onChange={(e) => setStoragePasswordInput(e.target.value)}
-                  placeholder={config.hasStoragePassword ? config.storagePasswordMasked : "Enter Storage Password"}
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type={showStoragePassword ? "text" : "password"}
+                    value={storagePasswordInput}
+                    onChange={(e) => setStoragePasswordInput(e.target.value)}
+                    placeholder={config.hasStoragePassword ? config.storagePasswordMasked : "Enter Storage Password"}
+                    className="w-full rounded-xl border border-input bg-background pl-3.5 pr-10 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStoragePassword((prev) => !prev)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                    tabIndex={-1}
+                    aria-label={showStoragePassword ? "Hide storage password" : "Show storage password"}
+                  >
+                    {showStoragePassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="sm:col-span-2">
@@ -928,13 +964,28 @@ export function AdminBunnyWizardClient({ initialConfig }: AdminBunnyWizardClient
                 <label className="text-xs font-semibold text-foreground block mb-1">
                   Stream API Key {config.hasStreamApiKey && "(Leave blank to keep current)"}
                 </label>
-                <input
-                  type="password"
-                  value={streamApiKeyInput}
-                  onChange={(e) => setStreamApiKeyInput(e.target.value)}
-                  placeholder={config.hasStreamApiKey ? config.streamApiKeyMasked : "Enter Stream API Key"}
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type={showStreamApiKey ? "text" : "password"}
+                    value={streamApiKeyInput}
+                    onChange={(e) => setStreamApiKeyInput(e.target.value)}
+                    placeholder={config.hasStreamApiKey ? config.streamApiKeyMasked : "Enter Stream API Key"}
+                    className="w-full rounded-xl border border-input bg-background pl-3.5 pr-10 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStreamApiKey((prev) => !prev)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                    tabIndex={-1}
+                    aria-label={showStreamApiKey ? "Hide stream API key" : "Show stream API key"}
+                  >
+                    {showStreamApiKey ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="sm:col-span-2 rounded-xl bg-background/50 p-4 border border-border space-y-3">
@@ -960,13 +1011,28 @@ export function AdminBunnyWizardClient({ initialConfig }: AdminBunnyWizardClient
                     <label className="text-xs font-semibold text-foreground block mb-1">
                       Bunny Token Authentication Security Key
                     </label>
-                    <input
-                      type="password"
-                      value={tokenSecurityKeyInput}
-                      onChange={(e) => setTokenSecurityKeyInput(e.target.value)}
-                      placeholder={config.hasTokenKey ? config.tokenSecurityKeyMasked : "Enter Token Security Key"}
-                      className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showTokenSecurityKey ? "text" : "password"}
+                        value={tokenSecurityKeyInput}
+                        onChange={(e) => setTokenSecurityKeyInput(e.target.value)}
+                        placeholder={config.hasTokenKey ? config.tokenSecurityKeyMasked : "Enter Token Security Key"}
+                        className="w-full rounded-xl border border-input bg-background pl-3.5 pr-10 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowTokenSecurityKey((prev) => !prev)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                        tabIndex={-1}
+                        aria-label={showTokenSecurityKey ? "Hide token security key" : "Show token security key"}
+                      >
+                        {showTokenSecurityKey ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

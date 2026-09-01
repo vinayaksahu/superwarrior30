@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   X,
   Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface StaffManagementClientProps {
@@ -32,6 +34,7 @@ export function StaffManagementClient({
   const [editRoleStaff, setEditRoleStaff] = useState<StaffMember | null>(null);
   const [feedback, setFeedback] = useState<{ success: boolean; message?: string } | null>(null);
 
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -298,14 +301,29 @@ export function StaffManagementClient({
 
               <div className="space-y-1.5">
                 <label className="font-semibold text-foreground">Temporary Password</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Min. 6 characters"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full h-10 rounded-xl border border-input bg-background px-3.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="Min. 6 characters"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full h-10 rounded-xl border border-input bg-background pl-3.5 pr-10 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5">

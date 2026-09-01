@@ -24,6 +24,8 @@ import {
   Lock,
   Phone,
   Users,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { PaymentMethodItem } from "@/server/actions/payment-method.actions";
@@ -80,6 +82,7 @@ export function ManualCheckoutClient({
   const [guestEmail, setGuestEmail] = useState<string>(userEmail || "");
   const [guestPhone, setGuestPhone] = useState<string>("");
   const [guestPassword, setGuestPassword] = useState<string>("");
+  const [showGuestPassword, setShowGuestPassword] = useState<boolean>(false);
 
   // ----------------------------------------------------
   // 1. PROMO COUPON STATE
@@ -1295,15 +1298,30 @@ export function ManualCheckoutClient({
                           <label className="text-[11px] font-semibold text-foreground block mb-1 flex items-center gap-1">
                             <Lock className="h-3 w-3 text-primary" /> Create Password *
                           </label>
-                          <input
-                            type="password"
-                            required
-                            minLength={6}
-                            value={guestPassword}
-                            onChange={(e) => setGuestPassword(e.target.value)}
-                            placeholder="Min 6 chars"
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showGuestPassword ? "text" : "password"}
+                              required
+                              minLength={6}
+                              value={guestPassword}
+                              onChange={(e) => setGuestPassword(e.target.value)}
+                              placeholder="Min 6 chars"
+                              className="w-full rounded-lg border border-input bg-background pl-3 pr-9 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowGuestPassword((prev) => !prev)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                              tabIndex={-1}
+                              aria-label={showGuestPassword ? "Hide password" : "Show password"}
+                            >
+                              {showGuestPassword ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>

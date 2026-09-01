@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
 import { updateProfileAction, changePasswordAction } from "@/server/actions/profile.actions";
-import { User, Lock, KeyRound, Shield, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { User, Lock, KeyRound, Shield, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
 import type { ActionState } from "@/types";
 
 interface AdminProfileFormProps {
@@ -17,6 +18,10 @@ interface AdminProfileFormProps {
 }
 
 export function AdminProfileForm({ user }: AdminProfileFormProps) {
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [profileState, profileAction, isProfilePending] = useActionState<ActionState | null, FormData>(
     updateProfileAction,
     null
@@ -166,14 +171,29 @@ export function AdminProfileForm({ user }: AdminProfileFormProps) {
             <label htmlFor="currentPassword" className="text-xs font-semibold text-foreground">
               Current Password <span className="text-destructive">*</span>
             </label>
-            <input
-              id="currentPassword"
-              name="currentPassword"
-              type="password"
-              required
-              placeholder="Enter current password"
-              className="flex h-10 w-full rounded-xl border border-input bg-background px-3.5 text-xs text-foreground focus:border-primary focus:outline-none"
-            />
+            <div className="relative">
+              <input
+                id="currentPassword"
+                name="currentPassword"
+                type={showCurrentPassword ? "text" : "password"}
+                required
+                placeholder="Enter current password"
+                className="flex h-10 w-full rounded-xl border border-input bg-background pl-3.5 pr-10 text-xs text-foreground focus:border-primary focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword((prev) => !prev)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                tabIndex={-1}
+                aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+              >
+                {showCurrentPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -181,30 +201,60 @@ export function AdminProfileForm({ user }: AdminProfileFormProps) {
               <label htmlFor="newPassword" className="text-xs font-semibold text-foreground">
                 New Password <span className="text-destructive">*</span>
               </label>
-              <input
-                id="newPassword"
-                name="newPassword"
-                type="password"
-                required
-                minLength={8}
-                placeholder="At least 8 characters"
-                className="flex h-10 w-full rounded-xl border border-input bg-background px-3.5 text-xs text-foreground focus:border-primary focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  id="newPassword"
+                  name="newPassword"
+                  type={showNewPassword ? "text" : "password"}
+                  required
+                  minLength={8}
+                  placeholder="At least 8 characters"
+                  className="flex h-10 w-full rounded-xl border border-input bg-background pl-3.5 pr-10 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                  tabIndex={-1}
+                  aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1.5">
               <label htmlFor="confirmPassword" className="text-xs font-semibold text-foreground">
                 Confirm New Password <span className="text-destructive">*</span>
               </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                required
-                minLength={8}
-                placeholder="Repeat new password"
-                className="flex h-10 w-full rounded-xl border border-input bg-background px-3.5 text-xs text-foreground focus:border-primary focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  minLength={8}
+                  placeholder="Repeat new password"
+                  className="flex h-10 w-full rounded-xl border border-input bg-background pl-3.5 pr-10 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                  tabIndex={-1}
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 

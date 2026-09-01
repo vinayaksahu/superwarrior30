@@ -3,7 +3,7 @@
 import { useActionState, use, useState, useEffect } from "react";
 import { registerAction } from "@/server/actions/auth.actions";
 import type { ActionState } from "@/types";
-import { Sparkles, Tag, CheckCircle2 } from "lucide-react";
+import { Sparkles, Tag, CheckCircle2, Eye, EyeOff } from "lucide-react";
 
 interface RegisterFormProps {
   searchParams: Promise<{ ref?: string }>;
@@ -18,6 +18,8 @@ export function RegisterForm({
 }: RegisterFormProps) {
   const { ref: initialRef } = use(searchParams);
   const [refCode, setRefCode] = useState(initialRef || "");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [state, formAction, isPending] = useActionState<ActionState | null, FormData>(
     registerAction,
@@ -89,15 +91,30 @@ export function RegisterForm({
             <label htmlFor="password" className="text-sm font-medium leading-none">
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="••••••••"
-              autoComplete="new-password"
-              required
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                required
+                className="flex h-10 w-full rounded-md border border-input bg-background pl-3 pr-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {state?.errors?.password && (
               <p className="text-xs text-destructive">
                 {state.errors.password[0]}
@@ -112,15 +129,30 @@ export function RegisterForm({
             >
               Confirm Password
             </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              placeholder="••••••••"
-              autoComplete="new-password"
-              required
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            />
+            <div className="relative">
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                required
+                className="flex h-10 w-full rounded-md border border-input bg-background pl-3 pr-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none cursor-pointer"
+                tabIndex={-1}
+                aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {state?.errors?.confirmPassword && (
               <p className="text-xs text-destructive">
                 {state.errors.confirmPassword[0]}
