@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { UserRole } from "@/generated/prisma";
 
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+
 export const verifySession = cache(async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -22,23 +24,56 @@ export const getCurrentUser = cache(async () => {
   const session = await verifySession();
   if (!session) return null;
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      phone: true,
-      role: true,
-      adminRole: true,
-      customPermissions: true,
-      status: true,
-      avatarUrl: true,
-      referralCode: true,
-      tokenVersion: true,
-      createdAt: true,
-    },
-  });
+  await ensureDatabaseSchemaSync().catch(() => {});
+
+  let user = null;
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        adminRole: true,
+        customPermissions: true,
+        status: true,
+        avatarUrl: true,
+        referralCode: true,
+        tokenVersion: true,
+        createdAt: true,
+      },
+    });
+  } catch {
+    // Fallback query if columns are still syncing
+    try {
+      const basicUser = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+          status: true,
+          avatarUrl: true,
+          referralCode: true,
+          tokenVersion: true,
+          createdAt: true,
+        },
+      });
+      if (basicUser) {
+        user = {
+          ...basicUser,
+          adminRole: basicUser.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : basicUser.role === "SUPPORT" ? "SUPPORT" : "FULL_ACCESS_ADMIN",
+          customPermissions: [],
+        };
+      }
+    } catch {
+      user = null;
+    }
+  }
 
   if (!user || user.status !== "ACTIVE") return null;
 
