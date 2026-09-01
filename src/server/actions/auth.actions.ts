@@ -104,12 +104,17 @@ export async function loginAction(
   // 2.5 Portal-Specific Server-Side Role Enforcement
   const portal = (formData.get("loginPortal")?.toString() || "STUDENT").toUpperCase();
 
-  if (portal === "SUPER_ADMIN") {
-    const isSuper =
-      user.role === "SUPER_ADMIN" ||
-      user.email === "vinayaksahu3@gmail.com" ||
-      user.email === "admin@superwarrior30.com";
+  const isSuper =
+    user.role === "SUPER_ADMIN" ||
+    user.email === "vinayaksahu3@gmail.com" ||
+    user.email === "admin@superwarrior30.com";
 
+  const isAdminStaff =
+    isSuper ||
+    user.role === "ADMIN" ||
+    user.role === "SUPPORT";
+
+  if (portal === "SUPER_ADMIN") {
     if (!isSuper) {
       await prisma.auditLog
         .create({
@@ -131,13 +136,6 @@ export async function loginAction(
       };
     }
   } else if (portal === "ADMIN") {
-    const isAdminStaff =
-      user.role === "SUPER_ADMIN" ||
-      user.role === "ADMIN" ||
-      user.role === "SUPPORT" ||
-      user.email === "vinayaksahu3@gmail.com" ||
-      user.email === "admin@superwarrior30.com";
-
     if (!isAdminStaff) {
       await prisma.auditLog
         .create({
@@ -156,6 +154,20 @@ export async function loginAction(
       return {
         success: false,
         message: "Access denied. Only authorized administrators and staff can sign in through this portal.",
+      };
+    }
+  } else {
+    // Normal User / Student Portal (/login)
+    if (isSuper) {
+      return {
+        success: false,
+        message: "Super Admin accounts must sign in using the dedicated Super Admin portal: /superadminlogin",
+      };
+    }
+    if (isAdminStaff) {
+      return {
+        success: false,
+        message: "Admin and staff accounts must sign in using the dedicated Admin portal: /adminlogin",
       };
     }
   }

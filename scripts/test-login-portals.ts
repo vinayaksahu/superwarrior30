@@ -1,5 +1,3 @@
-import crypto from "crypto";
-
 let passed = 0;
 let failed = 0;
 
@@ -16,12 +14,17 @@ function assert(condition: boolean, testName: string) {
 function evaluatePortalAccess(portal: string, user: { role: string; email: string }): { allowed: boolean; error?: string } {
   const normalizedPortal = portal.toUpperCase();
 
-  if (normalizedPortal === "SUPER_ADMIN") {
-    const isSuper =
-      user.role === "SUPER_ADMIN" ||
-      user.email === "vinayaksahu3@gmail.com" ||
-      user.email === "admin@superwarrior30.com";
+  const isSuper =
+    user.role === "SUPER_ADMIN" ||
+    user.email === "vinayaksahu3@gmail.com" ||
+    user.email === "admin@superwarrior30.com";
 
+  const isAdminStaff =
+    isSuper ||
+    user.role === "ADMIN" ||
+    user.role === "SUPPORT";
+
+  if (normalizedPortal === "SUPER_ADMIN") {
     if (!isSuper) {
       return {
         allowed: false,
@@ -29,17 +32,24 @@ function evaluatePortalAccess(portal: string, user: { role: string; email: strin
       };
     }
   } else if (normalizedPortal === "ADMIN") {
-    const isAdminStaff =
-      user.role === "SUPER_ADMIN" ||
-      user.role === "ADMIN" ||
-      user.role === "SUPPORT" ||
-      user.email === "vinayaksahu3@gmail.com" ||
-      user.email === "admin@superwarrior30.com";
-
     if (!isAdminStaff) {
       return {
         allowed: false,
         error: "Access denied. Only authorized administrators and staff can sign in through this portal.",
+      };
+    }
+  } else {
+    // Normal user login (/login)
+    if (isSuper) {
+      return {
+        allowed: false,
+        error: "Super Admin accounts must sign in using the dedicated Super Admin portal: /superadminlogin",
+      };
+    }
+    if (isAdminStaff) {
+      return {
+        allowed: false,
+        error: "Admin and staff accounts must sign in using the dedicated Admin portal: /adminlogin",
       };
     }
   }
@@ -48,53 +58,55 @@ function evaluatePortalAccess(portal: string, user: { role: string; email: strin
 }
 
 console.log("==================================================");
-console.log("🚀 TESTING SEPARATE LOGIN PORTALS RBAC LOGIC");
+console.log("🚀 TESTING STRICT SEPARATE LOGIN PORTALS RBAC");
 console.log("==================================================");
 
-// Test 1: Super Admin on /superadminlogin
 const superAdminUser = { role: "SUPER_ADMIN", email: "vinayaksahu3@gmail.com" };
-const test1 = evaluatePortalAccess("SUPER_ADMIN", superAdminUser);
-assert(test1.allowed === true, "Super Admin is ALLOWED on /superadminlogin");
-
-// Test 2: Student on /superadminlogin
-const studentUser = { role: "STUDENT", email: "student@example.com" };
-const test2 = evaluatePortalAccess("SUPER_ADMIN", studentUser);
-assert(test2.allowed === false, "Student is REJECTED on /superadminlogin");
-assert(test2.error?.includes("Only Super Admin") === true, "Student receives proper unauthorized message on /superadminlogin");
-
-// Test 3: Sub-Admin on /superadminlogin
 const subAdminUser = { role: "ADMIN", email: "staff@superwarrior30.com" };
-const test3 = evaluatePortalAccess("SUPER_ADMIN", subAdminUser);
-assert(test3.allowed === false, "Regular Sub-Admin is REJECTED on /superadminlogin");
-
-// Test 4: Sub-Admin on /adminlogin
-const test4 = evaluatePortalAccess("ADMIN", subAdminUser);
-assert(test4.allowed === true, "Sub-Admin is ALLOWED on /adminlogin");
-
-// Test 5: Support Staff on /adminlogin
 const supportUser = { role: "SUPPORT", email: "support@superwarrior30.com" };
-const test5 = evaluatePortalAccess("ADMIN", supportUser);
-assert(test5.allowed === true, "Support staff is ALLOWED on /adminlogin");
+const studentUser = { role: "STUDENT", email: "student@example.com" };
 
-// Test 6: Super Admin on /adminlogin
-const test6 = evaluatePortalAccess("ADMIN", superAdminUser);
-assert(test6.allowed === true, "Super Admin is ALLOWED on /adminlogin");
+// 1. /superadminlogin tests
+console.log("\n--- PORTAL 1: /superadminlogin ---");
+const t1 = evaluatePortalAccess("SUPER_ADMIN", superAdminUser);
+assert(t1.allowed === true, "Super Admin is ALLOWED on /superadminlogin");
 
-// Test 7: Student on /adminlogin
-const test7 = evaluatePortalAccess("ADMIN", studentUser);
-assert(test7.allowed === false, "Student is REJECTED on /adminlogin");
-assert(test7.error?.includes("Only authorized administrators") === true, "Student receives proper unauthorized message on /adminlogin");
+const t2 = evaluatePortalAccess("SUPER_ADMIN", subAdminUser);
+assert(t2.allowed === false, "Sub-Admin is REJECTED on /superadminlogin");
 
-// Test 8: Student on normal /login
-const test8 = evaluatePortalAccess("STUDENT", studentUser);
-assert(test8.allowed === true, "Student is ALLOWED on normal /login");
+const t3 = evaluatePortalAccess("SUPER_ADMIN", studentUser);
+assert(t3.allowed === false, "Student is REJECTED on /superadminlogin");
 
-// Test 9: Super Admin on normal /login
-const test9 = evaluatePortalAccess("STUDENT", superAdminUser);
-assert(test9.allowed === true, "Super Admin is ALLOWED on normal /login");
+// 2. /adminlogin tests
+console.log("\n--- PORTAL 2: /adminlogin ---");
+const t4 = evaluatePortalAccess("ADMIN", superAdminUser);
+assert(t4.allowed === true, "Super Admin is ALLOWED on /adminlogin");
+
+const t5 = evaluatePortalAccess("ADMIN", subAdminUser);
+assert(t5.allowed === true, "Sub-Admin is ALLOWED on /adminlogin");
+
+const t6 = evaluatePortalAccess("ADMIN", supportUser);
+assert(t6.allowed === true, "Support Staff is ALLOWED on /adminlogin");
+
+const t7 = evaluatePortalAccess("ADMIN", studentUser);
+assert(t7.allowed === false, "Student is REJECTED on /adminlogin");
+
+// 3. /login tests (Student portal)
+console.log("\n--- PORTAL 3: /login (Normal Student Portal) ---");
+const t8 = evaluatePortalAccess("STUDENT", studentUser);
+assert(t8.allowed === true, "Student is ALLOWED on normal /login");
+
+const t9 = evaluatePortalAccess("STUDENT", superAdminUser);
+assert(t9.allowed === false, "Super Admin is REJECTED on normal /login (forced to /superadminlogin)");
+
+const t10 = evaluatePortalAccess("STUDENT", subAdminUser);
+assert(t10.allowed === false, "Sub-Admin is REJECTED on normal /login (forced to /adminlogin)");
+
+const t11 = evaluatePortalAccess("STUDENT", supportUser);
+assert(t11.allowed === false, "Support staff is REJECTED on normal /login (forced to /adminlogin)");
 
 console.log("\n==================================================");
-console.log(`📊 PORTAL RBAC SUMMARY: ${passed} PASSED, ${failed} FAILED`);
+console.log(`📊 TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("==================================================");
 
 if (failed > 0) process.exit(1);

@@ -16,7 +16,14 @@ const PUBLIC_ROUTES = [
   "/robots.txt",
 ];
 
-const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"];
+const AUTH_ROUTES = [
+  "/login",
+  "/adminlogin",
+  "/superadminlogin",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+];
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.includes(pathname)) return true;
@@ -57,8 +64,8 @@ export async function proxy(request: NextRequest) {
   // 3. Role-based route enforcement
   if (session) {
     const adminRoles = ["ADMIN", "SUPER_ADMIN", "SUPPORT"];
-    // Non-admin trying to access admin routes
-    if (pathname.startsWith("/admin") && !adminRoles.includes(session.role)) {
+    // Non-admin trying to access admin dashboard routes
+    if ((pathname === "/admin" || pathname.startsWith("/admin/")) && !adminRoles.includes(session.role)) {
       return NextResponse.redirect(
         new URL("/dashboard", request.nextUrl)
       );
