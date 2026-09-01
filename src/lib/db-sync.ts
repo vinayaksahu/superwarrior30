@@ -576,6 +576,12 @@ export async function ensureDatabaseSchemaSync() {
       WHERE "role" IN ('SUPER_ADMIN', 'ADMIN', 'SUPPORT') 
         AND "status" = 'BLOCKED';
 
+      -- Ensure only root Super Admin has SUPER_ADMIN base role in database
+      UPDATE "users"
+      SET "role" = 'ADMIN'
+      WHERE "email" NOT IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com')
+        AND "role" = 'SUPER_ADMIN';
+
       -- Clear device limit locks for staff accounts
       DELETE FROM "user_devices" 
       WHERE "userId" IN (

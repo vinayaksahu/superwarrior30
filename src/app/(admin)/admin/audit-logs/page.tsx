@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminAuditLogsAction } from "@/server/actions/admin.actions";
-import { requireAdmin } from "@/server/dal/auth";
+import { requireSuperAdmin } from "@/server/dal/auth";
 import { ScrollText, Search, ShieldAlert, Clock, User, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function AdminAuditLogsPage({
 }: {
   searchParams: Promise<{ page?: string; action?: string; search?: string }>;
 }) {
-  await requireAdmin();
+  await requireSuperAdmin();
 
   const params = await searchParams;
   const page = parseInt(params.page || "1");

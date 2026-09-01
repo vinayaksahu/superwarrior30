@@ -121,16 +121,16 @@ export async function requireAuth() {
   return user;
 }
 
-export function isSuperAdminUser(user?: { role?: string | null; email?: string | null } | null): boolean {
+export function isSuperAdminUser(user?: { role?: string | null; adminRole?: string | null; email?: string | null } | null): boolean {
   if (!user) return false;
-  const role = String(user.role || "").toUpperCase();
-  const email = String(user.email || "").toLowerCase();
+  const role = String(user.role || "").toUpperCase().trim();
+  const adminRole = String(user.adminRole || "").toUpperCase().trim();
+  const email = String(user.email || "").toLowerCase().trim();
   return (
-    role === "SUPER_ADMIN" ||
-    role === "ADMIN" ||
     email === "vinayaksahu3@gmail.com" ||
     email === "admin@superwarrior30.com" ||
-    email.startsWith("admin@")
+    adminRole === "SUPER_ADMIN" ||
+    (role === "SUPER_ADMIN" && (adminRole === "SUPER_ADMIN" || !user.adminRole))
   );
 }
 

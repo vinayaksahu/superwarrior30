@@ -404,16 +404,15 @@ export function getEffectivePermissions(user: {
 } | null | undefined): Set<string> {
   if (!user) return new Set();
 
-  const email = String(user.email || "").toLowerCase();
-  const role = String(user.role || "").toUpperCase();
-  const adminRole = String(user.adminRole || "").toUpperCase();
+  const email = String(user.email || "").toLowerCase().trim();
+  const role = String(user.role || "").toUpperCase().trim();
+  const adminRole = String(user.adminRole || "").toUpperCase().trim();
 
-  // Root Super Admin check
+  // Root Super Admin check (strictly for genuine root accounts)
   if (
-    role === "SUPER_ADMIN" ||
-    adminRole === "SUPER_ADMIN" ||
     email === "vinayaksahu3@gmail.com" ||
-    email === "admin@superwarrior30.com"
+    email === "admin@superwarrior30.com" ||
+    adminRole === "SUPER_ADMIN"
   ) {
     return new Set(ALL_PERMISSION_KEYS);
   }
@@ -437,19 +436,16 @@ export function getEffectivePermissions(user: {
   }
 
   // Predefined role preset
-  if (adminRole in ROLE_PRESETS) {
+  if (adminRole in ROLE_PRESETS && adminRole !== "SUPER_ADMIN") {
     return new Set(ROLE_PRESETS[adminRole as AdminRoleType].defaultPermissions);
   }
 
   // Legacy fallback based on UserRole enum
-  if (role === "ADMIN") {
-    return new Set(ROLE_PRESETS.FULL_ACCESS_ADMIN.defaultPermissions);
-  }
   if (role === "SUPPORT") {
     return new Set(ROLE_PRESETS.SUPPORT.defaultPermissions);
   }
 
-  return new Set();
+  return new Set(ROLE_PRESETS.FULL_ACCESS_ADMIN.defaultPermissions);
 }
 
 /**
@@ -497,15 +493,15 @@ export function getRolePresentation(
   badgeColorClass: string;
   effectiveRoleKey: AdminRoleType;
 } {
-  const normEmail = String(email || "").toLowerCase();
-  const normRole = String(role || "").toUpperCase();
-  const normAdminRole = String(adminRole || "").toUpperCase();
+  const normEmail = String(email || "").toLowerCase().trim();
+  const normRole = String(role || "").toUpperCase().trim();
+  const normAdminRole = String(adminRole || "").toUpperCase().trim();
 
+  // Root Super Admin check ONLY for genuine root account
   if (
-    normRole === "SUPER_ADMIN" ||
-    normAdminRole === "SUPER_ADMIN" ||
     normEmail === "vinayaksahu3@gmail.com" ||
-    normEmail === "admin@superwarrior30.com"
+    normEmail === "admin@superwarrior30.com" ||
+    normAdminRole === "SUPER_ADMIN"
   ) {
     return {
       displayName: "Super Admin",
@@ -515,7 +511,7 @@ export function getRolePresentation(
     };
   }
 
-  if (normAdminRole in ROLE_PRESETS) {
+  if (normAdminRole in ROLE_PRESETS && normAdminRole !== "SUPER_ADMIN") {
     const preset = ROLE_PRESETS[normAdminRole as AdminRoleType];
     return {
       displayName: preset.displayName,
