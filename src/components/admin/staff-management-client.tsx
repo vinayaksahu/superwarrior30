@@ -113,19 +113,6 @@ export function StaffManagementClient({
     "CUSTOM_ROLE",
   ];
 
-  const isViewerSuperAdmin = currentUserRole === "SUPER_ADMIN";
-
-  const visibleStaff = initialStaff.filter((staff) => {
-    if (isViewerSuperAdmin) return true;
-    // Hide Super Admin from any non-super-admin viewer
-    return (
-      staff.adminRole !== "SUPER_ADMIN" &&
-      staff.baseRole !== "SUPER_ADMIN" &&
-      staff.email !== "vinayaksahu3@gmail.com" &&
-      staff.email !== "admin@superwarrior30.com"
-    );
-  });
-
   return (
     <div className="space-y-6">
       {/* Top Banner & Action */}
@@ -133,7 +120,7 @@ export function StaffManagementClient({
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">
             <ShieldCheck className="h-7 w-7 text-primary" />
-            System Administrators ({visibleStaff.length})
+            System Administrators ({initialStaff.length})
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Role-Based Access Control (RBAC) &amp; staff permission management
@@ -182,7 +169,7 @@ export function StaffManagementClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {visibleStaff.map((staff) => {
+              {initialStaff.map((staff) => {
                 const isSuper = staff.adminRole === "SUPER_ADMIN";
                 const initials = staff.name
                   .split(" ")
