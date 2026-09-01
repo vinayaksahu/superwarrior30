@@ -237,7 +237,7 @@ export function AdminSidebar({
               TRADE <span className="text-amber-400">WARRIOR</span>
             </span>
             <span className="text-[9px] font-bold text-amber-500/80 uppercase">
-              {isSuper ? "SUPER ADMIN" : "STAFF PORTAL"}
+              ACADEMY
             </span>
           </div>
         </Link>

@@ -111,24 +111,8 @@ export function AdminHeader({ user }: AdminHeaderProps) {
           <ThemeToggle />
           <div className="text-right hidden sm:block">
             <p className="text-xs sm:text-sm font-semibold text-foreground">
-              {!isSuper && user.name === "Super Admin" ? "Staff Admin" : (user.name || user.email)}
+              {user.name || user.email}
             </p>
-            <div className="flex items-center justify-end gap-1 mt-0.5">
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
-                  user.badgeColorClass ||
-                  (isSuper
-                    ? "bg-destructive/15 text-destructive border border-destructive/30"
-                    : "bg-primary/15 text-primary border border-primary/30")
-                }`}
-              >
-                {isSuper
-                  ? "SUPER_ADMIN"
-                  : user.badgeLabel === "CUSTOM_ROLE"
-                  ? "STAFF_ADMIN"
-                  : user.badgeLabel || "STAFF_ADMIN"}
-              </span>
-            </div>
           </div>
           <form action={logoutAction}>
             <button
