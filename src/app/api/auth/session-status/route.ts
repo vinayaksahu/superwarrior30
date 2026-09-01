@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
  *
  * Lightweight heartbeat endpoint for client-side session guard.
  * Accurately distinguishes between:
- * 1. DISPLACED: Another device logged in (single device rule)
- * 2. ADMIN_LOGOUT: Admin explicitly performed Session Out or Revoke
- * 3. BLOCKED: User account locked due to security limit
+ * 1. DISPLACED: Another device logged in (active on a different device)
+ * 2. ADMIN_LOGOUT: Admin explicitly revoked the session
+ * 3. BLOCKED: User account locked
+ * 4. Normal Logout / Inactive: Clean termination without false warnings
  */
 export async function GET() {
   try {
@@ -26,7 +27,7 @@ export async function GET() {
 
     const session = await decrypt(token);
     if (!session?.userId) {
-      return NextResponse.json({ authenticated: false, reason: "INVALID" });
+      return NextResponse.json({ authenticated: false });
     }
 
     const user = await prisma.user.findUnique({
@@ -39,7 +40,7 @@ export async function GET() {
     });
 
     if (!user) {
-      return NextResponse.json({ authenticated: false, reason: "USER_NOT_FOUND" });
+      return NextResponse.json({ authenticated: false });
     }
 
     if (user.status === "BLOCKED" || user.status === "SUSPENDED") {
@@ -50,10 +51,7 @@ export async function GET() {
       return NextResponse.json({ authenticated: false, reason: "DEACTIVATED" });
     }
 
-    // Check device state first to see if it was explicitly revoked by admin
-    let deviceRevoked = false;
-    let deviceInactive = false;
-
+    // Check device state
     if (session.deviceId) {
       const device = await prisma.userDevice.findUnique({
         where: { id: session.deviceId },
@@ -64,21 +62,31 @@ export async function GET() {
         },
       });
 
-      if (!device || device.revokedAt !== null) {
-        deviceRevoked = true;
-      } else if (!device.isActive) {
-        deviceInactive = true;
+      // If device was explicitly revoked by an admin action
+      if (device && device.revokedAt !== null) {
+        return NextResponse.json({ authenticated: false, reason: "ADMIN_LOGOUT" });
       }
-    }
 
-    // If device was revoked (Session Out / Revoke button), return ADMIN_LOGOUT
-    if (deviceRevoked) {
-      return NextResponse.json({ authenticated: false, reason: "ADMIN_LOGOUT" });
-    }
+      // If current device is inactive or tokenVersion changed
+      if (!device || !device.isActive || user.tokenVersion !== session.tokenVersion) {
+        // Check if user is actively logged in on ANOTHER device (genuine displacement)
+        const anotherActiveDevice = await prisma.userDevice.findFirst({
+          where: {
+            userId: user.id,
+            isActive: true,
+            id: { not: session.deviceId },
+          },
+        });
 
-    // If tokenVersion changed or device marked inactive without revoke, it was displaced by another device login
-    if (user.tokenVersion !== session.tokenVersion || deviceInactive) {
-      return NextResponse.json({ authenticated: false, reason: "DISPLACED" });
+        if (anotherActiveDevice) {
+          return NextResponse.json({ authenticated: false, reason: "DISPLACED" });
+        }
+
+        // Voluntary logout or normal session expiration: Return unauthenticated WITHOUT displacement error
+        return NextResponse.json({ authenticated: false });
+      }
+    } else if (user.tokenVersion !== session.tokenVersion) {
+      return NextResponse.json({ authenticated: false });
     }
 
     return NextResponse.json({ authenticated: true });

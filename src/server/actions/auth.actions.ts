@@ -758,6 +758,13 @@ export async function registerAction(
 
 export async function logoutAction(): Promise<void> {
   const session = await verifySession();
+  const role = session?.role;
+  const isSuper =
+    role === "SUPER_ADMIN" ||
+    session?.email === "vinayaksahu3@gmail.com" ||
+    session?.email === "admin@superwarrior30.com";
+  const isAdmin = role === "ADMIN" || role === "SUPPORT";
+
   if (session?.deviceId) {
     // Mark device as inactive on logout
     await prisma.userDevice
@@ -769,7 +776,14 @@ export async function logoutAction(): Promise<void> {
   }
 
   await deleteSession();
-  redirect("/login");
+
+  if (isSuper) {
+    redirect("/superadminlogin");
+  } else if (isAdmin) {
+    redirect("/adminlogin");
+  } else {
+    redirect("/login");
+  }
 }
 
 // ==========================================

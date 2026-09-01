@@ -6,6 +6,8 @@ import { ShieldAlert, LogOut, Smartphone, AlertTriangle } from "lucide-react";
 
 const PUBLIC_AND_AUTH_PATHS = [
   "/login",
+  "/adminlogin",
+  "/superadminlogin",
   "/register",
   "/forgot-password",
   "/reset-password",
