@@ -1002,33 +1002,51 @@ export async function forgotPasswordAction(
     where: { email: cleanEmail },
   });
 
-  if (user && user.status === "ACTIVE") {
-    // Generate secure 32-byte hex token
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    // Save token hash to database
-    await prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash,
-        expiresAt,
-      },
-    });
-
-    const resetUrl = `${APP_URL}/reset-password?token=${rawToken}`;
-    await sendPasswordResetEmail({
-      to: user.email,
-      resetUrl,
-      userName: user.name,
-    });
+  if (!user) {
+    return {
+      success: false,
+      message: "Account does not exist with this email address. Please check your email or sign up.",
+    };
   }
 
-  // Generic anti-enumeration response
+  if (user.status !== "ACTIVE") {
+    return {
+      success: false,
+      message: "This account is not active. Please contact administrator support.",
+    };
+  }
+
+  // Generate secure 32-byte hex token
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  // Save token hash to database
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    },
+  });
+
+  const resetUrl = `${APP_URL}/reset-password?token=${rawToken}`;
+  const sendResult = await sendPasswordResetEmail({
+    to: user.email,
+    resetUrl,
+    userName: user.name,
+  });
+
+  if (!sendResult.success) {
+    return {
+      success: false,
+      message: "We could not deliver the reset email right now. Please try again later.",
+    };
+  }
+
   return {
     success: true,
-    message: "If an account exists with that email, we have dispatched password reset instructions.",
+    message: `Password reset instructions have been sent to ${user.email}. Please check your inbox.`,
   };
 }
 
