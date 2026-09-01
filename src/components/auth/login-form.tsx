@@ -20,7 +20,11 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-export function LoginForm() {
+interface LoginFormProps {
+  portal?: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
+}
+
+export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState<ActionState | null, FormData>(
     loginAction,
@@ -276,6 +280,7 @@ export function LoginForm() {
   // ----------------------------------------------------
   return (
     <form action={formAction} className="space-y-4">
+      <input type="hidden" name="loginPortal" value={portal} />
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         {urlNotice && !state?.message && (
           <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-500">
@@ -360,6 +365,10 @@ export function LoginForm() {
             <>
               <Loader2 className="h-4 w-4 animate-spin" /> Verifying...
             </>
+          ) : portal === "SUPER_ADMIN" ? (
+            "Sign In to Super Admin"
+          ) : portal === "ADMIN" ? (
+            "Sign In to Admin Portal"
           ) : (
             "Sign In"
           )}

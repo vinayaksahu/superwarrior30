@@ -101,6 +101,65 @@ export async function loginAction(
     return { success: false, message: "Invalid email or password." };
   }
 
+  // 2.5 Portal-Specific Server-Side Role Enforcement
+  const portal = (formData.get("loginPortal")?.toString() || "STUDENT").toUpperCase();
+
+  if (portal === "SUPER_ADMIN") {
+    const isSuper =
+      user.role === "SUPER_ADMIN" ||
+      user.email === "vinayaksahu3@gmail.com" ||
+      user.email === "admin@superwarrior30.com";
+
+    if (!isSuper) {
+      await prisma.auditLog
+        .create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: "UNAUTHORIZED_PORTAL_LOGIN_ATTEMPT",
+            entityType: "User",
+            entityId: user.id,
+            newValues: { attemptedPortal: "SUPER_ADMIN", userRole: user.role },
+          },
+        })
+        .catch(() => {});
+
+      return {
+        success: false,
+        message: "Access denied. Only Super Admin accounts are authorized to sign in through this portal.",
+      };
+    }
+  } else if (portal === "ADMIN") {
+    const isAdminStaff =
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.role === "SUPPORT" ||
+      user.email === "vinayaksahu3@gmail.com" ||
+      user.email === "admin@superwarrior30.com";
+
+    if (!isAdminStaff) {
+      await prisma.auditLog
+        .create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: "UNAUTHORIZED_PORTAL_LOGIN_ATTEMPT",
+            entityType: "User",
+            entityId: user.id,
+            newValues: { attemptedPortal: "ADMIN", userRole: user.role },
+          },
+        })
+        .catch(() => {});
+
+      return {
+        success: false,
+        message: "Access denied. Only authorized administrators and staff can sign in through this portal.",
+      };
+    }
+  }
+
   // 3. Device detection and verification
   const deviceMeta = await getClientDeviceMetadata();
   await setDeviceCookie(deviceMeta.deviceToken);
