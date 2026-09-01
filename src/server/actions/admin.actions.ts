@@ -203,21 +203,40 @@ export async function getAdminAuditLogsAction({
   action?: string;
   search?: string;
 } = {}) {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
+  const isSuper =
+    currentUser.role === "SUPER_ADMIN" ||
+    currentUser.adminRole === "SUPER_ADMIN" ||
+    currentUser.email === "vinayaksahu3@gmail.com" ||
+    currentUser.email === "admin@superwarrior30.com";
 
-  const where: Prisma.AuditLogWhereInput = {};
+  const conditions: Prisma.AuditLogWhereInput[] = [];
+
+  // PRIVACY ENFORCEMENT: Subadmins must NEVER see Super Admin audit logs
+  if (!isSuper) {
+    conditions.push({
+      actorRole: { not: "SUPER_ADMIN" },
+      actorEmail: {
+        notIn: ["vinayaksahu3@gmail.com", "admin@superwarrior30.com"],
+      },
+    });
+  }
 
   if (action && action !== "all") {
-    where.action = action;
+    conditions.push({ action });
   }
 
   if (search) {
-    where.OR = [
-      { actorEmail: { contains: search, mode: "insensitive" } },
-      { entityType: { contains: search, mode: "insensitive" } },
-      { entityId: { contains: search, mode: "insensitive" } },
-    ];
+    conditions.push({
+      OR: [
+        { actorEmail: { contains: search, mode: "insensitive" } },
+        { entityType: { contains: search, mode: "insensitive" } },
+        { entityId: { contains: search, mode: "insensitive" } },
+      ],
+    });
   }
+
+  const where: Prisma.AuditLogWhereInput = conditions.length > 0 ? { AND: conditions } : {};
 
   const [logs, total] = await Promise.all([
     prisma.auditLog.findMany({

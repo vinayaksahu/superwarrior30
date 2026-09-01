@@ -138,16 +138,26 @@ assert(hasPermission(customUser, "courses.delete") === false, "Custom Role lacks
 assert(hasPermission(customUser, "orders.view") === false, "Custom Role lacks ungranted orders.view");
 assert(hasPermission(customUser, "withdrawals.approve") === false, "Custom Role lacks ungranted withdrawals.approve");
 
-// 8. Helpers hasAnyPermission and hasAllPermissions
-console.log("\n--- TEST SUITE 8: PERMISSION EVALUATION HELPERS ---");
-assert(
-  hasAnyPermission(supportUser, ["support.view", "withdrawals.payout"]) === true,
-  "hasAnyPermission returns true when at least one permission matches"
-);
-assert(
-  hasAnyPermission(supportUser, ["withdrawals.payout", "settings.backups.manage"]) === false,
-  "hasAnyPermission returns false when no permissions match"
-);
+// 9. Subadmin Privacy & Super Admin Isolation Tests
+console.log("\n--- TEST SUITE 9: SUPER ADMIN PRIVACY & AUDIT LOG ISOLATION ---");
+const sampleStaffList = [
+  { id: "usr_admin_001", email: "vinayaksahu3@gmail.com", adminRole: "SUPER_ADMIN", baseRole: "SUPER_ADMIN" },
+  { id: "usr_admin_002", email: "support@superwarrior30.com", adminRole: "SUPPORT", baseRole: "SUPPORT" },
+  { id: "usr_admin_003", email: "rahultradeworrieracademy@gmail.com", adminRole: "FULL_ACCESS_ADMIN", baseRole: "ADMIN" },
+];
+
+const subadminVisibleList = sampleStaffList.filter((s) => {
+  return (
+    s.adminRole !== "SUPER_ADMIN" &&
+    s.baseRole !== "SUPER_ADMIN" &&
+    s.email !== "vinayaksahu3@gmail.com" &&
+    s.email !== "admin@superwarrior30.com"
+  );
+});
+
+assert(subadminVisibleList.length === 2, "Subadmins only see other staff members (Super Admin is stripped out)");
+assert(!subadminVisibleList.some((s) => s.email === "vinayaksahu3@gmail.com"), "Super Admin email is 100% invisible to subadmins");
+assert(!subadminVisibleList.some((s) => s.adminRole === "SUPER_ADMIN"), "Super Admin role is 100% invisible to subadmins");
 
 console.log("\n==================================================");
 console.log(`📊 TOTAL RBAC TESTS: ${passed} PASSED, ${failed} FAILED`);

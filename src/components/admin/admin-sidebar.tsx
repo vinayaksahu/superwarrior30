@@ -139,7 +139,7 @@ export const allSidebarLinks: SidebarLink[] = [
     href: "/admin/staff",
     label: "Admin Roles & Staff",
     icon: ShieldCheck,
-    requiredPermission: "staff.view",
+    requiredPermission: "staff.roles_assign",
   },
   {
     href: "/admin/settings",

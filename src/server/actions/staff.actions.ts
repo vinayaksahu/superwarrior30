@@ -33,9 +33,15 @@ export interface StaffMember {
 
 export async function getStaffMembersAction(): Promise<{
   currentUserRole: string;
+  isSuperAdmin: boolean;
   staff: StaffMember[];
 }> {
-  const currentSuperAdmin = await requireSuperAdmin();
+  const currentUser = await requireAdmin();
+  const isSuper =
+    currentUser.role === "SUPER_ADMIN" ||
+    currentUser.adminRole === "SUPER_ADMIN" ||
+    currentUser.email === "vinayaksahu3@gmail.com" ||
+    currentUser.email === "admin@superwarrior30.com";
 
   try {
     const users = await prisma.user.findMany({
@@ -57,7 +63,7 @@ export async function getStaffMembersAction(): Promise<{
 
     const staff: StaffMember[] = (users || []).map((u) => {
       const presentation = getRolePresentation(u.role, u.adminRole, u.email);
-      const isSuper = presentation.effectiveRoleKey === "SUPER_ADMIN";
+      const isTargetSuper = presentation.effectiveRoleKey === "SUPER_ADMIN";
 
       let customPerms: string[] = [];
       if (Array.isArray(u.customPermissions)) {
@@ -66,13 +72,13 @@ export async function getStaffMembersAction(): Promise<{
 
       const effectivePerms = getEffectivePermissions({
         role: u.role,
-        adminRole: u.adminRole || (isSuper ? "SUPER_ADMIN" : u.role === "SUPPORT" ? "SUPPORT" : "FULL_ACCESS_ADMIN"),
+        adminRole: u.adminRole || (isTargetSuper ? "SUPER_ADMIN" : u.role === "SUPPORT" ? "SUPPORT" : "FULL_ACCESS_ADMIN"),
         customPermissions: customPerms,
         email: u.email,
       });
 
       let permissionsScope = "";
-      if (isSuper) {
+      if (isTargetSuper) {
         permissionsScope = "Full platform authority. Unrestricted management of administrators, financials & security.";
       } else if (presentation.effectiveRoleKey === "FULL_ACCESS_ADMIN") {
         permissionsScope = "Full operations: courses, orders, students, referrals, marketing & settings.";
@@ -99,18 +105,18 @@ export async function getStaffMembersAction(): Promise<{
         badgeColorClass: presentation.badgeColorClass,
         customPermissions: customPerms,
         permissionsScope,
-        permissionsCount: isSuper ? ALL_PERMISSION_KEYS.length : effectivePerms.size,
+        permissionsCount: isTargetSuper ? ALL_PERMISSION_KEYS.length : effectivePerms.size,
         status: u.status as "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
         createdAt: u.createdAt,
       };
     });
 
-    // Ensure at least the current logged-in super admin is listed
-    if (staff.length === 0) {
+    // If viewing as Super Admin and list is empty, add self
+    if (isSuper && staff.length === 0) {
       staff.push({
-        id: currentSuperAdmin.id,
-        name: currentSuperAdmin.name || "Super Admin",
-        email: currentSuperAdmin.email,
+        id: currentUser.id,
+        name: currentUser.name || "Super Admin",
+        email: currentUser.email,
         baseRole: "SUPER_ADMIN",
         adminRole: "SUPER_ADMIN",
         displayName: "Super Admin",
@@ -120,35 +126,32 @@ export async function getStaffMembersAction(): Promise<{
         permissionsScope: "Full platform authority. Unrestricted management of administrators, financials & security.",
         permissionsCount: ALL_PERMISSION_KEYS.length,
         status: "ACTIVE",
-        createdAt: currentSuperAdmin.createdAt,
+        createdAt: currentUser.createdAt,
       });
     }
 
+    // STRICT PRIVACY RULE: Subadmins must NEVER see Super Admin in staff list!
+    const visibleStaff = staff.filter((s) => {
+      if (isSuper) return true;
+      return (
+        s.adminRole !== "SUPER_ADMIN" &&
+        s.baseRole !== "SUPER_ADMIN" &&
+        s.email !== "vinayaksahu3@gmail.com" &&
+        s.email !== "admin@superwarrior30.com"
+      );
+    });
+
     return {
-      currentUserRole: "SUPER_ADMIN",
-      staff,
+      currentUserRole: isSuper ? "SUPER_ADMIN" : "SUB_ADMIN",
+      isSuperAdmin: isSuper,
+      staff: visibleStaff,
     };
   } catch (error) {
     console.error("Error loading staff members:", error);
     return {
-      currentUserRole: "SUPER_ADMIN",
-      staff: [
-        {
-          id: currentSuperAdmin.id,
-          name: currentSuperAdmin.name || "Super Admin",
-          email: currentSuperAdmin.email,
-          baseRole: "SUPER_ADMIN",
-          adminRole: "SUPER_ADMIN",
-          displayName: "Super Admin",
-          badgeLabel: "SUPER_ADMIN",
-          badgeColorClass: "bg-destructive/15 text-destructive border border-destructive/30",
-          customPermissions: [],
-          permissionsScope: "Full platform authority. Unrestricted management of administrators, financials & security.",
-          permissionsCount: ALL_PERMISSION_KEYS.length,
-          status: "ACTIVE",
-          createdAt: currentSuperAdmin.createdAt,
-        },
-      ],
+      currentUserRole: isSuper ? "SUPER_ADMIN" : "SUB_ADMIN",
+      isSuperAdmin: isSuper,
+      staff: [],
     };
   }
 }

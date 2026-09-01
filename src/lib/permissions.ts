@@ -302,11 +302,9 @@ export const ROLE_PRESETS: Record<AdminRoleType, RolePreset> = {
       "leads.view", "leads.manage", "leads.export",
       "funnel.view", "funnel.export",
       "testimonials.view", "testimonials.create", "testimonials.edit", "testimonials.delete", "testimonials.approve",
-      "staff.view",
       "settings.general.manage",
       "settings.profile.manage",
       "recycle_bin.view", "recycle_bin.manage",
-      "audit_logs.view",
     ],
   },
   SUPPORT: {
