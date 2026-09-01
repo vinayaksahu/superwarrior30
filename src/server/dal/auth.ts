@@ -92,18 +92,20 @@ export const getCurrentUser = cache(async () => {
       },
     });
 
-    // If device was revoked, displaced, or does not belong to user, invalidate session immediately
-    if (!device || device.userId !== user.id || !device.isActive || device.revokedAt !== null) {
-      return null;
-    }
+    // If device was explicitly revoked or deactivated
+    if (device) {
+      if (device.userId !== user.id || !device.isActive || device.revokedAt !== null) {
+        return null;
+      }
 
-    // Async background update of lastSeenAt
-    prisma.userDevice
-      .update({
-        where: { id: device.id },
-        data: { lastSeenAt: new Date() },
-      })
-      .catch(() => {});
+      // Async background update of lastSeenAt
+      prisma.userDevice
+        .update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        })
+        .catch(() => {});
+    }
   }
 
   return user;

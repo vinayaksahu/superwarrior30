@@ -581,12 +581,6 @@ export async function ensureDatabaseSchemaSync() {
       SET "role" = 'ADMIN'
       WHERE "email" NOT IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com')
         AND "role" = 'SUPER_ADMIN';
-
-      -- Clear device limit locks for staff accounts
-      DELETE FROM "user_devices" 
-      WHERE "userId" IN (
-        SELECT "id" FROM "users" WHERE "role" IN ('SUPER_ADMIN', 'ADMIN', 'SUPPORT')
-      );
     `);
   } catch {
     // ignore

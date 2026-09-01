@@ -67,9 +67,8 @@ export async function GET() {
         return NextResponse.json({ authenticated: false, reason: "ADMIN_LOGOUT" });
       }
 
-      // If current device is inactive or tokenVersion changed
-      if (!device || !device.isActive || user.tokenVersion !== session.tokenVersion) {
-        // Check if user is actively logged in on ANOTHER device (genuine displacement)
+      // If current device was explicitly marked inactive
+      if (device && !device.isActive) {
         const anotherActiveDevice = await prisma.userDevice.findFirst({
           where: {
             userId: user.id,
@@ -82,10 +81,11 @@ export async function GET() {
           return NextResponse.json({ authenticated: false, reason: "DISPLACED" });
         }
 
-        // Voluntary logout or normal session expiration: Return unauthenticated WITHOUT displacement error
         return NextResponse.json({ authenticated: false });
       }
-    } else if (user.tokenVersion !== session.tokenVersion) {
+    }
+
+    if (user.tokenVersion !== session.tokenVersion) {
       return NextResponse.json({ authenticated: false });
     }
 
