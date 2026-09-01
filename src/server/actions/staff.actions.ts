@@ -41,7 +41,10 @@ export async function getStaffMembersAction(): Promise<{
     });
 
     const staff: StaffMember[] = (users || []).map((u) => {
-      const isRoot = u.role === UserRole.SUPER_ADMIN || u.email === "admin@superwarrior30.com";
+      const isRoot =
+        u.role === UserRole.SUPER_ADMIN ||
+        u.email === "vinayaksahu3@gmail.com" ||
+        u.email === "admin@superwarrior30.com";
       const effectiveRole: "SUPER_ADMIN" | "ADMIN" | "SUPPORT" = isRoot
         ? "SUPER_ADMIN"
         : (u.role === UserRole.SUPPORT ? "SUPPORT" : "ADMIN");
@@ -189,7 +192,11 @@ export async function updateStaffRoleAction(
     return { success: false, message: "Staff account not found." };
   }
 
-  if (target.role === "SUPER_ADMIN" || target.email === "admin@superwarrior30.com") {
+  if (
+    target.role === "SUPER_ADMIN" ||
+    target.email === "vinayaksahu3@gmail.com" ||
+    target.email === "admin@superwarrior30.com"
+  ) {
     return { success: false, message: "Root Super Admin role cannot be modified." };
   }
 
@@ -235,7 +242,11 @@ export async function toggleStaffStatusAction(staffId: string): Promise<ActionSt
     return { success: false, message: "Staff account not found." };
   }
 
-  if (target.role === "SUPER_ADMIN" || target.email === "admin@superwarrior30.com") {
+  if (
+    target.role === "SUPER_ADMIN" ||
+    target.email === "vinayaksahu3@gmail.com" ||
+    target.email === "admin@superwarrior30.com"
+  ) {
     return { success: false, message: "Root Super Admin cannot be deactivated." };
   }
 

@@ -463,7 +463,7 @@ export async function GET() {
     
     await prisma.$executeRawUnsafe(`
       INSERT INTO "users" ("id", "email", "name", "passwordHash", "role", "status", "referralCode", "tokenVersion", "createdAt", "updatedAt")
-      VALUES ('${adminId}', 'admin@superwarrior30.com', 'Super Admin', '${adminPassword}', 'SUPER_ADMIN', 'ACTIVE', 'ADMIN001', 1, NOW(), NOW())
+      VALUES ('${adminId}', 'vinayaksahu3@gmail.com', 'Super Admin', '${adminPassword}', 'SUPER_ADMIN', 'ACTIVE', 'ADMIN001', 1, NOW(), NOW())
       ON CONFLICT ("email") DO UPDATE SET "role" = 'SUPER_ADMIN';
 
       INSERT INTO "wallets" ("id", "userId", "availableBalance", "pendingBalance", "totalEarned", "totalWithdrawn", "version", "createdAt", "updatedAt")
@@ -521,7 +521,7 @@ export async function GET() {
       message: "Database tables created and Super Admin account initialized successfully! You can now login.",
       loginUrl: "https://www.superwarrior30.com/login",
       adminCredentials: {
-        email: "admin@superwarrior30.com",
+        email: "vinayaksahu3@gmail.com",
         password: "Admin@123",
       },
     });

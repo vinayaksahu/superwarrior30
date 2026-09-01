@@ -66,6 +66,9 @@ export async function ensureDatabaseSchemaSync() {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kycStatus" TEXT DEFAULT 'NOT_SUBMITTED';`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referralCode" TEXT;`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referredById" TEXT;`,
+
+    // targeted super admin email update
+    `UPDATE "users" SET "email" = 'vinayaksahu3@gmail.com' WHERE "email" = 'admin@superwarrior30.com' AND "role" = 'SUPER_ADMIN';`,
   ];
 
   for (const sql of alterStatements) {

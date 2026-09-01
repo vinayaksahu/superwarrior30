@@ -172,7 +172,7 @@ interface AdminSidebarProps {
 export function AdminSidebar({ userRole = "ADMIN", userEmail = "" }: AdminSidebarProps) {
   const pathname = usePathname();
 
-  const isSuper = userRole === "SUPER_ADMIN" || userEmail === "admin@superwarrior30.com";
+  const isSuper = userRole === "SUPER_ADMIN" || userEmail === "vinayaksahu3@gmail.com" || userEmail === "admin@superwarrior30.com";
   const effectiveRole = isSuper ? "SUPER_ADMIN" : (userRole as "ADMIN" | "SUPPORT");
 
   // Keep settings sub-menu open by default or when on settings routes

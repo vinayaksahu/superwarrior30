@@ -10,7 +10,7 @@ export default async function AdminLayout({
   const user = await requireAdmin();
 
   // Check if primary admin
-  const isSuper = user.role === "SUPER_ADMIN" || user.email === "admin@superwarrior30.com";
+  const isSuper = user.role === "SUPER_ADMIN" || user.email === "vinayaksahu3@gmail.com" || user.email === "admin@superwarrior30.com";
   const displayRole = isSuper ? "SUPER_ADMIN" : user.role;
 
   return (

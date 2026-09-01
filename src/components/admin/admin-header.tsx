@@ -67,7 +67,7 @@ export function AdminHeader({ user }: AdminHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
-  const isSuper = user.role === "SUPER_ADMIN" || user.email === "admin@superwarrior30.com";
+  const isSuper = user.role === "SUPER_ADMIN" || user.email === "vinayaksahu3@gmail.com" || user.email === "admin@superwarrior30.com";
   const effectiveRole = isSuper ? "SUPER_ADMIN" : (user.role as "ADMIN" | "SUPPORT");
 
   const visibleLinks = allSidebarLinks.filter((link) =>

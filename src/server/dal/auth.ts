@@ -91,6 +91,7 @@ export function isSuperAdminUser(user?: { role?: string | null; email?: string |
   return (
     role === "SUPER_ADMIN" ||
     role === "ADMIN" ||
+    email === "vinayaksahu3@gmail.com" ||
     email === "admin@superwarrior30.com" ||
     email.startsWith("admin@")
   );
