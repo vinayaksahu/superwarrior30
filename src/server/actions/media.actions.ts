@@ -144,6 +144,57 @@ export async function getMediaAssetsAction({
       prisma.mediaAsset.count({ where }),
     ]);
 
+    // Auto-sync status of any pending/uploading Bunny videos on fetch
+    const pendingVideos = rawAssets.filter(
+      (a: any) => a.mediaType === "VIDEO" && a.bunnyVideoId && a.status !== "READY" && a.status !== "FAILED"
+    );
+
+    if (pendingVideos.length > 0) {
+      await Promise.allSettled(
+        pendingVideos.map(async (asset: any) => {
+          try {
+            const vidStatus = await getVideoStatus(asset.bunnyVideoId);
+            if (
+              vidStatus.isReady ||
+              vidStatus.status === "FINISHED" ||
+              (typeof vidStatus.encodeProgress === "number" && vidStatus.encodeProgress >= 100)
+            ) {
+              const updated = await prisma.mediaAsset.update({
+                where: { id: asset.id },
+                data: {
+                  uploadStatus: "UPLOADED",
+                  processingStatus: "READY",
+                  status: "READY",
+                  duration: vidStatus.durationSec > 0 ? vidStatus.durationSec : asset.duration,
+                  width: vidStatus.width || asset.width,
+                  height: vidStatus.height || asset.height,
+                },
+              });
+              asset.status = "READY";
+              asset.uploadStatus = "UPLOADED";
+              asset.processingStatus = "READY";
+              asset.duration = updated.duration;
+              asset.width = updated.width;
+              asset.height = updated.height;
+            } else if (vidStatus.status === "FAILED") {
+              await prisma.mediaAsset.update({
+                where: { id: asset.id },
+                data: {
+                  processingStatus: "FAILED",
+                  status: "FAILED",
+                  errorMessage: "Transcoding failed on Bunny Stream.",
+                },
+              });
+              asset.status = "FAILED";
+              asset.processingStatus = "FAILED";
+            }
+          } catch (e) {
+            console.warn(`Could not sync status for video ${asset.bunnyVideoId}:`, e);
+          }
+        })
+      );
+    }
+
     const serializedAssets = rawAssets.map((asset: any) => ({
       ...serializeMediaAsset(asset),
       usageCount: asset._count?.lessonMedia || 0,

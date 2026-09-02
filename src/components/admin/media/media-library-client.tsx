@@ -5,6 +5,7 @@ import { getMediaAssetsAction } from "@/server/actions/media.actions";
 import { useUploadManager } from "@/contexts/upload-manager-context";
 import { MediaDetailsDrawer } from "./media-details-drawer";
 import { MediaDeleteDialog } from "./media-delete-dialog";
+import { MediaThumbnail } from "./media-thumbnail";
 import {
   UploadCloud,
   Search,
@@ -77,8 +78,8 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
   const { uploadFiles, openManagerModal } = useUploadManager();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchAssets = useCallback(async () => {
-    setIsLoading(true);
+  const fetchAssets = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const res = await getMediaAssetsAction({
         page,
@@ -94,13 +95,13 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
         setItems(res.data);
         setTotal(res.total);
         setTotalPages(res.totalPages);
-      } else {
+      } else if (!isSilent) {
         toast.error(res.error || "Failed to load media assets");
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to load media library");
+      if (!isSilent) toast.error(err.message || "Failed to load media library");
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, [page, pageSize, mediaType, status, usage, search, sort]);
 
@@ -110,6 +111,21 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
     }, 200);
     return () => clearTimeout(timer);
   }, [fetchAssets]);
+
+  // Auto-poll if any items on screen are in UPLOADING or PROCESSING status
+  useEffect(() => {
+    const hasPending = items.some(
+      (item) => item.status === "UPLOADING" || item.status === "PROCESSING" || item.status === "QUEUED"
+    );
+
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      fetchAssets(true);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [items, fetchAssets]);
 
   const handleUploadFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -358,29 +374,23 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
                 className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:border-primary/40 hover:shadow-md cursor-pointer"
               >
                 {/* Thumbnail / Preview Area */}
-                <div className="relative aspect-video w-full overflow-hidden bg-black/60 flex items-center justify-center">
-                  {item.thumbnailUrl ? (
-                    <img
-                      src={item.thumbnailUrl}
-                      alt={item.fileName}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : isVideo ? (
-                    <Film className="h-8 w-8 text-primary" />
-                  ) : isPdf ? (
-                    <FileText className="h-8 w-8 text-amber-500" />
-                  ) : (
-                    <ImageIcon className="h-8 w-8 text-sky-400" />
-                  )}
+                <div className="relative aspect-video w-full overflow-hidden bg-black flex items-center justify-center">
+                  <MediaThumbnail
+                    mediaType={item.mediaType}
+                    thumbnailUrl={item.thumbnailUrl}
+                    fileName={item.fileName}
+                    bunnyVideoId={item.bunnyVideoId}
+                    status={item.status}
+                  />
 
                   {/* Top Badges */}
-                  <div className="absolute top-2 left-2 flex items-center gap-1">
+                  <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
                     <span className="rounded-md bg-black/80 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider backdrop-blur-md border border-white/10">
                       {item.mediaType}
                     </span>
                   </div>
 
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 right-2 z-10">
                     <span
                       className={cn(
                         "rounded-md px-2 py-0.5 text-[10px] font-bold backdrop-blur-md border",

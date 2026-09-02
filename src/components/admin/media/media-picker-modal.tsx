@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { getMediaAssetsAction } from "@/server/actions/media.actions";
 import { useUploadManager, type UploadItem } from "@/contexts/upload-manager-context";
+import { MediaThumbnail } from "./media-thumbnail";
 import {
   X,
   Search,
@@ -231,20 +232,15 @@ export function MediaPickerModal({
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground overflow-hidden">
-                      {item.thumbnailUrl ? (
-                        <img
-                          src={item.thumbnailUrl}
-                          alt={item.fileName}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : isVideo ? (
-                        <Film className="h-5 w-5 text-primary" />
-                      ) : isPdf ? (
-                        <FileText className="h-5 w-5 text-amber-500" />
-                      ) : (
-                        <ImageIcon className="h-5 w-5 text-sky-400" />
-                      )}
+                    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black overflow-hidden border border-border/70">
+                      <MediaThumbnail
+                        mediaType={item.mediaType}
+                        thumbnailUrl={item.thumbnailUrl}
+                        fileName={item.fileName}
+                        bunnyVideoId={item.bunnyVideoId}
+                        status={item.status}
+                        showPlayIcon={false}
+                      />
                     </div>
 
                     <div className="min-w-0">

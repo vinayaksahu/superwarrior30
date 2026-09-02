@@ -21,7 +21,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { fileName, originalFileName, mediaType, mimeType, fileSize, checksum, duration, pageCount, checkDuplicates } = body;
+    const { action, mediaId, bunnyVideoId, storageKey, storageUrl, duration, fileName, originalFileName, mediaType, mimeType, fileSize, checksum, pageCount, checkDuplicates } = body;
+
+    // Handle upload completion notification from client
+    if (action === "complete" && mediaId) {
+      const compResult = await completeMediaUploadAction({
+        mediaId,
+        bunnyVideoId,
+        storageKey,
+        storageUrl,
+        duration,
+      });
+      return NextResponse.json(compResult);
+    }
 
     // Check duplicates first if requested
     if (checkDuplicates && (checksum || (fileName && fileSize))) {
