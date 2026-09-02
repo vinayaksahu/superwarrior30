@@ -4,12 +4,64 @@ import { resolveCurrentEnvironment } from "@/lib/env-context";
 const syncedEnvironments = new Set<string>();
 
 export async function ensureDatabaseSchemaSync(force = false) {
-  if (!force && (process.env.NODE_ENV === "production" || syncedEnvironments.size > 0)) {
-    return;
-  }
-
   const currentEnv = await resolveCurrentEnvironment();
   if (syncedEnvironments.has(currentEnv) && !force) return;
+
+  // 1. Ensure prerequisite ENUM types and base tables exist first before altering tables
+  try {
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "TestimonialStatus" AS ENUM ('DRAFT', 'PENDING', 'APPROVED', 'REJECTED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "PaymentMethodType" AS ENUM ('UPI', 'BANK', 'CRYPTO', 'GATEWAY');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "testimonials" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT,
+        "studentName" TEXT NOT NULL,
+        "content" TEXT NOT NULL,
+        "photoUrl" TEXT,
+        "videoUrl" TEXT,
+        "rating" INTEGER NOT NULL DEFAULT 5,
+        "status" "TestimonialStatus" NOT NULL DEFAULT 'PENDING',
+        "isApproved" BOOLEAN NOT NULL DEFAULT false,
+        "isVisible" BOOLEAN NOT NULL DEFAULT true,
+        "isFeatured" BOOLEAN NOT NULL DEFAULT false,
+        "displayOrder" INTEGER NOT NULL DEFAULT 0,
+        "tradingPlatform" TEXT,
+        "accountType" TEXT,
+        "tradingResult" TEXT,
+        "experienceDuration" TEXT,
+        "consentGiven" BOOLEAN NOT NULL DEFAULT false,
+        "rejectionReason" TEXT,
+        "reviewedAt" TIMESTAMP(3),
+        "reviewedById" TEXT,
+        "approvedAt" TIMESTAMP(3),
+        "courseId" TEXT,
+        "isTestData" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "testimonial_media" (
+        "id" TEXT PRIMARY KEY,
+        "testimonialId" TEXT NOT NULL,
+        "url" TEXT NOT NULL,
+        "type" TEXT NOT NULL DEFAULT 'SCREENSHOT',
+        "caption" TEXT,
+        "sortOrder" INTEGER NOT NULL DEFAULT 0,
+        "isTestData" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch {
+    // ignore
+  }
 
   const alterStatements = [
     // orders columns
@@ -87,9 +139,11 @@ export async function ensureDatabaseSchemaSync(force = false) {
     `ALTER TABLE "wallet_transactions" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "withdrawals" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+
+    // testimonials columns
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "userId" TEXT;`,
-    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'PENDING';`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "status" "TestimonialStatus" DEFAULT 'PENDING';`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isFeatured" BOOLEAN DEFAULT false;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "displayOrder" INTEGER DEFAULT 0;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "tradingPlatform" TEXT;`,
