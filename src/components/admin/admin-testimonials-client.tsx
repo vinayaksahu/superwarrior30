@@ -163,6 +163,8 @@ export function AdminTestimonialsClient({
                 : t
             )
           );
+        } else {
+          toast.error(res.error || "Approval failed.");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Approval failed";
@@ -197,6 +199,8 @@ export function AdminTestimonialsClient({
           );
           setRejectingItem(null);
           setRejectionReason("");
+        } else {
+          toast.error(res.error || "Rejection failed.");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Rejection failed";
@@ -218,8 +222,10 @@ export function AdminTestimonialsClient({
         if (res.success) {
           toast.success(res.isFeatured ? "Marked as Featured!" : "Removed from Featured.");
           setTestimonials((prev) =>
-            prev.map((t) => (t.id === item.id ? { ...t, isFeatured: res.isFeatured } : t))
+            prev.map((t) => (t.id === item.id ? { ...t, isFeatured: Boolean(res.isFeatured) } : t))
           );
+        } else {
+          toast.error(res.error || "Action failed.");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Action failed";
@@ -239,6 +245,8 @@ export function AdminTestimonialsClient({
           toast.success("Testimonial deleted.");
           setTestimonials((prev) => prev.filter((t) => t.id !== deletingId));
           setDeletingId(null);
+        } else {
+          toast.error(res.error || "Deletion failed.");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Deletion failed";
@@ -280,6 +288,8 @@ export function AdminTestimonialsClient({
 
           // Reload window or add locally
           window.location.reload();
+        } else {
+          toast.error(res.error || "Creation failed.");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Creation failed";
@@ -313,6 +323,8 @@ export function AdminTestimonialsClient({
             prev.map((t) => (t.id === editingItem.id ? editingItem : t))
           );
           setEditingItem(null);
+        } else {
+          toast.error(res.error || "Update failed.");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Update failed";

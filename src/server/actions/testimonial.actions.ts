@@ -258,7 +258,7 @@ export async function submitStudentTestimonialAction(input: StudentTestimonialIn
         experienceDuration: input.experienceDuration?.trim() || null,
         consentGiven: true,
         isTestData: user.isTestData,
-        media: {
+        media: screenshots.length > 0 ? {
           create: screenshots.map((s, idx) => ({
             url: s.url,
             caption: s.caption?.trim() || null,
@@ -266,7 +266,7 @@ export async function submitStudentTestimonialAction(input: StudentTestimonialIn
             sortOrder: idx,
             isTestData: user.isTestData,
           })),
-        },
+        } : undefined,
       },
       include: {
         media: true,
@@ -573,147 +573,162 @@ export async function getAdminTestimonialsAction(filter?: AdminTestimonialFilter
  * Approve a pending/rejected testimonial.
  */
 export async function approveTestimonialAction(id: string) {
-  const admin = await requirePermission("testimonials.approve");
-  await ensureDatabaseSchemaSync();
-
-  const existing = await prisma.testimonial.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Testimonial not found.");
-  }
-
-  const updated = await prisma.testimonial.update({
-    where: { id },
-    data: {
-      status: "APPROVED",
-      isApproved: true,
-      isVisible: true,
-      approvedAt: new Date(),
-      reviewedAt: new Date(),
-      reviewedById: admin.id,
-      rejectionReason: null,
-    },
-  });
-
-  // Audit Log
   try {
-    await prisma.auditLog.create({
+    const admin = await requirePermission("testimonials.approve");
+    await ensureDatabaseSchemaSync();
+
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    const updated = await prisma.testimonial.update({
+      where: { id },
       data: {
-        actorId: admin.id,
-        actorEmail: admin.email,
-        actorRole: admin.role,
-        action: "TESTIMONIAL_APPROVED",
-        entityType: "Testimonial",
-        entityId: id,
-        oldValues: { status: existing.status, isApproved: existing.isApproved },
-        newValues: { status: "APPROVED", isApproved: true },
-        isTestData: existing.isTestData,
+        status: "APPROVED",
+        isApproved: true,
+        isVisible: true,
+        approvedAt: new Date(),
+        reviewedAt: new Date(),
+        reviewedById: admin.id,
+        rejectionReason: null,
       },
     });
-  } catch {
-    // ignore
-  }
 
-  revalidatePath("/admin/testimonials");
-  revalidatePath("/super-warrior-30");
-  revalidatePath("/");
-  return { success: true, id: updated.id };
+    // Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: admin.role,
+          action: "TESTIMONIAL_APPROVED",
+          entityType: "Testimonial",
+          entityId: id,
+          oldValues: { status: existing.status, isApproved: existing.isApproved },
+          newValues: { status: "APPROVED", isApproved: true },
+          isTestData: existing.isTestData,
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true, id: updated.id };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Approval failed";
+    return { success: false, error: msg };
+  }
 }
 
 /**
  * Reject a testimonial with an explicit rejection reason.
  */
 export async function rejectTestimonialAction(id: string, reason: string) {
-  const admin = await requirePermission("testimonials.approve");
-  await ensureDatabaseSchemaSync();
-
-  const existing = await prisma.testimonial.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Testimonial not found.");
-  }
-
-  const cleanReason = (reason || "Review does not meet publication standards.").trim();
-
-  const updated = await prisma.testimonial.update({
-    where: { id },
-    data: {
-      status: "REJECTED",
-      isApproved: false,
-      rejectionReason: cleanReason,
-      reviewedAt: new Date(),
-      reviewedById: admin.id,
-    },
-  });
-
-  // Audit Log
   try {
-    await prisma.auditLog.create({
+    const admin = await requirePermission("testimonials.approve");
+    await ensureDatabaseSchemaSync();
+
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    const cleanReason = (reason || "Review does not meet publication standards.").trim();
+
+    const updated = await prisma.testimonial.update({
+      where: { id },
       data: {
-        actorId: admin.id,
-        actorEmail: admin.email,
-        actorRole: admin.role,
-        action: "TESTIMONIAL_REJECTED",
-        entityType: "Testimonial",
-        entityId: id,
-        oldValues: { status: existing.status },
-        newValues: { status: "REJECTED", rejectionReason: cleanReason },
-        isTestData: existing.isTestData,
+        status: "REJECTED",
+        isApproved: false,
+        rejectionReason: cleanReason,
+        reviewedAt: new Date(),
+        reviewedById: admin.id,
       },
     });
-  } catch {
-    // ignore
-  }
 
-  revalidatePath("/admin/testimonials");
-  revalidatePath("/super-warrior-30");
-  revalidatePath("/");
-  return { success: true, id: updated.id };
+    // Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: admin.role,
+          action: "TESTIMONIAL_REJECTED",
+          entityType: "Testimonial",
+          entityId: id,
+          oldValues: { status: existing.status },
+          newValues: { status: "REJECTED", rejectionReason: cleanReason },
+          isTestData: existing.isTestData,
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true, id: updated.id };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Rejection failed";
+    return { success: false, error: msg };
+  }
 }
 
 /**
  * Toggle Featured status of an approved testimonial.
  */
 export async function toggleFeaturedTestimonialAction(id: string) {
-  const admin = await requirePermission("testimonials.edit");
-  await ensureDatabaseSchemaSync();
-
-  const existing = await prisma.testimonial.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Testimonial not found.");
-  }
-
-  if (existing.status !== "APPROVED" || !existing.isApproved) {
-    throw new Error("Only approved testimonials can be marked as Featured.");
-  }
-
-  const nextFeatured = !existing.isFeatured;
-
-  await prisma.testimonial.update({
-    where: { id },
-    data: { isFeatured: nextFeatured },
-  });
-
-  // Audit Log
   try {
-    await prisma.auditLog.create({
-      data: {
-        actorId: admin.id,
-        actorEmail: admin.email,
-        actorRole: admin.role,
-        action: "TESTIMONIAL_FEATURED_TOGGLED",
-        entityType: "Testimonial",
-        entityId: id,
-        newValues: { isFeatured: nextFeatured },
-        isTestData: existing.isTestData,
-      },
-    });
-  } catch {
-    // ignore
-  }
+    const admin = await requirePermission("testimonials.edit");
+    await ensureDatabaseSchemaSync();
 
-  revalidatePath("/admin/testimonials");
-  revalidatePath("/super-warrior-30");
-  revalidatePath("/");
-  return { success: true, isFeatured: nextFeatured };
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    if (existing.status !== "APPROVED" || !existing.isApproved) {
+      return { success: false, error: "Only approved testimonials can be marked as Featured." };
+    }
+
+    const nextFeatured = !existing.isFeatured;
+
+    await prisma.testimonial.update({
+      where: { id },
+      data: { isFeatured: nextFeatured },
+    });
+
+    // Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: admin.role,
+          action: "TESTIMONIAL_FEATURED_TOGGLED",
+          entityType: "Testimonial",
+          entityId: id,
+          newValues: { isFeatured: nextFeatured },
+          isTestData: existing.isTestData,
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true, isFeatured: nextFeatured };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Toggle featured failed";
+    return { success: false, error: msg };
+  }
 }
 
 /**
@@ -732,72 +747,79 @@ export async function createAdminTestimonialAction(data: {
   experienceDuration?: string;
   screenshots?: Array<{ url: string; caption?: string }>;
 }) {
-  const admin = await requirePermission("testimonials.create");
-  await ensureDatabaseSchemaSync();
-
-  const currentEnv = await resolveCurrentEnvironment();
-  const isTesting = currentEnv === "TEST";
-  const isApproved = data.isApproved ?? true;
-
-  const testimonial = await prisma.testimonial.create({
-    data: {
-      studentName: data.studentName.trim(),
-      content: data.content.trim(),
-      photoUrl: data.photoUrl?.trim() || null,
-      rating: data.rating || 5,
-      status: isApproved ? "APPROVED" : "PENDING",
-      isApproved,
-      isVisible: true,
-      isFeatured: Boolean(data.isFeatured && isApproved),
-      displayOrder: 0,
-      tradingPlatform: data.tradingPlatform?.trim() || null,
-      accountType: data.accountType?.trim() || null,
-      tradingResult: data.tradingResult?.trim() || null,
-      experienceDuration: data.experienceDuration?.trim() || null,
-      consentGiven: true,
-      approvedAt: isApproved ? new Date() : null,
-      reviewedAt: isApproved ? new Date() : null,
-      reviewedById: isApproved ? admin.id : null,
-      isTestData: isTesting,
-      media: {
-        create: (data.screenshots || []).map((s, idx) => ({
-          url: s.url,
-          caption: s.caption?.trim() || null,
-          type: "SCREENSHOT",
-          sortOrder: idx,
-          isTestData: isTesting,
-        })),
-      },
-    },
-  });
-
-  // Audit Log
   try {
-    await prisma.auditLog.create({
+    const admin = await requirePermission("testimonials.create");
+    await ensureDatabaseSchemaSync();
+
+    const currentEnv = await resolveCurrentEnvironment();
+    const isTesting = currentEnv === "TEST";
+    const isApproved = data.isApproved ?? true;
+
+    const validScreenshots = (data.screenshots || []).filter((s) => Boolean(s.url && s.url.trim().length > 0));
+
+    const testimonial = await prisma.testimonial.create({
       data: {
-        actorId: admin.id,
-        actorEmail: admin.email,
-        actorRole: admin.role,
-        action: "TESTIMONIAL_MANUAL_CREATED",
-        entityType: "Testimonial",
-        entityId: testimonial.id,
-        newValues: {
-          studentName: data.studentName,
-          rating: data.rating,
-          isApproved,
-          environment: isTesting ? "TEST" : "LIVE",
-        },
+        studentName: data.studentName.trim(),
+        content: data.content.trim(),
+        photoUrl: data.photoUrl?.trim() || null,
+        rating: data.rating || 5,
+        status: isApproved ? "APPROVED" : "PENDING",
+        isApproved,
+        isVisible: true,
+        isFeatured: Boolean(data.isFeatured && isApproved),
+        displayOrder: 0,
+        tradingPlatform: data.tradingPlatform?.trim() || null,
+        accountType: data.accountType?.trim() || null,
+        tradingResult: data.tradingResult?.trim() || null,
+        experienceDuration: data.experienceDuration?.trim() || null,
+        consentGiven: true,
+        approvedAt: isApproved ? new Date() : null,
+        reviewedAt: isApproved ? new Date() : null,
+        reviewedById: isApproved ? admin.id : null,
         isTestData: isTesting,
+        media: validScreenshots.length > 0 ? {
+          create: validScreenshots.map((s, idx) => ({
+            url: s.url.trim(),
+            caption: s.caption?.trim() || null,
+            type: "SCREENSHOT",
+            sortOrder: idx,
+            isTestData: isTesting,
+          })),
+        } : undefined,
       },
     });
-  } catch {
-    // ignore
-  }
 
-  revalidatePath("/admin/testimonials");
-  revalidatePath("/super-warrior-30");
-  revalidatePath("/");
-  return { success: true, id: testimonial.id };
+    // Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: admin.role,
+          action: "TESTIMONIAL_MANUAL_CREATED",
+          entityType: "Testimonial",
+          entityId: testimonial.id,
+          newValues: {
+            studentName: data.studentName,
+            rating: data.rating,
+            isApproved,
+            environment: isTesting ? "TEST" : "LIVE",
+          },
+          isTestData: isTesting,
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true, id: testimonial.id };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Creation failed";
+    return { success: false, error: msg };
+  }
 }
 
 /**
@@ -820,88 +842,99 @@ export async function updateTestimonialAction(
     experienceDuration?: string;
   }
 ) {
-  const admin = await requirePermission("testimonials.edit");
-  await ensureDatabaseSchemaSync();
-
-  const existing = await prisma.testimonial.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Testimonial not found.");
-  }
-
-  const updateData: any = { ...data };
-  if (data.isApproved !== undefined) {
-    updateData.status = data.isApproved ? "APPROVED" : "PENDING";
-    if (data.isApproved && !existing.approvedAt) {
-      updateData.approvedAt = new Date();
-      updateData.reviewedAt = new Date();
-      updateData.reviewedById = admin.id;
-    }
-  }
-
-  await prisma.testimonial.update({
-    where: { id },
-    data: updateData,
-  });
-
-  // Audit Log
   try {
-    await prisma.auditLog.create({
-      data: {
-        actorId: admin.id,
-        actorEmail: admin.email,
-        actorRole: admin.role,
-        action: "TESTIMONIAL_UPDATED",
-        entityType: "Testimonial",
-        entityId: id,
-        newValues: updateData,
-        isTestData: existing.isTestData,
-      },
-    });
-  } catch {
-    // ignore
-  }
+    const admin = await requirePermission("testimonials.edit");
+    await ensureDatabaseSchemaSync();
 
-  revalidatePath("/admin/testimonials");
-  revalidatePath("/super-warrior-30");
-  revalidatePath("/");
-  return { success: true };
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    const updateData: any = { ...data };
+    if (data.isApproved !== undefined) {
+      updateData.status = data.isApproved ? "APPROVED" : "PENDING";
+      if (data.isApproved && !existing.approvedAt) {
+        updateData.approvedAt = new Date();
+        updateData.reviewedAt = new Date();
+        updateData.reviewedById = admin.id;
+      }
+    }
+
+    await prisma.testimonial.update({
+      where: { id },
+      data: updateData,
+    });
+
+    // Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: admin.role,
+          action: "TESTIMONIAL_UPDATED",
+          entityType: "Testimonial",
+          entityId: id,
+          newValues: updateData,
+          isTestData: existing.isTestData,
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Update failed";
+    return { success: false, error: msg };
+  }
 }
 
 /**
  * Delete a testimonial and its associated media.
  */
 export async function deleteTestimonialAction(id: string) {
-  const admin = await requirePermission("testimonials.delete");
-  await ensureDatabaseSchemaSync();
-
-  const existing = await prisma.testimonial.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Testimonial not found.");
-  }
-
-  await prisma.testimonial.delete({ where: { id } });
-
-  // Audit Log
   try {
-    await prisma.auditLog.create({
-      data: {
-        actorId: admin.id,
-        actorEmail: admin.email,
-        actorRole: admin.role,
-        action: "TESTIMONIAL_DELETED",
-        entityType: "Testimonial",
-        entityId: id,
-        oldValues: { studentName: existing.studentName },
-        isTestData: existing.isTestData,
-      },
-    });
-  } catch {
-    // ignore
-  }
+    const admin = await requirePermission("testimonials.delete");
+    await ensureDatabaseSchemaSync();
 
-  revalidatePath("/admin/testimonials");
-  revalidatePath("/super-warrior-30");
-  revalidatePath("/");
-  return { success: true };
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    await prisma.testimonial.delete({ where: { id } });
+
+    // Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: admin.role,
+          action: "TESTIMONIAL_DELETED",
+          entityType: "Testimonial",
+          entityId: id,
+          oldValues: { studentName: existing.studentName },
+          isTestData: existing.isTestData,
+        },
+      });
+    } catch {
+      // ignore
+    }
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Deletion failed";
+    return { success: false, error: msg };
+  }
 }
+
 
