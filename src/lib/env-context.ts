@@ -189,7 +189,6 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
 
 /**
  * Resolves the active environment for the current request context.
- * Memoized per-request using React.cache.
  * 
  * Hierarchy:
  * 1. AsyncLocalStorage context (if explicitly set via withEnvironmentContext)
@@ -199,8 +198,8 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
  * 
  * Enforces server-side authorization: Standard users / students / public traffic ALWAYS run in LIVE mode.
  */
-export const resolveCurrentEnvironment = cache(async (): Promise<AppEnvironment> => {
-  // 1. Check AsyncLocalStorage
+export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
+  // 1. Check AsyncLocalStorage first (for explicit overrides e.g. public homepage test scope)
   const alsEnv = environmentStorage.getStore();
   if (alsEnv) {
     return alsEnv;
@@ -292,7 +291,7 @@ export const resolveCurrentEnvironment = cache(async (): Promise<AppEnvironment>
     // If running outside request context (e.g., CLI / background), fallback to DEFAULT_ENVIRONMENT
     return DEFAULT_ENVIRONMENT;
   }
-});
+}
 
 /**
  * Helper to get current synchronous environment if stored in ALS, otherwise returns undefined

@@ -163,8 +163,45 @@ export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDIN
       take: 18,
     });
 
-    if (testimonials.length === 0) {
-      // Return starter verified testimonials so home & landing pages always display active reviews
+    let resultList = testimonials;
+
+    if (resultList.length === 0 && isTesting) {
+      // If none matched showOnHome filter, try fetching all approved test testimonials
+      resultList = await prisma.testimonial.findMany({
+        where: {
+          status: "APPROVED",
+          isApproved: true,
+          isVisible: true,
+          isTestData: true,
+        },
+        include: {
+          media: {
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+        orderBy: [
+          { isFeatured: "desc" },
+          { displayOrder: "asc" },
+          { createdAt: "desc" },
+        ],
+        take: 18,
+      });
+    }
+
+    if (resultList.length === 0) {
+      if (isTesting) {
+        return STARTER_FALLBACK_TESTIMONIALS.map((t) => ({
+          ...t,
+          studentName: `${t.studentName} [TEST]`,
+          isTestData: true,
+        })).filter((t) => {
+          if (placement === "HOME") return t.showOnHome;
+          if (placement === "LANDING") return t.showOnLanding;
+          return true;
+        });
+      }
+
+      // Return starter verified testimonials for live production
       return STARTER_FALLBACK_TESTIMONIALS.filter((t) => {
         if (placement === "HOME") return t.showOnHome;
         if (placement === "LANDING") return t.showOnLanding;
@@ -172,7 +209,7 @@ export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDIN
       });
     }
 
-    return testimonials.map((t) => ({
+    return resultList.map((t) => ({
       id: t.id,
       studentName: t.studentName,
       content: t.content,
