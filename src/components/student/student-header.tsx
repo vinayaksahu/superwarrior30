@@ -20,11 +20,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { TestUserBadge } from "@/components/shared/test-user-badge";
 
 interface StudentHeaderProps {
   user: {
     name: string | null;
     email: string;
+    isTestData?: boolean;
   };
 }
 
@@ -83,10 +85,11 @@ export function StudentHeader({ user }: StudentHeaderProps) {
               Browse Courses
             </Link>
             <ThemeToggle />
-            <div className="text-right hidden sm:block">
+            <div className="text-right hidden sm:flex items-center gap-2">
               <p className="text-xs font-bold text-foreground truncate max-w-[150px]">
                 {user.name || user.email.split("@")[0]}
               </p>
+              <TestUserBadge isTestData={user.isTestData} />
             </div>
             <form action={logoutAction}>
               <button
@@ -142,9 +145,12 @@ export function StudentHeader({ user }: StudentHeaderProps) {
                 {(user.name || user.email)[0].toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-foreground truncate">
-                  {user.name || "Student"}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-bold text-foreground truncate">
+                    {user.name || "Student"}
+                  </p>
+                  <TestUserBadge isTestData={user.isTestData} />
+                </div>
                 <p className="text-[11px] text-muted-foreground truncate font-medium">
                   {user.email}
                 </p>

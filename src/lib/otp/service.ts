@@ -21,6 +21,7 @@ export interface PendingOtpPayload {
   name?: string;
   passwordHash?: string;
   referralCode?: string;
+  isTestData?: boolean;
   requiresOtp: true;
 }
 
@@ -45,6 +46,7 @@ export async function createPendingOtpToken(payload: PendingOtpPayload): Promise
     name: payload.name,
     passwordHash: payload.passwordHash,
     referralCode: payload.referralCode,
+    isTestData: payload.isTestData,
     requiresOtp: true,
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -69,6 +71,7 @@ export async function verifyPendingOtpToken(token: string): Promise<PendingOtpPa
       name: payload.name as string | undefined,
       passwordHash: payload.passwordHash as string | undefined,
       referralCode: payload.referralCode as string | undefined,
+      isTestData: payload.isTestData as boolean | undefined,
       requiresOtp: true,
     };
   } catch {
@@ -502,6 +505,7 @@ export async function createAndSendRegistrationOtp({
   email,
   passwordHash,
   referralCode,
+  isTestData,
   ipAddress,
   userAgent,
 }: {
@@ -509,6 +513,7 @@ export async function createAndSendRegistrationOtp({
   email: string;
   passwordHash: string;
   referralCode?: string;
+  isTestData?: boolean;
   ipAddress?: string;
   userAgent?: string;
 }): Promise<{
@@ -608,6 +613,7 @@ export async function createAndSendRegistrationOtp({
     name,
     passwordHash,
     referralCode,
+    isTestData,
     purpose: "EMAIL_VERIFICATION",
     requiresOtp: true,
   });
@@ -639,6 +645,7 @@ export async function verifyRegistrationOtp({
   name?: string;
   passwordHash?: string;
   referralCode?: string;
+  isTestData?: boolean;
   remainingAttempts?: number;
 }> {
   const payload = await verifyPendingOtpToken(pendingToken);
@@ -723,5 +730,6 @@ export async function verifyRegistrationOtp({
     name: payload.name,
     passwordHash: payload.passwordHash,
     referralCode: payload.referralCode,
+    isTestData: payload.isTestData,
   };
 }

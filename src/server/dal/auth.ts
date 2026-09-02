@@ -41,6 +41,7 @@ export const getCurrentUser = cache(async () => {
         avatarUrl: true,
         referralCode: true,
         tokenVersion: true,
+        isTestData: true,
         createdAt: true,
       },
     });
@@ -59,6 +60,7 @@ export const getCurrentUser = cache(async () => {
           avatarUrl: true,
           referralCode: true,
           tokenVersion: true,
+          isTestData: true,
           createdAt: true,
         },
       });

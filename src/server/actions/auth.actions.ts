@@ -23,6 +23,7 @@ import {
   verifyRegistrationOtp,
   verifyPendingOtpToken,
 } from "@/lib/otp/service";
+import { resolveCurrentEnvironment } from "@/lib/env-context";
 import { z } from "zod";
 import type { ActionState } from "@/types";
 
@@ -676,11 +677,14 @@ export async function registerAction(
     };
   }
 
-  // Validate referral code if provided
+  // Validate referral code and determine authoritative environment
   let referrer = null;
+  let targetIsTestData = false;
+
   if (referralCode && referralCode.trim()) {
     referrer = await prisma.user.findUnique({
       where: { referralCode: referralCode.trim().toUpperCase() },
+      select: { id: true, isTestData: true, role: true, email: true },
     });
     if (!referrer) {
       return {
@@ -689,6 +693,13 @@ export async function registerAction(
         errors: { referralCode: ["Referral code not found."] },
       };
     }
+    // HARD INHERITANCE: If referrer is TEST, new user is TEST. If referrer is LIVE, new user is LIVE.
+    targetIsTestData = referrer.isTestData === true;
+  } else {
+    // Direct registration without referral:
+    // Only authorized testing sessions create TEST accounts; standard public registrations are LIVE.
+    const currentEnv = await resolveCurrentEnvironment();
+    targetIsTestData = currentEnv === "TEST";
   }
 
   const passwordHash = await hashPassword(password);
@@ -701,6 +712,7 @@ export async function registerAction(
       email: cleanEmail,
       passwordHash,
       referralCode: referralCode?.trim(),
+      isTestData: targetIsTestData,
       ipAddress: (await getClientDeviceMetadata()).ipAddress,
       userAgent: (await getClientDeviceMetadata()).userAgent,
     });
@@ -730,6 +742,7 @@ export async function registerAction(
     email: cleanEmail,
     passwordHash,
     referralCode: referralCode?.trim(),
+    isTestData: targetIsTestData,
   });
 
   redirect("/dashboard");
@@ -740,20 +753,29 @@ async function finalizeUserRegistration({
   email,
   passwordHash,
   referralCode,
+  isTestData,
 }: {
   name: string;
   email: string;
   passwordHash: string;
   referralCode?: string;
+  isTestData?: boolean;
 }): Promise<void> {
   const cleanEmail = email.toLowerCase().trim();
 
-  // Validate referral code if provided
+  // Validate referral code if provided and resolve authoritative environment
   let referrer = null;
+  let finalIsTestData = isTestData === true;
+
   if (referralCode && referralCode.trim()) {
     referrer = await prisma.user.findUnique({
       where: { referralCode: referralCode.trim().toUpperCase() },
+      select: { id: true, isTestData: true, role: true, email: true },
     });
+    if (referrer) {
+      // Authoritative referral inheritance
+      finalIsTestData = referrer.isTestData === true;
+    }
   }
 
   // Generate unique referral code for new user
@@ -782,6 +804,7 @@ async function finalizeUserRegistration({
         referralCode: newReferralCode,
         tokenVersion: 1,
         status: "ACTIVE",
+        isTestData: finalIsTestData,
       },
     });
 
@@ -803,17 +826,21 @@ async function finalizeUserRegistration({
 
     initialDeviceId = device1.id;
 
-    // Create wallet for the user
+    // Create wallet for the user in the matching environment
     await tx.wallet.create({
-      data: { userId: user.id },
+      data: {
+        userId: user.id,
+        isTestData: finalIsTestData,
+      },
     });
 
-    // Handle referral relationship
+    // Handle referral relationship in the matching environment
     if (referrer && referrer.id !== user.id) {
       await tx.referralRelationship.create({
         data: {
           referrerId: referrer.id,
           referredId: user.id,
+          isTestData: finalIsTestData,
         },
       });
 
@@ -822,6 +849,7 @@ async function finalizeUserRegistration({
           ancestorId: referrer.id,
           descendantId: user.id,
           depth: 1,
+          isTestData: finalIsTestData,
         },
       });
 
@@ -835,6 +863,7 @@ async function finalizeUserRegistration({
             ancestorId: anc.ancestorId,
             descendantId: user.id,
             depth: anc.depth + 1,
+            isTestData: finalIsTestData,
           })),
         });
       }
@@ -883,6 +912,7 @@ export async function verifyRegistrationOtpAction(
     email: verifyResult.email,
     passwordHash: verifyResult.passwordHash,
     referralCode: verifyResult.referralCode,
+    isTestData: verifyResult.isTestData,
   });
 
   return {

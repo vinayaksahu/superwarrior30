@@ -511,7 +511,7 @@ export async function getAdminOrdersAction({
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true, email: true, isTestData: true } },
           items: true,
         },
       }),

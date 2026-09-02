@@ -179,6 +179,7 @@ export async function getAdminStudentsAction({
       ordersCount: s._count.orders,
       walletBalance: Number(s.wallet?.availableBalance || 0),
       totalEarned: Number(s.wallet?.totalEarned || 0),
+      isTestData: s.isTestData,
       createdAt: s.createdAt,
     })),
     total,

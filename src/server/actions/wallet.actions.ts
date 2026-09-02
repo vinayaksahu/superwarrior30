@@ -273,18 +273,24 @@ export async function getAdminWithdrawalsAction({
 } = {}) {
   await requireAdmin();
 
-  const where: Prisma.WithdrawalWhereInput = {};
+  const where: Prisma.WithdrawalWhereInput = {
+    user: {
+      role: "STUDENT",
+    },
+  };
 
   if (status && status !== "all") {
     where.status = status as Prisma.EnumWithdrawalStatusFilter;
   }
 
   if (search) {
-    where.OR = [
-      { user: { email: { contains: search, mode: "insensitive" } } },
-      { user: { name: { contains: search, mode: "insensitive" } } },
-      { transactionRef: { contains: search, mode: "insensitive" } },
-    ];
+    where.user = {
+      role: "STUDENT",
+      OR: [
+        { email: { contains: search, mode: "insensitive" } },
+        { name: { contains: search, mode: "insensitive" } },
+      ],
+    };
   }
 
   const [withdrawals, total, pendingAgg, completedAgg] = await Promise.all([
@@ -306,12 +312,12 @@ export async function getAdminWithdrawalsAction({
     }),
     prisma.withdrawal.count({ where }),
     prisma.withdrawal.aggregate({
-      where: { status: "PENDING" },
+      where: { status: "PENDING", user: { role: "STUDENT" } },
       _count: { id: true },
       _sum: { amount: true },
     }),
     prisma.withdrawal.aggregate({
-      where: { status: "COMPLETED" },
+      where: { status: "COMPLETED", user: { role: "STUDENT" } },
       _sum: { amount: true },
     }),
   ]);
@@ -528,10 +534,15 @@ export async function getAdminWalletsAction({
 } = {}) {
   await requireAdmin();
 
-  const where: Prisma.WalletWhereInput = {};
+  const where: Prisma.WalletWhereInput = {
+    user: {
+      role: "STUDENT",
+    },
+  };
 
   if (search) {
     where.user = {
+      role: "STUDENT",
       OR: [
         { email: { contains: search, mode: "insensitive" } },
         { name: { contains: search, mode: "insensitive" } },
@@ -553,6 +564,11 @@ export async function getAdminWalletsAction({
     }),
     prisma.wallet.count({ where }),
     prisma.wallet.aggregate({
+      where: {
+        user: {
+          role: "STUDENT",
+        },
+      },
       _sum: {
         availableBalance: true,
         pendingBalance: true,

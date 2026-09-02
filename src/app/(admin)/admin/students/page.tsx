@@ -5,6 +5,7 @@ import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
 import { ForceLogoutButton } from "@/components/admin/admin-device-actions";
 import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2 } from "lucide-react";
+import { TestUserBadge } from "@/components/shared/test-user-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,10 @@ export default async function AdminStudentsPage({
                 {data.data.map((student) => (
                   <tr key={student.id} className="hover:bg-muted/10">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-foreground">{student.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-foreground">{student.name}</p>
+                        <TestUserBadge isTestData={student.isTestData} />
+                      </div>
                       <p className="text-[10px] text-muted-foreground">{student.email}</p>
                     </td>
                     <td className="px-4 py-3 font-mono font-bold text-primary">

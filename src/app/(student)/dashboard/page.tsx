@@ -13,6 +13,7 @@ import {
   Wallet,
   TrendingUp,
 } from "lucide-react";
+import { TestUserBadge } from "@/components/shared/test-user-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -60,9 +61,12 @@ export default async function StudentDashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Welcome back, {user.name || "Trader"}!
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Welcome back, {user.name || "Trader"}!
+          </h1>
+          <TestUserBadge isTestData={user.isTestData} size="sm" />
+        </div>
         <p className="text-sm text-muted-foreground mt-0.5">
           Continue your trading education journey, review lesson completions, and track affiliate earnings
         </p>

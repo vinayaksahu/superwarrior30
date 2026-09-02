@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ProfileForms } from "@/components/student/profile-forms";
 import { StudentDevicesCard } from "@/components/student/student-devices-card";
 import { User, Shield, KeyRound, Calendar } from "lucide-react";
+import { TestUserBadge } from "@/components/shared/test-user-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function StudentProfilePage() {
       phone: true,
       role: true,
       referralCode: true,
+      isTestData: true,
       createdAt: true,
     },
   });
@@ -48,7 +50,10 @@ export default async function StudentProfilePage() {
               {user.name ? user.name[0].toUpperCase() : "U"}
             </div>
             <div>
-              <h2 className="text-base font-bold text-foreground">{user.name || "Student"}</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-base font-bold text-foreground">{user.name || "Student"}</h2>
+                <TestUserBadge isTestData={user.isTestData} />
+              </div>
               <p className="text-xs text-muted-foreground">{user.email}</p>
             </div>
           </div>
