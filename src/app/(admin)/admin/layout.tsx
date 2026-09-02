@@ -21,8 +21,8 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      {currentEnvironment === "TEST" && isSuper && (
-        <TestingModeBanner isSuperAdmin={isSuper} />
+      {currentEnvironment === "TEST" && (
+        <TestingModeBanner isSuperAdmin={isSuper} isStaffAdmin={!isSuper} />
       )}
       <div className="flex flex-1">
         <AdminSidebar

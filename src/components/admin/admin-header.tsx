@@ -113,8 +113,9 @@ export function AdminHeader({ user, currentEnvironment }: AdminHeaderProps) {
 
         <div className="flex items-center gap-3 sm:gap-4">
           <EnvironmentSwitcher
-            currentEnvironment={user.role === "SUPER_ADMIN" || isSuper ? (currentEnvironment || "LIVE") : "LIVE"}
+            currentEnvironment={currentEnvironment || "LIVE"}
             isSuperAdmin={isSuper}
+            isStaffAdmin={!isSuper}
           />
           <ThemeToggle />
           <div className="text-right hidden sm:block">

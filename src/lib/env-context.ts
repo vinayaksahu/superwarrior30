@@ -2,7 +2,7 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
-import { isSuperAdminUser } from "@/server/dal/auth-check";
+import { isSuperAdminUser, isStaffAdminUser } from "@/server/dal/auth-check";
 import { decrypt, type SessionPayload } from "@/lib/auth/session";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
@@ -17,10 +17,24 @@ const encodedKey = new TextEncoder().encode(SECRET_KEY);
 // AsyncLocalStorage to maintain environment context across async execution tree
 const environmentStorage = new AsyncLocalStorage<AppEnvironment>();
 
+// In-memory global state for staff testing activation (fast resolution)
+const globalForEnv = globalThis as unknown as {
+  staffTestingActive: boolean | undefined;
+};
+
+export function setStaffTestingActive(active: boolean) {
+  globalForEnv.staffTestingActive = active;
+}
+
+export function isStaffTestingActive(): boolean {
+  return Boolean(globalForEnv.staffTestingActive);
+}
+
 export interface EnvTokenPayload {
   env: AppEnvironment;
   userId: string;
   email: string;
+  allowStaffTesting?: boolean;
   issuedAt: number;
 }
 
@@ -39,6 +53,7 @@ export async function signEnvToken(payload: Omit<EnvTokenPayload, "issuedAt">): 
     env: payload.env,
     userId: payload.userId,
     email: payload.email,
+    allowStaffTesting: Boolean(payload.allowStaffTesting),
     issuedAt: Date.now(),
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -62,6 +77,7 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
       env,
       userId: payload.userId as string,
       email: payload.email as string,
+      allowStaffTesting: Boolean(payload.allowStaffTesting),
       issuedAt: (payload.issuedAt as number) || Date.now(),
     };
   } catch {
@@ -75,10 +91,10 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
  * Hierarchy:
  * 1. AsyncLocalStorage context (if explicitly set via withEnvironmentContext)
  * 2. Super Admin authenticated session + verified signed env cookie (sw30_admin_env)
- * 3. Default: "LIVE"
+ * 3. Staff Admin authenticated session + active staff testing mode authorized by Super Admin
+ * 4. Default: "LIVE"
  * 
- * Enforces server-side authorization: If a non-super-admin user attempts to send
- * a TEST environment cookie, it is rejected and strictly resolved as LIVE.
+ * Enforces server-side authorization: Standard users / students / public traffic ALWAYS run in LIVE mode.
  */
 export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
   // 1. Check AsyncLocalStorage
@@ -87,20 +103,9 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
     return alsEnv;
   }
 
-  // 2. Read cookies
+  // 2. Read session & cookies
   try {
     const cookieStore = await cookies();
-    const envToken = cookieStore.get(ENV_COOKIE_NAME)?.value;
-    if (!envToken) {
-      return DEFAULT_ENVIRONMENT;
-    }
-
-    const envPayload = await verifyEnvToken(envToken);
-    if (!envPayload || envPayload.env !== "TEST") {
-      return DEFAULT_ENVIRONMENT;
-    }
-
-    // Verify authenticated session matches Super Admin
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     if (!sessionToken) {
       return DEFAULT_ENVIRONMENT;
@@ -111,13 +116,39 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
       return DEFAULT_ENVIRONMENT;
     }
 
-    // Strictly enforce Super Admin identity server-side
+    // Check if Super Admin has active TEST cookie
     const isSuper = isSuperAdminUser({
       role: session.role,
       email: session.email,
     });
 
-    if (isSuper && session.userId === envPayload.userId && session.email.toLowerCase() === envPayload.email.toLowerCase()) {
+    if (isSuper) {
+      const envToken = cookieStore.get(ENV_COOKIE_NAME)?.value;
+      if (envToken) {
+        const envPayload = await verifyEnvToken(envToken);
+        if (
+          envPayload &&
+          envPayload.env === "TEST" &&
+          session.userId === envPayload.userId &&
+          session.email.toLowerCase() === envPayload.email.toLowerCase()
+        ) {
+          // Sync in-memory staff testing status from Super Admin's token if available
+          if (envPayload.allowStaffTesting !== undefined) {
+            setStaffTestingActive(envPayload.allowStaffTesting);
+          }
+          return "TEST";
+        }
+      }
+      return DEFAULT_ENVIRONMENT;
+    }
+
+    // Check if Staff Admin should enter TEST mode
+    const isStaff = isStaffAdminUser({
+      role: session.role,
+      email: session.email,
+    });
+
+    if (isStaff && isStaffTestingActive()) {
       return "TEST";
     }
 

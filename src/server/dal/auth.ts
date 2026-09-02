@@ -7,9 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { UserRole } from "@/generated/prisma";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
-import { isSuperAdminUser } from "@/server/dal/auth-check";
+import { isSuperAdminUser, isStaffAdminUser } from "@/server/dal/auth-check";
 
-export { isSuperAdminUser } from "@/server/dal/auth-check";
+export { isSuperAdminUser, isStaffAdminUser } from "@/server/dal/auth-check";
 
 export const verifySession = cache(async () => {
   const cookieStore = await cookies();
