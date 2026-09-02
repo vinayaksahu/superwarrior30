@@ -23,6 +23,12 @@ export function PublicNavbar() {
             Courses
           </Link>
           <Link
+            href="/testimonials"
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+          >
+            Testimonials
+          </Link>
+          <Link
             href="/about"
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
           >
@@ -79,6 +85,13 @@ export function PublicNavbar() {
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
           >
             Courses Catalog
+          </Link>
+          <Link
+            href="/testimonials"
+            onClick={() => setMobileOpen(false)}
+            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
+          >
+            Testimonials & Reviews
           </Link>
           <Link
             href="/about"

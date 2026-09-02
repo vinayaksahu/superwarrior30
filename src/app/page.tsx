@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/shared/brand-logo";
-import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { PublicNavbar } from "@/components/shared/public-navbar";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -57,54 +57,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
       {/* 1. Header Navigation */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <BrandLogo href="/" size="md" />
-
-          <nav className="hidden items-center gap-6 md:flex">
-            <Link
-              href="/courses"
-              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
-            >
-              Courses
-            </Link>
-            <Link
-              href="/about"
-              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
-            >
-              About
-            </Link>
-            <Link
-              href="/faq"
-              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
-            >
-              FAQ
-            </Link>
-            <Link
-              href="/contact"
-              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
-            >
-              Contact
-            </Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <Link
-              href="/login"
-              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground px-3 py-1.5"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
-            >
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* 2. Hero Section: Terminal Aesthetic */}
       <section className="relative overflow-hidden pt-20 pb-24 md:pt-28 md:pb-36 border-b border-border/40">
@@ -498,6 +451,7 @@ export default async function HomePage() {
               <h4 className="font-bold text-foreground mb-3 text-xs">Curriculum</h4>
               <ul className="space-y-2">
                 <li><Link href="/courses" className="hover:text-foreground">All Masterclasses</Link></li>
+                <li><Link href="/testimonials" className="hover:text-foreground">Student Reviews & P&L</Link></li>
                 <li><Link href="/about" className="hover:text-foreground">Methodology</Link></li>
                 <li><Link href="/faq" className="hover:text-foreground">Student FAQ</Link></li>
               </ul>
