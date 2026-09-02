@@ -2,7 +2,8 @@ import { requireAdmin, isSuperAdminUser } from "@/server/dal/auth";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { TestingModeBanner } from "@/components/admin/environment-switcher";
-import { resolveCurrentEnvironment, isStaffTestingActive } from "@/lib/env-context";
+import { resolveCurrentEnvironment } from "@/lib/env-context";
+import { isStaffTestingAllowedInDb } from "@/server/actions/environment.actions";
 import { getEffectivePermissions, getRolePresentation } from "@/lib/permissions";
 
 export default async function AdminLayout({
@@ -13,7 +14,7 @@ export default async function AdminLayout({
   const user = await requireAdmin();
   const currentEnvironment = await resolveCurrentEnvironment();
   const isSuper = isSuperAdminUser(user);
-  const staffTestingAllowed = isStaffTestingActive();
+  const staffTestingAllowed = await isStaffTestingAllowedInDb();
 
   // Resolve role presentation and effective permissions
   const rolePresentation = getRolePresentation(user.role, user.adminRole, user.email);

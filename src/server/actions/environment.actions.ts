@@ -15,6 +15,25 @@ import {
 import { prisma } from "@/lib/prisma";
 
 /**
+ * Checks database for global staff testing permission
+ */
+export async function isStaffTestingAllowedInDb(): Promise<boolean> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: "test_mode_include_staff" },
+    });
+    if (setting) {
+      const allowed = setting.value === "true";
+      setStaffTestingActive(allowed);
+      return allowed;
+    }
+    return isStaffTestingActive();
+  } catch {
+    return isStaffTestingActive();
+  }
+}
+
+/**
  * Master server action for Super Admin to switch environment between LIVE and TEST.
  * Supports optional allowStaffTesting flag to grant testing permissions to staff members.
  * Strictly enforced server-side for SUPER_ADMIN role only.
@@ -212,7 +231,7 @@ export async function toggleStaffTestingAction(enabled: boolean): Promise<{
 
 /**
  * Staff Admin individual action to toggle testing mode for their own session.
- * Requires Super Admin to have granted staff testing permission.
+ * Checks database directly so it works seamlessly across serverless instances.
  */
 export async function switchStaffEnvironmentAction(targetEnv: AppEnvironment): Promise<{
   success: boolean;
@@ -229,7 +248,8 @@ export async function switchStaffEnvironmentAction(targetEnv: AppEnvironment): P
       };
     }
 
-    if (!isStaffTestingActive()) {
+    const isAllowed = await isStaffTestingAllowedInDb();
+    if (!isAllowed) {
       return {
         success: false,
         error: "Testing Mode is currently disabled for staff by the Super Admin.",
@@ -286,12 +306,13 @@ export async function getCurrentEnvironmentAction(): Promise<{
     const isSuper = isSuperAdminUser(user);
     const isStaff = isStaffAdminUser(user);
     const env = await resolveCurrentEnvironment();
+    const staffAllowed = await isStaffTestingAllowedInDb();
 
     return {
       environment: env,
       isSuperAdmin: isSuper,
       isStaffAdmin: isStaff,
-      staffTestingAllowed: isStaffTestingActive(),
+      staffTestingAllowed: staffAllowed,
     };
   } catch {
     return {

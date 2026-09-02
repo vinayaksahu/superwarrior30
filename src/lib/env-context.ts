@@ -18,7 +18,7 @@ const encodedKey = new TextEncoder().encode(SECRET_KEY);
 // AsyncLocalStorage to maintain environment context across async execution tree
 const environmentStorage = new AsyncLocalStorage<AppEnvironment>();
 
-// In-memory global state for staff testing activation (fast resolution)
+// In-memory global state for staff testing activation (fast resolution cache)
 const globalForEnv = globalThis as unknown as {
   staffTestingActive: boolean | undefined;
 };
@@ -133,7 +133,7 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
           session.userId === envPayload.userId &&
           session.email.toLowerCase() === envPayload.email.toLowerCase()
         ) {
-          // Sync in-memory staff testing status from Super Admin's token if available
+          // Sync staff testing status from Super Admin's token if available
           if (envPayload.allowStaffTesting !== undefined) {
             setStaffTestingActive(envPayload.allowStaffTesting);
           }
@@ -150,8 +150,25 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
     });
 
     if (isStaff) {
+      // Check database setting directly to ensure serverless cross-instance sync
+      let staffAllowed = isStaffTestingActive();
+      if (!staffAllowed) {
+        try {
+          const { prisma } = await import("@/lib/prisma");
+          const setting = await prisma.siteSetting.findUnique({
+            where: { key: "test_mode_include_staff" },
+          });
+          if (setting) {
+            staffAllowed = setting.value === "true";
+            setStaffTestingActive(staffAllowed);
+          }
+        } catch {
+          // Fallback to in-memory state
+        }
+      }
+
       // If Super Admin has disabled staff testing -> strictly LIVE
-      if (!isStaffTestingActive()) {
+      if (!staffAllowed) {
         return DEFAULT_ENVIRONMENT;
       }
 
