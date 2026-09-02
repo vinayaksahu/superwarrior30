@@ -275,6 +275,38 @@ export async function getMediaAssetDetailsAction(mediaId: string) {
     if (asset.mediaType === "VIDEO" && asset.bunnyVideoId) {
       try {
         const config = await getResolvedBunnyConfig();
+        const vidStatus = await getVideoStatus(asset.bunnyVideoId);
+
+        if (vidStatus.isReady && asset.status !== "READY") {
+          const updated = await prisma.mediaAsset.update({
+            where: { id: mediaId },
+            data: {
+              uploadStatus: "UPLOADED",
+              processingStatus: "READY",
+              status: "READY",
+              duration: vidStatus.durationSec > 0 ? vidStatus.durationSec : asset.duration,
+              width: vidStatus.width || asset.width,
+              height: vidStatus.height || asset.height,
+              thumbnailUrl: vidStatus.thumbnailUrl || asset.thumbnailUrl,
+            },
+          });
+          asset.status = "READY";
+          asset.uploadStatus = "UPLOADED";
+          asset.processingStatus = "READY";
+          asset.duration = updated.duration;
+          asset.thumbnailUrl = updated.thumbnailUrl;
+        } else if (vidStatus.isUploaded && asset.status === "UPLOADING") {
+          await prisma.mediaAsset.update({
+            where: { id: mediaId },
+            data: {
+              uploadStatus: "UPLOADED",
+              processingStatus: "PROCESSING",
+              status: "PROCESSING",
+            },
+          });
+          asset.status = "PROCESSING";
+        }
+
         if (config.streamLibraryId) {
           playbackUrl = getSecurePlaybackUrl(asset.bunnyVideoId, 7200, "embed", config.streamLibraryId);
         }
@@ -632,22 +664,20 @@ export async function pollMediaProcessingStatusAction(mediaId: string) {
 
     // Query Bunny Stream video status
     const vidStatus = await getVideoStatus(asset.bunnyVideoId);
-    const isFinished =
-      vidStatus.isReady ||
-      vidStatus.status === "FINISHED" ||
-      (typeof vidStatus.encodeProgress === "number" && vidStatus.encodeProgress >= 100);
-
+    const isFinished = vidStatus.isReady;
     const isFailed = vidStatus.status === "FAILED";
 
     if (isFinished && asset.status !== "READY") {
       const updated = await prisma.mediaAsset.update({
         where: { id: mediaId },
         data: {
+          uploadStatus: "UPLOADED",
           processingStatus: "READY",
           status: "READY",
           duration: vidStatus.durationSec > 0 ? vidStatus.durationSec : asset.duration,
           width: vidStatus.width || asset.width,
           height: vidStatus.height || asset.height,
+          thumbnailUrl: vidStatus.thumbnailUrl || asset.thumbnailUrl,
         },
       });
 
@@ -664,7 +694,19 @@ export async function pollMediaProcessingStatusAction(mediaId: string) {
         isReady: true,
         encodeProgress: 100,
         durationSec: updated.duration,
+        thumbnailUrl: updated.thumbnailUrl,
       };
+    }
+
+    if (vidStatus.isUploaded && asset.status === "UPLOADING") {
+      await prisma.mediaAsset.update({
+        where: { id: mediaId },
+        data: {
+          uploadStatus: "UPLOADED",
+          processingStatus: "PROCESSING",
+          status: "PROCESSING",
+        },
+      });
     }
 
     if (isFailed && asset.status !== "FAILED") {
@@ -695,15 +737,91 @@ export async function pollMediaProcessingStatusAction(mediaId: string) {
 
     return {
       success: true,
-      status: asset.status,
+      status: asset.status === "UPLOADING" && vidStatus.isUploaded ? "PROCESSING" : asset.status,
       processingStatus: asset.processingStatus,
-      isReady: asset.status === "READY",
+      isReady: asset.status === "READY" || isFinished,
       encodeProgress: vidStatus.encodeProgress || 0,
       durationSec: vidStatus.durationSec || asset.duration,
+      thumbnailUrl: vidStatus.thumbnailUrl || asset.thumbnailUrl,
     };
   } catch (error: any) {
     console.error("Error in pollMediaProcessingStatusAction:", error);
     return { success: false, error: error?.message || "Failed to check media status." };
+  }
+}
+
+/**
+ * Sync all pending or non-ready video assets with Bunny Stream
+ */
+export async function syncAllPendingMediaAction() {
+  const user = await requireAdmin();
+  const env = await resolveCurrentEnvironment();
+  await ensureMediaTablesExist(env);
+
+  try {
+    const pending = await prisma.mediaAsset.findMany({
+      where: {
+        mediaType: "VIDEO",
+        bunnyVideoId: { not: null },
+        deletedAt: null,
+        status: { in: ["UPLOADING", "PROCESSING", "QUEUED"] },
+      },
+    });
+
+    let updatedCount = 0;
+
+    await Promise.allSettled(
+      pending.map(async (asset: any) => {
+        try {
+          if (!asset.bunnyVideoId) return;
+          const vidStatus = await getVideoStatus(asset.bunnyVideoId);
+
+          if (vidStatus.isReady) {
+            await prisma.mediaAsset.update({
+              where: { id: asset.id },
+              data: {
+                uploadStatus: "UPLOADED",
+                processingStatus: "READY",
+                status: "READY",
+                duration: vidStatus.durationSec > 0 ? vidStatus.durationSec : asset.duration,
+                width: vidStatus.width || asset.width,
+                height: vidStatus.height || asset.height,
+                thumbnailUrl: vidStatus.thumbnailUrl || asset.thumbnailUrl,
+              },
+            });
+            updatedCount++;
+          } else if (vidStatus.isUploaded && asset.status === "UPLOADING") {
+            await prisma.mediaAsset.update({
+              where: { id: asset.id },
+              data: {
+                uploadStatus: "UPLOADED",
+                processingStatus: "PROCESSING",
+                status: "PROCESSING",
+              },
+            });
+            updatedCount++;
+          } else if (vidStatus.status === "FAILED") {
+            await prisma.mediaAsset.update({
+              where: { id: asset.id },
+              data: {
+                processingStatus: "FAILED",
+                status: "FAILED",
+                errorMessage: "Transcoding failed on Bunny Stream.",
+              },
+            });
+            updatedCount++;
+          }
+        } catch (e) {
+          console.warn(`Could not sync video ${asset.bunnyVideoId}:`, e);
+        }
+      })
+    );
+
+    revalidatePath("/admin/media");
+    return { success: true, updatedCount };
+  } catch (error: any) {
+    console.error("Error in syncAllPendingMediaAction:", error);
+    return { success: false, error: error?.message || "Failed to sync pending media assets." };
   }
 }
 

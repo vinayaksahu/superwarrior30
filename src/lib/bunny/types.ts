@@ -69,7 +69,7 @@ export type MediaProvider = "R2" | "BUNNY";
 export function mapBunnyStatusCode(statusCode: number): BunnyVideoStatus {
   switch (statusCode) {
     case 0: return "QUEUED";
-    case 1: return "QUEUED";      // uploaded but not yet processing
+    case 1: return "PROCESSING";  // Uploaded and in processing queue
     case 2: return "PROCESSING";
     case 3: return "ENCODING";
     case 4: return "FINISHED";
@@ -85,9 +85,13 @@ export function mapBunnyStatusCode(statusCode: number): BunnyVideoStatus {
 export interface VideoEncodingStatus {
   guid: string;
   status: BunnyVideoStatus;
+  rawStatusCode?: number;
   encodeProgress: number;
   isReady: boolean;
+  isUploaded: boolean;
   durationSec: number;
   width: number;
   height: number;
+  thumbnailUrl?: string;
+  previewUrl?: string;
 }

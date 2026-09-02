@@ -152,15 +152,34 @@ export async function getVideoStatus(guid: string): Promise<VideoEncodingStatus>
 
   const data: BunnyVideo = await res.json();
   const status = mapBunnyStatusCode(data.status);
+  const rawStatus = data.status;
+
+  // Video is READY if status is 4 (Finished), or has duration with status >= 3, or encodeProgress is 100
+  const isReady =
+    status === "FINISHED" ||
+    rawStatus === 4 ||
+    (typeof data.encodeProgress === "number" && data.encodeProgress >= 100) ||
+    (typeof data.length === "number" && data.length > 0 && rawStatus >= 3);
+
+  // Video is uploaded if status >= 1
+  const isUploaded = rawStatus >= 1;
+
+  const libraryId = config.streamLibraryId;
+  const thumbnailUrl = `https://vz-${libraryId}.b-cdn.net/${data.guid}/thumbnail.jpg`;
+  const previewUrl = `https://vz-${libraryId}.b-cdn.net/${data.guid}/preview.webp`;
 
   return {
     guid: data.guid,
     status,
+    rawStatusCode: rawStatus,
     encodeProgress: data.encodeProgress || 0,
-    isReady: status === "FINISHED",
+    isReady,
+    isUploaded,
     durationSec: Math.round(data.length || 0),
     width: data.width || 0,
     height: data.height || 0,
+    thumbnailUrl,
+    previewUrl,
   };
 }
 

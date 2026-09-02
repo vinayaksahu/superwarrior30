@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { getMediaAssetsAction } from "@/server/actions/media.actions";
+import { getMediaAssetsAction, syncAllPendingMediaAction } from "@/server/actions/media.actions";
 import { useUploadManager } from "@/contexts/upload-manager-context";
 import { MediaDetailsDrawer } from "./media-details-drawer";
 import { MediaDeleteDialog } from "./media-delete-dialog";
@@ -126,6 +126,25 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
 
     return () => clearInterval(interval);
   }, [items, fetchAssets]);
+
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      const syncRes = await syncAllPendingMediaAction();
+      if (syncRes.success && typeof syncRes.updatedCount === "number" && syncRes.updatedCount > 0) {
+        toast.success(`✓ Synced with Bunny: ${syncRes.updatedCount} video(s) updated to Ready!`);
+      } else {
+        toast.info("Media library refreshed.");
+      }
+      await fetchAssets(true);
+    } catch {
+      await fetchAssets();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleUploadFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -253,11 +272,12 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
 
             <button
               type="button"
-              onClick={fetchAssets}
-              className="rounded-xl border border-border bg-card p-2 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors shadow-sm"
-              title="Refresh Media List"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="rounded-xl border border-border bg-card p-2 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+              title="Sync & Refresh with Bunny Stream"
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className={cn("h-4 w-4", isSyncing && "animate-spin text-primary")} />
             </button>
           </div>
         </div>

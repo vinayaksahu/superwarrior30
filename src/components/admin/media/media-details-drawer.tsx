@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getMediaAssetDetailsAction } from "@/server/actions/media.actions";
+import { getMediaAssetDetailsAction, pollMediaProcessingStatusAction } from "@/server/actions/media.actions";
 import {
   X,
   Film,
@@ -20,6 +20,7 @@ import {
   Clock,
   FileCode,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -89,6 +90,32 @@ export function MediaDetailsDrawer({
     if (media?.id) {
       navigator.clipboard.writeText(media.id);
       toast.success("Media ID copied to clipboard!");
+    }
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncStatus = async () => {
+    if (!mediaId) return;
+    setIsSyncing(true);
+    try {
+      const pollRes = await pollMediaProcessingStatusAction(mediaId);
+      if (pollRes.success) {
+        if (pollRes.isReady || pollRes.status === "READY") {
+          toast.success("✓ Video is Ready on Bunny Stream!");
+        } else {
+          toast.info(`Status: ${pollRes.status} (Encode: ${pollRes.encodeProgress || 0}%)`);
+        }
+        // Refresh details
+        const refreshed = await getMediaAssetDetailsAction(mediaId);
+        if (refreshed.success && refreshed.data) {
+          setMedia(refreshed.data);
+        }
+      } else {
+        toast.error(pollRes.error || "Failed to sync status with Bunny.");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to sync status.");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -231,6 +258,18 @@ export function MediaDetailsDrawer({
                   <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                   Copy Media ID
                 </button>
+
+                {isVideo && (
+                  <button
+                    type="button"
+                    onClick={handleSyncStatus}
+                    disabled={isSyncing}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    <RotateCcw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                    Sync with Bunny
+                  </button>
+                )}
 
                 {media.storageUrl && (
                   <a
