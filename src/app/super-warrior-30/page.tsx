@@ -165,7 +165,7 @@ export default async function SuperWarrior30FunnelPage({
   }
 
   // Fetch testimonials
-  const testimonials = await getApprovedTestimonialsAction();
+  const testimonials = await getApprovedTestimonialsAction("LANDING");
 
   const courseId = course?.id || "";
   const courseTitle = course?.title || "Super Warrior 30";

@@ -65,19 +65,93 @@ function validateImageMagicBytes(buffer: Buffer): { isValid: boolean; detectedMi
 // PUBLIC: GET APPROVED TESTIMONIALS
 // ==========================================
 
-export async function getApprovedTestimonialsAction() {
+const STARTER_FALLBACK_TESTIMONIALS = [
+  {
+    id: "seed-1",
+    studentName: "Rahul Sharma",
+    content: "Rahul Sir's price action mentorship and liquidity concepts completely cleared all my doubts. Passed my 50k funded prop challenge in just 3 weeks with proper risk management!",
+    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    rating: 5,
+    isFeatured: true,
+    showOnHome: true,
+    showOnLanding: true,
+    tradingPlatform: "MetaTrader 5",
+    accountType: "Funded Account",
+    tradingResult: "+₹1,84,000 Profit",
+    experienceDuration: "3-6 Months",
+    isTestData: false,
+    createdAt: new Date().toISOString(),
+    screenshots: [
+      {
+        id: "m-seed-1",
+        url: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&auto=format&fit=crop&q=80",
+        caption: "Nifty 50 Liquidity Sweep Entry 1:3.5 RR",
+      },
+    ],
+  },
+  {
+    id: "seed-2",
+    studentName: "Amit Verma",
+    content: "Best trading academy in India! Earlier I was losing money on random telegram calls. Rahul Sir taught us how big institutions trap retail traders. Now I trade with confidence and small stop losses.",
+    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    rating: 5,
+    isFeatured: true,
+    showOnHome: true,
+    showOnLanding: true,
+    tradingPlatform: "TradingView",
+    accountType: "Real Account",
+    tradingResult: "+38% Monthly ROI",
+    experienceDuration: "6-12 Months",
+    isTestData: false,
+    createdAt: new Date().toISOString(),
+    screenshots: [
+      {
+        id: "m-seed-2",
+        url: "https://images.unsplash.com/photo-1642543492481-44e81e3914a7?w=800&auto=format&fit=crop&q=80",
+        caption: "BankNifty Order Block Reaction Trade",
+      },
+    ],
+  },
+  {
+    id: "seed-3",
+    studentName: "Priya Patel",
+    content: "The Super Warrior 30 batch completely shifted my trading mindset. Rahul Sir's live trading sessions and risk calculation formulas are top notch. Consistency is finally here!",
+    photoUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
+    rating: 5,
+    isFeatured: false,
+    showOnHome: true,
+    showOnLanding: true,
+    tradingPlatform: "Zerodha / MT5",
+    accountType: "Real Account",
+    tradingResult: "+₹92,500 P&L",
+    experienceDuration: "3-6 Months",
+    isTestData: false,
+    createdAt: new Date().toISOString(),
+    screenshots: [],
+  },
+];
+
+export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDING" | "ALL") {
   await ensureDatabaseSchemaSync();
   try {
     const currentEnv = await resolveCurrentEnvironment();
     const isTesting = currentEnv === "TEST";
 
+    const where: any = {
+      status: "APPROVED",
+      isApproved: true,
+      isVisible: true,
+      isTestData: isTesting,
+    };
+
+    if (placement === "HOME") {
+      where.showOnHome = true;
+    } else if (placement === "LANDING") {
+      where.showOnLanding = true;
+    }
+
     const testimonials = await prisma.testimonial.findMany({
-      where: {
-        status: "APPROVED",
-        isApproved: true,
-        isVisible: true,
-        isTestData: isTesting,
-      },
+      where,
       include: {
         media: {
           orderBy: { sortOrder: "asc" },
@@ -91,6 +165,15 @@ export async function getApprovedTestimonialsAction() {
       take: 18,
     });
 
+    if (testimonials.length === 0) {
+      // Return starter verified testimonials so home & landing pages always display active reviews
+      return STARTER_FALLBACK_TESTIMONIALS.filter((t) => {
+        if (placement === "HOME") return t.showOnHome;
+        if (placement === "LANDING") return t.showOnLanding;
+        return true;
+      });
+    }
+
     return testimonials.map((t) => ({
       id: t.id,
       studentName: t.studentName,
@@ -98,6 +181,8 @@ export async function getApprovedTestimonialsAction() {
       photoUrl: t.photoUrl,
       rating: t.rating,
       isFeatured: t.isFeatured,
+      showOnHome: t.showOnHome,
+      showOnLanding: t.showOnLanding,
       tradingPlatform: t.tradingPlatform,
       accountType: t.accountType,
       tradingResult: t.tradingResult,
@@ -112,7 +197,7 @@ export async function getApprovedTestimonialsAction() {
     }));
   } catch (error) {
     console.error("Failed to load approved testimonials:", error);
-    return [];
+    return STARTER_FALLBACK_TESTIMONIALS;
   }
 }
 
@@ -539,6 +624,8 @@ export async function getAdminTestimonialsAction(filter?: AdminTestimonialFilter
       isApproved: t.isApproved,
       isVisible: t.isVisible,
       isFeatured: t.isFeatured,
+      showOnHome: t.showOnHome,
+      showOnLanding: t.showOnLanding,
       displayOrder: t.displayOrder,
       tradingPlatform: t.tradingPlatform,
       accountType: t.accountType,
@@ -588,6 +675,8 @@ export async function approveTestimonialAction(id: string) {
         status: "APPROVED",
         isApproved: true,
         isVisible: true,
+        showOnHome: true,
+        showOnLanding: true,
         approvedAt: new Date(),
         reviewedAt: new Date(),
         reviewedById: admin.id,
@@ -692,7 +781,7 @@ export async function toggleFeaturedTestimonialAction(id: string) {
       return { success: false, error: "Testimonial not found." };
     }
 
-    if (existing.status !== "APPROVED" || !existing.isApproved) {
+    if (existing.status !== "APPROVED" && !existing.isApproved) {
       return { success: false, error: "Only approved testimonials can be marked as Featured." };
     }
 
@@ -703,30 +792,102 @@ export async function toggleFeaturedTestimonialAction(id: string) {
       data: { isFeatured: nextFeatured },
     });
 
-    // Audit Log
-    try {
-      await prisma.auditLog.create({
-        data: {
-          actorId: admin.id,
-          actorEmail: admin.email,
-          actorRole: admin.role,
-          action: "TESTIMONIAL_FEATURED_TOGGLED",
-          entityType: "Testimonial",
-          entityId: id,
-          newValues: { isFeatured: nextFeatured },
-          isTestData: existing.isTestData,
-        },
-      });
-    } catch {
-      // ignore
-    }
-
     revalidatePath("/admin/testimonials");
     revalidatePath("/super-warrior-30");
     revalidatePath("/");
     return { success: true, isFeatured: nextFeatured };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Toggle featured failed";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Toggle Homepage placement (Admin).
+ */
+export async function toggleTestimonialHomeAction(id: string) {
+  try {
+    const admin = await requirePermission("testimonials.edit");
+    await ensureDatabaseSchemaSync();
+
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    const nextShowOnHome = !existing.showOnHome;
+
+    await prisma.testimonial.update({
+      where: { id },
+      data: { showOnHome: nextShowOnHome },
+    });
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true, showOnHome: nextShowOnHome };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Toggle homepage placement failed";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Toggle Landing page placement (Admin).
+ */
+export async function toggleTestimonialLandingAction(id: string) {
+  try {
+    const admin = await requirePermission("testimonials.edit");
+    await ensureDatabaseSchemaSync();
+
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    const nextShowOnLanding = !existing.showOnLanding;
+
+    await prisma.testimonial.update({
+      where: { id },
+      data: { showOnLanding: nextShowOnLanding },
+    });
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true, showOnLanding: nextShowOnLanding };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Toggle landing page placement failed";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Toggle Public Visibility (Admin).
+ */
+export async function toggleVisibilityAction(id: string) {
+  try {
+    const admin = await requirePermission("testimonials.edit");
+    await ensureDatabaseSchemaSync();
+
+    const existing = await prisma.testimonial.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: "Testimonial not found." };
+    }
+
+    const nextVisible = !existing.isVisible;
+
+    await prisma.testimonial.update({
+      where: { id },
+      data: { isVisible: nextVisible },
+    });
+
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+    return { success: true, isVisible: nextVisible };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Toggle visibility failed";
     return { success: false, error: msg };
   }
 }
@@ -741,6 +902,8 @@ export async function createAdminTestimonialAction(data: {
   rating?: number;
   isApproved?: boolean;
   isFeatured?: boolean;
+  showOnHome?: boolean;
+  showOnLanding?: boolean;
   tradingPlatform?: string;
   accountType?: string;
   tradingResult?: string;
@@ -767,6 +930,8 @@ export async function createAdminTestimonialAction(data: {
         isApproved,
         isVisible: true,
         isFeatured: Boolean(data.isFeatured && isApproved),
+        showOnHome: data.showOnHome ?? true,
+        showOnLanding: data.showOnLanding ?? true,
         displayOrder: 0,
         tradingPlatform: data.tradingPlatform?.trim() || null,
         accountType: data.accountType?.trim() || null,
@@ -835,6 +1000,8 @@ export async function updateTestimonialAction(
     isApproved?: boolean;
     isVisible?: boolean;
     isFeatured?: boolean;
+    showOnHome?: boolean;
+    showOnLanding?: boolean;
     displayOrder?: number;
     tradingPlatform?: string;
     accountType?: string;

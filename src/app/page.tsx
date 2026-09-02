@@ -52,7 +52,7 @@ export default async function HomePage() {
     console.warn("Could not load featured courses at build time:", err);
   }
 
-  const testimonials = await getApprovedTestimonialsAction();
+  const testimonials = await getApprovedTestimonialsAction("HOME");
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">

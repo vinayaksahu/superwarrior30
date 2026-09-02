@@ -145,6 +145,8 @@ export async function ensureDatabaseSchemaSync(force = false) {
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "userId" TEXT;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "status" "TestimonialStatus" DEFAULT 'PENDING';`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isFeatured" BOOLEAN DEFAULT false;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "showOnHome" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "showOnLanding" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "displayOrder" INTEGER DEFAULT 0;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "tradingPlatform" TEXT;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "accountType" TEXT;`,

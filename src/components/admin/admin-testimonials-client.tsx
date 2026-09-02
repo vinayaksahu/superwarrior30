@@ -5,6 +5,9 @@ import {
   approveTestimonialAction,
   rejectTestimonialAction,
   toggleFeaturedTestimonialAction,
+  toggleTestimonialHomeAction,
+  toggleTestimonialLandingAction,
+  toggleVisibilityAction,
   updateTestimonialAction,
   deleteTestimonialAction,
   createAdminTestimonialAction,
@@ -17,15 +20,14 @@ import {
   Edit,
   Sparkles,
   Search,
-  Filter,
-  Clock,
-  AlertTriangle,
   Plus,
   Maximize2,
   X,
-  ExternalLink,
-  ShieldAlert,
-  Layers,
+  Check,
+  Home,
+  Rocket,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
@@ -48,6 +50,8 @@ export interface AdminTestimonialItem {
   isApproved: boolean;
   isVisible: boolean;
   isFeatured: boolean;
+  showOnHome?: boolean;
+  showOnLanding?: boolean;
   displayOrder: number;
   tradingPlatform: string | null;
   accountType: string | null;
@@ -81,7 +85,7 @@ export function AdminTestimonialsClient({
   initialTestimonials,
 }: AdminTestimonialsClientProps) {
   const [testimonials, setTestimonials] = useState<AdminTestimonialItem[]>(initialTestimonials);
-  const [activeTab, setActiveTab] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED" | "FEATURED">("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED" | "FEATURED" | "HOME" | "LANDING">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [isTransitioning, startTransition] = useTransition();
 
@@ -104,6 +108,8 @@ export function AdminTestimonialsClient({
   const [newDuration, setNewDuration] = useState("3-6 Months");
   const [newApproveImmediately, setNewApproveImmediately] = useState(true);
   const [newIsFeatured, setNewIsFeatured] = useState(false);
+  const [newShowOnHome, setNewShowOnHome] = useState(true);
+  const [newShowOnLanding, setNewShowOnLanding] = useState(true);
   const [newScreenshotUrls, setNewScreenshotUrls] = useState<string[]>([]);
   const [tempScreenshotUrl, setTempScreenshotUrl] = useState("");
 
@@ -122,6 +128,8 @@ export function AdminTestimonialsClient({
   const approvedCount = testimonials.filter((t) => t.status === "APPROVED" || t.isApproved).length;
   const rejectedCount = testimonials.filter((t) => t.status === "REJECTED").length;
   const featuredCount = testimonials.filter((t) => t.isFeatured).length;
+  const homeCount = testimonials.filter((t) => t.showOnHome !== false && (t.status === "APPROVED" || t.isApproved)).length;
+  const landingCount = testimonials.filter((t) => t.showOnLanding !== false && (t.status === "APPROVED" || t.isApproved)).length;
 
   // Filtered list
   const filteredTestimonials = testimonials.filter((t) => {
@@ -129,6 +137,8 @@ export function AdminTestimonialsClient({
     if (activeTab === "APPROVED" && t.status !== "APPROVED" && !t.isApproved) return false;
     if (activeTab === "REJECTED" && t.status !== "REJECTED") return false;
     if (activeTab === "FEATURED" && !t.isFeatured) return false;
+    if (activeTab === "HOME" && (t.showOnHome === false || (!t.isApproved && t.status !== "APPROVED"))) return false;
+    if (activeTab === "LANDING" && (t.showOnLanding === false || (!t.isApproved && t.status !== "APPROVED"))) return false;
 
     if (searchQuery.trim().length > 0) {
       const q = searchQuery.toLowerCase();
@@ -148,7 +158,7 @@ export function AdminTestimonialsClient({
       try {
         const res = await approveTestimonialAction(id);
         if (res.success) {
-          toast.success("Testimonial approved successfully!");
+          toast.success("Testimonial approved & published successfully!");
           setTestimonials((prev) =>
             prev.map((t) =>
               t.id === id
@@ -156,6 +166,9 @@ export function AdminTestimonialsClient({
                     ...t,
                     status: "APPROVED" as const,
                     isApproved: true,
+                    isVisible: true,
+                    showOnHome: t.showOnHome ?? true,
+                    showOnLanding: t.showOnLanding ?? true,
                     rejectionReason: null,
                     approvedAt: new Date().toISOString(),
                     reviewedAt: new Date().toISOString(),
@@ -212,7 +225,7 @@ export function AdminTestimonialsClient({
   // Action: Toggle Featured
   const handleToggleFeatured = (item: AdminTestimonialItem) => {
     if (item.status !== "APPROVED" && !item.isApproved) {
-      toast.error("Only approved testimonials can be featured on the homepage.");
+      toast.error("Only approved testimonials can be featured.");
       return;
     }
 
@@ -220,9 +233,69 @@ export function AdminTestimonialsClient({
       try {
         const res = await toggleFeaturedTestimonialAction(item.id);
         if (res.success) {
-          toast.success(res.isFeatured ? "Marked as Featured!" : "Removed from Featured.");
+          toast.success(res.isFeatured ? "Marked as Featured Spotlight!" : "Removed from Featured.");
           setTestimonials((prev) =>
             prev.map((t) => (t.id === item.id ? { ...t, isFeatured: Boolean(res.isFeatured) } : t))
+          );
+        } else {
+          toast.error(res.error || "Action failed.");
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Action failed";
+        toast.error(msg);
+      }
+    });
+  };
+
+  // Action: Toggle Homepage Placement
+  const handleToggleHome = (item: AdminTestimonialItem) => {
+    startTransition(async () => {
+      try {
+        const res = await toggleTestimonialHomeAction(item.id);
+        if (res.success) {
+          toast.success(res.showOnHome ? "Now showing on Homepage!" : "Hidden from Homepage.");
+          setTestimonials((prev) =>
+            prev.map((t) => (t.id === item.id ? { ...t, showOnHome: Boolean(res.showOnHome) } : t))
+          );
+        } else {
+          toast.error(res.error || "Action failed.");
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Action failed";
+        toast.error(msg);
+      }
+    });
+  };
+
+  // Action: Toggle Landing Page Placement
+  const handleToggleLanding = (item: AdminTestimonialItem) => {
+    startTransition(async () => {
+      try {
+        const res = await toggleTestimonialLandingAction(item.id);
+        if (res.success) {
+          toast.success(res.showOnLanding ? "Now showing on Funnel Landing Page!" : "Hidden from Landing Page.");
+          setTestimonials((prev) =>
+            prev.map((t) => (t.id === item.id ? { ...t, showOnLanding: Boolean(res.showOnLanding) } : t))
+          );
+        } else {
+          toast.error(res.error || "Action failed.");
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Action failed";
+        toast.error(msg);
+      }
+    });
+  };
+
+  // Action: Toggle Visibility
+  const handleToggleVisibility = (item: AdminTestimonialItem) => {
+    startTransition(async () => {
+      try {
+        const res = await toggleVisibilityAction(item.id);
+        if (res.success) {
+          toast.success(res.isVisible ? "Testimonial is now public!" : "Testimonial hidden from public view.");
+          setTestimonials((prev) =>
+            prev.map((t) => (t.id === item.id ? { ...t, isVisible: Boolean(res.isVisible) } : t))
           );
         } else {
           toast.error(res.error || "Action failed.");
@@ -272,6 +345,8 @@ export function AdminTestimonialsClient({
           experienceDuration: newDuration,
           isApproved: newApproveImmediately,
           isFeatured: newIsFeatured,
+          showOnHome: newShowOnHome,
+          showOnLanding: newShowOnLanding,
           screenshots: newScreenshotUrls.map((url) => ({ url })),
         });
 
@@ -286,7 +361,6 @@ export function AdminTestimonialsClient({
           setNewResult("");
           setNewScreenshotUrls([]);
 
-          // Reload window or add locally
           window.location.reload();
         } else {
           toast.error(res.error || "Creation failed.");
@@ -315,6 +389,9 @@ export function AdminTestimonialsClient({
           tradingResult: editingItem.tradingResult || undefined,
           experienceDuration: editingItem.experienceDuration || undefined,
           isVisible: editingItem.isVisible,
+          isFeatured: editingItem.isFeatured,
+          showOnHome: editingItem.showOnHome ?? true,
+          showOnLanding: editingItem.showOnLanding ?? true,
         });
 
         if (res.success) {
@@ -340,10 +417,10 @@ export function AdminTestimonialsClient({
         <div>
           <h1 className="text-2xl font-extrabold text-foreground flex items-center gap-2.5">
             <Star className="h-6 w-6 text-primary fill-primary" />
-            <span>Testimonials Moderation & Reviews</span>
+            <span>Testimonials Moderation & Placements</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Review student submissions, manage trading proofs, and publish testimonials for public display.
+            Review student submissions, manage screenshots, and configure exactly where each testimonial appears (Homepage vs Funnel Landing Page).
           </p>
         </div>
 
@@ -357,66 +434,90 @@ export function AdminTestimonialsClient({
       </div>
 
       {/* KPI Metric Summary Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
         <div
           onClick={() => setActiveTab("ALL")}
-          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+          className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
             activeTab === "ALL" ? "border-primary bg-primary/10 shadow-sm" : "border-border bg-card hover:border-border/80"
           }`}
         >
-          <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total</p>
-          <p className="text-xl sm:text-2xl font-black text-foreground mt-1">{totalCount}</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total</p>
+          <p className="text-xl font-black text-foreground mt-1">{totalCount}</p>
         </div>
 
         <div
           onClick={() => setActiveTab("PENDING")}
-          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+          className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
             activeTab === "PENDING"
               ? "border-amber-500 bg-amber-500/10 shadow-sm"
               : "border-border bg-card hover:border-amber-500/40"
           }`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Pending</p>
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Pending</p>
             {pendingCount > 0 && <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
           </div>
-          <p className="text-xl sm:text-2xl font-black text-amber-500 mt-1">{pendingCount}</p>
+          <p className="text-xl font-black text-amber-500 mt-1">{pendingCount}</p>
         </div>
 
         <div
           onClick={() => setActiveTab("APPROVED")}
-          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+          className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
             activeTab === "APPROVED"
               ? "border-emerald-500 bg-emerald-500/10 shadow-sm"
               : "border-border bg-card hover:border-emerald-500/40"
           }`}
         >
-          <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">Approved</p>
-          <p className="text-xl sm:text-2xl font-black text-emerald-500 mt-1">{approvedCount}</p>
+          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Approved</p>
+          <p className="text-xl font-black text-emerald-500 mt-1">{approvedCount}</p>
         </div>
 
         <div
           onClick={() => setActiveTab("REJECTED")}
-          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+          className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
             activeTab === "REJECTED"
               ? "border-destructive bg-destructive/10 shadow-sm"
               : "border-border bg-card hover:border-destructive/40"
           }`}
         >
-          <p className="text-[11px] font-bold text-destructive uppercase tracking-wider">Rejected</p>
-          <p className="text-xl sm:text-2xl font-black text-destructive mt-1">{rejectedCount}</p>
+          <p className="text-[10px] font-bold text-destructive uppercase tracking-wider">Rejected</p>
+          <p className="text-xl font-black text-destructive mt-1">{rejectedCount}</p>
         </div>
 
         <div
           onClick={() => setActiveTab("FEATURED")}
-          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+          className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
             activeTab === "FEATURED"
               ? "border-primary bg-primary/10 shadow-sm"
               : "border-border bg-card hover:border-primary/40"
           }`}
         >
-          <p className="text-[11px] font-bold text-primary uppercase tracking-wider">Featured</p>
-          <p className="text-xl sm:text-2xl font-black text-primary mt-1">{featuredCount}</p>
+          <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Featured</p>
+          <p className="text-xl font-black text-primary mt-1">{featuredCount}</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab("HOME")}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
+            activeTab === "HOME"
+              ? "border-emerald-400 bg-emerald-500/10 shadow-sm"
+              : "border-border bg-card hover:border-emerald-400/40"
+          }`}
+        >
+          <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">🏠 On Home</p>
+          <p className="text-xl font-black text-emerald-400 mt-1">{homeCount}</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab("LANDING")}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition-all ${
+            activeTab === "LANDING"
+              ? "border-blue-400 bg-blue-500/10 shadow-sm"
+              : "border-border bg-card hover:border-blue-400/40"
+          }`}
+        >
+          <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">🚀 On Funnel</p>
+          <p className="text-xl font-black text-blue-400 mt-1">{landingCount}</p>
         </div>
       </div>
 
@@ -424,11 +525,11 @@ export function AdminTestimonialsClient({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {(["ALL", "PENDING", "APPROVED", "REJECTED", "FEATURED"] as const).map((tab) => (
+          {(["ALL", "PENDING", "APPROVED", "REJECTED", "FEATURED", "HOME", "LANDING"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === tab
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-muted text-muted-foreground hover:text-foreground"
@@ -438,7 +539,9 @@ export function AdminTestimonialsClient({
               {tab === "PENDING" && `Pending (${pendingCount})`}
               {tab === "APPROVED" && `Approved (${approvedCount})`}
               {tab === "REJECTED" && `Rejected (${rejectedCount})`}
-              {tab === "FEATURED" && `Featured (${featuredCount})`}
+              {tab === "FEATURED" && `⭐ Featured (${featuredCount})`}
+              {tab === "HOME" && `🏠 On Home (${homeCount})`}
+              {tab === "LANDING" && `🚀 On Funnel (${landingCount})`}
             </button>
           ))}
         </div>
@@ -464,8 +567,8 @@ export function AdminTestimonialsClient({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredTestimonials.map((t) => {
-            const isApproved = t.status === "APPROVED";
-            const isPending = t.status === "PENDING" || (!t.status && !t.isApproved);
+            const isApproved = t.status === "APPROVED" || t.isApproved;
+            const isPending = t.status === "PENDING";
             const isRejected = t.status === "REJECTED";
 
             return (
@@ -510,7 +613,7 @@ export function AdminTestimonialsClient({
                       </div>
                     </div>
 
-                    {/* Star Rating & Featured Star */}
+                    {/* Star Rating */}
                     <div className="text-right space-y-1">
                       <div className="flex items-center gap-0.5 justify-end">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -522,22 +625,6 @@ export function AdminTestimonialsClient({
                           />
                         ))}
                       </div>
-
-                      {isApproved && (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleFeatured(t)}
-                          className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold cursor-pointer transition-all ${
-                            t.isFeatured
-                              ? "bg-primary text-primary-foreground shadow"
-                              : "bg-muted text-muted-foreground hover:text-foreground"
-                          }`}
-                          title="Toggle Featured on homepage"
-                        >
-                          <Sparkles className="h-2.5 w-2.5" />
-                          <span>{t.isFeatured ? "Featured" : "Feature"}</span>
-                        </button>
-                      )}
                     </div>
                   </div>
 
@@ -559,6 +646,81 @@ export function AdminTestimonialsClient({
                     <span className="text-muted-foreground font-mono">
                       {new Date(t.createdAt).toLocaleDateString()}
                     </span>
+                  </div>
+
+                  {/* Placement Badges / Quick Toggles */}
+                  <div className="rounded-xl border border-border/60 bg-muted/30 p-2 space-y-1.5">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Live Placements & Visibility:
+                    </p>
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      {/* Homepage Placement Toggle */}
+                      <button
+                        type="button"
+                        disabled={isTransitioning}
+                        onClick={() => handleToggleHome(t)}
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-all ${
+                          t.showOnHome !== false
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30"
+                            : "bg-muted text-muted-foreground/50 border border-border/60 line-through hover:text-muted-foreground"
+                        }`}
+                        title="Click to toggle Homepage display"
+                      >
+                        <Home className="h-3 w-3" />
+                        <span>Home</span>
+                        {t.showOnHome !== false ? <Check className="h-2.5 w-2.5" /> : null}
+                      </button>
+
+                      {/* Landing Page Placement Toggle */}
+                      <button
+                        type="button"
+                        disabled={isTransitioning}
+                        onClick={() => handleToggleLanding(t)}
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-all ${
+                          t.showOnLanding !== false
+                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/40 hover:bg-blue-500/30"
+                            : "bg-muted text-muted-foreground/50 border border-border/60 line-through hover:text-muted-foreground"
+                        }`}
+                        title="Click to toggle Funnel Landing Page display"
+                      >
+                        <Rocket className="h-3 w-3" />
+                        <span>Funnel</span>
+                        {t.showOnLanding !== false ? <Check className="h-2.5 w-2.5" /> : null}
+                      </button>
+
+                      {/* Featured Spotlight Toggle */}
+                      <button
+                        type="button"
+                        disabled={isTransitioning}
+                        onClick={() => handleToggleFeatured(t)}
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-all ${
+                          t.isFeatured
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30"
+                            : "bg-muted text-muted-foreground/50 border border-border/60 hover:text-muted-foreground"
+                        }`}
+                        title="Click to toggle Featured Spotlight"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        <span>Featured</span>
+                        {t.isFeatured ? <Check className="h-2.5 w-2.5" /> : null}
+                      </button>
+
+                      {/* Visibility Toggle */}
+                      <button
+                        type="button"
+                        disabled={isTransitioning}
+                        onClick={() => handleToggleVisibility(t)}
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-all ${
+                          t.isVisible
+                            ? "bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30"
+                            : "bg-destructive/20 text-destructive border border-destructive/40 hover:bg-destructive/30"
+                        }`}
+                        title="Click to toggle Public Visibility"
+                      >
+                        {t.isVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        <span>{t.isVisible ? "Visible" : "Hidden"}</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Rejection Reason if Rejected */}
@@ -771,7 +933,7 @@ export function AdminTestimonialsClient({
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <Edit className="h-4 w-4 text-primary" />
-                <span>Edit Testimonial Details</span>
+                <span>Edit Testimonial Details & Placements</span>
               </h3>
               <button
                 type="button"
@@ -853,35 +1015,75 @@ export function AdminTestimonialsClient({
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editingItem.isVisible}
-                  onChange={(e) =>
-                    setEditingItem({ ...editingItem, isVisible: e.target.checked })
-                  }
-                  className="rounded border-input text-primary"
-                />
-                <span>Visible to Public</span>
-              </label>
+            {/* Placements checkboxes */}
+            <div className="rounded-xl border border-border p-3 space-y-2 bg-muted/20">
+              <p className="text-[11px] font-bold text-foreground">Where to display this Testimonial:</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingItem.showOnHome !== false}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, showOnHome: e.target.checked })
+                    }
+                    className="rounded border-input text-primary"
+                  />
+                  <span>🏠 Homepage</span>
+                </label>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingItem(null)}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-muted-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isTransitioning}
-                  className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
-                >
-                  {isTransitioning ? "Saving..." : "Save Changes"}
-                </button>
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingItem.showOnLanding !== false}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, showOnLanding: e.target.checked })
+                    }
+                    className="rounded border-input text-primary"
+                  />
+                  <span>🚀 Funnel Landing</span>
+                </label>
+
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingItem.isFeatured}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, isFeatured: e.target.checked })
+                    }
+                    className="rounded border-input text-primary"
+                  />
+                  <span>⭐ Featured Top</span>
+                </label>
+
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingItem.isVisible}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, isVisible: e.target.checked })
+                    }
+                    className="rounded border-input text-primary"
+                  />
+                  <span>👁️ Public Visible</span>
+                </label>
               </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isTransitioning}
+                className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+              >
+                {isTransitioning ? "Saving..." : "Save Changes"}
+              </button>
             </div>
           </form>
         </div>
@@ -1023,44 +1225,67 @@ export function AdminTestimonialsClient({
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <div className="space-y-1">
-                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+            {/* Placement settings */}
+            <div className="rounded-xl border border-border p-3 space-y-2 bg-muted/20">
+              <p className="text-[11px] font-bold text-foreground">Placement & Moderation Options:</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={newApproveImmediately}
-                    onChange={(e) => setNewApproveImmediately(e.target.checked)}
+                    checked={newShowOnHome}
+                    onChange={(e) => setNewShowOnHome(e.target.checked)}
                     className="rounded border-input text-primary"
                   />
-                  <span>Approve Immediately</span>
+                  <span>🏠 Homepage</span>
                 </label>
-                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newShowOnLanding}
+                    onChange={(e) => setNewShowOnLanding(e.target.checked)}
+                    className="rounded border-input text-primary"
+                  />
+                  <span>🚀 Funnel Landing</span>
+                </label>
+
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
                   <input
                     type="checkbox"
                     checked={newIsFeatured}
                     onChange={(e) => setNewIsFeatured(e.target.checked)}
                     className="rounded border-input text-primary"
                   />
-                  <span>Feature on Homepage</span>
+                  <span>⭐ Featured Top</span>
+                </label>
+
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newApproveImmediately}
+                    onChange={(e) => setNewApproveImmediately(e.target.checked)}
+                    className="rounded border-input text-primary"
+                  />
+                  <span>✅ Approve Now</span>
                 </label>
               </div>
+            </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-muted-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isTransitioning}
-                  className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
-                >
-                  {isTransitioning ? "Creating..." : "Add Testimonial"}
-                </button>
-              </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isTransitioning}
+                className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+              >
+                {isTransitioning ? "Creating..." : "Add Testimonial"}
+              </button>
             </div>
           </form>
         </div>

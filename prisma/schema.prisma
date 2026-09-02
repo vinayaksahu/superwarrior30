@@ -812,6 +812,8 @@ model Testimonial {
   isApproved         Boolean           @default(false)
   isVisible          Boolean           @default(true)
   isFeatured         Boolean           @default(false)
+  showOnHome         Boolean           @default(true)
+  showOnLanding      Boolean           @default(true)
   displayOrder       Int               @default(0)
   tradingPlatform    String?
   accountType        String?
