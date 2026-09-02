@@ -30,449 +30,460 @@ export async function loginAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const raw = Object.fromEntries(formData.entries());
-  const validated = loginSchema.safeParse(raw);
+  try {
+    const raw = Object.fromEntries(formData.entries());
+    const validated = loginSchema.safeParse(raw);
 
-  if (!validated.success) {
-    return {
-      success: false,
-      message: "Invalid form input.",
-      errors: validated.error.flatten().fieldErrors,
-    };
-  }
-
-  const { email, password } = validated.data;
-  const cleanEmail = email.toLowerCase().trim();
-
-  // Rate limit: 5 login attempts per minute per email
-  const rateLimit = await checkRateLimit({
-    key: `login:${cleanEmail}`,
-    limit: 5,
-    windowSeconds: 60,
-  });
-
-  if (!rateLimit.success) {
-    return {
-      success: false,
-      message: "Too many login attempts. Please wait 1 minute before trying again.",
-    };
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: cleanEmail },
-  });
-
-  if (!user) {
-    return { success: false, message: "Invalid email or password." };
-  }
-
-  // 1. Check if user is already blocked or suspended
-  if (user.status === "BLOCKED" || user.status === "SUSPENDED") {
-    return {
-      success: false,
-      message:
-        "Your account has been blocked for security because it was accessed from more than the allowed number of devices. Please contact the administrator.",
-    };
-  }
-
-  if (user.status === "DEACTIVATED") {
-    return {
-      success: false,
-      message: "Your account is deactivated. Please contact support.",
-    };
-  }
-
-  // 2. Verify password hash
-  const isValidPassword = await verifyPassword(password, user.passwordHash);
-  if (!isValidPassword) {
-    // Record failed login audit log
-    await prisma.auditLog
-      .create({
-        data: {
-          actorId: user.id,
-          actorEmail: user.email,
-          actorRole: user.role,
-          action: "LOGIN_FAILED",
-          entityType: "User",
-          entityId: user.id,
-          newValues: { reason: "INVALID_PASSWORD" },
-        },
-      })
-      .catch(() => {});
-
-    return { success: false, message: "Invalid email or password." };
-  }
-
-  // 2.5 Portal-Specific Server-Side Role Enforcement
-  const portal = (formData.get("loginPortal")?.toString() || "STUDENT").toUpperCase();
-
-  const normEmail = user.email.toLowerCase().trim();
-  const isSuper =
-    normEmail === "vinayaksahu3@gmail.com" ||
-    normEmail === "admin@superwarrior30.com" ||
-    user.adminRole === "SUPER_ADMIN" ||
-    (user.role === "SUPER_ADMIN" && (!user.adminRole || user.adminRole === "SUPER_ADMIN"));
-
-  const isSubAdminStaff =
-    !isSuper &&
-    (user.role === "ADMIN" ||
-      user.role === "SUPPORT" ||
-      (user.adminRole && user.adminRole !== "SUPER_ADMIN"));
-
-  if (portal === "SUPER_ADMIN") {
-    if (!isSuper) {
-      await prisma.auditLog
-        .create({
-          data: {
-            actorId: user.id,
-            actorEmail: user.email,
-            actorRole: user.role,
-            action: "UNAUTHORIZED_PORTAL_LOGIN_ATTEMPT",
-            entityType: "User",
-            entityId: user.id,
-            newValues: { attemptedPortal: "SUPER_ADMIN", userRole: user.role },
-          },
-        })
-        .catch(() => {});
-
+    if (!validated.success) {
       return {
         success: false,
-        message: "Access denied. Only Super Admin accounts are authorized to sign in through this portal.",
-      };
-    }
-  } else if (portal === "ADMIN") {
-    // STRICT RULE: Super Admin is NOT allowed to login via /adminlogin
-    if (isSuper) {
-      return {
-        success: false,
-        message:
-          "Super Admin accounts must sign in exclusively through the Super Admin portal: https://www.superwarrior30.com/superadminlogin",
+        message: "Invalid form input.",
+        errors: validated.error.flatten().fieldErrors,
       };
     }
 
-    if (!isSubAdminStaff) {
-      await prisma.auditLog
-        .create({
-          data: {
-            actorId: user.id,
-            actorEmail: user.email,
-            actorRole: user.role,
-            action: "UNAUTHORIZED_PORTAL_LOGIN_ATTEMPT",
-            entityType: "User",
-            entityId: user.id,
-            newValues: { attemptedPortal: "ADMIN", userRole: user.role },
-          },
-        })
-        .catch(() => {});
+    const { email, password } = validated.data;
+    const cleanEmail = email.toLowerCase().trim();
 
-      return {
-        success: false,
-        message: "Access denied. Only authorized staff and sub-administrators can sign in through this portal.",
-      };
-    }
-  } else {
-    // Normal User / Student Portal (/login)
-    if (isSuper) {
-      return {
-        success: false,
-        message:
-          "Super Admin accounts must sign in using the dedicated Super Admin portal: https://www.superwarrior30.com/superadminlogin",
-      };
-    }
-    if (isSubAdminStaff) {
-      return {
-        success: false,
-        message:
-          "Admin and staff accounts must sign in using the dedicated Admin portal: https://www.superwarrior30.com/adminlogin",
-      };
-    }
-  }
-
-  // 3. Device detection and verification
-  const deviceMeta = await getClientDeviceMetadata();
-  await setDeviceCookie(deviceMeta.deviceToken);
-
-  const isStaffOrAdmin =
-    isSuper ||
-    isSubAdminStaff ||
-    user.role === "SUPER_ADMIN" ||
-    user.role === "ADMIN" ||
-    user.role === "SUPPORT";
-
-  let activeDeviceId: string | undefined = undefined;
-
-  // Execute device verification in an atomic database transaction
-  const deviceCheckResult = await prisma.$transaction(async (tx) => {
-    // Query all existing devices registered for this user
-    const existingDevices = await tx.userDevice.findMany({
-      where: { userId: user.id },
-      orderBy: { firstSeenAt: "asc" },
+    // Rate limit: 5 login attempts per minute per email
+    const rateLimit = await checkRateLimit({
+      key: `login:${cleanEmail}`,
+      limit: 5,
+      windowSeconds: 60,
     });
 
-    // Smart Device Recognition:
-    // 1. Direct cookie token match
-    // 2. Hardware signature match (same browser + same OS + matching device or user-agent)
-    const recognizedDevice = existingDevices.find(
-      (d) =>
-        d.deviceTokenHash === deviceMeta.deviceTokenHash ||
-        (d.browser === deviceMeta.browser &&
-          d.operatingSystem === deviceMeta.operatingSystem &&
-          (d.deviceName === deviceMeta.deviceName || d.userAgent === deviceMeta.userAgent))
-    );
-
-    if (recognizedDevice) {
-      // ----------------------------------------------------
-      // CASE A: EXISTING RECOGNIZED DEVICE (Within limit)
-      // ----------------------------------------------------
-      // Enforce One Active Session: deactivate all other devices
-      await tx.userDevice.updateMany({
-        where: {
-          userId: user.id,
-          id: { not: recognizedDevice.id },
-        },
-        data: { isActive: false },
-      });
-
-      // Update current recognized device with latest token and session metadata
-      const updated = await tx.userDevice.update({
-        where: { id: recognizedDevice.id },
-        data: {
-          deviceTokenHash: deviceMeta.deviceTokenHash,
-          isActive: true,
-          revokedAt: null,
-          revokedBy: null,
-          lastLoginAt: new Date(),
-          lastSeenAt: new Date(),
-          lastIpAddress: deviceMeta.ipAddress,
-          userAgent: deviceMeta.userAgent,
-          deviceName: deviceMeta.deviceName,
-          browser: deviceMeta.browser,
-          operatingSystem: deviceMeta.operatingSystem,
-        },
-      });
-
-      // Log successful login
-      await tx.auditLog.create({
-        data: {
-          actorId: user.id,
-          actorEmail: user.email,
-          actorRole: user.role,
-          action: "LOGIN_SUCCESS",
-          entityType: "UserDevice",
-          entityId: updated.id,
-          ipAddress: deviceMeta.ipAddress,
-          userAgent: deviceMeta.userAgent,
-          newValues: {
-            deviceId: updated.id,
-            deviceName: updated.deviceName,
-            browser: updated.browser,
-          },
-        },
-      });
-
-      return { allowed: true, deviceId: updated.id };
-    } else if (isStaffOrAdmin || existingDevices.length < 2) {
-      // ----------------------------------------------------
-      // CASE B: NEW DEVICE (Within limit OR Administrator / Staff)
-      // ----------------------------------------------------
-      // Enforce One Active Session: deactivate all previous devices
-      await tx.userDevice.updateMany({
-        where: { userId: user.id },
-        data: { isActive: false },
-      });
-
-      // If staff has old devices, keep device table clean by removing oldest if > 3
-      if (isStaffOrAdmin && existingDevices.length >= 3) {
-        const oldestId = existingDevices[0].id;
-        await tx.userDevice.delete({ where: { id: oldestId } }).catch(() => {});
-      }
-
-      // Create new device record
-      const newDevice = await tx.userDevice.create({
-        data: {
-          userId: user.id,
-          deviceTokenHash: deviceMeta.deviceTokenHash,
-          deviceName: deviceMeta.deviceName,
-          browser: deviceMeta.browser,
-          operatingSystem: deviceMeta.operatingSystem,
-          userAgent: deviceMeta.userAgent,
-          lastIpAddress: deviceMeta.ipAddress,
-          isActive: true,
-          lastLoginAt: new Date(),
-          lastSeenAt: new Date(),
-        },
-      });
-
-      // Log new device detection
-      await tx.auditLog.create({
-        data: {
-          actorId: user.id,
-          actorEmail: user.email,
-          actorRole: user.role,
-          action: "NEW_DEVICE_DETECTED",
-          entityType: "UserDevice",
-          entityId: newDevice.id,
-          ipAddress: deviceMeta.ipAddress,
-          userAgent: deviceMeta.userAgent,
-          newValues: {
-            deviceNumber: existingDevices.length + 1,
-            deviceName: newDevice.deviceName,
-            browser: newDevice.browser,
-            isStaffOrAdmin,
-          },
-        },
-      });
-
-      // Log successful login
-      await tx.auditLog.create({
-        data: {
-          actorId: user.id,
-          actorEmail: user.email,
-          actorRole: user.role,
-          action: "LOGIN_SUCCESS",
-          entityType: "UserDevice",
-          entityId: newDevice.id,
-          ipAddress: deviceMeta.ipAddress,
-          userAgent: deviceMeta.userAgent,
-          newValues: {
-            deviceId: newDevice.id,
-            deviceName: newDevice.deviceName,
-            browser: newDevice.browser,
-          },
-        },
-      });
-
-      return { allowed: true, deviceId: newDevice.id };
-    } else {
-      // ----------------------------------------------------
-      // CASE C: 3RD DISTINCT DEVICE DETECTED FOR STUDENT -> AUTO-BLOCK ACCOUNT!
-      // ----------------------------------------------------
-      // 1. Block account status & increment tokenVersion to revoke all active sessions immediately
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          status: "BLOCKED",
-          tokenVersion: { increment: 1 },
-        },
-      });
-
-      // 2. Revoke and deactivate all user devices
-      await tx.userDevice.updateMany({
-        where: { userId: user.id },
-        data: {
-          isActive: false,
-          revokedAt: new Date(),
-          revokedBy: "SYSTEM_AUTO_BLOCK_3RD_DEVICE",
-        },
-      });
-
-      // 3. Record high-priority security audit log
-      await tx.auditLog.create({
-        data: {
-          actorId: user.id,
-          actorEmail: user.email,
-          actorRole: user.role,
-          action: "ACCOUNT_AUTO_BLOCKED",
-          entityType: "User",
-          entityId: user.id,
-          ipAddress: deviceMeta.ipAddress,
-          userAgent: deviceMeta.userAgent,
-          newValues: {
-            reason: "EXCEEDED_2_DEVICE_LIMIT",
-            attempted3rdDevice: {
-              deviceName: deviceMeta.deviceName,
-              browser: deviceMeta.browser,
-              os: deviceMeta.operatingSystem,
-            },
-            registeredDevicesCount: existingDevices.length,
-          },
-        },
-      });
-
+    if (!rateLimit.success) {
       return {
-        allowed: false,
-        blocked: true,
+        success: false,
+        message: "Too many login attempts. Please wait 1 minute before trying again.",
+      };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+
+    if (!user) {
+      return { success: false, message: "Invalid email or password." };
+    }
+
+    // 1. Check if user is already blocked or suspended
+    if (user.status === "BLOCKED" || user.status === "SUSPENDED") {
+      return {
+        success: false,
         message:
           "Your account has been blocked for security because it was accessed from more than the allowed number of devices. Please contact the administrator.",
       };
     }
-  });
 
-  if (!deviceCheckResult.allowed) {
-    return {
-      success: false,
-      message: deviceCheckResult.message || "Login rejected for security reasons.",
-    };
-  }
-
-  activeDeviceId = deviceCheckResult.deviceId;
-
-  // ----------------------------------------------------
-  // STEP 4: EMAIL OTP AUTHENTICATION CHECK
-  // ----------------------------------------------------
-  // NOTE: Root Super Admin NEVER requires OTP (Instant Direct Access for Root Authority)
-  const isRootSuper = isSuper || isSuperAdminUser(user);
-  let requiresOtp = false;
-
-  if (!isRootSuper) {
-    const isStaff = user.role === "ADMIN" || user.role === "SUPPORT" || Boolean(user.adminRole);
-    if (isStaff) {
-      requiresOtp = await isStaffLoginOtpEnabled();
-    } else {
-      requiresOtp = await isStudentLoginOtpEnabled();
-    }
-  }
-
-  if (requiresOtp) {
-    const otpDispatch = await createAndSendLoginOtp({
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-      deviceId: activeDeviceId,
-      ipAddress: deviceMeta.ipAddress,
-      userAgent: deviceMeta.userAgent,
-    });
-
-    if (!otpDispatch.success) {
+    if (user.status === "DEACTIVATED") {
       return {
         success: false,
-        message:
-          otpDispatch.message ||
-          "We could not send the verification code. Please try again later.",
+        message: "Your account is deactivated. Please contact support.",
       };
     }
 
+    // 2. Verify password hash
+    const isValidPassword = await verifyPassword(password, user.passwordHash);
+    if (!isValidPassword) {
+      // Record failed login audit log
+      await prisma.auditLog
+        .create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: "LOGIN_FAILED",
+            entityType: "User",
+            entityId: user.id,
+            newValues: { reason: "INVALID_PASSWORD" },
+          },
+        })
+        .catch(() => {});
+
+      return { success: false, message: "Invalid email or password." };
+    }
+
+    // 2.5 Portal-Specific Server-Side Role Enforcement
+    const portal = (formData.get("loginPortal")?.toString() || "STUDENT").toUpperCase();
+
+    const normEmail = user.email.toLowerCase().trim();
+    const isSuper =
+      normEmail === "vinayaksahu3@gmail.com" ||
+      normEmail === "admin@superwarrior30.com" ||
+      user.adminRole === "SUPER_ADMIN" ||
+      (user.role === "SUPER_ADMIN" && (!user.adminRole || user.adminRole === "SUPER_ADMIN"));
+
+    const isSubAdminStaff =
+      !isSuper &&
+      (user.role === "ADMIN" ||
+        user.role === "SUPPORT" ||
+        (user.adminRole && user.adminRole !== "SUPER_ADMIN"));
+
+    if (portal === "SUPER_ADMIN") {
+      if (!isSuper) {
+        await prisma.auditLog
+          .create({
+            data: {
+              actorId: user.id,
+              actorEmail: user.email,
+              actorRole: user.role,
+              action: "UNAUTHORIZED_PORTAL_LOGIN_ATTEMPT",
+              entityType: "User",
+              entityId: user.id,
+              newValues: { attemptedPortal: "SUPER_ADMIN", userRole: user.role },
+            },
+          })
+          .catch(() => {});
+
+        return {
+          success: false,
+          message: "Access denied. Only Super Admin accounts are authorized to sign in through this portal.",
+        };
+      }
+    } else if (portal === "ADMIN") {
+      // STRICT RULE: Super Admin is NOT allowed to login via /adminlogin
+      if (isSuper) {
+        return {
+          success: false,
+          message:
+            "Super Admin accounts must sign in exclusively through the Super Admin portal: https://www.superwarrior30.com/superadminlogin",
+        };
+      }
+
+      if (!isSubAdminStaff) {
+        await prisma.auditLog
+          .create({
+            data: {
+              actorId: user.id,
+              actorEmail: user.email,
+              actorRole: user.role,
+              action: "UNAUTHORIZED_PORTAL_LOGIN_ATTEMPT",
+              entityType: "User",
+              entityId: user.id,
+              newValues: { attemptedPortal: "ADMIN", userRole: user.role },
+            },
+          })
+          .catch(() => {});
+
+        return {
+          success: false,
+          message: "Access denied. Only authorized staff and sub-administrators can sign in through this portal.",
+        };
+      }
+    } else {
+      // Normal User / Student Portal (/login)
+      if (isSuper) {
+        return {
+          success: false,
+          message:
+            "Super Admin accounts must sign in using the dedicated Super Admin portal: https://www.superwarrior30.com/superadminlogin",
+        };
+      }
+      if (isSubAdminStaff) {
+        return {
+          success: false,
+          message:
+            "Admin and staff accounts must sign in using the dedicated Admin portal: https://www.superwarrior30.com/adminlogin",
+        };
+      }
+    }
+
+    // 3. Device detection and verification
+    const deviceMeta = await getClientDeviceMetadata();
+    await setDeviceCookie(deviceMeta.deviceToken);
+
+    const isStaffOrAdmin =
+      isSuper ||
+      isSubAdminStaff ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.role === "SUPPORT";
+
+    let activeDeviceId: string | undefined = undefined;
+
+    // Execute device verification in an atomic database transaction
+    const deviceCheckResult = await prisma.$transaction(async (tx) => {
+      // Query all existing devices registered for this user
+      const existingDevices = await tx.userDevice.findMany({
+        where: { userId: user.id },
+        orderBy: { firstSeenAt: "asc" },
+      });
+
+      // Smart Device Recognition:
+      // 1. Direct cookie token match
+      // 2. Hardware signature match (same browser + same OS + matching device or user-agent)
+      const recognizedDevice = existingDevices.find(
+        (d) =>
+          d.deviceTokenHash === deviceMeta.deviceTokenHash ||
+          (d.browser === deviceMeta.browser &&
+            d.operatingSystem === deviceMeta.operatingSystem &&
+            (d.deviceName === deviceMeta.deviceName || d.userAgent === deviceMeta.userAgent))
+      );
+
+      if (recognizedDevice) {
+        // ----------------------------------------------------
+        // CASE A: EXISTING RECOGNIZED DEVICE (Within limit)
+        // ----------------------------------------------------
+        // Enforce One Active Session: deactivate all other devices
+        await tx.userDevice.updateMany({
+          where: {
+            userId: user.id,
+            id: { not: recognizedDevice.id },
+          },
+          data: { isActive: false },
+        });
+
+        // Update current recognized device with latest token and session metadata
+        const updated = await tx.userDevice.update({
+          where: { id: recognizedDevice.id },
+          data: {
+            deviceTokenHash: deviceMeta.deviceTokenHash,
+            isActive: true,
+            revokedAt: null,
+            revokedBy: null,
+            lastLoginAt: new Date(),
+            lastSeenAt: new Date(),
+            lastIpAddress: deviceMeta.ipAddress,
+            userAgent: deviceMeta.userAgent,
+            deviceName: deviceMeta.deviceName,
+            browser: deviceMeta.browser,
+            operatingSystem: deviceMeta.operatingSystem,
+          },
+        });
+
+        // Log successful login
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: "LOGIN_SUCCESS",
+            entityType: "UserDevice",
+            entityId: updated.id,
+            ipAddress: deviceMeta.ipAddress,
+            userAgent: deviceMeta.userAgent,
+            newValues: {
+              deviceId: updated.id,
+              deviceName: updated.deviceName,
+              browser: updated.browser,
+            },
+          },
+        });
+
+        return { allowed: true, deviceId: updated.id };
+      } else if (isStaffOrAdmin || existingDevices.length < 2) {
+        // ----------------------------------------------------
+        // CASE B: NEW DEVICE (Within limit OR Administrator / Staff)
+        // ----------------------------------------------------
+        // Enforce One Active Session: deactivate all previous devices
+        await tx.userDevice.updateMany({
+          where: { userId: user.id },
+          data: { isActive: false },
+        });
+
+        // If staff has old devices, keep device table clean by removing oldest if > 3
+        if (isStaffOrAdmin && existingDevices.length >= 3) {
+          const oldestId = existingDevices[0].id;
+          await tx.userDevice.delete({ where: { id: oldestId } }).catch(() => {});
+        }
+
+        // Create new device record
+        const newDevice = await tx.userDevice.create({
+          data: {
+            userId: user.id,
+            deviceTokenHash: deviceMeta.deviceTokenHash,
+            deviceName: deviceMeta.deviceName,
+            browser: deviceMeta.browser,
+            operatingSystem: deviceMeta.operatingSystem,
+            userAgent: deviceMeta.userAgent,
+            lastIpAddress: deviceMeta.ipAddress,
+            isActive: true,
+            lastLoginAt: new Date(),
+            lastSeenAt: new Date(),
+          },
+        });
+
+        // Log new device detection
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: "NEW_DEVICE_DETECTED",
+            entityType: "UserDevice",
+            entityId: newDevice.id,
+            ipAddress: deviceMeta.ipAddress,
+            userAgent: deviceMeta.userAgent,
+            newValues: {
+              deviceNumber: existingDevices.length + 1,
+              deviceName: newDevice.deviceName,
+              browser: newDevice.browser,
+              isStaffOrAdmin,
+            },
+          },
+        });
+
+        // Log successful login
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: "LOGIN_SUCCESS",
+            entityType: "UserDevice",
+            entityId: newDevice.id,
+            ipAddress: deviceMeta.ipAddress,
+            userAgent: deviceMeta.userAgent,
+            newValues: {
+              deviceId: newDevice.id,
+              deviceName: newDevice.deviceName,
+              browser: newDevice.browser,
+            },
+          },
+        });
+
+        return { allowed: true, deviceId: newDevice.id };
+      } else {
+        // ----------------------------------------------------
+        // CASE C: 3RD DISTINCT DEVICE DETECTED FOR STUDENT -> AUTO-BLOCK ACCOUNT!
+        // ----------------------------------------------------
+        // 1. Block account status & increment tokenVersion to revoke all active sessions immediately
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            status: "BLOCKED",
+            tokenVersion: { increment: 1 },
+          },
+        });
+
+        // 2. Revoke and deactivate all user devices
+        await tx.userDevice.updateMany({
+          where: { userId: user.id },
+          data: {
+            isActive: false,
+            revokedAt: new Date(),
+            revokedBy: "SYSTEM_AUTO_BLOCK_3RD_DEVICE",
+          },
+        });
+
+        // 3. Record high-priority security audit log
+        await tx.auditLog.create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: "ACCOUNT_AUTO_BLOCKED",
+            entityType: "User",
+            entityId: user.id,
+            ipAddress: deviceMeta.ipAddress,
+            userAgent: deviceMeta.userAgent,
+            newValues: {
+              reason: "EXCEEDED_2_DEVICE_LIMIT",
+              attempted3rdDevice: {
+                deviceName: deviceMeta.deviceName,
+                browser: deviceMeta.browser,
+                os: deviceMeta.operatingSystem,
+              },
+              registeredDevicesCount: existingDevices.length,
+            },
+          },
+        });
+
+        return {
+          allowed: false,
+          blocked: true,
+          message:
+            "Your account has been blocked for security because it was accessed from more than the allowed number of devices. Please contact the administrator.",
+        };
+      }
+    });
+
+    if (!deviceCheckResult.allowed) {
+      return {
+        success: false,
+        message: deviceCheckResult.message || "Login rejected for security reasons.",
+      };
+    }
+
+    activeDeviceId = deviceCheckResult.deviceId;
+
+    // ----------------------------------------------------
+    // STEP 4: EMAIL OTP AUTHENTICATION CHECK
+    // ----------------------------------------------------
+    // NOTE: Root Super Admin NEVER requires OTP (Instant Direct Access for Root Authority)
+    const isRootSuper = isSuper || isSuperAdminUser(user);
+    let requiresOtp = false;
+
+    if (!isRootSuper) {
+      const isStaff = user.role === "ADMIN" || user.role === "SUPPORT" || Boolean(user.adminRole);
+      if (isStaff) {
+        requiresOtp = await isStaffLoginOtpEnabled();
+      } else {
+        requiresOtp = await isStudentLoginOtpEnabled();
+      }
+    }
+
+    if (requiresOtp) {
+      const otpDispatch = await createAndSendLoginOtp({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        deviceId: activeDeviceId,
+        ipAddress: deviceMeta.ipAddress,
+        userAgent: deviceMeta.userAgent,
+      });
+
+      if (!otpDispatch.success) {
+        return {
+          success: false,
+          message:
+            otpDispatch.message ||
+            "We could not send the verification code. Please try again later.",
+        };
+      }
+
+      return {
+        success: true,
+        message: `A 6-digit verification code has been sent to ${otpDispatch.emailMasked}.`,
+        data: {
+          requiresOtp: true,
+          pendingToken: otpDispatch.pendingToken,
+          emailMasked: otpDispatch.emailMasked,
+          cooldownSeconds: otpDispatch.cooldownSeconds,
+        },
+      };
+    }
+
+    // Increment tokenVersion on every login to immediately invalidate ALL previous JWT sessions.
+    // This enforces the "1 active device at a time" rule at the JWT level — any other device's
+    // old JWT will have a stale tokenVersion and will be rejected by getCurrentUser().
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    // Create active JWT session with the NEW tokenVersion
+    await createSession(
+      user.id,
+      user.email,
+      user.role,
+      updatedUser.tokenVersion,
+      activeDeviceId
+    );
+
+    const destination = user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+    redirect(destination);
+  } catch (error: any) {
+    if (error?.digest?.startsWith("NEXT_REDIRECT") || error?.message === "NEXT_REDIRECT") {
+      throw error;
+    }
+    console.error("[LOGIN_ACTION_ERROR]", error);
     return {
-      success: true,
-      message: `A 6-digit verification code has been sent to ${otpDispatch.emailMasked}.`,
-      data: {
-        requiresOtp: true,
-        pendingToken: otpDispatch.pendingToken,
-        emailMasked: otpDispatch.emailMasked,
-        cooldownSeconds: otpDispatch.cooldownSeconds,
-      },
+      success: false,
+      message: error?.message || "An unexpected error occurred during sign in. Please try again.",
     };
   }
-
-  // Increment tokenVersion on every login to immediately invalidate ALL previous JWT sessions.
-  // This enforces the "1 active device at a time" rule at the JWT level — any other device's
-  // old JWT will have a stale tokenVersion and will be rejected by getCurrentUser().
-  const updatedUser = await prisma.user.update({
-    where: { id: user.id },
-    data: { tokenVersion: { increment: 1 } },
-  });
-
-  // Create active JWT session with the NEW tokenVersion
-  await createSession(
-    user.id,
-    user.email,
-    user.role,
-    updatedUser.tokenVersion,
-    activeDeviceId
-  );
-
-  const destination = user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
-  redirect(destination);
 }
 
 export async function verifyLoginOtpAction(

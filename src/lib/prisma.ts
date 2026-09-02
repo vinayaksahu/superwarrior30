@@ -155,7 +155,6 @@ function scopeQueryArgsForEnvironment(
     if (
       method === "findMany" ||
       method === "findFirst" ||
-      method === "findUnique" ||
       method === "count" ||
       method === "aggregate" ||
       method === "groupBy"

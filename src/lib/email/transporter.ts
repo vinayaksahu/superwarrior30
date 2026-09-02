@@ -44,10 +44,11 @@ export function getMailTransporter(): nodemailer.Transporter {
       tls: {
         rejectUnauthorized: true,
       },
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
-    });
+      pool: false,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 8000,
+    } as nodemailer.TransportOptions);
   }
 
   return transporterInstance;
