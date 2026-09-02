@@ -5,6 +5,7 @@ import { getPublicCourseBySlugAction } from "@/server/actions/course.actions";
 import { checkUserEnrollment } from "@/server/actions/enrollment.actions";
 import { FreePreviewButton } from "@/components/courses/free-preview-modal";
 import { PublicNavbar } from "@/components/shared/public-navbar";
+import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { formatCurrency } from "@/lib/utils";
 import {
   CheckCircle2,
@@ -29,7 +30,10 @@ export async function generateMetadata({
   params,
 }: CourseDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const course = await getPublicCourseBySlugAction(slug);
+  const pageEnv = await resolvePublicHomepageEnvironment();
+  const course = await withEnvironmentContext(pageEnv, async () => {
+    return await getPublicCourseBySlugAction(slug);
+  });
   if (!course) return { title: "Course Not Found" };
 
   return {
@@ -44,13 +48,18 @@ export default async function CourseDetailPage({
   params,
 }: CourseDetailPageProps) {
   const { slug } = await params;
-  const course = await getPublicCourseBySlugAction(slug);
+  const pageEnv = await resolvePublicHomepageEnvironment();
+  const course = await withEnvironmentContext(pageEnv, async () => {
+    return await getPublicCourseBySlugAction(slug);
+  });
 
   if (!course) {
     notFound();
   }
 
-  const isEnrolled = await checkUserEnrollment(course.id);
+  const isEnrolled = await withEnvironmentContext(pageEnv, async () => {
+    return await checkUserEnrollment(course.id);
+  });
 
   const totalLessons = course.modules.reduce(
     (acc, m) => acc + m.lessons.length,
@@ -66,7 +75,7 @@ export default async function CourseDetailPage({
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <PublicNavbar />
+      <PublicNavbar isTestMode={pageEnv === "TEST"} />
       {/* Top Breadcrumb */}
       <div className="border-b border-border/40 bg-muted/20 py-4">
         <div className="container mx-auto px-4 max-w-6xl">

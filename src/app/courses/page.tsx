@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPublicCoursesAction } from "@/server/actions/course.actions";
 import { formatCurrency } from "@/lib/utils";
 import { PublicNavbar } from "@/components/shared/public-navbar";
+import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { Search, Clock, BookOpen, Layers, Star, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -21,11 +22,14 @@ export default async function PublicCoursesPage({
   const search = params.search || "";
   const difficulty = params.difficulty || "all";
 
-  const courses = await getPublicCoursesAction({ search, difficulty });
+  const pageEnv = await resolvePublicHomepageEnvironment();
+  const courses = await withEnvironmentContext(pageEnv, async () => {
+    return await getPublicCoursesAction({ search, difficulty });
+  });
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <PublicNavbar />
+      <PublicNavbar isTestMode={pageEnv === "TEST"} />
       {/* Top Banner / Header */}
       <div className="border-b border-border/40 bg-muted/20 py-12 md:py-16">
         <div className="container mx-auto px-4 max-w-6xl">

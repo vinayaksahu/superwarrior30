@@ -286,6 +286,26 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
       return "TEST";
     }
 
+    // 4. Check if student / standard user account belongs to Testing environment
+    if (session.isTestData) {
+      return "TEST";
+    }
+
+    if (session.userId) {
+      try {
+        const { getTestPrismaClient } = await import("@/lib/prisma");
+        const testUser = await getTestPrismaClient().user.findUnique({
+          where: { id: session.userId },
+          select: { id: true, isTestData: true },
+        });
+        if (testUser && testUser.isTestData) {
+          return "TEST";
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
     return DEFAULT_ENVIRONMENT;
   } catch {
     // If running outside request context (e.g., CLI / background), fallback to DEFAULT_ENVIRONMENT

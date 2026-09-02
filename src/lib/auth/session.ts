@@ -12,6 +12,7 @@ export interface SessionPayload {
   role: UserRole;
   tokenVersion: number;
   deviceId?: string;
+  isTestData?: boolean;
   expiresAt: Date;
 }
 
@@ -22,6 +23,7 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
     role: payload.role,
     tokenVersion: payload.tokenVersion,
     deviceId: payload.deviceId,
+    isTestData: Boolean(payload.isTestData),
     expiresAt: payload.expiresAt.toISOString(),
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -43,6 +45,7 @@ export async function decrypt(
       role: payload.role as UserRole,
       tokenVersion: (payload.tokenVersion as number) || 1,
       deviceId: payload.deviceId as string | undefined,
+      isTestData: Boolean(payload.isTestData),
       expiresAt: new Date(payload.expiresAt as string),
     };
   } catch {
@@ -55,10 +58,11 @@ export async function createSession(
   email: string,
   role: UserRole,
   tokenVersion: number = 1,
-  deviceId?: string
+  deviceId?: string,
+  isTestData?: boolean
 ) {
   const expiresAt = new Date(Date.now() + SESSION_DURATION);
-  const token = await encrypt({ userId, email, role, tokenVersion, deviceId, expiresAt });
+  const token = await encrypt({ userId, email, role, tokenVersion, deviceId, isTestData, expiresAt });
 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
