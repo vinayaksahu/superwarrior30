@@ -102,7 +102,7 @@ export function EnvironmentSwitcher({
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
               </span>
-              <span>⚠️ TESTING MODE (Staff)</span>
+              <span>⚠️ TESTING MODE</span>
               <button
                 type="button"
                 onClick={() => {
