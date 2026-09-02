@@ -89,6 +89,10 @@ model User {
   // Email OTPs
   otps                   EmailOtp[]
 
+  // Testimonials
+  testimonials           Testimonial[]
+  reviewedTestimonials   Testimonial[] @relation("TestimonialsReviewed")
+
   @@index([role])
   @@index([status])
   @@index([referralCode])
@@ -789,22 +793,67 @@ model Lead {
   @@map("leads")
 }
 
-model Testimonial {
-  id          String    @id @default(cuid())
-  studentName String
-  content     String    @db.Text
-  photoUrl    String?
-  videoUrl    String?
-  rating      Int       @default(5)
-  isApproved  Boolean   @default(false)
-  isVisible   Boolean   @default(true)
-  courseId     String?
-  isTestData  Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+enum TestimonialStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
 
+model Testimonial {
+  id                 String            @id @default(cuid())
+  userId             String?
+  studentName        String
+  content            String            @db.Text
+  photoUrl           String?
+  videoUrl           String?
+  rating             Int               @default(5)
+  status             TestimonialStatus @default(PENDING)
+  isApproved         Boolean           @default(false)
+  isVisible          Boolean           @default(true)
+  isFeatured         Boolean           @default(false)
+  displayOrder       Int               @default(0)
+  tradingPlatform    String?
+  accountType        String?
+  tradingResult      String?
+  experienceDuration String?
+  consentGiven       Boolean           @default(false)
+  rejectionReason    String?           @db.Text
+  reviewedAt         DateTime?
+  reviewedById       String?
+  approvedAt         DateTime?
+  courseId           String?
+  isTestData         Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user               User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reviewedBy         User?             @relation("TestimonialsReviewed", fields: [reviewedById], references: [id], onDelete: SetNull)
+  media              TestimonialMedia[]
+
+  @@index([status, isVisible])
   @@index([isApproved, isVisible])
+  @@index([userId])
+  @@index([isFeatured, createdAt(sort: Desc)])
+  @@index([isTestData, status, isVisible])
   @@map("testimonials")
+}
+
+model TestimonialMedia {
+  id            String      @id @default(cuid())
+  testimonialId String
+  url           String
+  type          String      @default("SCREENSHOT") // "SCREENSHOT" | "PROFILE_PHOTO" | "RESULT_PROOF"
+  caption       String?
+  sortOrder     Int         @default(0)
+  isTestData    Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+
+  testimonial   Testimonial @relation(fields: [testimonialId], references: [id], onDelete: Cascade)
+
+  @@index([testimonialId])
+  @@index([isTestData, testimonialId])
+  @@map("testimonial_media")
 }
 
 model FunnelEvent {

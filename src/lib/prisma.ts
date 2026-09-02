@@ -24,6 +24,7 @@ const ISOLATED_MODELS = new Set([
   "withdrawal",
   "lead",
   "testimonial",
+  "testimonialMedia",
   "liveSession",
   "brokerOfferClaim",
   "supportInquiry",

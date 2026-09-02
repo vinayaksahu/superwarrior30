@@ -1,0 +1,902 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import {
+  submitStudentTestimonialAction,
+  resubmitStudentTestimonialAction,
+  uploadStudentTestimonialScreenshotAction,
+} from "@/server/actions/testimonial.actions";
+import {
+  Star,
+  Upload,
+  Image as ImageIcon,
+  X,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Send,
+  Sparkles,
+  ShieldCheck,
+  TrendingUp,
+  Maximize2,
+  Trash2,
+  RefreshCw,
+  Plus,
+} from "lucide-react";
+import { toast } from "sonner";
+import { TestUserBadge } from "@/components/shared/test-user-badge";
+
+export interface StudentTestimonialRecord {
+  id: string;
+  studentName: string;
+  content: string;
+  photoUrl: string | null;
+  rating: number;
+  status: "DRAFT" | "PENDING" | "APPROVED" | "REJECTED";
+  isApproved: boolean;
+  isVisible: boolean;
+  isFeatured: boolean;
+  tradingPlatform: string | null;
+  accountType: string | null;
+  tradingResult: string | null;
+  experienceDuration: string | null;
+  consentGiven: boolean;
+  rejectionReason: string | null;
+  reviewedAt: string | null;
+  approvedAt: string | null;
+  isTestData: boolean;
+  createdAt: string;
+  updatedAt: string;
+  media: Array<{
+    id: string;
+    url: string;
+    caption: string | null;
+    type: string;
+  }>;
+}
+
+interface StudentTestimonialsClientProps {
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    avatarUrl: string | null;
+    isTestData?: boolean;
+  };
+  initialTestimonials: StudentTestimonialRecord[];
+}
+
+export function StudentTestimonialsClient({
+  user,
+  initialTestimonials,
+}: StudentTestimonialsClientProps) {
+  const [testimonials, setTestimonials] = useState<StudentTestimonialRecord[]>(initialTestimonials);
+  const [activeTab, setActiveTab] = useState<"form" | "list">("form");
+  const [isPending, startTransition] = useTransition();
+
+  // Form State
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState(user.name || user.email.split("@")[0]);
+  const [photoUrl, setPhotoUrl] = useState<string>(user.avatarUrl || "");
+  const [rating, setRating] = useState<number>(5);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [content, setContent] = useState<string>("");
+  const [tradingPlatform, setTradingPlatform] = useState<string>("TradingView / MT5");
+  const [accountType, setAccountType] = useState<string>("Real Account");
+  const [tradingResult, setTradingResult] = useState<string>("");
+  const [experienceDuration, setExperienceDuration] = useState<string>("3-6 Months");
+  const [screenshots, setScreenshots] = useState<Array<{ url: string; caption: string }>>([]);
+  const [consentGiven, setConsentGiven] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+
+  // Lightbox modal state
+  const [previewImage, setPreviewImage] = useState<{ url: string; caption?: string } | null>(null);
+
+  // Rating descriptions
+  const ratingDescriptions: Record<number, string> = {
+    5: "⭐⭐⭐⭐⭐ 5 Stars - Outstanding Mentorship & Results!",
+    4: "⭐⭐⭐⭐ 4 Stars - Very Good Learning Experience",
+    3: "⭐⭐⭐ 3 Stars - Good Concept Clarity",
+    2: "⭐⭐ 2 Stars - Fair Learning Curve",
+    1: "⭐ 1 Star - Needs Improvement",
+  };
+
+  // Populate form for editing/resubmitting
+  const handleEditClick = (item: StudentTestimonialRecord) => {
+    setEditingId(item.id);
+    setDisplayName(item.studentName);
+    setPhotoUrl(item.photoUrl || "");
+    setRating(item.rating);
+    setContent(item.content);
+    setTradingPlatform(item.tradingPlatform || "TradingView / MT5");
+    setAccountType(item.accountType || "Real Account");
+    setTradingResult(item.tradingResult || "");
+    setExperienceDuration(item.experienceDuration || "3-6 Months");
+    setScreenshots(
+      item.media.map((m) => ({
+        url: m.url,
+        caption: m.caption || "",
+      }))
+    );
+    setConsentGiven(item.consentGiven);
+    setActiveTab("form");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setContent("");
+    setScreenshots([]);
+    setTradingResult("");
+    setConsentGiven(false);
+  };
+
+  // Upload Screenshot Handler
+  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (screenshots.length + files.length > 5) {
+      toast.error("You can upload a maximum of 5 trading screenshots.");
+      return;
+    }
+
+    setIsUploading(true);
+    let uploadedCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`"${file.name}" exceeds 5MB limit.`);
+        continue;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const result = await uploadStudentTestimonialScreenshotAction(formData);
+        if (result.success && result.url) {
+          setScreenshots((prev) => [
+            ...prev,
+            { url: result.url!, caption: file.name.replace(/\.[^/.]+$/, "") },
+          ]);
+          uploadedCount++;
+        } else {
+          toast.error(result.error || `Failed to upload ${file.name}`);
+        }
+      } catch {
+        toast.error(`Failed to upload ${file.name}`);
+      }
+    }
+
+    setIsUploading(false);
+    if (uploadedCount > 0) {
+      toast.success(`Uploaded ${uploadedCount} screenshot(s) successfully!`);
+    }
+    e.target.value = "";
+  };
+
+  const handleRemoveScreenshot = (index: number) => {
+    setScreenshots((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCaptionChange = (index: number, caption: string) => {
+    setScreenshots((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, caption } : item))
+    );
+  };
+
+  // Submit Handler
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!consentGiven) {
+      toast.error("Please tick the consent checkbox to agree to public display terms.");
+      return;
+    }
+
+    if (content.trim().length < 20) {
+      toast.error("Your review text must be at least 20 characters long.");
+      return;
+    }
+
+    if (content.trim().length > 2000) {
+      toast.error("Your review text cannot exceed 2000 characters.");
+      return;
+    }
+
+    startTransition(async () => {
+      if (editingId) {
+        // Resubmit flow
+        const res = await resubmitStudentTestimonialAction(editingId, {
+          displayName,
+          photoUrl: photoUrl || undefined,
+          rating,
+          content,
+          tradingPlatform,
+          accountType,
+          tradingResult,
+          experienceDuration,
+          screenshots,
+          consentGiven: true,
+        });
+
+        if (res.success) {
+          toast.success("Testimonial resubmitted for admin review!");
+          setEditingId(null);
+          setContent("");
+          setScreenshots([]);
+          setTradingResult("");
+          setConsentGiven(false);
+          setActiveTab("list");
+          // Refresh list locally
+          setTestimonials((prev) =>
+            prev.map((t) =>
+              t.id === editingId
+                ? {
+                    ...t,
+                    studentName: displayName,
+                    photoUrl: photoUrl || null,
+                    rating,
+                    content,
+                    tradingPlatform,
+                    accountType,
+                    tradingResult,
+                    experienceDuration,
+                    status: "PENDING" as const,
+                    isApproved: false,
+                    rejectionReason: null,
+                    media: screenshots.map((s, idx) => ({
+                      id: `temp_${idx}`,
+                      url: s.url,
+                      caption: s.caption,
+                      type: "SCREENSHOT",
+                    })),
+                  }
+                : t
+            )
+          );
+        } else {
+          toast.error(res.error || "Failed to resubmit testimonial.");
+        }
+      } else {
+        // New submission flow
+        const res = await submitStudentTestimonialAction({
+          displayName,
+          photoUrl: photoUrl || undefined,
+          rating,
+          content,
+          tradingPlatform,
+          accountType,
+          tradingResult,
+          experienceDuration,
+          screenshots,
+          consentGiven: true,
+        });
+
+        if (res.success) {
+          toast.success("Thank you! Your testimonial was submitted and is pending admin approval.");
+          setContent("");
+          setScreenshots([]);
+          setTradingResult("");
+          setConsentGiven(false);
+          setActiveTab("list");
+          // Add newly submitted pending record locally
+          const newRecord: StudentTestimonialRecord = {
+            id: res.id || `temp_${Date.now()}`,
+            studentName: displayName,
+            content,
+            photoUrl: photoUrl || null,
+            rating,
+            status: "PENDING",
+            isApproved: false,
+            isVisible: true,
+            isFeatured: false,
+            tradingPlatform,
+            accountType,
+            tradingResult,
+            experienceDuration,
+            consentGiven: true,
+            rejectionReason: null,
+            reviewedAt: null,
+            approvedAt: null,
+            isTestData: Boolean(user.isTestData),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            media: screenshots.map((s, idx) => ({
+              id: `m_${idx}`,
+              url: s.url,
+              caption: s.caption,
+              type: "SCREENSHOT",
+            })),
+          };
+          setTestimonials((prev) => [newRecord, ...prev]);
+        } else {
+          toast.error(res.error || "Failed to submit testimonial.");
+        }
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-primary/5 p-6 shadow-sm">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Star className="h-5 w-5 fill-primary text-primary" />
+            </span>
+            <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+              Student Testimonials & Reviews
+            </h1>
+            <TestUserBadge isTestData={user.isTestData} />
+          </div>
+          <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
+            Share your authentic experience, trading screenshots, and results with Rahul Trade Warrior Academy.
+            Approved reviews are showcased on the official academy landing page!
+          </p>
+        </div>
+
+        {/* Tab switchers */}
+        <div className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 p-1 self-start sm:self-auto shrink-0">
+          <button
+            onClick={() => {
+              setActiveTab("form");
+            }}
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+              activeTab === "form"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>{editingId ? "Edit Review" : "Share Experience"}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("list")}
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+              activeTab === "list"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            <span>My Submissions</span>
+            {testimonials.length > 0 && (
+              <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.2 text-[10px] font-mono">
+                {testimonials.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* TAB 1: SUBMISSION FORM */}
+      {activeTab === "form" && (
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm space-y-8 animate-in fade-in duration-200">
+          {editingId && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <RefreshCw className="h-4 w-4 text-amber-500 animate-spin" />
+                <p className="text-xs font-bold text-amber-400">
+                  Editing Testimonial — Updating your review will submit it for fresh admin moderation.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="rounded-lg border border-border bg-card px-3 py-1 text-xs font-bold text-muted-foreground hover:text-foreground"
+              >
+                Cancel Edit
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* 1. Student Identity & Photo */}
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <span>Your Display Name</span>
+                  <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  required
+                  placeholder="e.g. Rahul Sharma"
+                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Pre-filled from your profile. Impersonation of other members is prohibited.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-foreground">
+                  Profile Photo URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="https://... (or leave blank to use account avatar)"
+                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Direct image link for your avatar.
+                </p>
+              </div>
+            </div>
+
+            {/* 2. Rating Selector */}
+            <div className="space-y-2.5 rounded-xl border border-border/80 bg-muted/20 p-5">
+              <label className="text-xs font-bold text-foreground flex items-center justify-between">
+                <span>Overall Academy Rating</span>
+                <span className="text-xs font-bold text-primary">
+                  {ratingDescriptions[hoverRating || rating]}
+                </span>
+              </label>
+
+              <div className="flex items-center gap-2 pt-1">
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const isFilled = star <= (hoverRating || rating);
+                  return (
+                    <button
+                      key={star}
+                      type="button"
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      onClick={() => setRating(star)}
+                      className="p-1 text-2xl transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                      aria-label={`${star} Stars`}
+                    >
+                      <Star
+                        className={`h-7 w-7 transition-colors ${
+                          isFilled
+                            ? "fill-amber-400 text-amber-400 drop-shadow"
+                            : "text-muted-foreground/30"
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Written Review Text */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <span>Your Testimonial / Review</span>
+                  <span className="text-destructive">*</span>
+                </label>
+                <span
+                  className={`text-[11px] font-mono ${
+                    content.length > 2000
+                      ? "text-destructive font-bold"
+                      : content.length >= 20
+                      ? "text-emerald-500"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {content.length} / 2000 characters (min 20)
+                </span>
+              </div>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                required
+                rows={4}
+                placeholder="Share your genuine experience with Rahul Trade Warrior Academy... What market concepts or strategies helped you the most? How has your trading discipline and risk management evolved?"
+                className="w-full rounded-xl border border-input bg-background p-3.5 text-xs font-medium leading-relaxed focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              />
+            </div>
+
+            {/* 4. Multi-Screenshot Upload Section */}
+            <div className="space-y-4 rounded-xl border border-border/80 bg-muted/20 p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-bold text-foreground flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4 text-primary" />
+                    Trading Screenshots & Proof (Optional, up to 5)
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Upload chart breakdowns, trade entries, P&L screenshots, or broker proof.
+                  </p>
+                </div>
+                <label
+                  className={`inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm cursor-pointer transition-all ${
+                    screenshots.length >= 5 || isUploading
+                      ? "opacity-50 pointer-events-none"
+                      : "hover:bg-primary/90"
+                  }`}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>{isUploading ? "Uploading..." : "+ Add Screenshot"}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    disabled={screenshots.length >= 5 || isUploading}
+                    onChange={handleScreenshotUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Uploaded Screenshots List */}
+              {screenshots.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-2">
+                  {screenshots.map((s, idx) => (
+                    <div
+                      key={idx}
+                      className="group relative rounded-xl border border-border bg-card p-3 space-y-2 shadow-sm"
+                    >
+                      <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted flex items-center justify-center border border-border/60">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={s.url}
+                          alt={s.caption || "Screenshot"}
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPreviewImage(s)}
+                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                          title="View Full Screenshot"
+                        >
+                          <Maximize2 className="h-5 w-5 drop-shadow" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveScreenshot(idx)}
+                          className="absolute top-1.5 right-1.5 rounded-full bg-destructive p-1 text-white shadow hover:bg-destructive/90"
+                          title="Remove Screenshot"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      <input
+                        type="text"
+                        value={s.caption}
+                        onChange={(e) => handleCaptionChange(idx, e.target.value)}
+                        placeholder="Caption (e.g. Gold 1:3 RR setup)"
+                        className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-[11px] focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 5. Optional Result Details */}
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-5 space-y-4">
+              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                Trading Metadata & Experience (Optional)
+              </h3>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Trading Platform
+                  </label>
+                  <select
+                    value={tradingPlatform}
+                    onChange={(e) => setTradingPlatform(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-medium focus:border-primary focus:outline-none"
+                  >
+                    <option value="TradingView / MT5">TradingView / MT5</option>
+                    <option value="MetaTrader 5 (MT5)">MetaTrader 5 (MT5)</option>
+                    <option value="MetaTrader 4 (MT4)">MetaTrader 4 (MT4)</option>
+                    <option value="Zerodha Kite">Zerodha Kite</option>
+                    <option value="Exness Terminal">Exness Terminal</option>
+                    <option value="Binance Crypto">Binance Crypto</option>
+                    <option value="Angel One">Angel One</option>
+                    <option value="Other">Other Platform</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Account Type
+                  </label>
+                  <select
+                    value={accountType}
+                    onChange={(e) => setAccountType(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-medium focus:border-primary focus:outline-none"
+                  >
+                    <option value="Real Live Account">Real Live Account</option>
+                    <option value="Funded Account (Prop Firm)">Funded Account (Prop Firm)</option>
+                    <option value="Prop Challenge in Progress">Prop Challenge in Progress</option>
+                    <option value="Demo Practice Account">Demo Practice Account</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Result / P&L Info
+                  </label>
+                  <input
+                    type="text"
+                    value={tradingResult}
+                    onChange={(e) => setTradingResult(e.target.value)}
+                    placeholder="e.g. +$1,200 (1:3 RR)"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-medium focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground">
+                    Academy Duration
+                  </label>
+                  <select
+                    value={experienceDuration}
+                    onChange={(e) => setExperienceDuration(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-medium focus:border-primary focus:outline-none"
+                  >
+                    <option value="1-3 Months">1-3 Months</option>
+                    <option value="3-6 Months">3-6 Months</option>
+                    <option value="6-12 Months">6-12 Months</option>
+                    <option value="1+ Year">1+ Year</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 6. Security Warning & Privacy Notice */}
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-500">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Security & Privacy Warning</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Please ensure you <strong>NEVER</strong> upload screenshots containing private passwords,
+                trading account login credentials, API secret keys, bank account numbers, or OTPs.
+              </p>
+            </div>
+
+            {/* 7. Mandatory Consent Checkbox */}
+            <label className="flex items-start gap-3 rounded-xl border border-border p-4 cursor-pointer hover:bg-muted/20 transition-colors">
+              <input
+                type="checkbox"
+                checked={consentGiven}
+                onChange={(e) => setConsentGiven(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-primary"
+              />
+              <span className="text-xs text-foreground leading-relaxed">
+                I agree that my testimonial, display name, profile photo, review, and submitted
+                screenshots may be displayed publicly on the Rahul Trade Warrior Academy website if
+                approved by the administration.
+              </span>
+            </label>
+
+            {/* Submit Button */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="rounded-xl border border-border bg-card px-5 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={isPending || isUploading}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3 text-xs font-bold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                <Send className="h-4 w-4" />
+                <span>{isPending ? "Submitting..." : editingId ? "Update & Resubmit" : "Submit Testimonial"}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* TAB 2: MY TESTIMONIALS LIST */}
+      {activeTab === "list" && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          {testimonials.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-12 text-center space-y-3 bg-card">
+              <Star className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+              <h3 className="text-sm font-bold text-foreground">No Testimonials Submitted Yet</h3>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Share your journey with Rahul Trade Warrior Academy to inspire fellow traders!
+              </p>
+              <button
+                onClick={() => setActiveTab("form")}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Submit Your First Review
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {testimonials.map((t) => {
+                const isPendingReview = t.status === "PENDING";
+                const isApproved = t.status === "APPROVED";
+                const isRejected = t.status === "REJECTED";
+
+                return (
+                  <div
+                    key={t.id}
+                    className={`rounded-2xl border bg-card p-6 shadow-sm space-y-4 flex flex-col justify-between transition-all ${
+                      isApproved
+                        ? "border-emerald-500/30"
+                        : isRejected
+                        ? "border-destructive/40 bg-destructive/5"
+                        : "border-amber-500/30"
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      {/* Top status bar */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                              isApproved
+                                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                                : isRejected
+                                ? "bg-destructive/15 text-destructive border border-destructive/30"
+                                : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                            }`}
+                          >
+                            {isApproved && <CheckCircle2 className="h-3 w-3" />}
+                            {isPendingReview && <Clock className="h-3 w-3" />}
+                            {isRejected && <X className="h-3 w-3" />}
+                            <span>
+                              {isApproved ? "Approved & Public" : isRejected ? "Revision Requested" : "Under Review"}
+                            </span>
+                          </span>
+
+                          <TestUserBadge isTestData={t.isTestData} />
+                        </div>
+
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-3.5 w-3.5 ${
+                                i < t.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Rejection Reason Notice */}
+                      {isRejected && t.rejectionReason && (
+                        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 space-y-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-destructive">
+                            Feedback from Moderation:
+                          </p>
+                          <p className="text-xs text-foreground font-medium">
+                            &ldquo;{t.rejectionReason}&rdquo;
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Review Text */}
+                      <p className="text-xs text-foreground/90 leading-relaxed italic">
+                        &ldquo;{t.content}&rdquo;
+                      </p>
+
+                      {/* Metadata badges */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {t.tradingPlatform && (
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            💻 {t.tradingPlatform}
+                          </span>
+                        )}
+                        {t.accountType && (
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            🏦 {t.accountType}
+                          </span>
+                        )}
+                        {t.tradingResult && (
+                          <span className="rounded-md bg-emerald-500/10 text-emerald-400 px-2 py-0.5 text-[10px] font-bold">
+                            📈 {t.tradingResult}
+                          </span>
+                        )}
+                        {t.experienceDuration && (
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            ⏳ {t.experienceDuration}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Screenshots Gallery */}
+                      {t.media && t.media.length > 0 && (
+                        <div className="space-y-1.5 pt-2 border-t border-border/60">
+                          <p className="text-[11px] font-bold text-muted-foreground">
+                            Trading Screenshots ({t.media.length}):
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {t.media.map((m, idx) => (
+                              <button
+                                key={m.id || idx}
+                                type="button"
+                                onClick={() => setPreviewImage({ url: m.url, caption: m.caption || undefined })}
+                                className="group relative aspect-video rounded-lg overflow-hidden border border-border/60 bg-muted focus:outline-none cursor-pointer"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={m.url}
+                                  alt={m.caption || `Screenshot ${idx + 1}`}
+                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                  <Maximize2 className="h-4 w-4" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom action row */}
+                    <div className="flex items-center justify-between border-t border-border/60 pt-3 text-[11px] text-muted-foreground">
+                      <span>Submitted: {new Date(t.createdAt).toLocaleDateString()}</span>
+
+                      {(isRejected || isPendingReview) && (
+                        <button
+                          type="button"
+                          onClick={() => handleEditClick(t)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          <span>{isRejected ? "Edit & Resubmit" : "Edit Submission"}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lightbox Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-4 right-4 z-10 rounded-full bg-black/60 p-2 text-white hover:bg-black cursor-pointer"
+              aria-label="Close Preview"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImage.url}
+              alt={previewImage.caption || "Screenshot Preview"}
+              className="max-h-[80vh] w-auto object-contain rounded-xl mx-auto"
+            />
+            {previewImage.caption && (
+              <p className="text-center text-xs font-bold text-foreground py-2">
+                {previewImage.caption}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

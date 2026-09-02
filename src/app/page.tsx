@@ -19,6 +19,8 @@ import {
   Flame,
   Zap,
 } from "lucide-react";
+import { getApprovedTestimonialsAction } from "@/server/actions/testimonial.actions";
+import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,8 @@ export default async function HomePage() {
   } catch (err) {
     console.warn("Could not load featured courses at build time:", err);
   }
+
+  const testimonials = await getApprovedTestimonialsAction();
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
@@ -335,6 +339,25 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* 5b. Student Testimonials & Success Stories */}
+      <TestimonialsSection
+        testimonials={testimonials.map((t) => ({
+          id: t.id,
+          studentName: t.studentName,
+          content: t.content,
+          photoUrl: t.photoUrl,
+          rating: t.rating,
+          isFeatured: t.isFeatured,
+          tradingPlatform: t.tradingPlatform,
+          accountType: t.accountType,
+          tradingResult: t.tradingResult,
+          experienceDuration: t.experienceDuration,
+          isTestData: t.isTestData,
+          createdAt: t.createdAt,
+          screenshots: t.screenshots,
+        }))}
+      />
 
       {/* 6. Referral Affiliate Section */}
       <section className="py-20 border-b border-border/40">

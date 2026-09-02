@@ -339,6 +339,14 @@ export default async function SuperWarrior30FunnelPage({
           content: t.content,
           photoUrl: t.photoUrl,
           rating: t.rating,
+          isFeatured: t.isFeatured,
+          tradingPlatform: t.tradingPlatform,
+          accountType: t.accountType,
+          tradingResult: t.tradingResult,
+          experienceDuration: t.experienceDuration,
+          isTestData: t.isTestData,
+          createdAt: t.createdAt,
+          screenshots: t.screenshots,
         }))}
       />
 

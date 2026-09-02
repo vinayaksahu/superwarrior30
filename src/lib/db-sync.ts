@@ -88,6 +88,20 @@ export async function ensureDatabaseSchemaSync(force = false) {
     `ALTER TABLE "withdrawals" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "userId" TEXT;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'PENDING';`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isFeatured" BOOLEAN DEFAULT false;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "displayOrder" INTEGER DEFAULT 0;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "tradingPlatform" TEXT;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "accountType" TEXT;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "tradingResult" TEXT;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "experienceDuration" TEXT;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "consentGiven" BOOLEAN DEFAULT false;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "reviewedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "reviewedById" TEXT;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "testimonial_media" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "live_sessions" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "broker_offer_claims" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "referral_relationships" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
@@ -326,20 +340,66 @@ export async function ensureDatabaseSchemaSync(force = false) {
 
   try {
     await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        CREATE TYPE "TestimonialStatus" AS ENUM ('DRAFT', 'PENDING', 'APPROVED', 'REJECTED');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "testimonials" (
         "id" TEXT PRIMARY KEY,
+        "userId" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
         "studentName" TEXT NOT NULL,
         "content" TEXT NOT NULL,
         "photoUrl" TEXT,
         "videoUrl" TEXT,
         "rating" INTEGER NOT NULL DEFAULT 5,
+        "status" "TestimonialStatus" NOT NULL DEFAULT 'PENDING',
         "isApproved" BOOLEAN NOT NULL DEFAULT false,
         "isVisible" BOOLEAN NOT NULL DEFAULT true,
+        "isFeatured" BOOLEAN NOT NULL DEFAULT false,
+        "displayOrder" INTEGER NOT NULL DEFAULT 0,
+        "tradingPlatform" TEXT,
+        "accountType" TEXT,
+        "tradingResult" TEXT,
+        "experienceDuration" TEXT,
+        "consentGiven" BOOLEAN NOT NULL DEFAULT false,
+        "rejectionReason" TEXT,
+        "reviewedAt" TIMESTAMP(3),
+        "reviewedById" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
+        "approvedAt" TIMESTAMP(3),
         "courseId" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE INDEX IF NOT EXISTS "testimonials_status_isVisible_idx" ON "testimonials"("status", "isVisible");
       CREATE INDEX IF NOT EXISTS "testimonials_isApproved_isVisible_idx" ON "testimonials"("isApproved", "isVisible");
+      CREATE INDEX IF NOT EXISTS "testimonials_userId_idx" ON "testimonials"("userId");
+      CREATE INDEX IF NOT EXISTS "testimonials_isFeatured_createdAt_idx" ON "testimonials"("isFeatured", "createdAt" DESC);
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "testimonial_media" (
+        "id" TEXT PRIMARY KEY,
+        "testimonialId" TEXT NOT NULL REFERENCES "testimonials"("id") ON DELETE CASCADE,
+        "url" TEXT NOT NULL,
+        "type" TEXT NOT NULL DEFAULT 'SCREENSHOT',
+        "caption" TEXT,
+        "sortOrder" INTEGER NOT NULL DEFAULT 0,
+        "isTestData" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "testimonial_media_testimonialId_idx" ON "testimonial_media"("testimonialId");
+      CREATE INDEX IF NOT EXISTS "testimonial_media_isTestData_testimonialId_idx" ON "testimonial_media"("isTestData", "testimonialId");
     `);
   } catch {
     // ignore
