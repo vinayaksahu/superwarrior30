@@ -7,7 +7,11 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 
-export function PublicNavbar() {
+interface PublicNavbarProps {
+  isTestMode?: boolean;
+}
+
+export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -91,9 +95,22 @@ export function PublicNavbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
+      {/* Test Mode Notification Banner */}
+      {isTestMode && (
+        <div className="w-full bg-amber-500/20 border-b border-amber-500/40 px-4 py-1.5 text-center flex items-center justify-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+          </span>
+          <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
+            ⚠️ TEST MODE ACTIVE (Scope: Admins + Homepage) — Viewing Testing Environment Data
+          </span>
+        </div>
+      )}
+
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
         <div onClick={handleLogoClick} className="cursor-pointer">
-          <BrandLogo href="/" size="md" />
+          <BrandLogo href="/" size="md" isTestMode={isTestMode} />
         </div>
 
         {/* Desktop Nav */}

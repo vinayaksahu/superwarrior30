@@ -180,7 +180,7 @@ export async function switchEnvironmentAction(
       // Non-blocking if auditLog table is syncing
     }
 
-    // Revalidate all administrative paths to reflect the target database data
+    // Revalidate all administrative and public paths to reflect the target database data
     revalidatePath("/admin", "layout");
     revalidatePath("/admin/courses");
     revalidatePath("/admin/orders");
@@ -189,6 +189,10 @@ export async function switchEnvironmentAction(
     revalidatePath("/admin/wallet");
     revalidatePath("/admin/support");
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/");
+    revalidatePath("/#testimonials");
+    revalidatePath("/courses");
 
     return {
       success: true,

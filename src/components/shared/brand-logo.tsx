@@ -6,6 +6,7 @@ interface BrandLogoProps {
   size?: "sm" | "md" | "lg";
   href?: string;
   showText?: boolean;
+  isTestMode?: boolean;
 }
 
 export function BrandLogo({
@@ -13,6 +14,7 @@ export function BrandLogo({
   size = "md",
   href = "/",
   showText = true,
+  isTestMode = false,
 }: BrandLogoProps) {
   const dimensions =
     size === "sm"
@@ -33,9 +35,16 @@ export function BrandLogo({
       />
       {showText && (
         <div className="flex flex-col leading-tight">
-          <span className={cn("font-black tracking-tight text-foreground", dimensions.textClass)}>
-            RAHUL <span className="text-amber-400">TRADE WARRIOR</span>
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className={cn("font-black tracking-tight text-foreground", dimensions.textClass)}>
+              RAHUL <span className="text-amber-400">TRADE WARRIOR</span>
+            </span>
+            {isTestMode && (
+              <span className="rounded-full border border-amber-500/50 bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider text-amber-400 shadow-sm animate-pulse">
+                TEST
+              </span>
+            )}
+          </div>
           <span className={cn("font-bold tracking-widest text-muted-foreground uppercase", dimensions.subClass)}>
             ACADEMY • LEARN | TRADE | EARN
           </span>

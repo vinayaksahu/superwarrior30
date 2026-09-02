@@ -64,7 +64,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
       {/* 1. Header Navigation */}
-      <PublicNavbar />
+      <PublicNavbar isTestMode={homepageEnv === "TEST"} />
 
       {/* 2. Hero Section: Terminal Aesthetic */}
       <section className="relative overflow-hidden pt-20 pb-24 md:pt-28 md:pb-36 border-b border-border/40">
@@ -72,9 +72,20 @@ export default async function HomePage() {
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,hsl(var(--primary)/0.18),transparent_70%)]" />
         <div className="container mx-auto px-4 sm:px-6">
           <div className="mx-auto max-w-4xl text-center space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Professional Trading Mentorship & Masterclasses</span>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Professional Trading Mentorship & Masterclasses</span>
+              </div>
+              {homepageEnv === "TEST" && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/50 bg-amber-500/20 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+                  </span>
+                  <span>TEST MODE ACTIVE</span>
+                </div>
+              )}
             </div>
 
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl">
