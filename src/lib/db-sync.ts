@@ -3,9 +3,13 @@ import { resolveCurrentEnvironment } from "@/lib/env-context";
 
 const syncedEnvironments = new Set<string>();
 
-export async function ensureDatabaseSchemaSync() {
+export async function ensureDatabaseSchemaSync(force = false) {
+  if (!force && (process.env.NODE_ENV === "production" || syncedEnvironments.size > 0)) {
+    return;
+  }
+
   const currentEnv = await resolveCurrentEnvironment();
-  if (syncedEnvironments.has(currentEnv)) return;
+  if (syncedEnvironments.has(currentEnv) && !force) return;
 
   const alterStatements = [
     // orders columns

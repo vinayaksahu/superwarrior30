@@ -89,96 +89,23 @@ export function maskEmail(email: string): string {
   return `${name.charAt(0)}***${name.charAt(name.length - 1)}@${domain}`;
 }
 
-/**
- * Check if global email OTP authentication is enabled via SiteSetting
- */
-export async function isEmailOtpEnabled(): Promise<boolean> {
-  try {
-    const setting = await prisma.siteSetting.findUnique({
-      where: { key: "auth_email_otp_enabled" },
-    });
-    // Disabled by default (bina OTP direct login); only enabled if explicitly turned on in Admin Settings
-    if (!setting || setting.value !== "true") {
-      return false;
-    }
-    return Boolean(getSmtpPassword());
-  } catch {
-    return false;
-  }
-}
+let cachedOtpConfig: {
+  config: {
+    isEnabled: boolean;
+    isStaffOtpEnabled: boolean;
+    isStudentOtpEnabled: boolean;
+    isRegistrationOtpEnabled: boolean;
+    isPasswordResetOtpEnabled: boolean;
+    expirationMinutes: number;
+    resendCooldownSeconds: number;
+    maxAttempts: number;
+    maxResendsPerWindow: number;
+  };
+  expiresAt: number;
+} | null = null;
 
 /**
- * Check if Staff / Sub-Admin login requires 2FA OTP
- */
-export async function isStaffLoginOtpEnabled(): Promise<boolean> {
-  try {
-    const setting = await prisma.siteSetting.findUnique({
-      where: { key: "auth_otp_staff_login_enabled" },
-    });
-    if (setting) {
-      return setting.value === "true" && Boolean(getSmtpPassword());
-    }
-    // Fallback to global setting
-    return await isEmailOtpEnabled();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if Student login requires 2FA OTP
- */
-export async function isStudentLoginOtpEnabled(): Promise<boolean> {
-  try {
-    const setting = await prisma.siteSetting.findUnique({
-      where: { key: "auth_otp_student_login_enabled" },
-    });
-    if (setting) {
-      return setting.value === "true" && Boolean(getSmtpPassword());
-    }
-    // Fallback to global setting
-    return await isEmailOtpEnabled();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if Student Registration requires OTP verification
- */
-export async function isRegistrationOtpEnabled(): Promise<boolean> {
-  try {
-    const setting = await prisma.siteSetting.findUnique({
-      where: { key: "auth_otp_registration_enabled" },
-    });
-    if (!setting || setting.value !== "true") {
-      return false;
-    }
-    return Boolean(getSmtpPassword());
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if Password Reset requires OTP verification
- */
-export async function isPasswordResetOtpEnabled(): Promise<boolean> {
-  try {
-    const setting = await prisma.siteSetting.findUnique({
-      where: { key: "auth_otp_password_reset_enabled" },
-    });
-    if (!setting) {
-      return true; // Enabled by default for security
-    }
-    return setting.value === "true";
-  } catch {
-    return true;
-  }
-}
-
-/**
- * Get OTP security configurations
+ * Get OTP security configurations with fast 10-second in-memory TTL cache
  */
 export async function getOtpSecurityConfig(): Promise<{
   isEnabled: boolean;
@@ -191,6 +118,11 @@ export async function getOtpSecurityConfig(): Promise<{
   maxAttempts: number;
   maxResendsPerWindow: number;
 }> {
+  const now = Date.now();
+  if (cachedOtpConfig && now < cachedOtpConfig.expiresAt) {
+    return cachedOtpConfig.config;
+  }
+
   try {
     const settings = await prisma.siteSetting.findMany({
       where: {
@@ -213,7 +145,7 @@ export async function getOtpSecurityConfig(): Promise<{
     const map = new Map(settings.map((s) => [s.key, s.value]));
     const isGlobal = map.get("auth_email_otp_enabled") === "true";
 
-    return {
+    const resolved = {
       isEnabled: isGlobal,
       isStaffOtpEnabled: map.has("auth_otp_staff_login_enabled")
         ? map.get("auth_otp_staff_login_enabled") === "true"
@@ -228,6 +160,13 @@ export async function getOtpSecurityConfig(): Promise<{
       maxAttempts: Math.max(1, parseInt(map.get("auth_otp_max_attempts") || "5", 10)),
       maxResendsPerWindow: Math.max(1, parseInt(map.get("auth_otp_max_resends_per_window") || "5", 10)),
     };
+
+    cachedOtpConfig = {
+      config: resolved,
+      expiresAt: now + 10000, // 10s TTL
+    };
+
+    return resolved;
   } catch {
     return {
       isEnabled: false,
@@ -241,6 +180,46 @@ export async function getOtpSecurityConfig(): Promise<{
       maxResendsPerWindow: 5,
     };
   }
+}
+
+/**
+ * Check if global email OTP authentication is enabled via SiteSetting
+ */
+export async function isEmailOtpEnabled(): Promise<boolean> {
+  const config = await getOtpSecurityConfig();
+  return config.isEnabled && Boolean(getSmtpPassword());
+}
+
+/**
+ * Check if Staff / Sub-Admin login requires 2FA OTP
+ */
+export async function isStaffLoginOtpEnabled(): Promise<boolean> {
+  const config = await getOtpSecurityConfig();
+  return config.isStaffOtpEnabled && Boolean(getSmtpPassword());
+}
+
+/**
+ * Check if Student login requires 2FA OTP
+ */
+export async function isStudentLoginOtpEnabled(): Promise<boolean> {
+  const config = await getOtpSecurityConfig();
+  return config.isStudentOtpEnabled && Boolean(getSmtpPassword());
+}
+
+/**
+ * Check if Student Registration requires OTP verification
+ */
+export async function isRegistrationOtpEnabled(): Promise<boolean> {
+  const config = await getOtpSecurityConfig();
+  return config.isRegistrationOtpEnabled && Boolean(getSmtpPassword());
+}
+
+/**
+ * Check if Password Reset requires OTP verification
+ */
+export async function isPasswordResetOtpEnabled(): Promise<boolean> {
+  const config = await getOtpSecurityConfig();
+  return config.isPasswordResetOtpEnabled;
 }
 
 /**

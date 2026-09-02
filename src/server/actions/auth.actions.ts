@@ -23,7 +23,6 @@ import {
   verifyRegistrationOtp,
   verifyPendingOtpToken,
 } from "@/lib/otp/service";
-import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { z } from "zod";
 import type { ActionState } from "@/types";
 
@@ -31,8 +30,6 @@ export async function loginAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  await ensureDatabaseSchemaSync();
-
   const raw = Object.fromEntries(formData.entries());
   const validated = loginSchema.safeParse(raw);
 
@@ -482,8 +479,6 @@ export async function verifyLoginOtpAction(
   pendingToken: string,
   otp: string
 ): Promise<ActionState<{ destination?: string; remainingAttempts?: number }>> {
-  await ensureDatabaseSchemaSync();
-
   const deviceMeta = await getClientDeviceMetadata();
   const verifyResult = await verifyLoginOtp({
     pendingToken,
@@ -581,8 +576,6 @@ export async function verifyLoginOtpAction(
 export async function resendLoginOtpAction(
   pendingToken: string
 ): Promise<ActionState<{ cooldownSeconds?: number }>> {
-  await ensureDatabaseSchemaSync();
-
   const payload = await verifyPendingOtpToken(pendingToken);
   if (!payload || !payload.email) {
     return {
@@ -632,8 +625,6 @@ export async function registerAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  await ensureDatabaseSchemaSync();
-
   const raw = Object.fromEntries(formData.entries());
   const validated = registerSchema.safeParse(raw);
 
@@ -847,8 +838,6 @@ export async function verifyRegistrationOtpAction(
   pendingToken: string,
   otp: string
 ): Promise<ActionState<{ destination?: string; remainingAttempts?: number }>> {
-  await ensureDatabaseSchemaSync();
-
   const deviceMeta = await getClientDeviceMetadata();
   const verifyResult = await verifyRegistrationOtp({
     pendingToken,
@@ -895,8 +884,6 @@ export async function verifyRegistrationOtpAction(
 export async function resendRegistrationOtpAction(
   pendingToken: string
 ): Promise<ActionState<{ cooldownSeconds?: number }>> {
-  await ensureDatabaseSchemaSync();
-
   const payload = await verifyPendingOtpToken(pendingToken);
   if (!payload || !payload.email || !payload.name || !payload.passwordHash) {
     return {

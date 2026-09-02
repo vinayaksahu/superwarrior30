@@ -17,32 +17,31 @@ export async function getReferralSettingsAction() {
   await requireAdmin();
   await ensureDatabaseSchemaSync();
 
-  const [globalSetting, holdingSetting, minWithdrawalSetting, discountSetting, discountEnabledSetting, levels] = await Promise.all([
-    prisma.siteSetting.findUnique({
-      where: { key: "referral_enabled" },
-    }),
-    prisma.siteSetting.findUnique({
-      where: { key: "referral_holding_days" },
-    }),
-    prisma.siteSetting.findUnique({
-      where: { key: "referral_min_withdrawal" },
-    }),
-    prisma.siteSetting.findUnique({
-      where: { key: "referral_discount_percentage" },
-    }),
-    prisma.siteSetting.findUnique({
-      where: { key: "referral_discount_enabled" },
+  const [settings, levels] = await Promise.all([
+    prisma.siteSetting.findMany({
+      where: {
+        key: {
+          in: [
+            "referral_enabled",
+            "referral_holding_days",
+            "referral_min_withdrawal",
+            "referral_discount_percentage",
+            "referral_discount_enabled",
+          ],
+        },
+      },
     }),
     prisma.referralLevel.findMany({
       orderBy: { level: "asc" },
     }),
   ]);
 
-  const isReferralEnabled = globalSetting ? globalSetting.value === "true" : true;
-  const holdingPeriodDays = holdingSetting ? parseInt(holdingSetting.value, 10) || 7 : 7;
-  const minWithdrawalAmount = minWithdrawalSetting ? parseFloat(minWithdrawalSetting.value) || 500 : 500;
-  const referralDiscountPercentage = discountSetting ? parseFloat(discountSetting.value) || 10 : 10;
-  const isReferralDiscountEnabled = discountEnabledSetting ? discountEnabledSetting.value === "true" : true;
+  const map = new Map(settings.map((s) => [s.key, s.value]));
+  const isReferralEnabled = map.has("referral_enabled") ? map.get("referral_enabled") === "true" : true;
+  const holdingPeriodDays = map.has("referral_holding_days") ? parseInt(map.get("referral_holding_days")!, 10) || 7 : 7;
+  const minWithdrawalAmount = map.has("referral_min_withdrawal") ? parseFloat(map.get("referral_min_withdrawal")!) || 500 : 500;
+  const referralDiscountPercentage = map.has("referral_discount_percentage") ? parseFloat(map.get("referral_discount_percentage")!) || 10 : 10;
+  const isReferralDiscountEnabled = map.has("referral_discount_enabled") ? map.get("referral_discount_enabled") === "true" : true;
 
   return {
     isReferralEnabled,

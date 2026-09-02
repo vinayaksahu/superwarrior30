@@ -29,14 +29,11 @@ export async function getStudentWalletAction({
   pageSize?: number;
 } = {}) {
   const user = await requireAuth();
-  await ensureDatabaseSchemaSync();
 
-  // Run auto-clearance for matured commissions
-  try {
-    await processMaturedCommissionsAction();
-  } catch (err) {
+  // Run auto-clearance for matured commissions asynchronously without blocking wallet load
+  processMaturedCommissionsAction().catch((err) => {
     console.warn("Auto clearance check error:", err);
-  }
+  });
 
   // Upsert wallet for current user
   const wallet = await prisma.wallet.upsert({

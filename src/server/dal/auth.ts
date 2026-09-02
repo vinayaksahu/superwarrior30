@@ -6,7 +6,6 @@ import { decrypt } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { UserRole } from "@/generated/prisma";
-import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { isSuperAdminUser, isStaffAdminUser } from "@/server/dal/auth-check";
 
 export { isSuperAdminUser, isStaffAdminUser } from "@/server/dal/auth-check";
@@ -25,8 +24,6 @@ export const verifySession = cache(async () => {
 export const getCurrentUser = cache(async () => {
   const session = await verifySession();
   if (!session) return null;
-
-  await ensureDatabaseSchemaSync().catch(() => {});
 
   let user = null;
   try {

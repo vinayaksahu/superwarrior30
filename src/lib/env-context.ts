@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
@@ -88,6 +89,7 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
 
 /**
  * Resolves the active environment for the current request context.
+ * Memoized per-request using React.cache.
  * 
  * Hierarchy:
  * 1. AsyncLocalStorage context (if explicitly set via withEnvironmentContext)
@@ -97,7 +99,7 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
  * 
  * Enforces server-side authorization: Standard users / students / public traffic ALWAYS run in LIVE mode.
  */
-export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
+export const resolveCurrentEnvironment = cache(async (): Promise<AppEnvironment> => {
   // 1. Check AsyncLocalStorage
   const alsEnv = environmentStorage.getStore();
   if (alsEnv) {
@@ -190,7 +192,7 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
     // If running outside request context (e.g., CLI / background), fallback to DEFAULT_ENVIRONMENT
     return DEFAULT_ENVIRONMENT;
   }
-}
+});
 
 /**
  * Helper to get current synchronous environment if stored in ALS, otherwise returns undefined

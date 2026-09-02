@@ -92,6 +92,7 @@ model User {
   @@index([role])
   @@index([status])
   @@index([referralCode])
+  @@index([isTestData, role])
   @@map("users")
 }
 
@@ -233,6 +234,7 @@ model Course {
   @@index([status, createdAt])
   @@index([isFeatured])
   @@index([deletedAt])
+  @@index([isTestData, status, deletedAt])
   @@map("courses")
 }
 
@@ -317,6 +319,7 @@ model CourseEnrollment {
   @@unique([userId, courseId])
   @@index([userId, status])
   @@index([courseId, status])
+  @@index([isTestData, userId, status])
   @@map("course_enrollments")
 }
 
@@ -390,6 +393,7 @@ model Order {
 
   @@index([userId, status, createdAt(sort: Desc)])
   @@index([status, createdAt])
+  @@index([isTestData, status, createdAt(sort: Desc)])
   @@index([orderNumber])
   @@index([gatewayOrderId])
   @@map("orders")
@@ -530,6 +534,7 @@ model ReferralCommissionRecord {
   @@index([beneficiaryId, status])
   @@index([status, availableAt])
   @@index([status])
+  @@index([isTestData, status, availableAt])
   @@index([createdAt])
   @@map("referral_commission_records")
 }
@@ -566,6 +571,7 @@ model Wallet {
   user         User                @relation(fields: [userId], references: [id], onDelete: Restrict)
   transactions WalletTransaction[]
 
+  @@index([isTestData, userId])
   @@map("wallets")
 }
 
@@ -620,6 +626,7 @@ model Withdrawal {
 
   @@index([userId, status])
   @@index([status, createdAt])
+  @@index([isTestData, status, createdAt])
   @@map("withdrawals")
 }
 

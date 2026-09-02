@@ -86,10 +86,7 @@ export function getProductionPrismaClient(): PrismaClient {
     process.env.DATABASE_URL;
 
   const client = createPrismaClientForUrl(prodUrl, "LIVE");
-
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.productionPrisma = client;
-  }
+  globalForPrisma.productionPrisma = client;
   return client;
 }
 
@@ -107,10 +104,7 @@ export function getTestPrismaClient(): PrismaClient {
     process.env.DATABASE_URL;
 
   const client = createPrismaClientForUrl(testUrl, "TEST");
-
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.testPrisma = client;
-  }
+  globalForPrisma.testPrisma = client;
   return client;
 }
 

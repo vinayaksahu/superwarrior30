@@ -11,10 +11,12 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireAdmin();
-  const currentEnvironment = await resolveCurrentEnvironment();
+  const [user, currentEnvironment, staffTestingAllowed] = await Promise.all([
+    requireAdmin(),
+    resolveCurrentEnvironment(),
+    isStaffTestingAllowedInDb(),
+  ]);
   const isSuper = isSuperAdminUser(user);
-  const staffTestingAllowed = await isStaffTestingAllowedInDb();
 
   // Resolve role presentation and effective permissions
   const rolePresentation = getRolePresentation(user.role, user.adminRole, user.email);
