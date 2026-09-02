@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   switchEnvironmentAction,
   toggleStaffTestingAction,
+  switchStaffEnvironmentAction,
 } from "@/server/actions/environment.actions";
 import type { AppEnvironment } from "@/lib/env-context";
 import {
@@ -15,8 +16,6 @@ import {
   CheckCircle2,
   X,
   Users,
-  ToggleLeft,
-  ToggleRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,28 +23,31 @@ interface EnvironmentSwitcherProps {
   currentEnvironment: AppEnvironment;
   isSuperAdmin: boolean;
   isStaffAdmin?: boolean;
-  initialStaffTestingActive?: boolean;
+  staffTestingAllowed?: boolean;
 }
 
 export function EnvironmentSwitcher({
   currentEnvironment,
   isSuperAdmin,
   isStaffAdmin = false,
-  initialStaffTestingActive = false,
+  staffTestingAllowed = false,
 }: EnvironmentSwitcherProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showModal, setShowModal] = useState(false);
   const [targetEnv, setTargetEnv] = useState<AppEnvironment | null>(null);
-  const [allowStaffTesting, setAllowStaffTesting] = useState(initialStaffTestingActive);
-  const [staffTestingActive, setStaffTestingActive] = useState(initialStaffTestingActive);
+  const [allowStaffTesting, setAllowStaffTesting] = useState(staffTestingAllowed);
+  const [staffTestingActive, setStaffTestingActive] = useState(staffTestingAllowed);
   const [error, setError] = useState<string | null>(null);
 
   const isLive = currentEnvironment === "LIVE";
 
-  // For non-super admins who are in LIVE mode: show live production badge
-  if (!isSuperAdmin) {
-    if (isLive) {
+  // ==========================================
+  // 1. STAFF ADMIN INTERACTION
+  // ==========================================
+  if (isStaffAdmin && !isSuperAdmin) {
+    // If Super Admin has NOT enabled testing for staff: show static LIVE badge
+    if (!staffTestingAllowed) {
       return (
         <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
           <span className="relative flex h-2 w-2">
@@ -56,18 +58,163 @@ export function EnvironmentSwitcher({
         </div>
       );
     }
-    // If staff testing is enabled by superadmin, staff admin sees testing badge
+
+    // If Super Admin HAS enabled staff testing: Staff Admin can toggle for themselves
+    const handleStaffSwitch = (env: AppEnvironment) => {
+      startTransition(async () => {
+        const res = await switchStaffEnvironmentAction(env);
+        if (res.success) {
+          setShowModal(false);
+          router.refresh();
+        } else {
+          setError(res.error || "Failed to switch environment.");
+        }
+      });
+    };
+
     return (
-      <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-2.5 py-1 text-[11px] font-bold text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
-        </span>
-        <span>⚠️ TESTING MODE (Staff Active)</span>
-      </div>
+      <>
+        <div className="flex items-center gap-2">
+          {isLive ? (
+            <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              </span>
+              <span>LIVE PRODUCTION</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetEnv("TEST");
+                  setError(null);
+                  setShowModal(true);
+                }}
+                disabled={isPending}
+                className="ml-1.5 flex items-center gap-1 rounded bg-emerald-900/60 px-2 py-0.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-800/80 transition-colors cursor-pointer border border-emerald-700/50"
+              >
+                <FlaskConical className="h-3 w-3" />
+                <span>Enter Testing Mode</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-2.5 py-1 text-[11px] font-bold text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+              </span>
+              <span>⚠️ TESTING MODE (Staff)</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetEnv("LIVE");
+                  setError(null);
+                  setShowModal(true);
+                }}
+                disabled={isPending}
+                className="ml-1 flex items-center gap-1 rounded bg-amber-500 px-2 py-0.5 text-[10px] font-extrabold text-black hover:bg-amber-400 transition-colors cursor-pointer shadow"
+              >
+                <ShieldCheck className="h-3 w-3" />
+                <span>Return to Live</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Staff Confirmation Modal */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+            <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+              <button
+                onClick={() => !isPending && setShowModal(false)}
+                className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-accent cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              <div className="flex items-start gap-4">
+                <div
+                  className={cn(
+                    "rounded-full p-3 shrink-0",
+                    targetEnv === "TEST"
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                      : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                  )}
+                >
+                  {targetEnv === "TEST" ? (
+                    <AlertTriangle className="h-6 w-6" />
+                  ) : (
+                    <CheckCircle2 className="h-6 w-6" />
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-base font-bold text-foreground">
+                    {targetEnv === "TEST"
+                      ? "Switch to Testing Mode?"
+                      : "Return to Live Production?"}
+                  </h3>
+                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                    {targetEnv === "TEST" ? (
+                      <>
+                        Your staff session will switch to the{" "}
+                        <strong className="text-amber-400 font-semibold">TEST database</strong>.
+                        All actions will affect test data only.
+                      </>
+                    ) : (
+                      <>
+                        Your staff session will return to the{" "}
+                        <strong className="text-emerald-400 font-semibold">
+                          LIVE Production database
+                        </strong>
+                        .
+                      </>
+                    )}
+                  </p>
+
+                  {error && (
+                    <div className="mt-3 rounded-lg bg-destructive/10 p-2.5 text-xs text-destructive border border-destructive/20">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowModal(false)}
+                      disabled={isPending}
+                      className="rounded-lg border border-border px-3.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-accent cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => targetEnv && handleStaffSwitch(targetEnv)}
+                      disabled={isPending}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-bold transition-all cursor-pointer shadow",
+                        targetEnv === "TEST"
+                          ? "bg-amber-500 hover:bg-amber-400 text-black"
+                          : "bg-emerald-500 hover:bg-emerald-400 text-black"
+                      )}
+                    >
+                      {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      <span>
+                        {targetEnv === "TEST" ? "Enter Testing Mode" : "Return to Live"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
+  // ==========================================
+  // 2. SUPER ADMIN MASTER CONTROL
+  // ==========================================
   const handleOpenModal = (env: AppEnvironment) => {
     setTargetEnv(env);
     setError(null);
@@ -129,15 +276,15 @@ export function EnvironmentSwitcher({
             </span>
             <span>⚠️ TESTING MODE</span>
 
-            {/* Quick Staff Testing Toggle */}
+            {/* Quick Staff Testing Permission Toggle for Super Admin */}
             <button
               type="button"
               onClick={() => handleToggleStaffTesting(!staffTestingActive)}
               disabled={isPending}
               title={
                 staffTestingActive
-                  ? "Staff Admin Testing is ENABLED (Click to disable for staff)"
-                  : "Staff Admin Testing is DISABLED (Click to enable for staff)"
+                  ? "Staff Testing Permission is ENABLED (Click to disable for staff)"
+                  : "Staff Testing Permission is DISABLED (Click to enable for staff)"
               }
               className={cn(
                 "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer border",
@@ -163,7 +310,7 @@ export function EnvironmentSwitcher({
         )}
       </div>
 
-      {/* Confirmation Modal */}
+      {/* Super Admin Confirmation Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
           <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
@@ -234,11 +381,11 @@ export function EnvironmentSwitcher({
                         <p className="text-[11px] text-muted-foreground leading-normal">
                           {allowStaffTesting ? (
                             <span className="text-amber-300">
-                              ✓ All staff admins will also see and operate on test data.
+                              ✓ Staff admins can also switch themselves between Test and Live modes.
                             </span>
                           ) : (
                             <span>
-                              Only you (Super Admin) will be in Testing Mode. Staff admins will remain in Live Production Mode.
+                              Only you (Super Admin) will be in Testing Mode. Staff admins will remain locked to Live Production Mode.
                             </span>
                           )}
                         </p>

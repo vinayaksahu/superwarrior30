@@ -2,7 +2,7 @@ import { requireAdmin, isSuperAdminUser } from "@/server/dal/auth";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { TestingModeBanner } from "@/components/admin/environment-switcher";
-import { resolveCurrentEnvironment } from "@/lib/env-context";
+import { resolveCurrentEnvironment, isStaffTestingActive } from "@/lib/env-context";
 import { getEffectivePermissions, getRolePresentation } from "@/lib/permissions";
 
 export default async function AdminLayout({
@@ -13,6 +13,7 @@ export default async function AdminLayout({
   const user = await requireAdmin();
   const currentEnvironment = await resolveCurrentEnvironment();
   const isSuper = isSuperAdminUser(user);
+  const staffTestingAllowed = isStaffTestingActive();
 
   // Resolve role presentation and effective permissions
   const rolePresentation = getRolePresentation(user.role, user.adminRole, user.email);
@@ -44,6 +45,7 @@ export default async function AdminLayout({
               badgeColorClass: rolePresentation.badgeColorClass,
             }}
             currentEnvironment={currentEnvironment}
+            staffTestingAllowed={staffTestingAllowed}
           />
           <main className="flex-1 overflow-y-auto p-6">{children}</main>
         </div>

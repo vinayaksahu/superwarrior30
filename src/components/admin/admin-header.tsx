@@ -47,6 +47,7 @@ interface AdminHeaderProps {
     badgeColorClass?: string;
   };
   currentEnvironment?: AppEnvironment;
+  staffTestingAllowed?: boolean;
 }
 
 interface MobileNavLink {
@@ -77,7 +78,7 @@ const mobileNavLinks: MobileNavLink[] = [
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, requiredPermission: "audit_logs.view" },
 ];
 
-export function AdminHeader({ user, currentEnvironment }: AdminHeaderProps) {
+export function AdminHeader({ user, currentEnvironment, staffTestingAllowed = false }: AdminHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -116,6 +117,7 @@ export function AdminHeader({ user, currentEnvironment }: AdminHeaderProps) {
             currentEnvironment={currentEnvironment || "LIVE"}
             isSuperAdmin={isSuper}
             isStaffAdmin={!isSuper}
+            staffTestingAllowed={staffTestingAllowed}
           />
           <ThemeToggle />
           <div className="text-right hidden sm:block">

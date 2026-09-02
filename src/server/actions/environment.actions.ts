@@ -9,13 +9,14 @@ import {
   setStaffTestingActive,
   isStaffTestingActive,
   ENV_COOKIE_NAME,
+  STAFF_ENV_COOKIE_NAME,
   type AppEnvironment,
 } from "@/lib/env-context";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Server action to switch the Super Admin's session environment between LIVE and TEST.
- * Supports optional allowStaffTesting flag to include sub-admins/staff in testing.
+ * Master server action for Super Admin to switch environment between LIVE and TEST.
+ * Supports optional allowStaffTesting flag to grant testing permissions to staff members.
  * Strictly enforced server-side for SUPER_ADMIN role only.
  */
 export async function switchEnvironmentAction(
@@ -33,7 +34,7 @@ export async function switchEnvironmentAction(
     if (!isSuperAdminUser(user)) {
       return {
         success: false,
-        error: "Access Denied: Only SUPER_ADMIN can switch environments.",
+        error: "Access Denied: Only SUPER_ADMIN can switch platform environment.",
       };
     }
 
@@ -210,13 +211,75 @@ export async function toggleStaffTestingAction(enabled: boolean): Promise<{
 }
 
 /**
+ * Staff Admin individual action to toggle testing mode for their own session.
+ * Requires Super Admin to have granted staff testing permission.
+ */
+export async function switchStaffEnvironmentAction(targetEnv: AppEnvironment): Promise<{
+  success: boolean;
+  environment?: AppEnvironment;
+  error?: string;
+}> {
+  try {
+    const user = await requireAuth();
+
+    if (!isStaffAdminUser(user)) {
+      return {
+        success: false,
+        error: "Access Denied: Only Staff Admins can use this action.",
+      };
+    }
+
+    if (!isStaffTestingActive()) {
+      return {
+        success: false,
+        error: "Testing Mode is currently disabled for staff by the Super Admin.",
+      };
+    }
+
+    if (targetEnv !== "LIVE" && targetEnv !== "TEST") {
+      return {
+        success: false,
+        error: "Invalid target environment.",
+      };
+    }
+
+    const cookieStore = await cookies();
+    const token = await signEnvToken({
+      env: targetEnv,
+      userId: user.id,
+      email: user.email,
+    });
+
+    cookieStore.set(STAFF_ENV_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 24 * 60 * 60,
+    });
+
+    revalidatePath("/admin", "layout");
+
+    return {
+      success: true,
+      environment: targetEnv,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Failed to switch staff environment.",
+    };
+  }
+}
+
+/**
  * Returns current environment and authorization status for UI indicators
  */
 export async function getCurrentEnvironmentAction(): Promise<{
   environment: AppEnvironment;
   isSuperAdmin: boolean;
   isStaffAdmin: boolean;
-  staffTestingActive: boolean;
+  staffTestingAllowed: boolean;
 }> {
   try {
     const user = await requireAuth();
@@ -228,14 +291,14 @@ export async function getCurrentEnvironmentAction(): Promise<{
       environment: env,
       isSuperAdmin: isSuper,
       isStaffAdmin: isStaff,
-      staffTestingActive: isStaffTestingActive(),
+      staffTestingAllowed: isStaffTestingActive(),
     };
   } catch {
     return {
       environment: "LIVE",
       isSuperAdmin: false,
       isStaffAdmin: false,
-      staffTestingActive: false,
+      staffTestingAllowed: false,
     };
   }
 }

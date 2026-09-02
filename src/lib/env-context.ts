@@ -9,6 +9,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/constants";
 export type AppEnvironment = "LIVE" | "TEST";
 
 export const ENV_COOKIE_NAME = "sw30_admin_env";
+export const STAFF_ENV_COOKIE_NAME = "sw30_staff_env";
 export const DEFAULT_ENVIRONMENT: AppEnvironment = "LIVE";
 
 const SECRET_KEY = process.env.JWT_SECRET_KEY || "fallback_dev_secret_key_64_characters_long_min_for_hs256_algo";
@@ -46,7 +47,7 @@ export function withEnvironmentContext<T>(env: AppEnvironment, callback: () => T
 }
 
 /**
- * Encrypts/signs an environment token for the Super Admin
+ * Encrypts/signs an environment token
  */
 export async function signEnvToken(payload: Omit<EnvTokenPayload, "issuedAt">): Promise<string> {
   return new SignJWT({
@@ -91,7 +92,7 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
  * Hierarchy:
  * 1. AsyncLocalStorage context (if explicitly set via withEnvironmentContext)
  * 2. Super Admin authenticated session + verified signed env cookie (sw30_admin_env)
- * 3. Staff Admin authenticated session + active staff testing mode authorized by Super Admin
+ * 3. Staff Admin authenticated session + active staff testing authorization (with per-staff toggle override via sw30_staff_env)
  * 4. Default: "LIVE"
  * 
  * Enforces server-side authorization: Standard users / students / public traffic ALWAYS run in LIVE mode.
@@ -142,13 +143,28 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
       return DEFAULT_ENVIRONMENT;
     }
 
-    // Check if Staff Admin should enter TEST mode
+    // Check if Staff Admin has access to test mode
     const isStaff = isStaffAdminUser({
       role: session.role,
       email: session.email,
     });
 
-    if (isStaff && isStaffTestingActive()) {
+    if (isStaff) {
+      // If Super Admin has disabled staff testing -> strictly LIVE
+      if (!isStaffTestingActive()) {
+        return DEFAULT_ENVIRONMENT;
+      }
+
+      // Super Admin enabled staff testing -> check staff member's personal preference cookie
+      const staffEnvToken = cookieStore.get(STAFF_ENV_COOKIE_NAME)?.value;
+      if (staffEnvToken) {
+        const staffPayload = await verifyEnvToken(staffEnvToken);
+        if (staffPayload && staffPayload.userId === session.userId) {
+          return staffPayload.env;
+        }
+      }
+
+      // Default when Super Admin enables staff testing: TEST
       return "TEST";
     }
 
