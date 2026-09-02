@@ -167,9 +167,11 @@ export async function ensureDatabaseSchemaSync(force = false) {
     `ALTER TABLE "system_payment_methods" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "funnel_events" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
 
-    // Ensure system admin accounts, wallets, and coupons are accessible in LIVE mode
+    // Ensure system admin accounts, wallets, coupons, and enrollments are accessible in LIVE mode
     `UPDATE "coupons" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
     `ALTER TABLE "coupons" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+    `UPDATE "course_enrollments" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
+    `ALTER TABLE "course_enrollments" ALTER COLUMN "isTestData" SET DEFAULT false;`,
     `UPDATE "users" SET "isTestData" = false WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
     `UPDATE "wallets" SET "isTestData" = false WHERE "userId" IN (SELECT "id" FROM "users" WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com'));`,
     `UPDATE "referral_relationships" SET "isTestData" = true WHERE "isTestData" IS NULL;`,

@@ -213,6 +213,7 @@ export async function fulfillOrderPayment({
             status: "ACTIVE",
             orderId: order.id,
             enrolledAt: new Date(),
+            isTestData: false,
           },
           create: {
             userId: order.userId,
@@ -220,6 +221,7 @@ export async function fulfillOrderPayment({
             orderId: order.id,
             status: "ACTIVE",
             progressPercentage: 0.0,
+            isTestData: false,
           },
         });
       }

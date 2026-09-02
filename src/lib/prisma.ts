@@ -13,7 +13,6 @@ const ISOLATED_MODELS = new Set([
   "order",
   "orderItem",
   "course",
-  "courseEnrollment",
   "lessonProgress",
   "referralCommissionRecord",
   "referralRelationship",

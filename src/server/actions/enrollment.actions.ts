@@ -408,10 +408,50 @@ export async function getUserEnrolledCoursesAction() {
   const user = await requireAuth();
 
   try {
+    // 1. Auto-heal: Ensure any PAID orders for this user have active enrollments
+    try {
+      const paidOrders = await prisma.order.findMany({
+        where: {
+          userId: user.id,
+          status: "PAID",
+        },
+        include: { items: true },
+      });
+
+      for (const po of paidOrders) {
+        for (const item of po.items) {
+          if (item.courseId) {
+            await prisma.courseEnrollment.upsert({
+              where: {
+                userId_courseId: {
+                  userId: user.id,
+                  courseId: item.courseId,
+                },
+              },
+              update: {
+                status: "ACTIVE",
+                isTestData: false,
+              },
+              create: {
+                userId: user.id,
+                courseId: item.courseId,
+                orderId: po.id,
+                status: "ACTIVE",
+                progressPercentage: 0.0,
+                isTestData: false,
+              },
+            });
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     const enrollments = await prisma.courseEnrollment.findMany({
       where: {
         userId: user.id,
-        status: "ACTIVE",
+        status: { in: ["ACTIVE", "COMPLETED"] },
         course: { deletedAt: null },
       },
       orderBy: { enrolledAt: "desc" },
