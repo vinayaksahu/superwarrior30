@@ -3,8 +3,9 @@
 import { useState, useActionState } from "react";
 import { createCourseAction, updateCourseAction, updateCourseThumbnailAction } from "@/server/actions/course.actions";
 import { FileUploader } from "@/components/admin/file-uploader";
+import { MediaPickerModal } from "@/components/admin/media/media-picker-modal";
 import { slugify } from "@/lib/utils";
-import { Loader2, ArrowLeft, ExternalLink } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import type { ActionState } from "@/types";
 
@@ -34,6 +35,7 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
   const [thumbnailKey, setThumbnailKey] = useState<string | null>(
     course?.thumbnailCdnUrl || course?.thumbnailKey || null
   );
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   const boundUpdateAction = isEdit && course ? updateCourseAction.bind(null, course.id) : null;
   const actionToUse = isEdit && boundUpdateAction ? boundUpdateAction : createCourseAction;
@@ -56,6 +58,14 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
     setThumbnailKey(newKey);
     if (isEdit && course?.id) {
       await updateCourseThumbnailAction(course.id, result.key || "", result.cdnUrl, result.provider);
+    }
+  };
+
+  const handleSelectMediaFromLibrary = async (media: any) => {
+    const url = media.storageUrl || media.thumbnailUrl || "";
+    setThumbnailKey(url);
+    if (isEdit && course?.id) {
+      await updateCourseThumbnailAction(course.id, media.storageKey || "", url, "BUNNY");
     }
   };
 
@@ -342,9 +352,19 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
 
           {/* Thumbnail Uploader */}
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-4">
-            <h2 className="text-lg font-semibold text-foreground border-b border-border pb-3">
-              Course Thumbnail
-            </h2>
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-lg font-semibold text-foreground">
+                Course Thumbnail
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowMediaPicker(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                Select from Media Library
+              </button>
+            </div>
 
             {isEdit && course?.id ? (
               <FileUploader
@@ -352,7 +372,7 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
                 courseId={course.id}
                 currentKey={thumbnailKey}
                 onUploadComplete={handleThumbnailUpload}
-                label="Course Thumbnail"
+                label="Upload New Thumbnail"
                 description="Recommended 16:9 ratio (JPG, PNG, WebP up to 5MB)"
               />
             ) : (
@@ -363,6 +383,16 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
           </div>
         </div>
       </div>
+
+      {/* Media Picker Modal */}
+      {showMediaPicker && (
+        <MediaPickerModal
+          mediaType="IMAGE"
+          title="Select Course Thumbnail from Media Library"
+          onSelect={handleSelectMediaFromLibrary}
+          onClose={() => setShowMediaPicker(false)}
+        />
+      )}
     </form>
   );
 }

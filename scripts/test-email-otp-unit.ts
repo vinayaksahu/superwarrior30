@@ -1,3 +1,4 @@
+import "./preload-test.cjs";
 import crypto from "crypto";
 import {
   generateSecureOtp,

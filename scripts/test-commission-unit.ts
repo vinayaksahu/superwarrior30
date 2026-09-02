@@ -1,3 +1,4 @@
+import "./preload-test.cjs";
 import { referralSettingsSchema, referralLevelItemSchema } from "../src/lib/validations/referral.schema";
 import { calculateAndCreateOrderCommissions } from "../src/server/actions/referral.actions";
 import { Prisma } from "../src/generated/prisma";

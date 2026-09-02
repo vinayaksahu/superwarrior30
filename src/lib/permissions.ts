@@ -46,6 +46,17 @@ export const ALL_MODULES: ModuleDefinition[] = [
     ],
   },
   {
+    id: "media",
+    name: "Media Library",
+    description: "Centralized media assets, videos, PDFs and images",
+    iconName: "Film",
+    permissions: [
+      { key: "media.view", name: "View Media Library", description: "Browse and search media assets", action: "VIEW" },
+      { key: "media.upload", name: "Upload Media", description: "Upload videos, PDFs, and images", action: "CREATE" },
+      { key: "media.delete", name: "Delete Media", description: "Delete unused media assets", action: "DELETE" },
+    ],
+  },
+  {
     id: "live_sessions",
     name: "Live Sessions",
     description: "Webinars, Zoom meetings and live trading classes",
@@ -290,6 +301,7 @@ export const ROLE_PRESETS: Record<AdminRoleType, RolePreset> = {
     defaultPermissions: [
       "dashboard.view",
       "courses.view", "courses.create", "courses.edit", "courses.delete", "courses.publish",
+      "media.view", "media.upload", "media.delete",
       "live_sessions.view", "live_sessions.create", "live_sessions.edit", "live_sessions.delete",
       "students.view", "students.edit", "students.block",
       "orders.view", "orders.export", "orders.manage",
@@ -443,6 +455,11 @@ export function getEffectivePermissions(user: {
   // Predefined role preset
   if (adminRole in ROLE_PRESETS && adminRole !== "SUPER_ADMIN") {
     return new Set(ROLE_PRESETS[adminRole as AdminRoleType].defaultPermissions);
+  }
+
+  // If student or regular customer, return no administrative permissions
+  if (role === "STUDENT") {
+    return new Set();
   }
 
   // Legacy fallback based on UserRole enum

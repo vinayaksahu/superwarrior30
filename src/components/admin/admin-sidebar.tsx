@@ -29,6 +29,7 @@ import {
   Cloud,
   Database,
   Mail,
+  Film,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,12 @@ export const allSidebarLinks: SidebarLink[] = [
     label: "Courses",
     icon: BookOpen,
     requiredPermission: "courses.view",
+  },
+  {
+    href: "/admin/media",
+    label: "Media Library",
+    icon: Film,
+    requiredPermission: "media.view",
   },
   {
     href: "/admin/live-sessions",

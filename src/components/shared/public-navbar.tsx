@@ -115,41 +115,41 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
 
         {/* Desktop Nav */}
         <nav className="hidden items-center gap-6 md:flex">
-          <a
+          <Link
             href="/#courses"
             onClick={(e) => handleSectionClick(e, "courses")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             Courses
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#testimonials"
             onClick={(e) => handleSectionClick(e, "testimonials")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             Testimonials
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#about"
             onClick={(e) => handleSectionClick(e, "about")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             About
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#faq"
             onClick={(e) => handleSectionClick(e, "faq")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             FAQ
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#contact"
             onClick={(e) => handleSectionClick(e, "contact")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             Contact
-          </a>
+          </Link>
         </nav>
 
         {/* Actions & Theme Toggle */}
@@ -183,41 +183,41 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="md:hidden border-b border-border bg-card px-4 py-4 space-y-3 animate-in slide-in-from-top-2">
-          <a
+          <Link
             href="/#courses"
             onClick={(e) => handleSectionClick(e, "courses")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             Courses
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#testimonials"
             onClick={(e) => handleSectionClick(e, "testimonials")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             Testimonials & Reviews
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#about"
             onClick={(e) => handleSectionClick(e, "about")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             About Methodology
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#faq"
             onClick={(e) => handleSectionClick(e, "faq")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             FAQ
-          </a>
-          <a
+          </Link>
+          <Link
             href="/#contact"
             onClick={(e) => handleSectionClick(e, "contact")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             Contact
-          </a>
+          </Link>
           <div className="border-t border-border pt-3 flex items-center justify-between">
             <Link
               href="/login"

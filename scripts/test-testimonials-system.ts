@@ -1,9 +1,9 @@
 import "dotenv/config";
+import Module from "module";
 
 // Mock server-only and next modules for CLI script runner
-const Module = require("module");
-const originalRequire = Module.prototype.require;
-Module.prototype.require = function (id: string) {
+const originalRequire = (Module.prototype as any).require;
+(Module.prototype as any).require = function (id: string, ...args: any[]) {
   if (id === "server-only") {
     return {};
   }
@@ -23,7 +23,7 @@ Module.prototype.require = function (id: string) {
       headers: () => new Headers(),
     };
   }
-  return originalRequire.apply(this, arguments);
+  return originalRequire.apply(this, [id, ...args]);
 };
 
 async function runTestimonialsVerification() {

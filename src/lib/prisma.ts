@@ -31,6 +31,8 @@ const ISOLATED_MODELS = new Set([
   "auditLog",
   "systemPaymentMethod",
   "funnelEvent",
+  "mediaAsset",
+  "lessonMedia",
 ]);
 
 /**

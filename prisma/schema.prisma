@@ -73,6 +73,8 @@ model User {
   auditLogs AuditLog[] @relation("AuditActor")
   deletedCourses Course[] @relation("CourseDeletedBy")
   clearedCommissions ReferralCommissionRecord[] @relation("CommissionsCleared")
+  uploadedMedia MediaAsset[] @relation("MediaUploadedBy")
+  deletedMedia  MediaAsset[] @relation("MediaDeletedBy")
 
   // Live Sessions
   liveSessionAttendances LiveSessionAttendee[]
@@ -280,6 +282,7 @@ model Lesson {
 
   module   Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   progress LessonProgress[]
+  media    LessonMedia[]
 
   @@unique([moduleId, position])
   @@unique([moduleId, slug])
@@ -1054,6 +1057,103 @@ model MediaProviderConfig {
   @@index([provider, environment])
   @@index([isEnabled, isProductionReady])
   @@map("media_provider_configs")
+}
+
+// ==========================================
+// MEDIA ASSET LIBRARY & LESSON ATTACHMENTS
+// ==========================================
+
+enum MediaType {
+  VIDEO
+  PDF
+  IMAGE
+  OTHER
+}
+
+enum MediaUploadStatus {
+  QUEUED
+  UPLOADING
+  UPLOADED
+  FAILED
+  CANCELLED
+}
+
+enum MediaProcessingStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum MediaStatus {
+  QUEUED
+  UPLOADING
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+model MediaAsset {
+  id               String                @id @default(cuid())
+  fileName         String
+  originalFileName String
+  mediaType        MediaType             @default(VIDEO)
+  mimeType         String
+  fileSize         BigInt                @default(0)
+  storageProvider  String                @default("BUNNY") // "BUNNY" | "R2"
+  storageKey       String?               // Bunny storage path or R2 key
+  storageUrl       String?               // CDN delivery URL
+  bunnyVideoId     String?               // Bunny Stream Video GUID
+  thumbnailUrl     String?               // Video poster or image thumbnail CDN URL
+  duration         Int?                  @default(0) // Duration in seconds
+  pageCount        Int?                  @default(0) // PDF page count
+  width            Int?
+  height           Int?
+  checksum         String?               // SHA-256 or MD5 hash for duplicate detection
+  uploadStatus     MediaUploadStatus     @default(QUEUED)
+  processingStatus MediaProcessingStatus @default(PENDING)
+  status           MediaStatus           @default(QUEUED)
+  errorMessage     String?               @db.Text
+  uploadedById     String?
+  isTestData       Boolean               @default(true)
+  environment      String                @default("LIVE") // "LIVE" | "TEST"
+  deletedAt        DateTime?
+  deletedById      String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  uploadedBy       User?                 @relation("MediaUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  deletedBy        User?                 @relation("MediaDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  lessonMedia      LessonMedia[]
+
+  @@index([mediaType, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([checksum])
+  @@index([isTestData, deletedAt, status])
+  @@index([uploadedById])
+  @@index([environment, isTestData])
+  @@map("media_assets")
+}
+
+model LessonMedia {
+  id         String     @id @default(cuid())
+  lessonId   String
+  mediaId    String
+  mediaRole  String     @default("PRIMARY") // "PRIMARY" | "ATTACHMENT" | "SUPPLEMENTARY"
+  sortOrder  Int        @default(0)
+  isTestData Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  lesson     Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  media      MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@unique([lessonId, mediaId, mediaRole])
+  @@index([lessonId])
+  @@index([mediaId])
+  @@index([isTestData, lessonId])
+  @@map("lesson_media")
 }
 
 // ==========================================

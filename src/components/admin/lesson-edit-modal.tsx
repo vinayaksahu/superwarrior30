@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { updateLessonAction, updateLessonFileAction } from "@/server/actions/course.actions";
+import { attachMediaToLessonAction } from "@/server/actions/media.actions";
 import { FileUploader } from "@/components/admin/file-uploader";
-import { X, Video, FileText, AlignLeft, Loader2, PlayCircle, Eye } from "lucide-react";
+import { MediaPickerModal } from "@/components/admin/media/media-picker-modal";
+import { X, Video, FileText, AlignLeft, Loader2, PlayCircle, Eye, Film, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
 interface LessonEditModalProps {
@@ -43,10 +45,39 @@ export function LessonEditModal({
   const [bunnyVideoId, setBunnyVideoId] = useState<string | null>(lesson.bunnyVideoId || null);
   const [bunnyCdnUrl, setBunnyCdnUrl] = useState<string | null>(lesson.bunnyCdnUrl || null);
   const [isFreePreview, setIsFreePreview] = useState<boolean>(lesson.isFreePreview);
+  const [showMediaPicker, setShowMediaPicker] = useState<"VIDEO" | "PDF" | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const hasVideo = videoKey || bunnyVideoId;
   const hasPdf = pdfKey || bunnyCdnUrl;
+
+  const handleSelectMediaFromLibrary = async (media: any) => {
+    try {
+      const res = await attachMediaToLessonAction({
+        lessonId: lesson.id,
+        mediaId: media.id,
+        mediaRole: "PRIMARY",
+      });
+
+      if (!res.success) {
+        toast.error(res.error || "Failed to attach media");
+        return;
+      }
+
+      if (media.mediaType === "VIDEO") {
+        setBunnyVideoId(media.bunnyVideoId || null);
+        setVideoKey(media.storageKey || null);
+      } else if (media.mediaType === "PDF") {
+        setBunnyCdnUrl(media.storageUrl || null);
+        setPdfKey(media.storageKey || null);
+      }
+
+      toast.success(res.message || "Media attached from library successfully!");
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      toast.error(err.message || "Error attaching media");
+    }
+  };
 
   const handleVideoUploadComplete = async (result: {
     key: string | null;
@@ -171,18 +202,28 @@ export function LessonEditModal({
 
           {/* Upload Area for VIDEO */}
           {contentType === "VIDEO" && (
-            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+            <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   <Video className="h-4 w-4 text-primary" />
                   Video File (Bunny Stream)
                 </label>
-                {hasVideo && (
-                  <span className="inline-flex items-center gap-1 text-xs text-emerald-500 font-medium">
-                    <PlayCircle className="h-3.5 w-3.5" />
-                    {bunnyVideoId ? "Bunny Stream (Active)" : "Video Attached"}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaPicker("VIDEO")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Select from Media Library
+                  </button>
+                  {hasVideo && (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                      <PlayCircle className="h-3.5 w-3.5" />
+                      {bunnyVideoId ? "Bunny Stream Active" : "Attached"}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <FileUploader
@@ -193,26 +234,36 @@ export function LessonEditModal({
                 currentKey={videoKey}
                 currentBunnyVideoId={bunnyVideoId}
                 onUploadComplete={handleVideoUploadComplete}
-                label="Upload Video"
-                description="MP4, MKV, WebM, MOV or AVI — Direct TUS upload to Bunny Stream for HD HLS playback (up to 2GB)"
+                label="Upload New Video"
+                description="Or upload directly via multi-GB resumable TUS upload to Bunny Stream (up to 2GB)"
               />
             </div>
           )}
 
           {/* Upload Area for PDF */}
           {contentType === "PDF" && (
-            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+            <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-primary" />
-                  PDF Attachment (Bunny CDN)
+                  PDF Document (Bunny CDN)
                 </label>
-                {hasPdf && (
-                  <span className="inline-flex items-center gap-1 text-xs text-emerald-500 font-medium">
-                    <Eye className="h-3.5 w-3.5" />
-                    {bunnyCdnUrl ? "Bunny CDN (Active)" : "Document Attached"}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaPicker("PDF")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-400 hover:bg-amber-500/20 cursor-pointer transition-colors"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Select from Media Library
+                  </button>
+                  {hasPdf && (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                      <Eye className="h-3.5 w-3.5" />
+                      {bunnyCdnUrl ? "Bunny CDN Active" : "Attached"}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <FileUploader
@@ -222,8 +273,8 @@ export function LessonEditModal({
                 lessonId={lesson.id}
                 currentKey={pdfKey}
                 onUploadComplete={handlePdfUploadComplete}
-                label="Upload PDF Document"
-                description="Secure PDF cheatsheet or notes — delivered via Bunny CDN (up to 50MB)"
+                label="Upload New PDF Document"
+                description="Or upload directly to Bunny CDN storage (up to 50MB)"
               />
             </div>
           )}
@@ -370,6 +421,15 @@ export function LessonEditModal({
           </div>
         </form>
       </div>
+
+      {/* Select from Media Library Modal */}
+      {showMediaPicker && (
+        <MediaPickerModal
+          mediaType={showMediaPicker}
+          onSelect={handleSelectMediaFromLibrary}
+          onClose={() => setShowMediaPicker(null)}
+        />
+      )}
     </div>
   );
 }

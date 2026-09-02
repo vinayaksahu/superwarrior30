@@ -75,7 +75,7 @@ export async function validateAndCalculateCouponAction({
       }
 
       const referralPct = Number(brokerSettings.referralDiscountPercentage) || 10;
-      let discountAmount = Number(((coursePrice * referralPct) / 100).toFixed(2));
+      const discountAmount = Number(((coursePrice * referralPct) / 100).toFixed(2));
       const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
 
       return {
