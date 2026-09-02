@@ -86,10 +86,16 @@ export async function ensureDatabaseSchemaSync() {
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "live_sessions" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "broker_offer_claims" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
-    `ALTER TABLE "support_inquiries" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "referral_relationships" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "referral_closures" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "wallets" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "audit_logs" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "system_payment_methods" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "funnel_events" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
 
-    // Ensure system admin accounts are accessible in LIVE mode
+    // Ensure system admin accounts and wallets are accessible in LIVE mode
     `UPDATE "users" SET "isTestData" = false WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
+    `UPDATE "wallets" SET "isTestData" = false WHERE "userId" IN (SELECT "id" FROM "users" WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com'));`,
 
     // targeted super admin email update
     `UPDATE "users" SET "email" = 'vinayaksahu3@gmail.com' WHERE "email" = 'admin@superwarrior30.com' AND "role" = 'SUPER_ADMIN';`,

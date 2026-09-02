@@ -154,6 +154,7 @@ model ReferralRelationship {
   id         String   @id @default(cuid())
   referrerId String
   referredId String   @unique
+  isTestData Boolean  @default(true)
   createdAt  DateTime @default(now())
 
   referrer User @relation("DirectReferrals", fields: [referrerId], references: [id], onDelete: Restrict)
@@ -164,10 +165,11 @@ model ReferralRelationship {
 }
 
 model ReferralClosure {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   ancestorId   String
   descendantId String
   depth        Int // 1 = direct parent, 2 = grandparent, etc.
+  isTestData   Boolean @default(true)
 
   ancestor   User @relation("AncestorNodes", fields: [ancestorId], references: [id], onDelete: Cascade)
   descendant User @relation("DescendantNodes", fields: [descendantId], references: [id], onDelete: Cascade)
@@ -557,6 +559,7 @@ model Wallet {
   totalEarned      Decimal @default(0.00) @db.Decimal(12, 2)
   totalWithdrawn   Decimal @default(0.00) @db.Decimal(12, 2)
   version          Int     @default(1) // Optimistic locking
+  isTestData       Boolean @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -651,6 +654,7 @@ model AuditLog {
   newValues  Json?    @db.JsonB
   ipAddress  String?  @db.VarChar(45)
   userAgent  String?
+  isTestData Boolean  @default(true)
   createdAt  DateTime @default(now())
 
   actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
@@ -680,6 +684,7 @@ model SystemPaymentMethod {
   details      Json              @db.JsonB
   instructions String?           @db.Text
   isActive     Boolean           @default(true)
+  isTestData   Boolean           @default(true)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
@@ -801,6 +806,7 @@ model FunnelEvent {
   sessionId   String?
   eventType   String
   metadata    Json?    @db.JsonB
+  isTestData  Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   @@index([eventType, createdAt])

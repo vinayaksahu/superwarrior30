@@ -17,6 +17,9 @@ const ISOLATED_MODELS = new Set([
   "lessonProgress",
   "coupon",
   "referralCommissionRecord",
+  "referralRelationship",
+  "referralClosure",
+  "wallet",
   "walletTransaction",
   "withdrawal",
   "lead",
@@ -24,6 +27,9 @@ const ISOLATED_MODELS = new Set([
   "liveSession",
   "brokerOfferClaim",
   "supportInquiry",
+  "auditLog",
+  "systemPaymentMethod",
+  "funnelEvent",
 ]);
 
 /**

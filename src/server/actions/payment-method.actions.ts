@@ -135,8 +135,15 @@ export async function getSystemPaymentMethodsAction(
       orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
     });
 
+    const { resolveCurrentEnvironment } = await import("@/lib/env-context");
+    const env = await resolveCurrentEnvironment();
+
     if (!methods || methods.length === 0) {
-      // Auto-insert default methods
+      if (env === "LIVE") {
+        return [];
+      }
+
+      // In TEST mode: Auto-insert default methods
       try {
         for (const item of fallbackPaymentMethods) {
           await prisma.systemPaymentMethod.create({
@@ -170,6 +177,15 @@ export async function getSystemPaymentMethodsAction(
     }));
   } catch (error) {
     console.error("Error loading payment methods:", error);
+    try {
+      const { resolveCurrentEnvironment } = await import("@/lib/env-context");
+      const env = await resolveCurrentEnvironment();
+      if (env === "LIVE") {
+        return [];
+      }
+    } catch {
+      // ignore
+    }
     return includeInactive
       ? fallbackPaymentMethods
       : fallbackPaymentMethods.filter((m) => m.isActive);

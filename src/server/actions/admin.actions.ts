@@ -396,7 +396,7 @@ export async function getDatabaseBackupDataAction() {
       couponsCount,
       auditLogsCount,
     ] = await Promise.all([
-      prisma.user.count(),
+      prisma.user.count({ where: { role: "STUDENT" } }),
       prisma.course.count(),
       prisma.order.count(),
       prisma.siteSetting.count(),
