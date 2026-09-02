@@ -70,19 +70,38 @@ export async function resolveTestVisibilityScope(): Promise<TestVisibilityScope>
 
 /**
  * Resolves the active data environment specifically for the public homepage.
- * - IF environment is LIVE -> strictly LIVE
- * - IF environment is TEST AND scope is ADMINS_ONLY -> strictly LIVE
- * - IF environment is TEST AND scope is ADMINS_AND_HOMEPAGE -> TEST preview
+ * - IF scope is ADMINS_ONLY -> strictly LIVE in all cases.
+ * - IF scope is ADMINS_AND_HOMEPAGE:
+ *     - If admin/staff session is in TEST mode -> TEST preview
+ *     - If global test_mode_active is "true" in database -> TEST preview
+ *     - Otherwise -> LIVE
  */
 export async function resolvePublicHomepageEnvironment(): Promise<AppEnvironment> {
-  const currentEnv = await resolveCurrentEnvironment();
-  if (currentEnv === "LIVE") {
-    return "LIVE";
+  const alsEnv = environmentStorage.getStore();
+  if (alsEnv) {
+    return alsEnv;
   }
 
   const visibilityScope = await resolveTestVisibilityScope();
-  if (visibilityScope === "ADMINS_AND_HOMEPAGE") {
+  if (visibilityScope !== "ADMINS_AND_HOMEPAGE") {
+    return "LIVE";
+  }
+
+  const currentEnv = await resolveCurrentEnvironment();
+  if (currentEnv === "TEST") {
     return "TEST";
+  }
+
+  try {
+    const { getProductionPrismaClient } = await import("@/lib/prisma");
+    const activeSetting = await getProductionPrismaClient().siteSetting.findUnique({
+      where: { key: "test_mode_active" },
+    });
+    if (activeSetting && activeSetting.value === "true") {
+      return "TEST";
+    }
+  } catch {
+    // Fail-safe
   }
 
   return "LIVE";

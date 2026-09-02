@@ -109,6 +109,15 @@ export async function switchEnvironmentAction(
       // Persist setting in database
       try {
         await prisma.siteSetting.upsert({
+          where: { key: "test_mode_active" },
+          update: { value: "true" },
+          create: {
+            key: "test_mode_active",
+            value: "true",
+            type: "boolean",
+          },
+        });
+        await prisma.siteSetting.upsert({
           where: { key: "test_mode_include_staff" },
           update: { value: allowStaffTesting ? "true" : "false" },
           create: {
@@ -125,6 +134,15 @@ export async function switchEnvironmentAction(
       cookieStore.delete(ENV_COOKIE_NAME);
 
       try {
+        await prisma.siteSetting.upsert({
+          where: { key: "test_mode_active" },
+          update: { value: "false" },
+          create: {
+            key: "test_mode_active",
+            value: "false",
+            type: "boolean",
+          },
+        });
         await prisma.siteSetting.upsert({
           where: { key: "test_mode_include_staff" },
           update: { value: "false" },
@@ -461,6 +479,20 @@ export async function setTestVisibilityScopeAction(
         type: "string",
       },
     });
+
+    const { resolveCurrentEnvironment } = await import("@/lib/env-context");
+    const currentEnv = await resolveCurrentEnvironment();
+    if (currentEnv === "TEST") {
+      await getProductionPrismaClient().siteSetting.upsert({
+        where: { key: "test_mode_active" },
+        update: { value: "true" },
+        create: {
+          key: "test_mode_active",
+          value: "true",
+          type: "boolean",
+        },
+      });
+    }
 
     // Audit log
     try {
