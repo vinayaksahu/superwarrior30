@@ -83,7 +83,7 @@ export function AdminTestimonialsClient({
   const [testimonials, setTestimonials] = useState<AdminTestimonialItem[]>(initialTestimonials);
   const [activeTab, setActiveTab] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED" | "FEATURED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isTransitioning, startTransition] = useTransition();
 
   // Modals state
   const [rejectingItem, setRejectingItem] = useState<AdminTestimonialItem | null>(null);
@@ -464,8 +464,8 @@ export function AdminTestimonialsClient({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredTestimonials.map((t) => {
-            const isApproved = t.status === "APPROVED" || t.isApproved;
-            const isPending = t.status === "PENDING";
+            const isApproved = t.status === "APPROVED";
+            const isPending = t.status === "PENDING" || (!t.status && !t.isApproved);
             const isRejected = t.status === "REJECTED";
 
             return (
@@ -632,9 +632,9 @@ export function AdminTestimonialsClient({
                     {!isApproved && (
                       <button
                         type="button"
-                        disabled={isPending}
+                        disabled={isTransitioning}
                         onClick={() => handleApprove(t.id)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-500 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-500 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         <span>Approve</span>
@@ -645,12 +645,12 @@ export function AdminTestimonialsClient({
                     {!isRejected && (
                       <button
                         type="button"
-                        disabled={isPending}
+                        disabled={isTransitioning}
                         onClick={() => {
                           setRejectingItem(t);
                           setRejectionReason("");
                         }}
-                        className="inline-flex items-center gap-1 rounded-lg bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 rounded-lg bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive hover:bg-destructive/20 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <XCircle className="h-3.5 w-3.5" />
                         <span>Reject</span>
@@ -750,11 +750,11 @@ export function AdminTestimonialsClient({
               </button>
               <button
                 type="button"
-                disabled={isPending}
+                disabled={isTransitioning}
                 onClick={handleRejectSubmit}
                 className="rounded-xl bg-destructive px-5 py-2 text-xs font-bold text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
               >
-                {isPending ? "Rejecting..." : "Confirm Rejection"}
+                {isTransitioning ? "Rejecting..." : "Confirm Rejection"}
               </button>
             </div>
           </div>
@@ -876,10 +876,10 @@ export function AdminTestimonialsClient({
                 </button>
                 <button
                   type="submit"
-                  disabled={isPending}
+                  disabled={isTransitioning}
                   className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
                 >
-                  {isPending ? "Saving..." : "Save Changes"}
+                  {isTransitioning ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
@@ -1055,10 +1055,10 @@ export function AdminTestimonialsClient({
                 </button>
                 <button
                   type="submit"
-                  disabled={isPending}
+                  disabled={isTransitioning}
                   className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
                 >
-                  {isPending ? "Creating..." : "Add Testimonial"}
+                  {isTransitioning ? "Creating..." : "Add Testimonial"}
                 </button>
               </div>
             </div>
@@ -1087,11 +1087,11 @@ export function AdminTestimonialsClient({
               </button>
               <button
                 type="button"
-                disabled={isPending}
+                disabled={isTransitioning}
                 onClick={handleDeleteConfirm}
                 className="rounded-xl bg-destructive px-5 py-2 text-xs font-bold text-destructive-foreground hover:bg-destructive/90"
               >
-                {isPending ? "Deleting..." : "Delete Testimonial"}
+                {isTransitioning ? "Deleting..." : "Delete Testimonial"}
               </button>
             </div>
           </div>
