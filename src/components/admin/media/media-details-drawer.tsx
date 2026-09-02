@@ -27,6 +27,7 @@ import Link from "next/link";
 
 interface MediaDetailsDrawerProps {
   mediaId: string | null;
+  canDelete?: boolean;
   onClose: () => void;
   onRequestDelete: (media: any) => void;
 }
@@ -45,13 +46,14 @@ function formatDuration(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`;
+  if (hrs > 0) return `${hrs}h ${mins}m`;
   if (mins > 0) return `${mins}m ${secs}s`;
   return `${secs}s`;
 }
 
 export function MediaDetailsDrawer({
   mediaId,
+  canDelete = false,
   onClose,
   onRequestDelete,
 }: MediaDetailsDrawerProps) {
@@ -283,14 +285,16 @@ export function MediaDetailsDrawer({
                   </a>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => onRequestDelete(media)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 cursor-pointer transition-colors ml-auto shadow-sm"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete Media
-                </button>
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => onRequestDelete(media)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 cursor-pointer transition-colors ml-auto shadow-sm"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Media
+                  </button>
+                )}
               </div>
 
               {/* Metadata Grid */}

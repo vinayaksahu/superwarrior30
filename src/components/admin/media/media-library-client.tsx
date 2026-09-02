@@ -53,9 +53,15 @@ function formatDuration(seconds: number): string {
 
 interface MediaLibraryClientProps {
   initialEnvironment: string;
+  canUpload?: boolean;
+  canDelete?: boolean;
 }
 
-export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientProps) {
+export function MediaLibraryClient({
+  initialEnvironment,
+  canUpload = false,
+  canDelete = false,
+}: MediaLibraryClientProps) {
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [page, setPage] = useState<number>(1);
@@ -184,24 +190,26 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="video/*,application/pdf,image/*"
-            className="hidden"
-            onChange={handleUploadFiles}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <UploadCloud className="h-4 w-4" />
-            + Upload Media
-          </button>
-        </div>
+        {canUpload && (
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="video/*,application/pdf,image/*"
+              className="hidden"
+              onChange={handleUploadFiles}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <UploadCloud className="h-4 w-4" />
+              + Upload Media
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -370,14 +378,16 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
               ? "Try adjusting your filters or search terms."
               : "Upload videos, PDFs, and images to build your reusable media library."}
           </p>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer"
-          >
-            <UploadCloud className="h-4 w-4" />
-            Upload Media Now
-          </button>
+          {canUpload && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer"
+            >
+              <UploadCloud className="h-4 w-4" />
+              Upload Media Now
+            </button>
+          )}
         </div>
       ) : viewMode === "grid" ? (
         /* GRID VIEW */
@@ -504,14 +514,15 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                          {item.mediaType === "VIDEO" ? (
-                            <Film className="h-4 w-4 text-primary" />
-                          ) : item.mediaType === "PDF" ? (
-                            <FileText className="h-4 w-4 text-amber-500" />
-                          ) : (
-                            <ImageIcon className="h-4 w-4 text-sky-400" />
-                          )}
+                        <div className="relative flex h-10 w-16 shrink-0 items-center justify-center rounded-lg bg-black overflow-hidden border border-border/70 shadow-sm">
+                          <MediaThumbnail
+                            mediaType={item.mediaType}
+                            thumbnailUrl={item.thumbnailUrl}
+                            fileName={item.fileName}
+                            bunnyVideoId={item.bunnyVideoId}
+                            status={item.status}
+                            showPlayIcon={false}
+                          />
                         </div>
                         <div className="min-w-0 max-w-xs">
                           <p className="truncate font-bold text-foreground">{item.fileName}</p>
@@ -575,17 +586,19 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMediaToDelete(item);
-                          }}
-                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive cursor-pointer"
-                          title="Delete Media"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {canDelete && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMediaToDelete(item);
+                            }}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive cursor-pointer"
+                            title="Delete Media"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -634,6 +647,7 @@ export function MediaLibraryClient({ initialEnvironment }: MediaLibraryClientPro
       {/* Media Details Drawer */}
       <MediaDetailsDrawer
         mediaId={activeDetailsId}
+        canDelete={canDelete}
         onClose={() => setActiveDetailsId(null)}
         onRequestDelete={(media) => {
           setActiveDetailsId(null);

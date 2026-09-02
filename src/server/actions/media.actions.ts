@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, getCurrentUser } from "@/server/dal/auth";
+import { hasPermission } from "@/lib/permissions";
 import { resolveCurrentEnvironment, type AppEnvironment } from "@/lib/env-context";
 import { ensureMediaTablesExist } from "@/lib/db-media-migration";
 import {
@@ -73,6 +74,19 @@ export async function getMediaAssetsAction({
   sort?: "newest" | "oldest" | "name_asc" | "name_desc" | "size_desc" | "size_asc";
 } = {}) {
   const user = await requireAdmin();
+  if (!hasPermission(user, "media.view")) {
+    return {
+      success: false,
+      error: "Access Denied: You do not have permission to view the media library.",
+      data: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 1,
+      currentEnvironment: env,
+    };
+  }
+
   const env = await resolveCurrentEnvironment();
   await ensureMediaTablesExist(env);
 
@@ -146,7 +160,7 @@ export async function getMediaAssetsAction({
 
     // Auto-sync status of any pending/uploading Bunny videos on fetch
     const pendingVideos = rawAssets.filter(
-      (a: any) => a.mediaType === "VIDEO" && a.bunnyVideoId && a.status !== "READY" && a.status !== "FAILED"
+      (a: any) => a.mediaType === "VIDEO" && a.bunnyVideoId && (a.status !== "READY" || a.duration === 0)
     );
 
     if (pendingVideos.length > 0) {
@@ -154,11 +168,7 @@ export async function getMediaAssetsAction({
         pendingVideos.map(async (asset: any) => {
           try {
             const vidStatus = await getVideoStatus(asset.bunnyVideoId);
-            if (
-              vidStatus.isReady ||
-              vidStatus.status === "FINISHED" ||
-              (typeof vidStatus.encodeProgress === "number" && vidStatus.encodeProgress >= 100)
-            ) {
+            if (vidStatus.isReady) {
               const updated = await prisma.mediaAsset.update({
                 where: { id: asset.id },
                 data: {
@@ -168,6 +178,7 @@ export async function getMediaAssetsAction({
                   duration: vidStatus.durationSec > 0 ? vidStatus.durationSec : asset.duration,
                   width: vidStatus.width || asset.width,
                   height: vidStatus.height || asset.height,
+                  thumbnailUrl: vidStatus.thumbnailUrl || asset.thumbnailUrl,
                 },
               });
               asset.status = "READY";
@@ -176,6 +187,19 @@ export async function getMediaAssetsAction({
               asset.duration = updated.duration;
               asset.width = updated.width;
               asset.height = updated.height;
+              asset.thumbnailUrl = updated.thumbnailUrl;
+            } else if (vidStatus.isUploaded && asset.status === "UPLOADING") {
+              await prisma.mediaAsset.update({
+                where: { id: asset.id },
+                data: {
+                  uploadStatus: "UPLOADED",
+                  processingStatus: "PROCESSING",
+                  status: "PROCESSING",
+                },
+              });
+              asset.status = "PROCESSING";
+              asset.uploadStatus = "UPLOADED";
+              asset.processingStatus = "PROCESSING";
             } else if (vidStatus.status === "FAILED") {
               await prisma.mediaAsset.update({
                 where: { id: asset.id },
@@ -426,6 +450,13 @@ export async function createMediaUploadSessionAction({
   pageCount?: number;
 }) {
   const user = await requireAdmin();
+  if (!hasPermission(user, "media.upload")) {
+    return {
+      success: false,
+      error: "Access Denied: You do not have permission to upload media assets.",
+    };
+  }
+
   const env = await resolveCurrentEnvironment();
   await ensureMediaTablesExist(env);
 
@@ -1006,6 +1037,13 @@ export async function detachMediaFromLessonAction({
  */
 export async function deleteMediaAssetAction(mediaId: string) {
   const user = await requireAdmin();
+  if (!hasPermission(user, "media.delete")) {
+    return {
+      success: false,
+      error: "Access Denied: You do not have permission to delete media assets.",
+    };
+  }
+
   const env = await resolveCurrentEnvironment();
   await ensureMediaTablesExist(env);
 
