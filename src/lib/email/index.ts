@@ -1,5 +1,6 @@
 import "server-only";
 import { getMailTransporter, getSmtpPassword, SMTP_CONFIG } from "./transporter";
+import { resolveCurrentEnvironment } from "@/lib/env-context";
 
 export { verifySmtpConnection, SMTP_CONFIG } from "./transporter";
 
@@ -21,6 +22,18 @@ export async function sendEmail({
 }: BaseEmailOptions): Promise<{ success: boolean; error?: string }> {
   const password = getSmtpPassword();
   const cleanTo = to.toLowerCase().trim();
+  const currentEnv = await resolveCurrentEnvironment();
+
+  // In TEST mode, protect real users from unexpected test emails
+  if (currentEnv === "TEST") {
+    console.log(
+      `\n[EMAIL SAFE GUARD - TEST MODE]\nEmail suppressed for safety in TEST environment.\nTo: ${cleanTo}\nSubject: ${subject}\nText:\n${text}\n`
+    );
+    // Allow sending only if explicitly sent to Super Admin email
+    if (cleanTo !== "vinayaksahu3@gmail.com" && cleanTo !== "admin@superwarrior30.com") {
+      return { success: true };
+    }
+  }
 
   // If SMTP password is not set in development, log safely to console for local testing
   if (!password) {

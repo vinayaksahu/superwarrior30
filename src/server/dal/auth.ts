@@ -6,8 +6,10 @@ import { decrypt } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { UserRole } from "@/generated/prisma";
-
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { isSuperAdminUser } from "@/server/dal/auth-check";
+
+export { isSuperAdminUser } from "@/server/dal/auth-check";
 
 export const verifySession = cache(async () => {
   const cookieStore = await cookies();
@@ -121,19 +123,6 @@ export async function requireAuth() {
     redirect("/api/auth/signout");
   }
   return user;
-}
-
-export function isSuperAdminUser(user?: { role?: string | null; adminRole?: string | null; email?: string | null } | null): boolean {
-  if (!user) return false;
-  const role = String(user.role || "").toUpperCase().trim();
-  const adminRole = String(user.adminRole || "").toUpperCase().trim();
-  const email = String(user.email || "").toLowerCase().trim();
-  return (
-    email === "vinayaksahu3@gmail.com" ||
-    email === "admin@superwarrior30.com" ||
-    adminRole === "SUPER_ADMIN" ||
-    (role === "SUPER_ADMIN" && (adminRole === "SUPER_ADMIN" || !user.adminRole))
-  );
 }
 
 export async function requireSuperAdmin() {

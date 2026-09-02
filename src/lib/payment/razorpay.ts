@@ -1,6 +1,7 @@
 import "server-only";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { resolveCurrentEnvironment } from "@/lib/env-context";
 import type { CreatePaymentOrderInput, PaymentOrderResult } from "./types";
 
 export interface RazorpayGatewayConfig {
@@ -75,9 +76,27 @@ export async function getRazorpayKeyId(): Promise<string | undefined> {
 export async function createRazorpayOrder(
   input: CreatePaymentOrderInput
 ): Promise<PaymentOrderResult> {
+  const currentEnv = await resolveCurrentEnvironment();
   const config = await getRazorpayConfig();
   const keyId = config.keyId;
   const keySecret = config.keySecret;
+
+  // In TEST mode or when keys are absent, enforce safe simulation or sandbox
+  const isTestMode = currentEnv === "TEST";
+  const isLiveKey = keyId && !keyId.startsWith("rzp_test_");
+
+  if (isTestMode && isLiveKey) {
+    console.warn(
+      `[FINANCIAL SAFETY] Blocked real live Razorpay order during TEST MODE. Simulating mock test transaction.`
+    );
+    return {
+      provider: "MOCK",
+      providerOrderId: `mock_test_order_${crypto.randomUUID()}`,
+      amount: input.amount,
+      currency: input.currency,
+      keyId: "mock_test_key",
+    };
+  }
 
   if (!keyId || !keySecret) {
     // Return mock provider order in dev when keys are not configured

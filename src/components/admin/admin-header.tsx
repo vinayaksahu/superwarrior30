@@ -31,6 +31,9 @@ import {
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 
+import { EnvironmentSwitcher } from "@/components/admin/environment-switcher";
+import type { AppEnvironment } from "@/lib/env-context";
+
 interface AdminHeaderProps {
   user: {
     name: string | null;
@@ -43,6 +46,7 @@ interface AdminHeaderProps {
     badgeLabel?: string;
     badgeColorClass?: string;
   };
+  currentEnvironment?: AppEnvironment;
 }
 
 interface MobileNavLink {
@@ -73,7 +77,7 @@ const mobileNavLinks: MobileNavLink[] = [
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, requiredPermission: "audit_logs.view" },
 ];
 
-export function AdminHeader({ user }: AdminHeaderProps) {
+export function AdminHeader({ user, currentEnvironment }: AdminHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -108,6 +112,10 @@ export function AdminHeader({ user }: AdminHeaderProps) {
         </div>
 
         <div className="flex items-center gap-3 sm:gap-4">
+          <EnvironmentSwitcher
+            currentEnvironment={user.role === "SUPER_ADMIN" || isSuper ? (currentEnvironment || "LIVE") : "LIVE"}
+            isSuperAdmin={isSuper}
+          />
           <ThemeToggle />
           <div className="text-right hidden sm:block">
             <p className="text-xs sm:text-sm font-semibold text-foreground">
