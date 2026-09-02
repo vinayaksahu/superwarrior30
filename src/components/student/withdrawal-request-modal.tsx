@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { requestWithdrawalAction } from "@/server/actions/wallet.actions";
 import { formatCurrency } from "@/lib/utils";
 import { ArrowDownToLine, Loader2, X, AlertCircle, Building2, Smartphone, ShieldCheck } from "lucide-react";
@@ -25,6 +25,20 @@ export function WithdrawalRequestModal({
   const [accountNumber, setAccountNumber] = useState("");
   const [ifscCode, setIfscCode] = useState("");
   const [bankName, setBankName] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen, isPending, onClose]);
 
   if (!isOpen) return null;
 
@@ -68,24 +82,31 @@ export function WithdrawalRequestModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto cursor-pointer"
+      onClick={() => !isPending && onClose()}
+    >
+      <div
+        className="relative w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-4 sm:px-6 py-4 shrink-0">
           <div className="flex items-center gap-2">
-            <ArrowDownToLine className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">Request Payout</h2>
+            <ArrowDownToLine className="h-5 w-5 text-primary shrink-0" />
+            <h3 className="text-base sm:text-lg font-bold text-foreground">Request Payout Withdrawal</h3>
           </div>
           <button
-            type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            disabled={isPending}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer transition-colors"
+            aria-label="Close modal"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {/* Available balance notice */}
           <div className="rounded-xl border border-border/80 bg-muted/20 p-4 flex items-center justify-between">
             <div>

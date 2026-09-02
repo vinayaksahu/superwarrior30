@@ -15,7 +15,13 @@ export default async function StudentCoursesPage() {
   const user = await requireAuth();
 
   const [enrolledCourses, pendingOrders] = await Promise.all([
-    getUserEnrolledCoursesAction().catch(() => []),
+    getUserEnrolledCoursesAction().catch((err) => {
+      console.error("[Dashboard Courses] Error fetching enrolled courses:", {
+        userId: user.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }),
     prisma.order.findMany({
       where: {
         userId: user.id,
@@ -37,7 +43,13 @@ export default async function StudentCoursesPage() {
           },
         },
       },
-    }).catch(() => []),
+    }).catch((err) => {
+      console.error("[Dashboard Courses] Error fetching pending orders:", {
+        userId: user.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }),
   ]);
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/server/actions/auth.actions";
@@ -48,11 +48,25 @@ export function StudentHeader({ user }: StudentHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [isMobileMenuOpen]);
+
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
+        <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
               className="rounded-lg p-2 text-muted-foreground hover:bg-accent lg:hidden"
@@ -110,10 +124,13 @@ export function StudentHeader({ user }: StudentHeaderProps) {
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden animate-in fade-in duration-200">
           <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm cursor-pointer"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="relative flex w-80 max-w-[85vw] flex-col bg-card border-r border-border p-6 shadow-2xl z-50 animate-in slide-in-from-left duration-250">
+          <div
+            className="relative flex w-80 max-w-[85vw] flex-col bg-card border-r border-border p-4 sm:p-6 shadow-2xl z-50 animate-in slide-in-from-left duration-250 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header / Brand */}
             <div className="flex items-center justify-between border-b border-border/80 pb-4 mb-4">
               <div className="flex items-center gap-2.5">

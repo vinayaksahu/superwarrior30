@@ -88,7 +88,7 @@ export default async function HomePage() {
               )}
             </div>
 
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight break-words">
               Master the Markets with{" "}
               <span className="bg-gradient-to-r from-primary via-emerald-400 to-teal-400 bg-clip-text text-transparent">
                 Institutional Precision

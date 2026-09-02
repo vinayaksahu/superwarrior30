@@ -120,6 +120,21 @@ export function FreePreviewButton({
     return () => clearInterval(timer);
   }, [isOpen, isLimitReached, mediaData?.signedUrl, contentType, replayKey]);
 
+  // Modal keyboard & body scroll lock
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   return (
     <>
       <button
@@ -136,28 +151,35 @@ export function FreePreviewButton({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-3xl rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in cursor-pointer overflow-y-auto"
+          onClick={handleClose}
+        >
+          <div
+            className="relative w-full max-w-3xl rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5 bg-muted/40 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <span className="rounded bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+            <div className="flex items-center justify-between border-b border-border px-4 sm:px-5 py-3 sm:py-3.5 bg-muted/40 shrink-0 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shrink-0">
                   {contentType === "VIDEO" && <Clock className="h-3 w-3" />}
                   {contentType === "PDF" && <FileText className="h-3 w-3" />}
                   {contentType === "TEXT" && <AlignLeft className="h-3 w-3" />}
                   {contentType === "VIDEO"
-                    ? `Free ${previewLimit}s Video Preview`
+                    ? `${previewLimit}s Preview`
                     : contentType === "PDF"
-                    ? `Free ${previewLimit} Page Preview`
-                    : "Free Article Preview"}
+                    ? `${previewLimit} Pg Preview`
+                    : "Article"}
                 </span>
-                <h3 className="font-semibold text-foreground text-sm sm:text-base truncate max-w-md">
+                <h3 className="font-semibold text-foreground text-xs sm:text-base truncate min-w-0">
                   {lessonTitle}
                 </h3>
               </div>
               <button
                 onClick={handleClose}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors shrink-0 cursor-pointer"
+                aria-label="Close preview modal"
               >
                 <X className="h-5 w-5" />
               </button>

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/dal/auth";
-import { createMediaUploadSessionAction, checkDuplicateMediaAction } from "@/server/actions/media.actions";
+import {
+  createMediaUploadSessionAction,
+  checkDuplicateMediaAction,
+  completeMediaUploadAction,
+} from "@/server/actions/media.actions";
 
 export const dynamic = "force-dynamic";
 

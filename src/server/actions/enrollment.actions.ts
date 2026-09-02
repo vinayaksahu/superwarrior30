@@ -42,7 +42,12 @@ export async function checkUserEnrollment(courseId: string): Promise<boolean> {
     });
 
     return !!paidOrder;
-  } catch {
+  } catch (err) {
+    console.error("[Enrollment] Error checking enrollment for user:", {
+      userId: user.id,
+      courseId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return false;
   }
 }
@@ -128,16 +133,27 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
               courseId: course.id,
             },
           },
-          update: { status: "ACTIVE" },
+          update: {
+            status: "ACTIVE",
+            orderId: paidOrder.id,
+            isTestData: false,
+          },
           create: {
             userId: user.id,
             courseId: course.id,
+            orderId: paidOrder.id,
             status: "ACTIVE",
+            progressPercentage: 0.0,
+            isTestData: false,
           },
         });
       }
-    } catch {
-      // ignore
+    } catch (autoHealErr) {
+      console.error("[Enrollment] Auto-heal failed in getEnrolledCourseContentAction:", {
+        userId: user.id,
+        courseId: course.id,
+        error: autoHealErr instanceof Error ? autoHealErr.message : String(autoHealErr),
+      });
     }
   }
 
@@ -405,7 +421,9 @@ export async function updateLessonProgressAction({
 // ==========================================
 
 export async function getUserEnrolledCoursesAction() {
+  await ensureDatabaseSchemaSync();
   const user = await requireAuth();
+  const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
   try {
     // 1. Auto-heal: Ensure any PAID orders for this user have active enrollments
@@ -418,8 +436,8 @@ export async function getUserEnrolledCoursesAction() {
         include: { items: true },
       });
 
-      for (const po of paidOrders) {
-        for (const item of po.items) {
+      for (const po of (paidOrders as any[])) {
+        for (const item of (po.items || [])) {
           if (item.courseId) {
             await prisma.courseEnrollment.upsert({
               where: {
@@ -430,6 +448,7 @@ export async function getUserEnrolledCoursesAction() {
               },
               update: {
                 status: "ACTIVE",
+                orderId: po.id,
                 isTestData: false,
               },
               create: {
@@ -444,11 +463,15 @@ export async function getUserEnrolledCoursesAction() {
           }
         }
       }
-    } catch {
-      // ignore
+    } catch (autoHealError) {
+      console.error("[Enrollment] Auto-heal check failed for user orders:", {
+        userId: user.id,
+        error: autoHealError instanceof Error ? autoHealError.message : String(autoHealError),
+      });
     }
 
-    const enrollments = await prisma.courseEnrollment.findMany({
+    // 2. Query all active or completed enrollments for this user
+    let enrollments = await prisma.courseEnrollment.findMany({
       where: {
         userId: user.id,
         status: { in: ["ACTIVE", "COMPLETED"] },
@@ -473,6 +496,66 @@ export async function getUserEnrolledCoursesAction() {
       },
     });
 
+    // 3. If Admin/Super Admin has no enrollments, automatically enroll them in all published courses
+    if ((!enrollments || enrollments.length === 0) && isAdmin) {
+      try {
+        const publishedCourses = await prisma.course.findMany({
+          where: { deletedAt: null, status: "PUBLISHED" },
+          select: { id: true },
+        });
+
+        for (const c of publishedCourses) {
+          await prisma.courseEnrollment.upsert({
+            where: {
+              userId_courseId: {
+                userId: user.id,
+                courseId: c.id,
+              },
+            },
+            update: {
+              status: "ACTIVE",
+              isTestData: false,
+            },
+            create: {
+              userId: user.id,
+              courseId: c.id,
+              status: "ACTIVE",
+              progressPercentage: 0.0,
+              isTestData: false,
+            },
+          });
+        }
+
+        // Re-fetch after admin auto-enrollment
+        enrollments = await prisma.courseEnrollment.findMany({
+          where: {
+            userId: user.id,
+            status: { in: ["ACTIVE", "COMPLETED"] },
+            course: { deletedAt: null },
+          },
+          orderBy: { enrolledAt: "desc" },
+          include: {
+            course: {
+              include: {
+                modules: {
+                  where: { isPublished: true },
+                  select: {
+                    id: true,
+                    lessons: {
+                      where: { isPublished: true },
+                      select: { id: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+      } catch (adminEnrollErr) {
+        console.error("[Enrollment] Admin auto-enroll failed:", adminEnrollErr);
+      }
+    }
+
     return (enrollments || []).map((enr) => {
       const totalLessons = (enr.course?.modules || []).reduce(
         (sum, m) => sum + (m.lessons?.length || 0),
@@ -493,7 +576,10 @@ export async function getUserEnrolledCoursesAction() {
       };
     });
   } catch (error) {
-    console.error("Error fetching enrolled courses:", error);
+    console.error("[Enrollment] Failed to fetch enrolled courses for user:", {
+      userId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }

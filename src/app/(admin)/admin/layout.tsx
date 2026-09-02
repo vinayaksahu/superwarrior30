@@ -42,7 +42,7 @@ export default async function AdminLayout({
             userBadgeLabel={rolePresentation.badgeLabel}
             userBadgeColorClass={rolePresentation.badgeColorClass}
           />
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col min-w-0">
             <AdminHeader
               user={{
                 ...user,
@@ -57,7 +57,7 @@ export default async function AdminLayout({
               isSuperAdmin={isSuper}
               testVisibilityScope={visibilityScope}
             />
-            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+            <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 min-w-0">{children}</main>
           </div>
         </div>
         <GlobalUploadWidget />

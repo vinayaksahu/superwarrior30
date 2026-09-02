@@ -24,28 +24,31 @@ export function BrandLogo({
       : { width: 42, height: 42, textClass: "text-base font-extrabold", subClass: "text-[9px]" };
 
   const content = (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex items-center gap-2 sm:gap-3 min-w-0", className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/logo.png"
         alt="Rahul Trade Warrior Academy"
         width={dimensions.width}
         height={dimensions.height}
-        className="rounded-full shadow-lg shadow-amber-500/10 object-contain border border-amber-500/40 bg-black shrink-0"
+        className={cn(
+          "rounded-full shadow-lg shadow-amber-500/10 object-contain border border-amber-500/40 bg-black shrink-0",
+          size === "md" ? "w-8 h-8 sm:w-[42px] sm:h-[42px]" : ""
+        )}
       />
       {showText && (
-        <div className="flex flex-col leading-tight">
-          <div className="flex items-center gap-1.5">
-            <span className={cn("font-black tracking-tight text-foreground", dimensions.textClass)}>
+        <div className="flex flex-col leading-tight min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn("font-black tracking-tight text-foreground truncate text-xs sm:text-base", dimensions.textClass)}>
               RAHUL <span className="text-amber-400">TRADE WARRIOR</span>
             </span>
             {isTestMode && (
-              <span className="rounded-full border border-amber-500/50 bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider text-amber-400 shadow-sm animate-pulse">
+              <span className="rounded-full border border-amber-500/50 bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider text-amber-400 shadow-sm animate-pulse shrink-0">
                 TEST
               </span>
             )}
           </div>
-          <span className={cn("font-bold tracking-widest text-muted-foreground uppercase", dimensions.subClass)}>
+          <span className={cn("font-bold tracking-widest text-muted-foreground uppercase hidden sm:block", dimensions.subClass)}>
             ACADEMY • LEARN | TRADE | EARN
           </span>
         </div>

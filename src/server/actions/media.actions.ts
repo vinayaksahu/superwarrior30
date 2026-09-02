@@ -74,6 +74,8 @@ export async function getMediaAssetsAction({
   sort?: "newest" | "oldest" | "name_asc" | "name_desc" | "size_desc" | "size_asc";
 } = {}) {
   const user = await requireAdmin();
+  const env = await resolveCurrentEnvironment();
+
   if (!hasPermission(user, "media.view")) {
     return {
       success: false,
@@ -87,7 +89,6 @@ export async function getMediaAssetsAction({
     };
   }
 
-  const env = await resolveCurrentEnvironment();
   await ensureMediaTablesExist(env);
 
   const where: any = {

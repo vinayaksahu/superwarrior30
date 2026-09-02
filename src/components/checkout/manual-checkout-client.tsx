@@ -710,16 +710,16 @@ export function ManualCheckoutClient({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* LEFT: Payment Methods Selector */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
+            <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-sm space-y-6">
               <div>
-                <h1 className="text-xl font-bold text-foreground">Select Payment Method</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-foreground">Select Payment Method</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Pay online instantly via Razorpay (UPI, Cards, NetBanking) or choose manual transfer options.
                 </p>
               </div>
 
               {/* Methods Grid / Tabs */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
                 {activeMethods.map((method) => {
                   const isSelected = selectedMethodId === method.id;
                   return (
@@ -755,7 +755,7 @@ export function ManualCheckoutClient({
 
               {/* Selected Method Details Panel */}
               {selectedMethod && (
-                <div className="rounded-xl border border-border/80 bg-background/80 p-5 space-y-4">
+                <div className="rounded-xl border border-border/80 bg-background/80 p-3.5 sm:p-5 space-y-4">
                   <div className="flex items-start justify-between gap-2 border-b border-border pb-3">
                     <div>
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
@@ -932,7 +932,7 @@ export function ManualCheckoutClient({
 
           {/* RIGHT: Order Summary, 3 Distinct Offer Sections & Checkout Action */}
           <div className="lg:col-span-5 space-y-6">
-            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+            <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-sm space-y-5">
               <h2 className="text-lg font-bold text-foreground">Order Summary</h2>
 
               {/* Course Title Card */}

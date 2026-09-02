@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Star, Sparkles, CheckCircle2, Maximize2, X, TrendingUp, ShieldCheck } from "lucide-react";
 
 export interface PublicTestimonialItem {
@@ -36,6 +36,20 @@ export function TestimonialsSection({
 }: TestimonialsSectionProps) {
   const [showAll, setShowAll] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; caption?: string } | null>(null);
+
+  useEffect(() => {
+    if (!previewImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [previewImage]);
 
   if (!testimonials || testimonials.length === 0) {
     return null;

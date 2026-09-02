@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import { useUploadManager, type UploadItem } from "@/contexts/upload-manager-context";
 import {
   X,
@@ -54,6 +54,20 @@ export function UploadManagerModal() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!isManagerModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeManagerModal();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [isManagerModalOpen, closeManagerModal]);
+
   if (!isManagerModalOpen) return null;
 
   const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -73,44 +87,53 @@ export function UploadManagerModal() {
   const completedCount = uploads.filter((u) => u.status === "READY").length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="relative w-full max-w-3xl rounded-2xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 flex flex-col max-h-[88vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4 overflow-y-auto cursor-pointer"
+      onClick={closeManagerModal}
+    >
+      <div
+        className="relative w-full max-w-3xl rounded-2xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh] cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div className="flex items-center justify-between border-b border-border px-4 sm:px-6 py-3 sm:py-4 gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <UploadCloud className="h-5 w-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-foreground">Upload Manager</h3>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                  Upload Manager
+                </h3>
                 {activeCount > 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                  <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary shrink-0">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     {activeCount} active
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground hidden sm:block">
                 Uploads run in the background. You can minimize and continue working anywhere in the admin panel.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={closeManagerModal}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-secondary/50 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-secondary cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-secondary/50 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-secondary cursor-pointer transition-colors"
               title="Minimize and continue working"
             >
               <Minimize2 className="h-3.5 w-3.5" />
-              Minimize
+              <span className="hidden sm:inline">Minimize</span>
             </button>
             <button
               type="button"
               onClick={closeManagerModal}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+              aria-label="Close upload manager"
             >
               <X className="h-5 w-5" />
             </button>

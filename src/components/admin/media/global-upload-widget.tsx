@@ -37,7 +37,7 @@ export function GlobalUploadWidget() {
   const failedCount = uploads.filter((u) => u.status === "FAILED").length;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 w-88 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-border/80 bg-card/95 p-4 shadow-2xl backdrop-blur-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-5">
+    <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 w-80 sm:w-88 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/80 bg-card/95 p-3.5 sm:p-4 shadow-2xl backdrop-blur-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-5">
       {/* Header bar */}
       <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-3">
         <div className="flex items-center gap-2">

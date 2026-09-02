@@ -47,8 +47,76 @@ export default async function StudentOrdersPage({
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden space-y-4 p-6">
-          <div className="overflow-x-auto">
+        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden space-y-4 p-4 sm:p-6">
+          {/* Mobile Cards View (< md) */}
+          <div className="grid gap-3 md:hidden">
+            {result.data.map((order) => (
+              <div
+                key={order.id}
+                className="rounded-xl border border-border/80 bg-background/50 p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-mono text-xs font-bold text-foreground">
+                      {order.orderNumber}
+                    </span>
+                    <p className="text-xs font-semibold text-foreground mt-0.5">
+                      {order.items.map((i) => i.itemTitle).join(", ")}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shrink-0 ${
+                      order.status === "PAID"
+                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                        : order.status === "PENDING"
+                        ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                        : order.status === "REFUNDED"
+                        ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                        : "bg-destructive/10 text-destructive border-destructive/20"
+                    }`}
+                  >
+                    {order.status.toLowerCase()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-border/50">
+                  <div>
+                    <span className="text-muted-foreground text-[10px] block">Subtotal</span>
+                    <span className="text-muted-foreground font-medium">
+                      {formatCurrency(Number(order.subtotalAmount))}
+                    </span>
+                  </div>
+                  {Number(order.discountAmount) > 0 && (
+                    <div>
+                      <span className="text-muted-foreground text-[10px] block">Discount</span>
+                      <span className="font-semibold text-emerald-500">
+                        -{formatCurrency(Number(order.discountAmount))}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground text-[10px] block">Final Total</span>
+                    <span className="font-extrabold text-foreground text-sm">
+                      {formatCurrency(Number(order.totalAmount))}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[10px] block">Date</span>
+                    <span className="text-muted-foreground">
+                      {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View (>= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border bg-muted/20 text-muted-foreground text-left">

@@ -58,7 +58,7 @@ export function ReferralNetworkTree({
           <p>Share your affiliate link with peers and fellow traders to start building your network.</p>
         </div>
       ) : (
-        <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <div className="space-y-6 rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-sm">
           <div className="flex items-center justify-between border-b border-border pb-3">
             <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <GitBranch className="h-4 w-4 text-primary" />
@@ -87,7 +87,7 @@ export function ReferralNetworkTree({
                     </h4>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 pl-8 border-l-2 border-primary/20 ml-3">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 pl-3 sm:pl-8 border-l-2 border-primary/20 ml-1.5 sm:ml-3">
                     {students.map((student) => (
                       <div
                         key={student.id}

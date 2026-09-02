@@ -33,7 +33,13 @@ export default async function StudentDashboardPage() {
 
   try {
     const [courses, wallet, referrals, pending] = await Promise.all([
-      getUserEnrolledCoursesAction().catch(() => []),
+      getUserEnrolledCoursesAction().catch((err) => {
+        console.error("[Dashboard] Error fetching enrolled courses:", {
+          userId: user.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+      }),
       prisma.wallet.findUnique({
         where: { userId: user.id },
         select: {
@@ -44,7 +50,10 @@ export default async function StudentDashboardPage() {
       }),
       prisma.referralRelationship.count({
         where: { referrerId: user.id },
-      }).catch(() => 0),
+      }).catch((err) => {
+        console.error("[Dashboard] Error fetching referrals count:", err);
+        return 0;
+      }),
       prisma.order.findMany({
         where: {
           userId: user.id,
@@ -66,7 +75,13 @@ export default async function StudentDashboardPage() {
             },
           },
         },
-      }).catch(() => []),
+      }).catch((err) => {
+        console.error("[Dashboard] Error fetching pending orders:", {
+          userId: user.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+      }),
     ]);
 
     enrolledCourses = courses || [];

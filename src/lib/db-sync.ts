@@ -234,11 +234,60 @@ export async function ensureDatabaseSchemaSync(force = false) {
     // Media Assets & Lesson Media
     `UPDATE "media_assets" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
     `ALTER TABLE "media_assets" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    `UPDATE "lesson_media" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "lesson_media" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-
     // targeted super admin email update
     `UPDATE "users" SET "email" = 'vinayaksahu3@gmail.com' WHERE "email" = 'admin@superwarrior30.com' AND "role" = 'SUPER_ADMIN';`,
+
+    // AUTO-REPAIR: Ensure every PAID, APPROVED, or COMPLETED order has an active CourseEnrollment
+    `INSERT INTO "course_enrollments" ("id", "userId", "courseId", "orderId", "status", "progressPercentage", "isTestData", "enrolledAt")
+     SELECT 
+       'cm_enr_' || md5(o."userId" || '_' || oi."courseId" || '_' || o."id"),
+       o."userId",
+       oi."courseId",
+       o."id",
+       'ACTIVE'::"EnrollmentStatus",
+       0.00,
+       false,
+       COALESCE(o."paidAt", o."createdAt", NOW())
+     FROM "orders" o
+     JOIN "order_items" oi ON oi."orderId" = o."id"
+     WHERE o."status" IN ('PAID', 'APPROVED', 'COMPLETED')
+       AND oi."courseId" IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM "course_enrollments" ce
+         WHERE ce."userId" = o."userId" AND ce."courseId" = oi."courseId"
+       );`,
+
+    // AUTO-REPAIR: Update any existing enrollments for paid orders to ACTIVE and isTestData=false
+    `UPDATE "course_enrollments" ce
+     SET "status" = 'ACTIVE'::"EnrollmentStatus", "isTestData" = false
+     WHERE ce."status" != 'ACTIVE'
+       AND EXISTS (
+         SELECT 1 FROM "orders" o
+         JOIN "order_items" oi ON oi."orderId" = o."id"
+         WHERE o."userId" = ce."userId"
+           AND oi."courseId" = ce."courseId"
+           AND o."status" IN ('PAID', 'APPROVED', 'COMPLETED')
+       );`,
+
+    // AUTO-ENROLL ADMINS: Ensure ADMIN and SUPER_ADMIN users have active enrollments for published courses
+    `INSERT INTO "course_enrollments" ("id", "userId", "courseId", "orderId", "status", "progressPercentage", "isTestData", "enrolledAt")
+     SELECT 
+       'cm_adm_' || md5(u."id" || '_' || c."id"),
+       u."id",
+       c."id",
+       NULL,
+       'ACTIVE'::"EnrollmentStatus",
+       0.00,
+       false,
+       NOW()
+     FROM "users" u
+     CROSS JOIN "courses" c
+     WHERE u."role" IN ('ADMIN', 'SUPER_ADMIN')
+       AND c."deletedAt" IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM "course_enrollments" ce
+         WHERE ce."userId" = u."id" AND ce."courseId" = c."id"
+       );`,
   ];
 
   for (const sql of alterStatements) {

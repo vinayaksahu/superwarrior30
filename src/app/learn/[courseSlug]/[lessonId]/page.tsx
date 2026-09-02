@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getEnrolledCourseContentAction } from "@/server/actions/enrollment.actions";
-import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { CourseClassroomView } from "@/components/learning/course-classroom-view";
 
 export const dynamic = "force-dynamic";
@@ -23,14 +22,16 @@ export default async function CourseLearnLessonPage({
   params,
 }: CourseLearnLessonProps) {
   const { courseSlug, lessonId } = await params;
-  const pageEnv = await resolvePublicHomepageEnvironment();
 
   let contentData;
   try {
-    contentData = await withEnvironmentContext(pageEnv, async () => {
-      return await getEnrolledCourseContentAction(courseSlug);
+    contentData = await getEnrolledCourseContentAction(courseSlug);
+  } catch (error) {
+    console.error("[Learn Lesson] Access check failed:", {
+      courseSlug,
+      lessonId,
+      error: error instanceof Error ? error.message : String(error),
     });
-  } catch {
     redirect(`/courses/${courseSlug}`);
   }
 

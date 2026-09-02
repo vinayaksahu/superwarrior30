@@ -58,6 +58,21 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
     return () => window.removeEventListener("hashchange", handleHash);
   }, [pathname, scrollToSection]);
 
+  // Handle Escape key and body scroll lock for mobile menu
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [mobileOpen]);
+
   const handleSectionClick = (e: React.MouseEvent, sectionId: string) => {
     e.preventDefault();
     setMobileOpen(false);
@@ -97,18 +112,18 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
       {/* Test Mode Notification Banner */}
       {isTestMode && (
-        <div className="w-full bg-amber-500/20 border-b border-amber-500/40 px-4 py-1.5 text-center flex items-center justify-center gap-2">
-          <span className="relative flex h-2 w-2">
+        <div className="w-full bg-amber-500/20 border-b border-amber-500/40 px-3 py-1.5 text-center flex items-center justify-center gap-1.5">
+          <span className="relative flex h-2 w-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
             <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
           </span>
-          <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
-            ⚠️ TEST MODE ACTIVE (Scope: Admins + Homepage) — Viewing Testing Environment Data
+          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-400">
+            ⚠️ TEST MODE ACTIVE (Admins + Homepage) — Test Environment Data
           </span>
         </div>
       )}
 
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
+      <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-6 min-w-0">
         <div onClick={handleLogoClick} className="cursor-pointer">
           <BrandLogo href="/" size="md" isTestMode={isTestMode} />
         </div>
@@ -153,7 +168,7 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
         </nav>
 
         {/* Actions & Theme Toggle */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <ThemeToggle />
 
           <Link
@@ -164,7 +179,7 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
           </Link>
           <Link
             href="/register"
-            className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-3.5 sm:px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
+            className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-2.5 sm:px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 shrink-0"
           >
             Get Started
           </Link>
@@ -172,7 +187,7 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
           <button
             type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-accent md:hidden cursor-pointer"
+            className="rounded-lg p-1.5 sm:p-2 text-muted-foreground hover:bg-accent md:hidden cursor-pointer shrink-0"
             aria-label="Toggle navigation menu"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   switchEnvironmentAction,
@@ -47,6 +47,20 @@ export function EnvironmentSwitcher({
 
   const isLive = currentEnvironment === "LIVE";
 
+  useEffect(() => {
+    if (!showModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending) setShowModal(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [showModal, isPending]);
+
   // ==========================================
   // 1. STAFF ADMIN / SUBADMIN INTERACTION
   // ==========================================
@@ -66,14 +80,15 @@ export function EnvironmentSwitcher({
 
     return (
       <>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {isLive ? (
-            <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
-              <span className="relative flex h-2 w-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2 sm:px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
+              <span className="relative flex h-2 w-2 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
               </span>
-              <span>LIVE PRODUCTION</span>
+              <span className="hidden sm:inline">LIVE PRODUCTION</span>
+              <span className="sm:hidden font-bold">LIVE</span>
               <button
                 type="button"
                 onClick={() => {
@@ -82,19 +97,21 @@ export function EnvironmentSwitcher({
                   setShowModal(true);
                 }}
                 disabled={isPending}
-                className="ml-1.5 flex items-center gap-1 rounded bg-emerald-900/60 px-2 py-0.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-800/80 transition-colors cursor-pointer border border-emerald-700/50"
+                className="ml-1 flex items-center gap-1 rounded bg-emerald-900/60 px-1.5 sm:px-2 py-0.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-800/80 transition-colors cursor-pointer border border-emerald-700/50"
               >
                 <FlaskConical className="h-3 w-3" />
-                <span>Enter Testing Mode</span>
+                <span className="hidden sm:inline">Enter Testing Mode</span>
+                <span className="sm:hidden">Test</span>
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-2.5 py-1 text-[11px] font-bold text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-              <span className="relative flex h-2.5 w-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-2 sm:px-2.5 py-1 text-[11px] font-bold text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+              <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                <span className="relative inline-flex h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-amber-500"></span>
               </span>
-              <span>⚠️ TESTING MODE</span>
+              <span className="hidden sm:inline">⚠️ TESTING MODE</span>
+              <span className="sm:hidden">TEST</span>
               <button
                 type="button"
                 onClick={() => {
@@ -103,10 +120,11 @@ export function EnvironmentSwitcher({
                   setShowModal(true);
                 }}
                 disabled={isPending}
-                className="ml-1 flex items-center gap-1 rounded bg-amber-500 px-2 py-0.5 text-[10px] font-extrabold text-black hover:bg-amber-400 transition-colors cursor-pointer shadow"
+                className="ml-1 flex items-center gap-1 rounded bg-amber-500 px-1.5 sm:px-2 py-0.5 text-[10px] font-extrabold text-black hover:bg-amber-400 transition-colors cursor-pointer shadow"
               >
                 <ShieldCheck className="h-3 w-3" />
-                <span>Return to Live</span>
+                <span className="hidden sm:inline">Return to Live</span>
+                <span className="sm:hidden">Live</span>
               </button>
             </div>
           )}
@@ -257,33 +275,36 @@ export function EnvironmentSwitcher({
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         {isLive ? (
-          <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
-            <span className="relative flex h-2 w-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2 sm:px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
             </span>
-            <span>LIVE PRODUCTION</span>
+            <span className="hidden sm:inline">LIVE PRODUCTION</span>
+            <span className="sm:hidden font-bold">LIVE</span>
             <button
               type="button"
               onClick={() => handleOpenModal("TEST")}
               disabled={isPending}
-              className="ml-1.5 flex items-center gap-1 rounded bg-emerald-900/60 px-2 py-0.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-800/80 transition-colors cursor-pointer border border-emerald-700/50"
+              className="ml-1 flex items-center gap-1 rounded bg-emerald-900/60 px-1.5 sm:px-2 py-0.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-800/80 transition-colors cursor-pointer border border-emerald-700/50"
             >
               <FlaskConical className="h-3 w-3" />
-              <span>Enter Testing Mode</span>
+              <span className="hidden sm:inline">Enter Testing Mode</span>
+              <span className="sm:hidden">Test</span>
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-2.5 py-1 text-[11px] font-bold text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-            <span className="relative flex h-2.5 w-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-2 sm:px-2.5 py-1 text-[11px] font-bold text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+            <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5 shrink-0">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+              <span className="relative inline-flex h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-amber-500"></span>
             </span>
-            <span>⚠️ TESTING MODE</span>
+            <span className="hidden sm:inline">⚠️ TESTING MODE</span>
+            <span className="sm:hidden">TEST</span>
 
-            {/* Quick Visibility Scope Switcher for Super Admin */}
+            {/* Quick Visibility Scope Switcher for Super Admin - hidden on small mobile to avoid header overflow */}
             <button
               type="button"
               onClick={() =>
@@ -298,7 +319,7 @@ export function EnvironmentSwitcher({
                   : "Visibility: Admins Only (Click to change to Admins + Homepage)"
               }
               className={cn(
-                "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer border",
+                "hidden md:flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer border",
                 visibilityScope === "ADMINS_AND_HOMEPAGE"
                   ? "bg-amber-500/20 border-amber-500 text-amber-300 hover:bg-amber-500/30"
                   : "bg-black/40 border-amber-800/50 text-amber-400/80 hover:bg-black/60"
@@ -309,7 +330,7 @@ export function EnvironmentSwitcher({
               </span>
             </button>
 
-            {/* Quick Staff Testing Permission Toggle for Super Admin */}
+            {/* Quick Staff Testing Permission Toggle for Super Admin - hidden on mobile/tablet to avoid overflow */}
             <button
               type="button"
               onClick={() => handleToggleStaffTesting(!staffTestingActive)}
@@ -320,7 +341,7 @@ export function EnvironmentSwitcher({
                   : "Staff Testing Permission is DISABLED (Click to enable for staff)"
               }
               className={cn(
-                "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer border",
+                "hidden lg:flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer border",
                 staffTestingActive
                   ? "bg-amber-900/80 border-amber-600 text-amber-200 hover:bg-amber-800"
                   : "bg-black/40 border-amber-800/50 text-amber-400/80 hover:bg-black/60"
@@ -334,10 +355,11 @@ export function EnvironmentSwitcher({
               type="button"
               onClick={() => handleOpenModal("LIVE")}
               disabled={isPending}
-              className="ml-1 flex items-center gap-1 rounded bg-amber-500 px-2 py-0.5 text-[10px] font-extrabold text-black hover:bg-amber-400 transition-colors cursor-pointer shadow"
+              className="ml-1 flex items-center gap-1 rounded bg-amber-500 px-1.5 sm:px-2 py-0.5 text-[10px] font-extrabold text-black hover:bg-amber-400 transition-colors cursor-pointer shadow"
             >
               <ShieldCheck className="h-3 w-3" />
-              <span>Return to Live</span>
+              <span className="hidden sm:inline">Return to Live</span>
+              <span className="sm:hidden">Live</span>
             </button>
           </div>
         )}

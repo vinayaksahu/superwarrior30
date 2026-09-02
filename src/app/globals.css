@@ -117,8 +117,14 @@
     border-color: var(--color-border);
     outline-color: hsl(var(--ring) / 0.5);
   }
+  html {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }

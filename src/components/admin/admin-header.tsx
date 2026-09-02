@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/server/actions/auth.actions";
@@ -10,6 +10,7 @@ import {
   LogOut,
   LayoutDashboard,
   BookOpen,
+  Film,
   Users,
   ShoppingCart,
   GitBranch,
@@ -62,6 +63,7 @@ interface MobileNavLink {
 const mobileNavLinks: MobileNavLink[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, requiredPermission: "dashboard.view" },
   { href: "/admin/courses", label: "Courses", icon: BookOpen, requiredPermission: "courses.view" },
+  { href: "/admin/media", label: "Media Library", icon: Film, requiredPermission: "media.view" },
   { href: "/admin/live-sessions", label: "Live Sessions", icon: Radio, requiredPermission: "live_sessions.view" },
   { href: "/admin/students", label: "Students", icon: Users, requiredPermission: "students.view" },
   { href: "/admin/referrals", label: "Affiliate", icon: GitBranch, requiredPermission: "affiliate.view" },
@@ -90,6 +92,20 @@ export function AdminHeader({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [isMobileMenuOpen]);
+
   const isSuper =
     isSuperAdminProp !== undefined
       ? isSuperAdminProp
@@ -108,7 +124,7 @@ export function AdminHeader({
 
   return (
     <>
-      <header className="flex h-16 items-center justify-between border-b border-border bg-background px-4 sm:px-6">
+      <header className="flex h-16 items-center justify-between border-b border-border bg-background px-3 sm:px-6">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileMenuOpen(true)}
@@ -150,12 +166,15 @@ export function AdminHeader({
 
       {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className="fixed inset-0 z-50 flex lg:hidden animate-in fade-in duration-200">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="relative flex w-full max-w-xs flex-1 flex-col bg-background p-4 shadow-xl border-r border-border">
+          <div
+            className="relative flex w-full max-w-xs flex-1 flex-col bg-background p-4 shadow-xl border-r border-border animate-in slide-in-from-left duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-4 mb-3">
               <span className="text-sm font-bold text-primary">Administration</span>
               <button

@@ -87,6 +87,20 @@ export function MediaDetailsDrawer({
       });
   }, [mediaId]);
 
+  useEffect(() => {
+    if (!mediaId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mediaId, onClose]);
+
   if (!mediaId) return null;
 
   const handleCopyId = () => {
@@ -127,8 +141,14 @@ export function MediaDetailsDrawer({
   const isImage = media?.mediaType === "IMAGE";
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="relative w-full max-w-xl bg-card border-l border-border h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-in fade-in cursor-pointer"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-xl bg-card border-l border-border h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2.5">

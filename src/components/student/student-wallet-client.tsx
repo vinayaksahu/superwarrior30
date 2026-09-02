@@ -165,8 +165,8 @@ export function StudentWalletClient({
       )}
 
       {/* Transaction Ledger Table */}
-      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden space-y-4 p-6">
-        <div className="flex items-center justify-between border-b border-border pb-3">
+      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden space-y-4 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border pb-3">
           <div>
             <h2 className="text-lg font-bold text-foreground">Financial Ledger</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -179,73 +179,68 @@ export function StudentWalletClient({
         </div>
 
         {transactions.length === 0 ? (
-          <div className="py-12 text-center text-xs text-muted-foreground space-y-2">
-            <IndianRupee className="mx-auto h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm font-semibold text-foreground">No transactions recorded yet</p>
+          <div className="rounded-xl border border-dashed border-border p-12 text-center text-xs text-muted-foreground">
+            <p>No transactions found.</p>
             <p>Commissions from referred student purchases and payouts will appear here.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border bg-muted/20 text-muted-foreground text-left">
-                  <th className="px-4 py-3 font-medium">Type</th>
-                  <th className="px-4 py-3 font-medium">Description</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 text-right font-medium">Amount</th>
-                  <th className="px-4 py-3 text-right font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {transactions.map((tx) => {
-                  const isCredit = tx.amount > 0;
+          <>
+            {/* Mobile Cards View (< sm) */}
+            <div className="grid gap-2.5 sm:hidden">
+              {transactions.map((tx) => {
+                const isCredit = tx.amount > 0;
 
-                  return (
-                    <tr key={tx.id} className="hover:bg-muted/10">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                              isCredit
-                                ? "bg-emerald-500/10 text-emerald-500"
-                                : "bg-destructive/10 text-destructive"
-                            }`}
-                          >
-                            {isCredit ? (
-                              <ArrowDownLeft className="h-3.5 w-3.5" />
-                            ) : (
-                              <ArrowUpRight className="h-3.5 w-3.5" />
-                            )}
-                          </span>
-                          <span className="font-semibold text-foreground">
-                            {tx.type.replace("_", " ")}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-foreground font-medium max-w-xs truncate">
-                        {tx.description || "System transaction"}
-                      </td>
-                      <td className="px-4 py-3">
+                return (
+                  <div
+                    key={tx.id}
+                    className="rounded-xl border border-border/80 bg-background/50 p-3.5 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                            tx.status === "COMPLETED"
-                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                              : tx.status === "PENDING"
-                              ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                              : "bg-destructive/10 text-destructive border-destructive/20"
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                            isCredit
+                              ? "bg-emerald-500/10 text-emerald-500"
+                              : "bg-destructive/10 text-destructive"
                           }`}
                         >
-                          {tx.status.toLowerCase()}
+                          {isCredit ? (
+                            <ArrowDownLeft className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                          )}
                         </span>
-                      </td>
-                      <td
-                        className={`px-4 py-3 text-right font-bold text-sm ${
+                        <span className="font-semibold text-foreground text-xs truncate">
+                          {tx.type.replace("_", " ")}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`text-xs font-extrabold shrink-0 ${
                           isCredit ? "text-emerald-500" : "text-destructive"
                         }`}
                       >
                         {isCredit ? `+${formatCurrency(tx.amount)}` : formatCurrency(tx.amount)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground line-clamp-2">
+                      {tx.description || "System transaction"}
+                    </p>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40 text-[10px]">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.2 font-bold uppercase tracking-wider ${
+                          tx.status === "COMPLETED"
+                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                            : tx.status === "PENDING"
+                            ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                            : "bg-destructive/10 text-destructive border-destructive/20"
+                        }`}
+                      >
+                        {tx.status.toLowerCase()}
+                      </span>
+                      <span className="text-muted-foreground">
                         {new Date(tx.createdAt).toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
@@ -253,13 +248,90 @@ export function StudentWalletClient({
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View (>= sm) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20 text-muted-foreground text-left">
+                    <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium">Description</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Amount</th>
+                    <th className="px-4 py-3 text-right font-medium">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {transactions.map((tx) => {
+                    const isCredit = tx.amount > 0;
+
+                    return (
+                      <tr key={tx.id} className="hover:bg-muted/10">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                                isCredit
+                                  ? "bg-emerald-500/10 text-emerald-500"
+                                  : "bg-destructive/10 text-destructive"
+                              }`}
+                            >
+                              {isCredit ? (
+                                <ArrowDownLeft className="h-3.5 w-3.5" />
+                              ) : (
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                              )}
+                            </span>
+                            <span className="font-semibold text-foreground">
+                              {tx.type.replace("_", " ")}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-foreground font-medium max-w-xs truncate">
+                          {tx.description || "System transaction"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              tx.status === "COMPLETED"
+                                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                : tx.status === "PENDING"
+                                ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                : "bg-destructive/10 text-destructive border-destructive/20"
+                            }`}
+                          >
+                            {tx.status.toLowerCase()}
+                          </span>
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-right font-bold text-sm ${
+                            isCredit ? "text-emerald-500" : "text-destructive"
+                          }`}
+                        >
+                          {isCredit ? `+${formatCurrency(tx.amount)}` : formatCurrency(tx.amount)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">
+                          {new Date(tx.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {/* Pagination */}
