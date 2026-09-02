@@ -14,6 +14,7 @@ import {
   ALL_PERMISSION_KEYS,
 } from "@/lib/permissions";
 import { StaffRoleModal } from "@/components/admin/staff-role-modal";
+import { EditUserEmailButton } from "@/components/admin/edit-user-email-modal";
 import {
   ShieldCheck,
   UserPlus,
@@ -256,6 +257,17 @@ export function StaffManagementClient({
                         </span>
                       ) : (isSuperAdmin || canAssignRoles || canCreateDeactivate) ? (
                         <div className="inline-flex items-center gap-2 justify-end">
+                          {/* Change Email Button (Super Admin) */}
+                          {isSuperAdmin && (
+                            <EditUserEmailButton
+                              userId={staff.id}
+                              userName={staff.name}
+                              currentEmail={staff.email}
+                              isSuperAdmin={isSuperAdmin}
+                              size="xs"
+                            />
+                          )}
+
                           {/* Change Role Button */}
                           {(isSuperAdmin || canAssignRoles) && (
                             <button

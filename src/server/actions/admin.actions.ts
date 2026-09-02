@@ -454,3 +454,120 @@ export async function getDatabaseBackupDataAction() {
     return { success: false, message: error?.message || "Failed to load database backup metrics." };
   }
 }
+
+// ==========================================
+// 6. SUPER ADMIN USER EMAIL OVERRIDE
+// ==========================================
+
+export async function updateUserEmailBySuperAdminAction({
+  userId,
+  newEmail,
+}: {
+  userId: string;
+  newEmail: string;
+}): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  updatedEmail?: string;
+}> {
+  try {
+    const admin = await requireAdmin();
+    const { isSuperAdminUser } = await import("@/server/dal/auth-check");
+    if (!isSuperAdminUser(admin)) {
+      return {
+        success: false,
+        error: "Access Denied: Only Super Admin (vinayaksahu3@gmail.com) has permission to change user email addresses.",
+      };
+    }
+
+    if (!userId || typeof userId !== "string") {
+      return { success: false, error: "Invalid User ID." };
+    }
+
+    if (!newEmail || typeof newEmail !== "string" || !newEmail.includes("@") || newEmail.length < 5) {
+      return { success: false, error: "Please provide a valid new email address." };
+    }
+
+    const cleanNewEmail = newEmail.toLowerCase().trim();
+
+    // Find target user
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        adminRole: true,
+        tokenVersion: true,
+      },
+    });
+
+    if (!targetUser) {
+      return { success: false, error: "User account not found." };
+    }
+
+    if (targetUser.email.toLowerCase() === cleanNewEmail) {
+      return { success: false, error: "New email is identical to current email." };
+    }
+
+    // Check if another account already uses this email
+    const existingUserWithEmail = await prisma.user.findUnique({
+      where: { email: cleanNewEmail },
+      select: { id: true },
+    });
+
+    if (existingUserWithEmail && existingUserWithEmail.id !== userId) {
+      return {
+        success: false,
+        error: `An account with email "${cleanNewEmail}" already exists. Please choose a different email.`,
+      };
+    }
+
+    const oldEmail = targetUser.email;
+
+    // Update user email and increment tokenVersion (to force re-login on all active devices)
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: cleanNewEmail,
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    // Create Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: "SUPER_ADMIN",
+          action: "USER_EMAIL_UPDATED_BY_SUPER_ADMIN",
+          entityType: "User",
+          entityId: userId,
+          oldValues: { email: oldEmail, name: targetUser.name, role: targetUser.role },
+          newValues: { email: cleanNewEmail },
+        },
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    revalidatePath("/admin/students");
+    revalidatePath("/admin/staff");
+    revalidatePath("/admin/devices");
+    revalidatePath("/admin/orders");
+
+    return {
+      success: true,
+      message: `Email address successfully updated from ${oldEmail} to ${cleanNewEmail}.`,
+      updatedEmail: cleanNewEmail,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Failed to update email address.",
+    };
+  }
+}

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminStudentsAction } from "@/server/actions/admin.actions";
 import { formatCurrency } from "@/lib/utils";
-import { requireAdmin } from "@/server/dal/auth";
+import { requireAdmin, isSuperAdminUser } from "@/server/dal/auth";
 import { ForceLogoutButton } from "@/components/admin/admin-device-actions";
+import { EditUserEmailButton } from "@/components/admin/edit-user-email-modal";
 import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2 } from "lucide-react";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
 
@@ -18,7 +19,8 @@ export default async function AdminStudentsPage({
 }: {
   searchParams: Promise<{ page?: string; search?: string }>;
 }) {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
+  const isSuper = isSuperAdminUser(currentUser);
 
   const params = await searchParams;
   const page = parseInt(params.page || "1");
@@ -77,7 +79,7 @@ export default async function AdminStudentsPage({
                   <th className="px-4 py-3 font-medium text-right">Wallet Balance</th>
                   <th className="px-4 py-3 font-medium text-right">Total Earned</th>
                   <th className="px-4 py-3 font-medium">Joined Date</th>
-                  <th className="px-4 py-3 font-medium text-right">Security</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions & Security</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -88,7 +90,7 @@ export default async function AdminStudentsPage({
                         <p className="font-semibold text-foreground">{student.name}</p>
                         <TestUserBadge isTestData={student.isTestData} />
                       </div>
-                      <p className="text-[10px] text-muted-foreground">{student.email}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{student.email}</p>
                     </td>
                     <td className="px-4 py-3 font-mono font-bold text-primary">
                       {student.referralCode}
@@ -114,9 +116,18 @@ export default async function AdminStudentsPage({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {isSuper && (
+                          <EditUserEmailButton
+                            userId={student.id}
+                            userName={student.name}
+                            currentEmail={student.email}
+                            isSuperAdmin={isSuper}
+                            size="xs"
+                          />
+                        )}
                         <Link
                           href={`/admin/devices?search=${encodeURIComponent(student.email)}`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/10 transition-colors"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-bold text-primary hover:bg-primary/10 transition-colors"
                         >
                           Devices
                         </Link>
