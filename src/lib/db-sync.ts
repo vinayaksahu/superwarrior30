@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { resolveCurrentEnvironment } from "@/lib/env-context";
 
-let isSynced = false;
+const syncedEnvironments = new Set<string>();
 
 export async function ensureDatabaseSchemaSync() {
-  if (isSynced) return;
+  const currentEnv = await resolveCurrentEnvironment();
+  if (syncedEnvironments.has(currentEnv)) return;
 
   const alterStatements = [
     // orders columns
@@ -586,5 +588,5 @@ export async function ensureDatabaseSchemaSync() {
     // ignore
   }
 
-  isSynced = true;
+  syncedEnvironments.add(currentEnv);
 }

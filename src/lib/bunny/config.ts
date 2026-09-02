@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/crypto/encryption";
+import { resolveCurrentEnvironment, getSyncEnvironmentContext } from "@/lib/env-context";
 
 export interface ResolvedBunnyConfig {
   source: "DATABASE" | "ENV" | "NONE";
@@ -35,18 +36,21 @@ export interface ResolvedBunnyConfig {
   lastTestedAt: Date | null;
 }
 
-// In-memory cache for fast synchronous property access
-let cachedConfig: ResolvedBunnyConfig | null = null;
-let cacheTime = 0;
+// In-memory cache keyed by environment name for concurrency-safe caching
+const cachedConfigByEnv = new Map<string, { config: ResolvedBunnyConfig; time: number }>();
 const CACHE_TTL_MS = 10000; // 10s TTL
 
 /**
- * Loads the active Bunny.net configuration from database, falling back to environment variables.
+ * Loads the active Bunny.net configuration for the current environment context.
  */
 export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Promise<ResolvedBunnyConfig> {
+  const currentEnv = await resolveCurrentEnvironment();
+  const envKey = currentEnv.toLowerCase();
   const now = Date.now();
-  if (!forceRefresh && cachedConfig && now - cacheTime < CACHE_TTL_MS) {
-    return cachedConfig;
+
+  const cached = cachedConfigByEnv.get(envKey);
+  if (!forceRefresh && cached && now - cached.time < CACHE_TTL_MS) {
+    return cached.config;
   }
 
   try {
@@ -64,17 +68,32 @@ export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Pro
       const decryptedStreamApiKey = decryptSecret(dbConfig.streamApiKeyEncrypted) || "";
       const decryptedTokenKey = decryptSecret(dbConfig.tokenSecurityKeyEncrypted) || "";
 
-      cachedConfig = {
+      // Check environment-specific env fallbacks
+      const envStorageZone =
+        (currentEnv === "TEST"
+          ? process.env.BUNNY_TEST_STORAGE_ZONE
+          : process.env.BUNNY_PRODUCTION_STORAGE_ZONE) ||
+        process.env.BUNNY_STORAGE_ZONE ||
+        "";
+
+      const envStreamLibraryId =
+        (currentEnv === "TEST"
+          ? process.env.BUNNY_TEST_STREAM_LIBRARY_ID
+          : process.env.BUNNY_PRODUCTION_STREAM_LIBRARY_ID) ||
+        process.env.BUNNY_STREAM_LIBRARY_ID ||
+        "";
+
+      const config: ResolvedBunnyConfig = {
         source: "DATABASE",
         isProductionReady: dbConfig.isProductionReady,
         isEnabled: dbConfig.isEnabled,
-        environment: dbConfig.environment || "production",
+        environment: currentEnv.toLowerCase(),
 
         accountApiKey: decryptedAccountKey || (process.env.BUNNY_API_KEY || "").trim(),
         accountEmail: dbConfig.accountEmail || "",
 
         storageZoneId: dbConfig.storageZoneId || "",
-        storageZoneName: dbConfig.storageZoneName || (process.env.BUNNY_STORAGE_ZONE || "").trim(),
+        storageZoneName: dbConfig.storageZoneName || envStorageZone.trim(),
         storagePassword: decryptedStoragePassword || (process.env.BUNNY_STORAGE_PASSWORD || "").trim(),
         storageHostname: dbConfig.storageHostname || (process.env.BUNNY_STORAGE_HOSTNAME || "storage.bunnycdn.com").trim(),
 
@@ -82,7 +101,7 @@ export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Pro
         pullZoneName: dbConfig.pullZoneName || "",
         cdnHostname: dbConfig.cdnHostname || (process.env.BUNNY_CDN_HOSTNAME || "").trim(),
 
-        streamLibraryId: dbConfig.streamLibraryId || (process.env.BUNNY_STREAM_LIBRARY_ID || "").trim(),
+        streamLibraryId: dbConfig.streamLibraryId || envStreamLibraryId.trim(),
         streamLibraryName: dbConfig.streamLibraryName || "",
         streamApiKey: decryptedStreamApiKey || (process.env.BUNNY_STREAM_API_KEY || "").trim(),
 
@@ -92,31 +111,44 @@ export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Pro
         lastTestedAt: dbConfig.lastTestedAt,
       };
 
-      cacheTime = now;
-      return cachedConfig;
+      cachedConfigByEnv.set(envKey, { config, time: now });
+      return config;
     }
   } catch (error) {
-    // Database might be uninitialized during early migrations
-    console.warn("Could not query media_provider_configs from DB, falling back to ENV:", error);
+    console.warn(`Could not query media_provider_configs from DB (${currentEnv}), falling back to ENV:`, error);
   }
 
-  // Fallback to Environment Variables (development / bootstrap)
-  cachedConfig = {
+  // Fallback to Environment Variables
+  const envStorageZone =
+    (currentEnv === "TEST"
+      ? process.env.BUNNY_TEST_STORAGE_ZONE
+      : process.env.BUNNY_PRODUCTION_STORAGE_ZONE) ||
+    process.env.BUNNY_STORAGE_ZONE ||
+    "";
+
+  const envStreamLibraryId =
+    (currentEnv === "TEST"
+      ? process.env.BUNNY_TEST_STREAM_LIBRARY_ID
+      : process.env.BUNNY_PRODUCTION_STREAM_LIBRARY_ID) ||
+    process.env.BUNNY_STREAM_LIBRARY_ID ||
+    "";
+
+  const config: ResolvedBunnyConfig = {
     source: "ENV",
     isProductionReady: Boolean(
-      process.env.BUNNY_STORAGE_ZONE &&
+      envStorageZone &&
       process.env.BUNNY_STORAGE_PASSWORD &&
-      process.env.BUNNY_STREAM_LIBRARY_ID &&
+      envStreamLibraryId &&
       process.env.BUNNY_STREAM_API_KEY
     ),
     isEnabled: true,
-    environment: process.env.NODE_ENV || "development",
+    environment: currentEnv.toLowerCase(),
 
     accountApiKey: (process.env.BUNNY_API_KEY || "").trim(),
     accountEmail: "",
 
     storageZoneId: "",
-    storageZoneName: (process.env.BUNNY_STORAGE_ZONE || "").trim(),
+    storageZoneName: envStorageZone.trim(),
     storagePassword: (process.env.BUNNY_STORAGE_PASSWORD || "").trim(),
     storageHostname: (process.env.BUNNY_STORAGE_HOSTNAME || "storage.bunnycdn.com").trim(),
 
@@ -124,7 +156,7 @@ export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Pro
     pullZoneName: "",
     cdnHostname: (process.env.BUNNY_CDN_HOSTNAME || "").trim(),
 
-    streamLibraryId: (process.env.BUNNY_STREAM_LIBRARY_ID || "").trim(),
+    streamLibraryId: envStreamLibraryId.trim(),
     streamLibraryName: "",
     streamApiKey: (process.env.BUNNY_STREAM_API_KEY || "").trim(),
 
@@ -134,28 +166,36 @@ export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Pro
     lastTestedAt: null,
   };
 
-  cacheTime = now;
-  return cachedConfig;
+  cachedConfigByEnv.set(envKey, { config, time: now });
+  return config;
 }
 
 /**
  * Invalidates in-memory config cache
  */
-export function invalidateBunnyConfigCache() {
-  cachedConfig = null;
-  cacheTime = 0;
+export function invalidateBunnyConfigCache(env?: string) {
+  if (env) {
+    cachedConfigByEnv.delete(env.toLowerCase());
+  } else {
+    cachedConfigByEnv.clear();
+  }
 }
 
 // ==========================================
 // Compatibility Accessors (Synchronous)
 // ==========================================
 
+function getActiveCachedConfig(): ResolvedBunnyConfig | undefined {
+  const syncEnv = getSyncEnvironmentContext() || "LIVE";
+  return cachedConfigByEnv.get(syncEnv.toLowerCase())?.config;
+}
+
 export const bunnyStreamConfig = {
   get libraryId(): string {
-    return (cachedConfig?.streamLibraryId || process.env.BUNNY_STREAM_LIBRARY_ID || "").trim();
+    return (getActiveCachedConfig()?.streamLibraryId || process.env.BUNNY_STREAM_LIBRARY_ID || "").trim();
   },
   get apiKey(): string {
-    return (cachedConfig?.streamApiKey || process.env.BUNNY_STREAM_API_KEY || "").trim();
+    return (getActiveCachedConfig()?.streamApiKey || process.env.BUNNY_STREAM_API_KEY || "").trim();
   },
   get baseUrl(): string {
     return `https://video.bunnycdn.com/library/${this.libraryId}`;
@@ -170,13 +210,13 @@ export const bunnyStreamConfig = {
 
 export const bunnyStorageConfig = {
   get zone(): string {
-    return (cachedConfig?.storageZoneName || process.env.BUNNY_STORAGE_ZONE || "").trim();
+    return (getActiveCachedConfig()?.storageZoneName || process.env.BUNNY_STORAGE_ZONE || "").trim();
   },
   get password(): string {
-    return (cachedConfig?.storagePassword || process.env.BUNNY_STORAGE_PASSWORD || "").trim();
+    return (getActiveCachedConfig()?.storagePassword || process.env.BUNNY_STORAGE_PASSWORD || "").trim();
   },
   get hostname(): string {
-    return (cachedConfig?.storageHostname || process.env.BUNNY_STORAGE_HOSTNAME || "storage.bunnycdn.com").trim();
+    return (getActiveCachedConfig()?.storageHostname || process.env.BUNNY_STORAGE_HOSTNAME || "storage.bunnycdn.com").trim();
   },
   get baseUrl(): string {
     return `https://${this.hostname}/${this.zone}`;
@@ -185,7 +225,7 @@ export const bunnyStorageConfig = {
 
 export const bunnyCdnConfig = {
   get hostname(): string {
-    return (cachedConfig?.cdnHostname || process.env.BUNNY_CDN_HOSTNAME || "").trim();
+    return (getActiveCachedConfig()?.cdnHostname || process.env.BUNNY_CDN_HOSTNAME || "").trim();
   },
   get baseUrl(): string {
     const host = this.hostname.replace(/^https?:\/\//, "");
@@ -194,7 +234,7 @@ export const bunnyCdnConfig = {
 };
 
 export function getBunnyApiKey(): string {
-  return (cachedConfig?.accountApiKey || process.env.BUNNY_API_KEY || "").trim();
+  return (getActiveCachedConfig()?.accountApiKey || process.env.BUNNY_API_KEY || "").trim();
 }
 
 export function isBunnyStreamConfigured(): boolean {

@@ -8,19 +8,33 @@ const globalForPrisma = globalThis as unknown as {
   testPrisma: PrismaClient | undefined;
 };
 
-export function normalizeConnectionString(url: string | undefined): string {
+/**
+ * Normalizes connection string:
+ * - Replaces sslmode=require with sslmode=verify-full
+ * - Sets default schema if not explicitly specified
+ */
+export function normalizeConnectionString(url: string | undefined, defaultSchema?: string): string {
   if (!url) return "";
-  if (url.includes("sslmode=require")) {
-    return url.replace("sslmode=require", "sslmode=verify-full");
+  let normalized = url.trim();
+  if (normalized.includes("sslmode=require")) {
+    normalized = normalized.replace("sslmode=require", "sslmode=verify-full");
   }
-  return url;
+
+  if (defaultSchema && !normalized.includes("schema=")) {
+    const separator = normalized.includes("?") ? "&" : "?";
+    normalized = `${normalized}${separator}schema=${defaultSchema}`;
+  }
+
+  return normalized;
 }
 
 /**
- * Creates a PrismaClient connected to the designated connection string
+ * Creates a PrismaClient connected to the designated connection string and schema
  */
-function createPrismaClientForUrl(rawUrl: string | undefined, envName: string): PrismaClient {
-  const connectionString = normalizeConnectionString(rawUrl);
+function createPrismaClientForUrl(rawUrl: string | undefined, envName: AppEnvironment): PrismaClient {
+  const defaultSchema = envName === "LIVE" ? "production" : "public";
+  const connectionString = normalizeConnectionString(rawUrl, defaultSchema);
+
   if (!connectionString) {
     // Fail-safe error placeholder client if URL is missing
     return new Proxy({} as PrismaClient, {
@@ -32,7 +46,7 @@ function createPrismaClientForUrl(rawUrl: string | undefined, envName: string): 
     });
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg({ connectionString }, { schema: defaultSchema });
   return new PrismaClient({
     adapter,
     log:
@@ -51,6 +65,7 @@ export function getProductionPrismaClient(): PrismaClient {
   }
 
   const prodUrl =
+    process.env.DATABASE_PRODUCTION_URL ||
     process.env.PRODUCTION_DATABASE_URL ||
     process.env.DATABASE_URL;
 
@@ -71,6 +86,7 @@ export function getTestPrismaClient(): PrismaClient {
   }
 
   const testUrl =
+    process.env.DATABASE_TESTING_URL ||
     process.env.TEST_DATABASE_URL ||
     process.env.DATABASE_URL;
 
