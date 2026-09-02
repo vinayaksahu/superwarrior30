@@ -59,6 +59,7 @@ export function MediaDetailsDrawer({
 }: MediaDetailsDrawerProps) {
   const [media, setMedia] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -93,7 +94,7 @@ export function MediaDetailsDrawer({
       navigator.clipboard.writeText(media.id);
       toast.success("Media ID copied to clipboard!");
     }
-  const [isSyncing, setIsSyncing] = useState(false);
+  };
 
   const handleSyncStatus = async () => {
     if (!mediaId) return;
