@@ -48,23 +48,10 @@ export function EnvironmentSwitcher({
   const isLive = currentEnvironment === "LIVE";
 
   // ==========================================
-  // 1. STAFF ADMIN INTERACTION
+  // 1. STAFF ADMIN / SUBADMIN INTERACTION
   // ==========================================
   if (isStaffAdmin && !isSuperAdmin) {
-    // If Super Admin has NOT enabled testing for staff: show static LIVE badge
-    if (!staffTestingAllowed) {
-      return (
-        <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-400">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-          </span>
-          <span>LIVE PRODUCTION</span>
-        </div>
-      );
-    }
-
-    // If Super Admin HAS enabled staff testing: Staff Admin can toggle for themselves
+    // Staff Admin can toggle their own session between LIVE and TEST
     const handleStaffSwitch = (env: AppEnvironment) => {
       startTransition(async () => {
         const res = await switchStaffEnvironmentAction(env);

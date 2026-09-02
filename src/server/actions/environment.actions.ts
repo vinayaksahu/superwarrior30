@@ -285,18 +285,11 @@ export async function switchStaffEnvironmentAction(targetEnv: AppEnvironment): P
   try {
     const user = await requireAuth();
 
-    if (!isStaffAdminUser(user)) {
+    const isStaff = isStaffAdminUser(user) || user.role === "ADMIN" || Boolean(user.adminRole);
+    if (!isStaff && !isSuperAdminUser(user)) {
       return {
         success: false,
-        error: "Access Denied: Only Staff Admins can use this action.",
-      };
-    }
-
-    const isAllowed = await isStaffTestingAllowedInDb();
-    if (!isAllowed) {
-      return {
-        success: false,
-        error: "Testing Mode is currently disabled for staff by the Super Admin.",
+        error: "Access Denied: Only Admins and Subadmins can use this action.",
       };
     }
 
@@ -323,6 +316,13 @@ export async function switchStaffEnvironmentAction(targetEnv: AppEnvironment): P
     });
 
     revalidatePath("/admin", "layout");
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin/courses");
+    revalidatePath("/admin/students");
+    revalidatePath("/admin/testimonials");
+    revalidatePath("/admin/wallet");
+    revalidatePath("/admin/withdrawals");
+    revalidatePath("/admin/support");
 
     return {
       success: true,

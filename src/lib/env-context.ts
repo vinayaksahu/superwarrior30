@@ -246,13 +246,23 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
           return DEFAULT_ENVIRONMENT;
         }
 
-        // 3. Check if Staff Admin has access to test mode
+        // 3. Check if Staff Admin / Subadmin
         const isStaff = isStaffAdminUser({
           role: session.role,
           email: session.email,
         });
 
         if (isStaff) {
+          // Check staff member's personal preference cookie first
+          const staffEnvToken = cookieStore.get(STAFF_ENV_COOKIE_NAME)?.value;
+          if (staffEnvToken) {
+            const staffPayload = await verifyEnvToken(staffEnvToken);
+            if (staffPayload && staffPayload.userId === session.userId) {
+              return staffPayload.env;
+            }
+          }
+
+          // If no personal cookie set yet, check if platform test mode is active
           let staffAllowed = isStaffTestingActive();
           if (!staffAllowed) {
             try {
@@ -265,23 +275,27 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
                 setStaffTestingActive(staffAllowed);
               }
             } catch {
-              // Fallback to in-memory state
+              // Fallback
             }
           }
 
-          if (!staffAllowed) {
-            return DEFAULT_ENVIRONMENT;
+          if (staffAllowed) {
+            return "TEST";
           }
 
-          const staffEnvToken = cookieStore.get(STAFF_ENV_COOKIE_NAME)?.value;
-          if (staffEnvToken) {
-            const staffPayload = await verifyEnvToken(staffEnvToken);
-            if (staffPayload && staffPayload.userId === session.userId) {
-              return staffPayload.env;
+          try {
+            const { getProductionPrismaClient } = await import("@/lib/prisma");
+            const activeSetting = await getProductionPrismaClient().siteSetting.findUnique({
+              where: { key: "test_mode_active" },
+            });
+            if (activeSetting && activeSetting.value === "true") {
+              return "TEST";
             }
+          } catch {
+            // Fallback
           }
 
-          return "TEST";
+          return DEFAULT_ENVIRONMENT;
         }
 
         // 4. Check if student account belongs to Testing environment
