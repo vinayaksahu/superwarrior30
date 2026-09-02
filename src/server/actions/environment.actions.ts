@@ -324,3 +324,66 @@ export async function getCurrentEnvironmentAction(): Promise<{
     };
   }
 }
+
+/**
+ * Returns safe environment diagnostic identifiers without exposing secrets or credentials
+ */
+export async function getEnvironmentDiagnosticsAction(): Promise<{
+  activeEnvironment: "LIVE" | "TEST";
+  databaseTarget: string;
+  bunnyStorageTarget: string;
+  bunnyStreamTarget: string;
+  isSuperAdmin: boolean;
+  staffTestingActive: boolean;
+}> {
+  try {
+    const user = await requireAuth();
+    const isSuper = isSuperAdminUser(user);
+    const env = await resolveCurrentEnvironment();
+    const staffAllowed = await isStaffTestingAllowedInDb();
+
+    const { getResolvedBunnyConfig } = await import("@/lib/bunny/config");
+    const bunnyConfig = await getResolvedBunnyConfig();
+
+    const dbTarget = env === "TEST" ? "testing" : "production";
+    const bunnyStorageTarget = bunnyConfig.storageZoneName || (env === "TEST" ? "testing_zone" : "production_zone");
+    const bunnyStreamTarget = bunnyConfig.streamLibraryId || (env === "TEST" ? "testing_stream_library" : "production_stream_library");
+
+    return {
+      activeEnvironment: env,
+      databaseTarget: dbTarget,
+      bunnyStorageTarget,
+      bunnyStreamTarget,
+      isSuperAdmin: isSuper,
+      staffTestingActive: staffAllowed,
+    };
+  } catch {
+    return {
+      activeEnvironment: "LIVE",
+      databaseTarget: "production",
+      bunnyStorageTarget: "production_zone",
+      bunnyStreamTarget: "production_stream_library",
+      isSuperAdmin: false,
+      staffTestingActive: false,
+    };
+  }
+}
+
+/**
+ * Diagnostic logger that prints ONLY safe non-secret identifiers
+ */
+export async function logEnvironmentDiagnostics(contextLabel: string = "LMS") {
+  try {
+    const env = await resolveCurrentEnvironment();
+    const dbTarget = env === "TEST" ? "testing" : "production";
+    const bunnyTarget = env === "TEST" ? "testing" : "production";
+
+    console.log(`[${contextLabel}] ACTIVE ENVIRONMENT: ${env === "TEST" ? "TESTING" : "PRODUCTION"}`);
+    console.log(`[${contextLabel}] DATABASE TARGET: ${dbTarget}`);
+    console.log(`[${contextLabel}] BUNNY TARGET: ${bunnyTarget}`);
+  } catch {
+    console.log(`[${contextLabel}] ACTIVE ENVIRONMENT: PRODUCTION`);
+    console.log(`[${contextLabel}] DATABASE TARGET: production`);
+    console.log(`[${contextLabel}] BUNNY TARGET: production`);
+  }
+}
