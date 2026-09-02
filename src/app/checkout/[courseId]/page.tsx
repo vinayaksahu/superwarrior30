@@ -6,6 +6,7 @@ import { getSystemPaymentMethodsAction } from "@/server/actions/payment-method.a
 import { getBrokerPublicConfigAction } from "@/server/actions/broker.actions";
 import { ManualCheckoutClient } from "@/components/checkout/manual-checkout-client";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 
 export const dynamic = "force-dynamic";
 
@@ -20,22 +21,28 @@ export default async function CheckoutPage({
 }) {
   const { courseId } = await params;
   await ensureDatabaseSchemaSync();
-  const user = await getCurrentUser();
+  const pageEnv = await resolvePublicHomepageEnvironment();
+
+  const user = await withEnvironmentContext(pageEnv, async () => {
+    return await getCurrentUser();
+  });
 
   // Find course by ID or slug
-  const course = await prisma.course.findFirst({
-    where: {
-      OR: [{ id: courseId }, { slug: courseId }],
-      status: "PUBLISHED",
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      price: true,
-      compareAtPrice: true,
-    },
+  const course = await withEnvironmentContext(pageEnv, async () => {
+    return await prisma.course.findFirst({
+      where: {
+        OR: [{ id: courseId }, { slug: courseId }],
+        status: "PUBLISHED",
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        price: true,
+        compareAtPrice: true,
+      },
+    });
   });
 
   if (!course) {
@@ -46,13 +53,15 @@ export default async function CheckoutPage({
   if (user) {
     let isEnrolled = false;
     try {
-      const existingEnrollment = await prisma.courseEnrollment.findFirst({
-        where: {
-          userId: user.id,
-          courseId: course.id,
-          status: "ACTIVE",
-        },
-        select: { id: true, status: true },
+      const existingEnrollment = await withEnvironmentContext(pageEnv, async () => {
+        return await prisma.courseEnrollment.findFirst({
+          where: {
+            userId: user.id,
+            courseId: course.id,
+            status: "ACTIVE",
+          },
+          select: { id: true, status: true },
+        });
       });
 
       if (existingEnrollment && existingEnrollment.status === "ACTIVE") {
@@ -67,10 +76,12 @@ export default async function CheckoutPage({
     }
   }
 
-  const [paymentMethods, brokerConfig] = await Promise.all([
-    getSystemPaymentMethodsAction(false),
-    getBrokerPublicConfigAction(),
-  ]);
+  const [paymentMethods, brokerConfig] = await withEnvironmentContext(pageEnv, async () => {
+    return await Promise.all([
+      getSystemPaymentMethodsAction(false),
+      getBrokerPublicConfigAction(),
+    ]);
+  });
 
   return (
     <ManualCheckoutClient

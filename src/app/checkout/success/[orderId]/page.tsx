@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOrderByIdAction } from "@/server/actions/order.actions";
 import { formatCurrency } from "@/lib/utils";
+import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { CheckCircle2, PlayCircle, Clock, ShieldCheck, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,13 @@ export default async function OrderSuccessPage({
   params,
 }: OrderSuccessPageProps) {
   const { orderId } = await params;
+  const pageEnv = await resolvePublicHomepageEnvironment();
 
   let order;
   try {
-    order = await getOrderByIdAction(orderId);
+    order = await withEnvironmentContext(pageEnv, async () => {
+      return await getOrderByIdAction(orderId);
+    });
   } catch {
     notFound();
   }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getEnrolledCourseContentAction } from "@/server/actions/enrollment.actions";
+import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import {
   GraduationCap,
   Clock,
@@ -19,10 +20,13 @@ export default async function CourseLearnIndexPage({
   params,
 }: CourseLearnIndexProps) {
   const { courseSlug } = await params;
+  const pageEnv = await resolvePublicHomepageEnvironment();
 
   let contentData;
   try {
-    contentData = await getEnrolledCourseContentAction(courseSlug);
+    contentData = await withEnvironmentContext(pageEnv, async () => {
+      return await getEnrolledCourseContentAction(courseSlug);
+    });
   } catch (error) {
     console.error("Enrollment check error:", error);
     // If not enrolled or error, redirect to public course page

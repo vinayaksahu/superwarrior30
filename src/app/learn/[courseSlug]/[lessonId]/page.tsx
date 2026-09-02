@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getEnrolledCourseContentAction } from "@/server/actions/enrollment.actions";
+import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { CourseClassroomView } from "@/components/learning/course-classroom-view";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +23,13 @@ export default async function CourseLearnLessonPage({
   params,
 }: CourseLearnLessonProps) {
   const { courseSlug, lessonId } = await params;
+  const pageEnv = await resolvePublicHomepageEnvironment();
 
   let contentData;
   try {
-    contentData = await getEnrolledCourseContentAction(courseSlug);
+    contentData = await withEnvironmentContext(pageEnv, async () => {
+      return await getEnrolledCourseContentAction(courseSlug);
+    });
   } catch {
     redirect(`/courses/${courseSlug}`);
   }
