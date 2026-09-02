@@ -144,7 +144,7 @@ export default async function HomePage() {
       </section>
 
       {/* 4. Featured Masterclasses */}
-      <section className="py-20 border-b border-border/40">
+      <section id="courses" className="py-20 border-b border-border/40 scroll-mt-16">
         <div className="container mx-auto px-4 sm:px-6 space-y-12">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -249,7 +249,7 @@ export default async function HomePage() {
       </section>
 
       {/* 5. 3-Step Methodology */}
-      <section className="py-20 bg-muted/20 border-b border-border/40">
+      <section id="about" className="py-20 bg-muted/20 border-b border-border/40 scroll-mt-16">
         <div className="container mx-auto px-4 sm:px-6 space-y-12">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground">
@@ -369,7 +369,7 @@ export default async function HomePage() {
       </section>
 
       {/* 7. FAQ Accordion Section */}
-      <section className="py-20 border-b border-border/40">
+      <section id="faq" className="py-20 border-b border-border/40 scroll-mt-16">
         <div className="container mx-auto px-4 sm:px-6 max-w-3xl space-y-8">
           <div className="text-center space-y-2">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground">
@@ -416,7 +416,60 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 8. Conversion CTA */}
+      {/* 8. Contact & Mentorship Desk Section */}
+      <section id="contact" className="py-20 border-b border-border/40 bg-card/60 scroll-mt-16">
+        <div className="container mx-auto px-4 sm:px-6 max-w-4xl space-y-10">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary">
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span>Contact & Student Support</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground">
+              Have Questions? Get in Touch
+            </h2>
+            <p className="text-xs text-muted-foreground max-w-lg mx-auto">
+              Our mentorship desk and student support team are available to help you with enrollment, masterclass access, and technical inquiries.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-background p-5 text-center space-y-2 hover:border-primary/40 transition-colors">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <HelpCircle className="h-5 w-5" />
+              </div>
+              <h3 className="text-xs font-bold text-foreground">Student Help Desk</h3>
+              <p className="text-[11px] text-muted-foreground">Direct portal support & inquiries</p>
+              <Link href="/contact" className="inline-block text-xs font-bold text-primary hover:underline pt-1">
+                Open Support Desk →
+              </Link>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background p-5 text-center space-y-2 hover:border-primary/40 transition-colors">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h3 className="text-xs font-bold text-foreground">Community & Updates</h3>
+              <p className="text-[11px] text-muted-foreground">Official announcements & trade insights</p>
+              <a href="https://t.me/rahultradewarrior" target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold text-emerald-400 hover:underline pt-1">
+                Join Telegram Channel →
+              </a>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background p-5 text-center space-y-2 hover:border-primary/40 transition-colors">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <h3 className="text-xs font-bold text-foreground">Mentorship Guidance</h3>
+              <p className="text-[11px] text-muted-foreground">Learn directly with Rahul Sir</p>
+              <Link href="/super-warrior-30" className="inline-block text-xs font-bold text-amber-400 hover:underline pt-1">
+                Super Warrior 30 Batch →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 9. Conversion CTA */}
       <section className="py-20 border-b border-border/40 bg-gradient-to-b from-background to-muted/20">
         <div className="container mx-auto px-4 sm:px-6 text-center max-w-2xl space-y-6">
           <h2 className="text-3xl sm:text-4xl font-black text-foreground">
@@ -436,7 +489,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 9. Footer */}
+      {/* 10. Footer */}
       <footer className="bg-card py-12 text-xs text-muted-foreground">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4 border-b border-border pb-8">

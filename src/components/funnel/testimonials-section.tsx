@@ -46,7 +46,7 @@ export function TestimonialsSection({
   const isAnyTest = testimonials.some((t) => t.isTestData);
 
   return (
-    <section id="testimonials" className="py-20 md:py-28 border-b border-border/40 bg-muted/20 relative overflow-hidden">
+    <section id="testimonials" className="py-20 md:py-28 border-b border-border/40 bg-muted/20 relative overflow-hidden scroll-mt-16">
       {/* Background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 h-96 w-96 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
 

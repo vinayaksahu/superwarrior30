@@ -17,31 +17,31 @@ export function PublicNavbar() {
         {/* Desktop Nav */}
         <nav className="hidden items-center gap-6 md:flex">
           <Link
-            href="/courses"
+            href="/#courses"
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
           >
             Courses
           </Link>
           <Link
-            href="/testimonials"
+            href="/#testimonials"
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
           >
             Testimonials
           </Link>
           <Link
-            href="/about"
+            href="/#about"
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
           >
             About
           </Link>
           <Link
-            href="/faq"
+            href="/#faq"
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
           >
             FAQ
           </Link>
           <Link
-            href="/contact"
+            href="/#contact"
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
           >
             Contact
@@ -80,35 +80,35 @@ export function PublicNavbar() {
       {mobileOpen && (
         <div className="md:hidden border-b border-border bg-card px-4 py-4 space-y-3 animate-in slide-in-from-top-2">
           <Link
-            href="/courses"
+            href="/#courses"
             onClick={() => setMobileOpen(false)}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
           >
-            Courses Catalog
+            Courses
           </Link>
           <Link
-            href="/testimonials"
+            href="/#testimonials"
             onClick={() => setMobileOpen(false)}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
           >
             Testimonials & Reviews
           </Link>
           <Link
-            href="/about"
+            href="/#about"
             onClick={() => setMobileOpen(false)}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
           >
-            About Us
+            About Methodology
           </Link>
           <Link
-            href="/faq"
+            href="/#faq"
             onClick={() => setMobileOpen(false)}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
           >
             FAQ
           </Link>
           <Link
-            href="/contact"
+            href="/#contact"
             onClick={() => setMobileOpen(false)}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
           >
