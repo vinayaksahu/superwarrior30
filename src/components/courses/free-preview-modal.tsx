@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions";
+import { MarkdownContent } from "@/components/shared/markdown-content";
 import { Eye, X, Loader2, Play, Lock, RotateCcw, Sparkles, AlertCircle, Clock, FileText, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 
@@ -357,8 +358,8 @@ export function FreePreviewButton({
 
                       return (
                         <>
-                          <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed text-neutral-200">
-                            {displayText}
+                          <div className="text-sm leading-relaxed text-neutral-200">
+                            <MarkdownContent content={displayText} />
                           </div>
 
                           {isTruncated && (

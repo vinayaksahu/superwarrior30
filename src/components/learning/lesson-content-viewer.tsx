@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedPdfViewer } from "./protected-pdf-viewer";
+import { MarkdownContent } from "@/components/shared/markdown-content";
 
 interface LessonContentViewerProps {
   courseSlug: string;
@@ -257,9 +258,7 @@ export function LessonContentViewer({
           />
         ) : (
           <div className="p-8 bg-card text-foreground">
-            <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
-              {mediaData.textContent || "No text content available for this lesson."}
-            </div>
+            <MarkdownContent content={mediaData.textContent || "No text content available for this lesson."} />
           </div>
         )}
       </div>

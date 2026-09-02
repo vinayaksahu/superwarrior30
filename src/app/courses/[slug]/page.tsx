@@ -5,6 +5,7 @@ import { getPublicCourseBySlugAction } from "@/server/actions/course.actions";
 import { checkUserEnrollment } from "@/server/actions/enrollment.actions";
 import { FreePreviewButton } from "@/components/courses/free-preview-modal";
 import { PublicNavbar } from "@/components/shared/public-navbar";
+import { MarkdownContent } from "@/components/shared/markdown-content";
 import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -210,8 +211,8 @@ export default async function CourseDetailPage({
                 <h2 className="text-2xl font-bold tracking-tight text-foreground">
                   About This Course
                 </h2>
-                <div className="prose prose-invert max-w-none text-muted-foreground leading-relaxed whitespace-pre-wrap rounded-xl border border-border bg-card p-6">
-                  {course.fullDescription}
+                <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+                  <MarkdownContent content={course.fullDescription} />
                 </div>
               </section>
             )}
