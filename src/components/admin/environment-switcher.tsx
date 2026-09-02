@@ -24,6 +24,7 @@ interface EnvironmentSwitcherProps {
   isSuperAdmin: boolean;
   isStaffAdmin?: boolean;
   staffTestingAllowed?: boolean;
+  initialVisibilityScope?: import("@/lib/env-context").TestVisibilityScope;
 }
 
 export function EnvironmentSwitcher({
@@ -31,6 +32,7 @@ export function EnvironmentSwitcher({
   isSuperAdmin,
   isStaffAdmin = false,
   staffTestingAllowed = false,
+  initialVisibilityScope = "ADMINS_ONLY",
 }: EnvironmentSwitcherProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -38,6 +40,9 @@ export function EnvironmentSwitcher({
   const [targetEnv, setTargetEnv] = useState<AppEnvironment | null>(null);
   const [allowStaffTesting, setAllowStaffTesting] = useState(staffTestingAllowed);
   const [staffTestingActive, setStaffTestingActive] = useState(staffTestingAllowed);
+  const [visibilityScope, setVisibilityScope] = useState<import("@/lib/env-context").TestVisibilityScope>(
+    initialVisibilityScope
+  );
   const [error, setError] = useState<string | null>(null);
 
   const isLive = currentEnvironment === "LIVE";
@@ -226,7 +231,11 @@ export function EnvironmentSwitcher({
 
     startTransition(async () => {
       setError(null);
-      const res = await switchEnvironmentAction(targetEnv, targetEnv === "TEST" ? allowStaffTesting : false);
+      const res = await switchEnvironmentAction(
+        targetEnv,
+        targetEnv === "TEST" ? allowStaffTesting : false,
+        targetEnv === "TEST" ? visibilityScope : undefined
+      );
       if (res.success) {
         setStaffTestingActive(Boolean(res.staffTestingActive));
         setShowModal(false);
@@ -243,6 +252,17 @@ export function EnvironmentSwitcher({
       if (res.success) {
         setStaffTestingActive(res.staffTestingActive);
         setAllowStaffTesting(res.staffTestingActive);
+        router.refresh();
+      }
+    });
+  };
+
+  const handleToggleVisibilityScope = (newScope: import("@/lib/env-context").TestVisibilityScope) => {
+    startTransition(async () => {
+      const { setTestVisibilityScopeAction } = await import("@/server/actions/environment.actions");
+      const res = await setTestVisibilityScopeAction(newScope);
+      if (res.success && res.scope) {
+        setVisibilityScope(res.scope);
         router.refresh();
       }
     });
@@ -275,6 +295,32 @@ export function EnvironmentSwitcher({
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
             </span>
             <span>⚠️ TESTING MODE</span>
+
+            {/* Quick Visibility Scope Switcher for Super Admin */}
+            <button
+              type="button"
+              onClick={() =>
+                handleToggleVisibilityScope(
+                  visibilityScope === "ADMINS_ONLY" ? "ADMINS_AND_HOMEPAGE" : "ADMINS_ONLY"
+                )
+              }
+              disabled={isPending}
+              title={
+                visibilityScope === "ADMINS_AND_HOMEPAGE"
+                  ? "Visibility: Admins + Homepage (Click to change to Admins Only)"
+                  : "Visibility: Admins Only (Click to change to Admins + Homepage)"
+              }
+              className={cn(
+                "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer border",
+                visibilityScope === "ADMINS_AND_HOMEPAGE"
+                  ? "bg-amber-500/20 border-amber-500 text-amber-300 hover:bg-amber-500/30"
+                  : "bg-black/40 border-amber-800/50 text-amber-400/80 hover:bg-black/60"
+              )}
+            >
+              <span>
+                Scope: {visibilityScope === "ADMINS_AND_HOMEPAGE" ? "Admins + Home" : "Admins Only"}
+              </span>
+            </button>
 
             {/* Quick Staff Testing Permission Toggle for Super Admin */}
             <button
@@ -313,7 +359,7 @@ export function EnvironmentSwitcher({
       {/* Super Admin Confirmation Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5">
             <button
               onClick={() => !isPending && setShowModal(false)}
               className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-accent cursor-pointer"
@@ -337,20 +383,20 @@ export function EnvironmentSwitcher({
                 )}
               </div>
 
-              <div className="flex-1">
+              <div className="flex-1 space-y-3">
                 <h3 className="text-base font-bold text-foreground">
                   {targetEnv === "TEST"
-                    ? "Enter Testing Mode?"
+                    ? "Switch to Testing Mode?"
                     : "Return to Live Production?"}
                 </h3>
-                <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   {targetEnv === "TEST" ? (
                     <>
                       Your Super Admin session will switch to the{" "}
                       <strong className="text-amber-400 font-semibold">TEST database</strong>.
-                      All changes made while in this mode affect{" "}
+                      All changes made in this mode affect{" "}
                       <strong className="text-foreground">TEST DATA ONLY</strong>.
-                      Live production data remains untouched.
+                      Production data remains isolated and untouched.
                     </>
                   ) : (
                     <>
@@ -363,34 +409,97 @@ export function EnvironmentSwitcher({
                   )}
                 </p>
 
-                {/* Staff Admin Option when entering TEST mode */}
+                {/* Scope & Staff Settings when entering TEST mode */}
                 {targetEnv === "TEST" && (
-                  <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3.5 space-y-2">
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={allowStaffTesting}
-                        onChange={(e) => setAllowStaffTesting(e.target.checked)}
-                        disabled={isPending}
-                        className="mt-0.5 h-4 w-4 rounded border-amber-500 text-amber-500 focus:ring-amber-400 cursor-pointer"
-                      />
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-bold text-amber-200">
-                          Enable Testing Mode for Staff Admins / Sub-Admins as well?
-                        </span>
-                        <p className="text-[11px] text-muted-foreground leading-normal">
-                          {allowStaffTesting ? (
-                            <span className="text-amber-300">
-                              ✓ Staff admins can also switch themselves between Test and Live modes.
-                            </span>
-                          ) : (
-                            <span>
-                              Only you (Super Admin) will be in Testing Mode. Staff admins will remain locked to Live Production Mode.
-                            </span>
+                  <div className="space-y-3 pt-1">
+                    {/* Setting 1: Testing Mode Visibility Scope */}
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3.5 space-y-2.5">
+                      <p className="text-xs font-bold text-amber-200">
+                        Testing Mode Visibility Scope:
+                      </p>
+                      <div className="grid gap-2">
+                        <label
+                          className={cn(
+                            "flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-all",
+                            visibilityScope === "ADMINS_ONLY"
+                              ? "border-amber-500 bg-amber-500/10"
+                              : "border-border bg-background hover:bg-accent/40"
                           )}
-                        </p>
+                        >
+                          <input
+                            type="radio"
+                            name="modalVisibilityScope"
+                            value="ADMINS_ONLY"
+                            checked={visibilityScope === "ADMINS_ONLY"}
+                            onChange={() => setVisibilityScope("ADMINS_ONLY")}
+                            className="mt-0.5 h-3.5 w-3.5 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          />
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-bold text-foreground">
+                              Option 1: Admins Only
+                            </span>
+                            <p className="text-[11px] text-muted-foreground leading-normal">
+                              Testing data is visible <strong>only inside the Admin Panel</strong>. Public homepage continues showing Live Production data only.
+                            </p>
+                          </div>
+                        </label>
+
+                        <label
+                          className={cn(
+                            "flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-all",
+                            visibilityScope === "ADMINS_AND_HOMEPAGE"
+                              ? "border-amber-500 bg-amber-500/10"
+                              : "border-border bg-background hover:bg-accent/40"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="modalVisibilityScope"
+                            value="ADMINS_AND_HOMEPAGE"
+                            checked={visibilityScope === "ADMINS_AND_HOMEPAGE"}
+                            onChange={() => setVisibilityScope("ADMINS_AND_HOMEPAGE")}
+                            className="mt-0.5 h-3.5 w-3.5 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          />
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-bold text-foreground">
+                              Option 2: Admins + Homepage
+                            </span>
+                            <p className="text-[11px] text-muted-foreground leading-normal">
+                              Testing data can be viewed by admins and the <strong>homepage testing preview</strong> with a visible testing banner.
+                            </p>
+                          </div>
+                        </label>
                       </div>
-                    </label>
+                    </div>
+
+                    {/* Setting 2: Staff Admin Access */}
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 space-y-1">
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allowStaffTesting}
+                          onChange={(e) => setAllowStaffTesting(e.target.checked)}
+                          disabled={isPending}
+                          className="mt-0.5 h-4 w-4 rounded border-amber-500 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                        />
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-bold text-amber-200">
+                            Enable Testing Mode for Staff Admins as well?
+                          </span>
+                          <p className="text-[11px] text-muted-foreground leading-normal">
+                            {allowStaffTesting ? (
+                              <span className="text-amber-300">
+                                ✓ Staff admins can also switch between Test and Live modes.
+                              </span>
+                            ) : (
+                              <span>
+                                Only Super Admin will be in Testing Mode. Staff admins remain locked to Live Production.
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 )}
 

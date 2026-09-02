@@ -48,6 +48,8 @@ interface AdminHeaderProps {
   };
   currentEnvironment?: AppEnvironment;
   staffTestingAllowed?: boolean;
+  isSuperAdmin?: boolean;
+  testVisibilityScope?: import("@/lib/env-context").TestVisibilityScope;
 }
 
 interface MobileNavLink {
@@ -78,15 +80,23 @@ const mobileNavLinks: MobileNavLink[] = [
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, requiredPermission: "audit_logs.view" },
 ];
 
-export function AdminHeader({ user, currentEnvironment, staffTestingAllowed = false }: AdminHeaderProps) {
+export function AdminHeader({
+  user,
+  currentEnvironment,
+  staffTestingAllowed = false,
+  isSuperAdmin: isSuperAdminProp,
+  testVisibilityScope = "ADMINS_ONLY",
+}: AdminHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
   const isSuper =
-    user.role === "SUPER_ADMIN" ||
-    user.adminRole === "SUPER_ADMIN" ||
-    user.email === "vinayaksahu3@gmail.com" ||
-    user.email === "admin@superwarrior30.com";
+    isSuperAdminProp !== undefined
+      ? isSuperAdminProp
+      : user.role === "SUPER_ADMIN" ||
+        user.adminRole === "SUPER_ADMIN" ||
+        user.email.toLowerCase() === "vinayaksahu3@gmail.com" ||
+        user.email.toLowerCase() === "admin@superwarrior30.com";
 
   const permsSet = new Set(user.permissions || []);
 
@@ -118,6 +128,7 @@ export function AdminHeader({ user, currentEnvironment, staffTestingAllowed = fa
             isSuperAdmin={isSuper}
             isStaffAdmin={!isSuper}
             staffTestingAllowed={staffTestingAllowed}
+            initialVisibilityScope={testVisibilityScope}
           />
           <ThemeToggle />
           <div className="text-right hidden sm:block">

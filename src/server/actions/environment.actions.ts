@@ -41,11 +41,13 @@ export async function isStaffTestingAllowedInDb(): Promise<boolean> {
  */
 export async function switchEnvironmentAction(
   targetEnv: AppEnvironment,
-  allowStaffTesting: boolean = false
+  allowStaffTesting: boolean = false,
+  visibilityScope?: import("@/lib/env-context").TestVisibilityScope
 ): Promise<{
   success: boolean;
   environment?: AppEnvironment;
   staffTestingActive?: boolean;
+  visibilityScope?: import("@/lib/env-context").TestVisibilityScope;
   error?: string;
 }> {
   try {
@@ -63,6 +65,24 @@ export async function switchEnvironmentAction(
         success: false,
         error: "Invalid target environment specified.",
       };
+    }
+
+    if (visibilityScope && (visibilityScope === "ADMINS_ONLY" || visibilityScope === "ADMINS_AND_HOMEPAGE")) {
+      const { setCachedTestVisibilityScope } = await import("@/lib/env-context");
+      setCachedTestVisibilityScope(visibilityScope);
+      try {
+        await prisma.siteSetting.upsert({
+          where: { key: "test_mode_visibility_scope" },
+          update: { value: visibilityScope },
+          create: {
+            key: "test_mode_visibility_scope",
+            value: visibilityScope,
+            type: "string",
+          },
+        });
+      } catch {
+        // Non-blocking
+      }
     }
 
     const previousEnv = await resolveCurrentEnvironment();

@@ -2,7 +2,7 @@ import { requireAdmin, isSuperAdminUser } from "@/server/dal/auth";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { TestingModeBanner } from "@/components/admin/environment-switcher";
-import { resolveCurrentEnvironment } from "@/lib/env-context";
+import { resolveCurrentEnvironment, resolveTestVisibilityScope } from "@/lib/env-context";
 import { isStaffTestingAllowedInDb } from "@/server/actions/environment.actions";
 import { getEffectivePermissions, getRolePresentation } from "@/lib/permissions";
 
@@ -11,10 +11,11 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [user, currentEnvironment, staffTestingAllowed] = await Promise.all([
+  const [user, currentEnvironment, staffTestingAllowed, visibilityScope] = await Promise.all([
     requireAdmin(),
     resolveCurrentEnvironment(),
     isStaffTestingAllowedInDb(),
+    resolveTestVisibilityScope(),
   ]);
   const isSuper = isSuperAdminUser(user);
 
@@ -49,6 +50,8 @@ export default async function AdminLayout({
             }}
             currentEnvironment={currentEnvironment}
             staffTestingAllowed={staffTestingAllowed}
+            isSuperAdmin={isSuper}
+            testVisibilityScope={visibilityScope}
           />
           <main className="flex-1 overflow-y-auto p-6">{children}</main>
         </div>
