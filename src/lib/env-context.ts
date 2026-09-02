@@ -208,97 +208,109 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
   // 2. Read session & cookies
   try {
     const cookieStore = await cookies();
+
+    // Check if Super Admin test token is active in cookies
+    const envToken = cookieStore.get(ENV_COOKIE_NAME)?.value;
+    if (envToken) {
+      const envPayload = await verifyEnvToken(envToken);
+      if (envPayload && envPayload.env === "TEST") {
+        if (envPayload.allowStaffTesting !== undefined) {
+          setStaffTestingActive(envPayload.allowStaffTesting);
+        }
+        return "TEST";
+      }
+    }
+
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-    if (!sessionToken) {
-      return DEFAULT_ENVIRONMENT;
-    }
-
-    const session: SessionPayload | null = await decrypt(sessionToken);
-    if (!session) {
-      return DEFAULT_ENVIRONMENT;
-    }
-
-    // Check if Super Admin has active TEST cookie
-    const isSuper = isSuperAdminUser({
-      role: session.role,
-      email: session.email,
-    });
-
-    if (isSuper) {
-      const envToken = cookieStore.get(ENV_COOKIE_NAME)?.value;
-      if (envToken) {
-        const envPayload = await verifyEnvToken(envToken);
-        if (
-          envPayload &&
-          envPayload.env === "TEST" &&
-          session.userId === envPayload.userId &&
-          session.email.toLowerCase() === envPayload.email.toLowerCase()
-        ) {
-          // Sync staff testing status from Super Admin's token if available
-          if (envPayload.allowStaffTesting !== undefined) {
-            setStaffTestingActive(envPayload.allowStaffTesting);
-          }
+    if (sessionToken) {
+      const session: SessionPayload | null = await decrypt(sessionToken);
+      if (session) {
+        // 1. If session explicitly contains isTestData
+        if (session.isTestData) {
           return "TEST";
         }
-      }
-      return DEFAULT_ENVIRONMENT;
-    }
 
-    // Check if Staff Admin has access to test mode
-    const isStaff = isStaffAdminUser({
-      role: session.role,
-      email: session.email,
-    });
-
-    if (isStaff) {
-      // Check database setting directly to ensure serverless cross-instance sync
-      let staffAllowed = isStaffTestingActive();
-      if (!staffAllowed) {
-        try {
-          const { getProductionPrismaClient } = await import("@/lib/prisma");
-          const setting = await getProductionPrismaClient().siteSetting.findUnique({
-            where: { key: "test_mode_include_staff" },
-          });
-          if (setting) {
-            staffAllowed = setting.value === "true";
-            setStaffTestingActive(staffAllowed);
-          }
-        } catch {
-          // Fallback to in-memory state
-        }
-      }
-
-      // If Super Admin has disabled staff testing -> strictly LIVE
-      if (!staffAllowed) {
-        return DEFAULT_ENVIRONMENT;
-      }
-
-      // Super Admin enabled staff testing -> check staff member's personal preference cookie
-      const staffEnvToken = cookieStore.get(STAFF_ENV_COOKIE_NAME)?.value;
-      if (staffEnvToken) {
-        const staffPayload = await verifyEnvToken(staffEnvToken);
-        if (staffPayload && staffPayload.userId === session.userId) {
-          return staffPayload.env;
-        }
-      }
-
-      // Default when Super Admin enables staff testing: TEST
-      return "TEST";
-    }
-
-    // 4. Check if student / standard user account belongs to Testing environment
-    if (session.isTestData) {
-      return "TEST";
-    }
-
-    if (session.userId) {
-      try {
-        const { getTestPrismaClient } = await import("@/lib/prisma");
-        const testUser = await getTestPrismaClient().user.findUnique({
-          where: { id: session.userId },
-          select: { id: true, isTestData: true },
+        // 2. Check if Super Admin
+        const isSuper = isSuperAdminUser({
+          role: session.role,
+          email: session.email,
         });
-        if (testUser && testUser.isTestData) {
+
+        if (isSuper) {
+          if (envToken) {
+            const envPayload = await verifyEnvToken(envToken);
+            if (envPayload && envPayload.env === "TEST") {
+              return "TEST";
+            }
+          }
+          return DEFAULT_ENVIRONMENT;
+        }
+
+        // 3. Check if Staff Admin has access to test mode
+        const isStaff = isStaffAdminUser({
+          role: session.role,
+          email: session.email,
+        });
+
+        if (isStaff) {
+          let staffAllowed = isStaffTestingActive();
+          if (!staffAllowed) {
+            try {
+              const { getProductionPrismaClient } = await import("@/lib/prisma");
+              const setting = await getProductionPrismaClient().siteSetting.findUnique({
+                where: { key: "test_mode_include_staff" },
+              });
+              if (setting) {
+                staffAllowed = setting.value === "true";
+                setStaffTestingActive(staffAllowed);
+              }
+            } catch {
+              // Fallback to in-memory state
+            }
+          }
+
+          if (!staffAllowed) {
+            return DEFAULT_ENVIRONMENT;
+          }
+
+          const staffEnvToken = cookieStore.get(STAFF_ENV_COOKIE_NAME)?.value;
+          if (staffEnvToken) {
+            const staffPayload = await verifyEnvToken(staffEnvToken);
+            if (staffPayload && staffPayload.userId === session.userId) {
+              return staffPayload.env;
+            }
+          }
+
+          return "TEST";
+        }
+
+        // 4. Check if student account belongs to Testing environment
+        if (session.userId) {
+          try {
+            const { getTestPrismaClient } = await import("@/lib/prisma");
+            const testUser = await getTestPrismaClient().user.findUnique({
+              where: { id: session.userId },
+              select: { id: true, isTestData: true },
+            });
+            if (testUser && testUser.isTestData) {
+              return "TEST";
+            }
+          } catch {
+            // Fallback
+          }
+        }
+      }
+    }
+
+    // 3. Check if Public Testing Scope is active (Scope: Admins + Homepage)
+    const visibilityScope = await resolveTestVisibilityScope();
+    if (visibilityScope === "ADMINS_AND_HOMEPAGE") {
+      try {
+        const { getProductionPrismaClient } = await import("@/lib/prisma");
+        const setting = await getProductionPrismaClient().siteSetting.findUnique({
+          where: { key: "test_mode_active" },
+        });
+        if (setting && setting.value === "true") {
           return "TEST";
         }
       } catch {
