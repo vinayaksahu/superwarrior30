@@ -81,13 +81,13 @@ export function StudentTestimonialsClient({
   const [rating, setRating] = useState<number>(5);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [content, setContent] = useState<string>("");
-  const [tradingPlatform, setTradingPlatform] = useState<string>("TradingView / MT5");
-  const [accountType, setAccountType] = useState<string>("Real Account");
   const [tradingResult, setTradingResult] = useState<string>("");
   const [experienceDuration, setExperienceDuration] = useState<string>("3-6 Months");
   const [screenshots, setScreenshots] = useState<Array<{ url: string; caption: string }>>([]);
   const [consentGiven, setConsentGiven] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   // Lightbox modal state
   const [previewImage, setPreviewImage] = useState<{ url: string; caption?: string } | null>(null);
@@ -108,8 +108,6 @@ export function StudentTestimonialsClient({
     setPhotoUrl(item.photoUrl || "");
     setRating(item.rating);
     setContent(item.content);
-    setTradingPlatform(item.tradingPlatform || "TradingView / MT5");
-    setAccountType(item.accountType || "Real Account");
     setTradingResult(item.tradingResult || "");
     setExperienceDuration(item.experienceDuration || "3-6 Months");
     setScreenshots(
@@ -131,21 +129,55 @@ export function StudentTestimonialsClient({
     setConsentGiven(false);
   };
 
-  // Upload Screenshot Handler
-  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  // Upload Profile Avatar Handler
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Profile photo exceeds 5MB limit.");
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const result = await uploadStudentTestimonialScreenshotAction(formData);
+      if (result.success && result.url) {
+        setPhotoUrl(result.url);
+        toast.success("Profile photo uploaded successfully!");
+      } else {
+        toast.error(result.error || "Failed to upload photo.");
+      }
+    } catch {
+      toast.error("Failed to upload photo.");
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = "";
+    }
+  };
+
+  // Process File List for Screenshots
+  const processScreenshotFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
-    if (screenshots.length + files.length > 5) {
-      toast.error("You can upload a maximum of 5 trading screenshots.");
+    const remainingSlots = 5 - screenshots.length;
+    if (remainingSlots <= 0) {
+      toast.error("You have already added the maximum of 5 screenshots.");
       return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      toast.warning(`Only ${remainingSlots} more screenshot(s) could be added (max 5 limit).`);
     }
 
     setIsUploading(true);
     let uploadedCount = 0;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (const file of filesToUpload) {
       if (file.size > 5 * 1024 * 1024) {
         toast.error(`"${file.name}" exceeds 5MB limit.`);
         continue;
@@ -174,7 +206,36 @@ export function StudentTestimonialsClient({
     if (uploadedCount > 0) {
       toast.success(`Uploaded ${uploadedCount} screenshot(s) successfully!`);
     }
-    e.target.value = "";
+  };
+
+  // Upload Screenshot from File Input
+  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      await processScreenshotFiles(e.target.files);
+      e.target.value = "";
+    }
+  };
+
+  // Drag and Drop Handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processScreenshotFiles(e.dataTransfer.files);
+    }
   };
 
   const handleRemoveScreenshot = (index: number) => {
@@ -214,8 +275,6 @@ export function StudentTestimonialsClient({
           photoUrl: photoUrl || undefined,
           rating,
           content,
-          tradingPlatform,
-          accountType,
           tradingResult,
           experienceDuration,
           screenshots,
@@ -223,7 +282,7 @@ export function StudentTestimonialsClient({
         });
 
         if (res.success) {
-          toast.success("Testimonial resubmitted for admin review!");
+          toast.success("Review updated and resubmitted for admin verification!");
           setEditingId(null);
           setContent("");
           setScreenshots([]);
@@ -240,8 +299,6 @@ export function StudentTestimonialsClient({
                     photoUrl: photoUrl || null,
                     rating,
                     content,
-                    tradingPlatform,
-                    accountType,
                     tradingResult,
                     experienceDuration,
                     status: "PENDING" as const,
@@ -258,7 +315,7 @@ export function StudentTestimonialsClient({
             )
           );
         } else {
-          toast.error(res.error || "Failed to resubmit testimonial.");
+          toast.error(res.error || "Failed to resubmit review.");
         }
       } else {
         // New submission flow
@@ -267,8 +324,6 @@ export function StudentTestimonialsClient({
           photoUrl: photoUrl || undefined,
           rating,
           content,
-          tradingPlatform,
-          accountType,
           tradingResult,
           experienceDuration,
           screenshots,
@@ -276,7 +331,7 @@ export function StudentTestimonialsClient({
         });
 
         if (res.success) {
-          toast.success("Thank you! Your testimonial was submitted and is pending admin approval.");
+          toast.success("Thank you! Your review was submitted and is pending admin approval.");
           setContent("");
           setScreenshots([]);
           setTradingResult("");
@@ -293,8 +348,8 @@ export function StudentTestimonialsClient({
             isApproved: false,
             isVisible: true,
             isFeatured: false,
-            tradingPlatform,
-            accountType,
+            tradingPlatform: null,
+            accountType: null,
             tradingResult,
             experienceDuration,
             consentGiven: true,
@@ -313,7 +368,7 @@ export function StudentTestimonialsClient({
           };
           setTestimonials((prev) => [newRecord, ...prev]);
         } else {
-          toast.error(res.error || "Failed to submit testimonial.");
+          toast.error(res.error || "Failed to submit review.");
         }
       }
     });
@@ -329,13 +384,13 @@ export function StudentTestimonialsClient({
               <Star className="h-5 w-5 fill-primary text-primary" />
             </span>
             <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-              Student Testimonials & Reviews
+              Student Reviews & Experience
             </h1>
             <TestUserBadge isTestData={user.isTestData} />
           </div>
           <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
-            Share your authentic experience, trading screenshots, and results with Rahul Trade Warrior Academy.
-            Approved reviews are showcased on the official academy landing page!
+            Share your authentic learning experience, trading screenshots, and results with Rahul Trade Warrior Academy.
+            Approved reviews are showcased on the official academy website!
           </p>
         </div>
 
@@ -348,22 +403,22 @@ export function StudentTestimonialsClient({
             className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
               activeTab === "form"
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground cursor-pointer"
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>{editingId ? "Edit Review" : "Share Experience"}</span>
+            <span>{editingId ? "Edit Review" : "Write Review"}</span>
           </button>
           <button
             onClick={() => setActiveTab("list")}
             className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
               activeTab === "list"
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground cursor-pointer"
             }`}
           >
             <Clock className="h-3.5 w-3.5" />
-            <span>My Submissions</span>
+            <span>My Reviews</span>
             {testimonials.length > 0 && (
               <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.2 text-[10px] font-mono">
                 {testimonials.length}
@@ -381,7 +436,7 @@ export function StudentTestimonialsClient({
               <div className="flex items-center gap-2.5">
                 <RefreshCw className="h-4 w-4 text-amber-500 animate-spin" />
                 <p className="text-xs font-bold text-amber-400">
-                  Editing Testimonial — Updating your review will submit it for fresh admin moderation.
+                  Editing Review — Updating your review will submit it for fresh admin moderation.
                 </p>
               </div>
               <button
@@ -416,18 +471,38 @@ export function StudentTestimonialsClient({
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-foreground">
-                  Profile Photo URL (Optional)
+                <label className="text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>Profile Photo</span>
+                  {photoUrl && (
+                    <span className="text-[10px] text-emerald-400 font-bold">✓ Photo Attached</span>
+                  )}
                 </label>
-                <input
-                  type="url"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="https://... (or leave blank to use account avatar)"
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    placeholder="https://... photo URL"
+                    className="flex-1 rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <label
+                    className={`inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted px-3.5 py-2.5 text-xs font-bold hover:bg-muted/80 cursor-pointer shrink-0 transition-colors ${
+                      isUploadingPhoto ? "opacity-50 pointer-events-none" : ""
+                    }`}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>{isUploadingPhoto ? "Uploading..." : "Upload"}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handlePhotoUpload}
+                      disabled={isUploadingPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Direct image link for your avatar.
+                  Upload an image from your device or paste an avatar link.
                 </p>
               </div>
             </div>
@@ -471,7 +546,7 @@ export function StudentTestimonialsClient({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <span>Your Testimonial / Review</span>
+                  <span>Your Review & Experience</span>
                   <span className="text-destructive">*</span>
                 </label>
                 <span
@@ -496,39 +571,66 @@ export function StudentTestimonialsClient({
               />
             </div>
 
-            {/* 4. Multi-Screenshot Upload Section */}
+            {/* 4. Multi-Screenshot Upload Dropzone & Grid */}
             <div className="space-y-4 rounded-xl border border-border/80 bg-muted/20 p-5">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h3 className="text-xs font-bold text-foreground flex items-center gap-2">
                     <ImageIcon className="h-4 w-4 text-primary" />
-                    Trading Screenshots & Proof (Optional, up to 5)
+                    Trading Screenshots & P&L Proof (Optional, up to 5)
                   </h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Upload chart breakdowns, trade entries, P&L screenshots, or broker proof.
+                    Upload chart setups, trade executions, P&L screenshots, or broker proof.
                   </p>
                 </div>
-                <label
-                  className={`inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm cursor-pointer transition-all ${
-                    screenshots.length >= 5 || isUploading
-                      ? "opacity-50 pointer-events-none"
-                      : "hover:bg-primary/90"
+                <span className="text-xs font-bold text-muted-foreground">
+                  {screenshots.length} / 5 Uploaded
+                </span>
+              </div>
+
+              {/* Drag & Drop Zone */}
+              {screenshots.length < 5 && (
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-all cursor-pointer ${
+                    isDragging
+                      ? "border-primary bg-primary/10 scale-[1.01]"
+                      : "border-border hover:border-primary/50 hover:bg-muted/40"
                   }`}
                 >
-                  <Upload className="h-3.5 w-3.5" />
-                  <span>{isUploading ? "Uploading..." : "+ Add Screenshot"}</span>
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     multiple
-                    disabled={screenshots.length >= 5 || isUploading}
+                    disabled={isUploading}
                     onChange={handleScreenshotUpload}
-                    className="hidden"
+                    className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
                   />
-                </label>
-              </div>
+                  <div className="flex flex-col items-center space-y-2 pointer-events-none">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      {isUploading ? (
+                        <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+                      ) : (
+                        <Upload className="h-6 w-6 text-primary" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-foreground">
+                        {isUploading
+                          ? "Uploading screenshots to secure storage..."
+                          : "Click to browse or Drag & drop trading screenshots here"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Supports PNG, JPG, WebP up to 5MB each (Max 5 files)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {/* Uploaded Screenshots List */}
+              {/* Uploaded Screenshots Grid */}
               {screenshots.length > 0 && (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-2">
                   {screenshots.map((s, idx) => (
@@ -546,7 +648,7 @@ export function StudentTestimonialsClient({
                         <button
                           type="button"
                           onClick={() => setPreviewImage(s)}
-                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white cursor-pointer"
                           title="View Full Screenshot"
                         >
                           <Maximize2 className="h-5 w-5 drop-shadow" />
@@ -554,7 +656,7 @@ export function StudentTestimonialsClient({
                         <button
                           type="button"
                           onClick={() => handleRemoveScreenshot(idx)}
-                          className="absolute top-1.5 right-1.5 rounded-full bg-destructive p-1 text-white shadow hover:bg-destructive/90"
+                          className="absolute top-1.5 right-1.5 rounded-full bg-destructive p-1 text-white shadow hover:bg-destructive/90 cursor-pointer"
                           title="Remove Screenshot"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -574,66 +676,30 @@ export function StudentTestimonialsClient({
               )}
             </div>
 
-            {/* 5. Optional Result Details */}
+            {/* 5. Optional Result Details (Cleaned without Platform / Account Type) */}
             <div className="rounded-xl border border-border/80 bg-muted/20 p-5 space-y-4">
               <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <TrendingUp className="h-4 w-4 text-emerald-500" />
-                Trading Metadata & Experience (Optional)
+                Trading Results & Mentorship Duration (Optional)
               </h3>
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-semibold text-muted-foreground">
-                    Trading Platform
-                  </label>
-                  <select
-                    value={tradingPlatform}
-                    onChange={(e) => setTradingPlatform(e.target.value)}
-                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-medium focus:border-primary focus:outline-none"
-                  >
-                    <option value="TradingView / MT5">TradingView / MT5</option>
-                    <option value="MetaTrader 5 (MT5)">MetaTrader 5 (MT5)</option>
-                    <option value="MetaTrader 4 (MT4)">MetaTrader 4 (MT4)</option>
-                    <option value="Zerodha Kite">Zerodha Kite</option>
-                    <option value="Exness Terminal">Exness Terminal</option>
-                    <option value="Binance Crypto">Binance Crypto</option>
-                    <option value="Angel One">Angel One</option>
-                    <option value="Other">Other Platform</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">
-                    Account Type
-                  </label>
-                  <select
-                    value={accountType}
-                    onChange={(e) => setAccountType(e.target.value)}
-                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-medium focus:border-primary focus:outline-none"
-                  >
-                    <option value="Real Live Account">Real Live Account</option>
-                    <option value="Funded Account (Prop Firm)">Funded Account (Prop Firm)</option>
-                    <option value="Prop Challenge in Progress">Prop Challenge in Progress</option>
-                    <option value="Demo Practice Account">Demo Practice Account</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground">
-                    Result / P&L Info
+                    Trading Result / P&L Info
                   </label>
                   <input
                     type="text"
                     value={tradingResult}
                     onChange={(e) => setTradingResult(e.target.value)}
-                    placeholder="e.g. +$1,200 (1:3 RR)"
+                    placeholder="e.g. +$1,200 (1:3 RR) or +15% ROI"
                     className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-medium focus:border-primary focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-semibold text-muted-foreground">
-                    Academy Duration
+                    Mentorship Duration
                   </label>
                   <select
                     value={experienceDuration}
@@ -693,7 +759,7 @@ export function StudentTestimonialsClient({
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3 text-xs font-bold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
               >
                 <Send className="h-4 w-4" />
-                <span>{isPending ? "Submitting..." : editingId ? "Update & Resubmit" : "Submit Testimonial"}</span>
+                <span>{isPending ? "Submitting..." : editingId ? "Update & Resubmit" : "Submit Review"}</span>
               </button>
             </div>
           </form>
@@ -706,7 +772,7 @@ export function StudentTestimonialsClient({
           {testimonials.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-12 text-center space-y-3 bg-card">
               <Star className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-              <h3 className="text-sm font-bold text-foreground">No Testimonials Submitted Yet</h3>
+              <h3 className="text-sm font-bold text-foreground">No Reviews Submitted Yet</h3>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Share your journey with Rahul Trade Warrior Academy to inspire fellow traders!
               </p>
