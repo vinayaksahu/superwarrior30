@@ -71,6 +71,26 @@ export async function ensureDatabaseSchemaSync() {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referralCode" TEXT;`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referredById" TEXT;`,
 
+    // isTestData columns across all business models
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "order_items" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "lesson_progress" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "referral_commission_records" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "wallet_transactions" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "withdrawals" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "live_sessions" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "broker_offer_claims" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "support_inquiries" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+
+    // Ensure system admin accounts are accessible in LIVE mode
+    `UPDATE "users" SET "isTestData" = false WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
+
     // targeted super admin email update
     `UPDATE "users" SET "email" = 'vinayaksahu3@gmail.com' WHERE "email" = 'admin@superwarrior30.com' AND "role" = 'SUPER_ADMIN';`,
   ];

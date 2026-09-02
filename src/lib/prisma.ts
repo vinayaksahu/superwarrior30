@@ -8,6 +8,24 @@ const globalForPrisma = globalThis as unknown as {
   testPrisma: PrismaClient | undefined;
 };
 
+const ISOLATED_MODELS = new Set([
+  "user",
+  "order",
+  "orderItem",
+  "course",
+  "courseEnrollment",
+  "lessonProgress",
+  "coupon",
+  "referralCommissionRecord",
+  "walletTransaction",
+  "withdrawal",
+  "lead",
+  "testimonial",
+  "liveSession",
+  "brokerOfferClaim",
+  "supportInquiry",
+]);
+
 /**
  * Normalizes connection string:
  * - Replaces sslmode=require with sslmode=verify-full
@@ -118,6 +136,106 @@ export function getSyncDatabaseClient(): PrismaClient {
 }
 
 /**
+ * Adjusts query arguments based on active environment (LIVE vs TEST)
+ */
+function scopeQueryArgsForEnvironment(
+  modelName: string,
+  method: string,
+  args: any,
+  env: AppEnvironment
+): any {
+  if (!ISOLATED_MODELS.has(modelName)) {
+    return args;
+  }
+
+  const currentArgs = args ? { ...args } : {};
+
+  // LIVE MODE: filter out test records
+  if (env === "LIVE") {
+    if (
+      method === "findMany" ||
+      method === "findFirst" ||
+      method === "findUnique" ||
+      method === "count" ||
+      method === "aggregate" ||
+      method === "groupBy"
+    ) {
+      const where = currentArgs.where ? { ...currentArgs.where } : {};
+
+      // For user queries: do not filter out admin/staff accounts needed for authentication
+      if (modelName === "user") {
+        const isAdminQuery =
+          where.role === "SUPER_ADMIN" ||
+          where.role === "ADMIN" ||
+          (typeof where.role === "object" && where.role?.in?.some?.((r: string) => r !== "STUDENT")) ||
+          (typeof where.email === "string" &&
+            (where.email.includes("admin") || where.email === "vinayaksahu3@gmail.com"));
+
+        if (!isAdminQuery && where.isTestData === undefined) {
+          where.isTestData = false;
+        }
+      } else {
+        if (where.isTestData === undefined) {
+          where.isTestData = false;
+        }
+      }
+
+      currentArgs.where = where;
+      return currentArgs;
+    }
+
+    if (method === "create" && currentArgs.data) {
+      if (currentArgs.data.isTestData === undefined) {
+        currentArgs.data = { ...currentArgs.data, isTestData: false };
+      }
+      return currentArgs;
+    }
+
+    if (method === "createMany" && Array.isArray(currentArgs.data)) {
+      currentArgs.data = currentArgs.data.map((item: any) => ({
+        ...item,
+        isTestData: item.isTestData !== undefined ? item.isTestData : false,
+      }));
+      return currentArgs;
+    }
+
+    if (method === "upsert") {
+      if (currentArgs.create && currentArgs.create.isTestData === undefined) {
+        currentArgs.create = { ...currentArgs.create, isTestData: false };
+      }
+      return currentArgs;
+    }
+  }
+
+  // TEST MODE: mark created records as test records
+  if (env === "TEST") {
+    if (method === "create" && currentArgs.data) {
+      if (currentArgs.data.isTestData === undefined) {
+        currentArgs.data = { ...currentArgs.data, isTestData: true };
+      }
+      return currentArgs;
+    }
+
+    if (method === "createMany" && Array.isArray(currentArgs.data)) {
+      currentArgs.data = currentArgs.data.map((item: any) => ({
+        ...item,
+        isTestData: item.isTestData !== undefined ? item.isTestData : true,
+      }));
+      return currentArgs;
+    }
+
+    if (method === "upsert") {
+      if (currentArgs.create && currentArgs.create.isTestData === undefined) {
+        currentArgs.create = { ...currentArgs.create, isTestData: true };
+      }
+      return currentArgs;
+    }
+  }
+
+  return currentArgs;
+}
+
+/**
  * Dynamic Environment-Aware Prisma Proxy
  * 
  * Transparently wraps all model operations (prisma.user.*, prisma.order.*, etc.)
@@ -151,20 +269,31 @@ function createDynamicPrismaProxy(): PrismaClient {
         return modelProxyCache.get(prop);
       }
 
+      const modelName = String(prop);
+
       // Model delegate wrapper (prisma.user, prisma.course, prisma.wallet, etc.)
       const modelProxy = new Proxy({}, {
         get(_modelTarget, methodProp) {
+          const methodName = String(methodProp);
+
           return async (...methodArgs: any[]) => {
-            const activeClient = await getDatabaseForSession();
+            const env = await resolveCurrentEnvironment();
+            const activeClient = getPrismaClient(env);
             const model = (activeClient as any)[prop];
             if (!model) {
-              throw new Error(`[Database Error] Model '${String(prop)}' not found on PrismaClient.`);
+              throw new Error(`[Database Error] Model '${modelName}' not found on PrismaClient.`);
             }
             const modelMethod = model[methodProp];
             if (typeof modelMethod !== "function") {
               return modelMethod;
             }
-            return modelMethod.apply(model, methodArgs);
+
+            const scopedArgs =
+              methodArgs.length > 0
+                ? [scopeQueryArgsForEnvironment(modelName, methodName, methodArgs[0], env), ...methodArgs.slice(1)]
+                : methodArgs;
+
+            return modelMethod.apply(model, scopedArgs);
           };
         },
       });

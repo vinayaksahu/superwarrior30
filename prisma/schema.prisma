@@ -38,6 +38,7 @@ model User {
   status            UserStatus @default(ACTIVE)
   referralCode      String     @unique
   tokenVersion      Int        @default(1)
+  isTestData        Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -216,6 +217,7 @@ model Course {
   totalDuration    Int             @default(0) // seconds
   deletedAt        DateTime?
   deletedById      String?
+  isTestData       Boolean         @default(true)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -301,6 +303,7 @@ model CourseEnrollment {
   orderId            String?
   status             EnrollmentStatus @default(ACTIVE)
   progressPercentage Decimal          @default(0.00) @db.Decimal(5, 2)
+  isTestData         Boolean          @default(true)
   enrolledAt         DateTime         @default(now())
   expiresAt          DateTime?
   completedAt        DateTime?
@@ -322,6 +325,7 @@ model LessonProgress {
   status              ProgressStatus @default(NOT_STARTED)
   watchTimeSeconds    Int            @default(0)
   lastPositionSeconds Int            @default(0)
+  isTestData          Boolean        @default(true)
   completedAt         DateTime?
   updatedAt           DateTime       @updatedAt
 
@@ -369,6 +373,7 @@ model Order {
   cancelledAt     DateTime?
   refundedAt      DateTime?
   metadata        Json?       @db.JsonB
+  isTestData      Boolean     @default(true)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -396,6 +401,7 @@ model OrderItem {
   unitPrice  Decimal @db.Decimal(12, 2)
   quantity   Int     @default(1)
   totalPrice Decimal @db.Decimal(12, 2)
+  isTestData Boolean @default(true)
   createdAt  DateTime @default(now())
 
   order  Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -428,6 +434,7 @@ model Coupon {
   perUserLimit      Int          @default(1)
   usageCount        Int          @default(0)
   isActive          Boolean      @default(true)
+  isTestData        Boolean      @default(true)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -508,6 +515,7 @@ model ReferralCommissionRecord {
   clearedAt        DateTime?        // Timestamp when transitioned to AVAILABLE
   clearedById      String?          // SUPER_ADMIN user ID if manually released
   clearedReason    String?          // Audit note or reason for clearance/release
+  isTestData       Boolean          @default(true)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -569,6 +577,7 @@ model WalletTransaction {
   description   String?
   referenceType String?        // e.g. "COMMISSION", "WITHDRAWAL"
   referenceId   String?
+  isTestData    Boolean        @default(true)
   createdAt     DateTime       @default(now())
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
@@ -600,6 +609,7 @@ model Withdrawal {
   processedAt    DateTime?
   processedBy    String?
   transactionRef String?
+  isTestData     Boolean          @default(true)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -755,6 +765,7 @@ model Lead {
   checkoutStartedAt   DateTime?
   purchaseCompletedAt DateTime?
 
+  isTestData      Boolean     @default(true)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -776,6 +787,7 @@ model Testimonial {
   isApproved  Boolean   @default(false)
   isVisible   Boolean   @default(true)
   courseId     String?
+  isTestData  Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -834,6 +846,7 @@ model LiveSession {
   bunnyVideoId    String?
   isPublished     Boolean             @default(true)
   createdById     String?
+  isTestData      Boolean             @default(true)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -907,6 +920,7 @@ model BrokerOfferClaim {
   paidAt             DateTime?
   paidById           String?
   payoutTxRef        String?
+  isTestData         Boolean                  @default(true)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
@@ -1004,6 +1018,7 @@ model SupportInquiry {
   orderNumber String?
   adminNotes  String?                 @db.Text
   userId      String?
+  isTestData  Boolean                 @default(true)
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
 
