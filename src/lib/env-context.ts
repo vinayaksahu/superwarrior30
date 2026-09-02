@@ -156,8 +156,8 @@ export const resolveCurrentEnvironment = cache(async (): Promise<AppEnvironment>
       let staffAllowed = isStaffTestingActive();
       if (!staffAllowed) {
         try {
-          const { prisma } = await import("@/lib/prisma");
-          const setting = await prisma.siteSetting.findUnique({
+          const { getProductionPrismaClient } = await import("@/lib/prisma");
+          const setting = await getProductionPrismaClient().siteSetting.findUnique({
             where: { key: "test_mode_include_staff" },
           });
           if (setting) {

@@ -276,6 +276,20 @@ function createDynamicPrismaProxy(): PrismaClient {
           const methodName = String(methodProp);
 
           return async (...methodArgs: any[]) => {
+            // Non-isolated system models (e.g. siteSetting) always use the production client directly without resolving environment
+            if (!ISOLATED_MODELS.has(modelName)) {
+              const activeClient = getProductionPrismaClient();
+              const model = (activeClient as any)[prop];
+              if (!model) {
+                throw new Error(`[Database Error] Model '${modelName}' not found on PrismaClient.`);
+              }
+              const modelMethod = model[methodProp];
+              if (typeof modelMethod !== "function") {
+                return modelMethod;
+              }
+              return modelMethod.apply(model, methodArgs);
+            }
+
             const env = await resolveCurrentEnvironment();
             const activeClient = getPrismaClient(env);
             const model = (activeClient as any)[prop];

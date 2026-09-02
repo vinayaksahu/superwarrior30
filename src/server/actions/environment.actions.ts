@@ -19,7 +19,8 @@ import { prisma } from "@/lib/prisma";
  */
 export async function isStaffTestingAllowedInDb(): Promise<boolean> {
   try {
-    const setting = await prisma.siteSetting.findUnique({
+    const { getProductionPrismaClient } = await import("@/lib/prisma");
+    const setting = await getProductionPrismaClient().siteSetting.findUnique({
       where: { key: "test_mode_include_staff" },
     });
     if (setting) {
