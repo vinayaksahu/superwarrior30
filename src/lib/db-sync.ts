@@ -167,7 +167,9 @@ export async function ensureDatabaseSchemaSync(force = false) {
     `ALTER TABLE "system_payment_methods" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "funnel_events" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
 
-    // Ensure system admin accounts and wallets are accessible in LIVE mode
+    // Ensure system admin accounts, wallets, and coupons are accessible in LIVE mode
+    `UPDATE "coupons" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
+    `ALTER TABLE "coupons" ALTER COLUMN "isTestData" SET DEFAULT false;`,
     `UPDATE "users" SET "isTestData" = false WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
     `UPDATE "wallets" SET "isTestData" = false WHERE "userId" IN (SELECT "id" FROM "users" WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com'));`,
     `UPDATE "referral_relationships" SET "isTestData" = true WHERE "isTestData" IS NULL;`,
@@ -731,7 +733,43 @@ export async function ensureDatabaseSchemaSync(force = false) {
       SET "role" = 'ADMIN'
       WHERE "email" NOT IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com')
         AND "role" = 'SUPER_ADMIN';
+
+      -- Ensure all coupons are active and unmasked for production
+      UPDATE "coupons"
+      SET "isTestData" = false
+      WHERE "isTestData" IS NULL OR "isTestData" = true;
     `);
+  } catch {
+    // ignore
+  }
+
+  // Ensure default system coupon SUPER30 exists in database
+  try {
+    const existingSuper30 = await prisma.coupon.findUnique({
+      where: { code: "SUPER30" },
+    });
+    if (!existingSuper30) {
+      await prisma.coupon.create({
+        data: {
+          code: "SUPER30",
+          discountType: "PERCENTAGE",
+          discountValue: 30,
+          minOrderAmount: 0,
+          maxDiscountAmount: 240,
+          startDate: new Date("2024-01-01"),
+          endDate: new Date("2035-12-31"),
+          usageLimit: null,
+          perUserLimit: 10,
+          isActive: true,
+          isTestData: false,
+        },
+      });
+    } else if (existingSuper30.isTestData) {
+      await prisma.coupon.update({
+        where: { id: existingSuper30.id },
+        data: { isTestData: false, isActive: true },
+      });
+    }
   } catch {
     // ignore
   }

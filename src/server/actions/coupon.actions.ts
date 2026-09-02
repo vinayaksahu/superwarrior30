@@ -355,6 +355,7 @@ export async function createCouponAction(
         usageLimit: data.usageLimit,
         perUserLimit: data.perUserLimit,
         isActive: data.isActive,
+        isTestData: false,
       },
     });
 
@@ -381,6 +382,7 @@ export async function createCouponAction(
   });
 
   revalidatePath("/admin/coupons");
+  revalidatePath("/admin/broker-offers");
   return { success: true, message: `Coupon "${data.code}" created successfully.` };
 }
 
@@ -476,6 +478,7 @@ export async function updateCouponAction(
 
   revalidatePath("/admin/coupons");
   revalidatePath(`/admin/coupons/${couponId}`);
+  revalidatePath("/admin/broker-offers");
   return { success: true, message: `Coupon "${data.code}" updated successfully.` };
 }
 
@@ -503,6 +506,7 @@ export async function toggleCouponStatusAction(
   });
 
   revalidatePath("/admin/coupons");
+  revalidatePath("/admin/broker-offers");
   return { success: true, message: `Coupon is now ${isActive ? "active" : "inactive"}.` };
 }
 
@@ -523,6 +527,7 @@ export async function deleteCouponAction(couponId: string): Promise<ActionState>
       data: { isActive: false },
     });
     revalidatePath("/admin/coupons");
+    revalidatePath("/admin/broker-offers");
     return {
       success: true,
       message: "Coupon has existing redemptions and was deactivated to preserve order history.",
@@ -544,5 +549,6 @@ export async function deleteCouponAction(couponId: string): Promise<ActionState>
   });
 
   revalidatePath("/admin/coupons");
+  revalidatePath("/admin/broker-offers");
   return { success: true, message: "Coupon deleted successfully." };
 }
