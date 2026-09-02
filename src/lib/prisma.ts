@@ -11,29 +11,21 @@ const globalForPrisma = globalThis as unknown as {
 /**
  * Normalizes connection string:
  * - Replaces sslmode=require with sslmode=verify-full
- * - Sets default schema if not explicitly specified
  */
-export function normalizeConnectionString(url: string | undefined, defaultSchema?: string): string {
+export function normalizeConnectionString(url: string | undefined): string {
   if (!url) return "";
   let normalized = url.trim();
   if (normalized.includes("sslmode=require")) {
     normalized = normalized.replace("sslmode=require", "sslmode=verify-full");
   }
-
-  if (defaultSchema && !normalized.includes("schema=")) {
-    const separator = normalized.includes("?") ? "&" : "?";
-    normalized = `${normalized}${separator}schema=${defaultSchema}`;
-  }
-
   return normalized;
 }
 
 /**
- * Creates a PrismaClient connected to the designated connection string and schema
+ * Creates a PrismaClient connected to the designated connection string
  */
 function createPrismaClientForUrl(rawUrl: string | undefined, envName: AppEnvironment): PrismaClient {
-  const defaultSchema = envName === "LIVE" ? "production" : "public";
-  const connectionString = normalizeConnectionString(rawUrl, defaultSchema);
+  const connectionString = normalizeConnectionString(rawUrl);
 
   if (!connectionString) {
     // Fail-safe error placeholder client if URL is missing
@@ -46,7 +38,7 @@ function createPrismaClientForUrl(rawUrl: string | undefined, envName: AppEnviro
     });
   }
 
-  const adapter = new PrismaPg({ connectionString }, { schema: defaultSchema });
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({
     adapter,
     log:
