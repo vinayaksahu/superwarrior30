@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getAdminDevicesAction } from "@/server/actions/device.actions";
 import { requireAdmin } from "@/server/dal/auth";
 import { RevokeDeviceButton, StudentSecurityControls } from "@/components/admin/admin-device-actions";
+import { TestUserBadge } from "@/components/shared/test-user-badge";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -186,7 +187,10 @@ export default async function AdminDevicesPage({
                     <tr key={device.id} className="hover:bg-muted/10">
                       {/* Student Info */}
                       <td className="px-4 py-3">
-                        <p className="font-bold text-foreground">{device.user.name || "Student"}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-foreground">{device.user.name || "Student"}</p>
+                          <TestUserBadge isTestData={(device.user as any)?.isTestData} />
+                        </div>
                         <p className="text-[10px] text-muted-foreground">{device.user.email}</p>
                         {device.user.phone && (
                           <p className="text-[10px] text-muted-foreground/80">{device.user.phone}</p>

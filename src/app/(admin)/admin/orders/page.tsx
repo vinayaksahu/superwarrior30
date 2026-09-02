@@ -5,6 +5,7 @@ import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
 import { Search, ShoppingCart } from "lucide-react";
 import { AdminOrderActions } from "@/components/admin/admin-order-actions";
+import { TestUserBadge } from "@/components/shared/test-user-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +112,10 @@ export default async function AdminOrdersPage({
                       {order.orderNumber}
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="font-medium text-foreground">{order.user.name || "Student"}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-foreground">{order.user.name || "Student"}</p>
+                        <TestUserBadge isTestData={(order.user as any)?.isTestData} />
+                      </div>
                       <p className="text-xs text-muted-foreground">{order.user.email}</p>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-muted-foreground max-w-xs truncate">

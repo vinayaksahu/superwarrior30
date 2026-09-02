@@ -61,6 +61,7 @@ export async function getAdminDevicesAction({
             phone: true,
             role: true,
             status: true,
+            isTestData: true,
           },
         },
       },

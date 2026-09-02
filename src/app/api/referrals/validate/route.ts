@@ -8,7 +8,6 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    await ensureDatabaseSchemaSync();
     const currentUser = await getCurrentUser();
 
     const body = await req.json();

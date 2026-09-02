@@ -334,6 +334,7 @@ export async function calculateAndCreateOrderCommissions(
             rateApplied: levelConfig.commissionRate,
             commissionAmount: commissionAmountDecimal,
             status: "PENDING",
+            isTestData: order.isTestData,
             availableAt,
           },
         });
@@ -351,6 +352,7 @@ export async function calculateAndCreateOrderCommissions(
             pendingBalance: commissionAmountDecimal,
             totalEarned: commissionAmountDecimal,
             totalWithdrawn: new Prisma.Decimal(0.0),
+            isTestData: order.isTestData,
           },
         });
 
@@ -366,6 +368,7 @@ export async function calculateAndCreateOrderCommissions(
             description: `Level ${levelConfig.level} referral commission from order ${order.orderNumber} (Pending clearance)`,
             referenceType: "COMMISSION",
             referenceId: record.id,
+            isTestData: order.isTestData,
           },
         });
 
