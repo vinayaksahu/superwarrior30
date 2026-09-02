@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { useState } from "react";
@@ -8,44 +9,77 @@ import { Menu, X } from "lucide-react";
 
 export function PublicNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const handleSectionClick = (e: React.MouseEvent, sectionId: string) => {
+    setMobileOpen(false);
+    if (pathname === "/") {
+      e.preventDefault();
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+        window.history.replaceState(null, "", `/#${sectionId}`);
+      }
+    } else {
+      e.preventDefault();
+      router.push(`/#${sectionId}`);
+    }
+  };
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    setMobileOpen(false);
+    if (pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.history.replaceState(null, "", "/");
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-        <BrandLogo href="/" size="md" />
+        <div onClick={handleLogoClick} className="cursor-pointer">
+          <BrandLogo href="/" size="md" />
+        </div>
 
         {/* Desktop Nav */}
         <nav className="hidden items-center gap-6 md:flex">
-          <Link
+          <a
             href="/#courses"
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+            onClick={(e) => handleSectionClick(e, "courses")}
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             Courses
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#testimonials"
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+            onClick={(e) => handleSectionClick(e, "testimonials")}
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             Testimonials
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#about"
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+            onClick={(e) => handleSectionClick(e, "about")}
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             About
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#faq"
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+            onClick={(e) => handleSectionClick(e, "faq")}
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             FAQ
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#contact"
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+            onClick={(e) => handleSectionClick(e, "contact")}
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
             Contact
-          </Link>
+          </a>
         </nav>
 
         {/* Actions & Theme Toggle */}
@@ -68,7 +102,7 @@ export function PublicNavbar() {
           <button
             type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-accent md:hidden"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-accent md:hidden cursor-pointer"
             aria-label="Toggle navigation menu"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -79,41 +113,41 @@ export function PublicNavbar() {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="md:hidden border-b border-border bg-card px-4 py-4 space-y-3 animate-in slide-in-from-top-2">
-          <Link
+          <a
             href="/#courses"
-            onClick={() => setMobileOpen(false)}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
+            onClick={(e) => handleSectionClick(e, "courses")}
+            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             Courses
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#testimonials"
-            onClick={() => setMobileOpen(false)}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
+            onClick={(e) => handleSectionClick(e, "testimonials")}
+            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             Testimonials & Reviews
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#about"
-            onClick={() => setMobileOpen(false)}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
+            onClick={(e) => handleSectionClick(e, "about")}
+            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             About Methodology
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#faq"
-            onClick={() => setMobileOpen(false)}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
+            onClick={(e) => handleSectionClick(e, "faq")}
+            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             FAQ
-          </Link>
-          <Link
+          </a>
+          <a
             href="/#contact"
-            onClick={() => setMobileOpen(false)}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
+            onClick={(e) => handleSectionClick(e, "contact")}
+            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             Contact
-          </Link>
+          </a>
           <div className="border-t border-border pt-3 flex items-center justify-between">
             <Link
               href="/login"

@@ -96,6 +96,7 @@ export async function switchEnvironmentAction(
         userId: user.id,
         email: user.email,
         allowStaffTesting,
+        visibilityScope: visibilityScope || "ADMINS_ONLY",
       });
 
       cookieStore.set(ENV_COOKIE_NAME, token, {
@@ -480,7 +481,7 @@ export async function setTestVisibilityScopeAction(
       },
     });
 
-    const { resolveCurrentEnvironment } = await import("@/lib/env-context");
+    const { resolveCurrentEnvironment, signEnvToken, verifyEnvToken, ENV_COOKIE_NAME } = await import("@/lib/env-context");
     const currentEnv = await resolveCurrentEnvironment();
     if (currentEnv === "TEST") {
       await getProductionPrismaClient().siteSetting.upsert({
@@ -492,6 +493,30 @@ export async function setTestVisibilityScopeAction(
           type: "boolean",
         },
       });
+
+      // Update active session cookie so the scope takes effect immediately
+      try {
+        const cookieStore = await cookies();
+        const existingToken = cookieStore.get(ENV_COOKIE_NAME)?.value;
+        if (existingToken) {
+          const payload = await verifyEnvToken(existingToken);
+          if (payload) {
+            const newToken = await signEnvToken({
+              ...payload,
+              visibilityScope: scope,
+            });
+            cookieStore.set(ENV_COOKIE_NAME, newToken, {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "lax",
+              path: "/",
+              maxAge: 24 * 60 * 60,
+            });
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
     }
 
     // Audit log

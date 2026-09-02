@@ -47,10 +47,27 @@ export function getCachedTestVisibilityScope(): TestVisibilityScope {
  * Resolves the testing mode visibility scope (ADMINS_ONLY vs ADMINS_AND_HOMEPAGE)
  */
 export async function resolveTestVisibilityScope(): Promise<TestVisibilityScope> {
+  // 1. Check if an admin has an active environment token with a chosen scope
+  try {
+    const cookieStore = await cookies();
+    const envToken = cookieStore.get(ENV_COOKIE_NAME)?.value;
+    if (envToken) {
+      const payload = await verifyEnvToken(envToken);
+      if (payload?.visibilityScope) {
+        setCachedTestVisibilityScope(payload.visibilityScope);
+        return payload.visibilityScope;
+      }
+    }
+  } catch {
+    // Ignore in non-request contexts
+  }
+
+  // 2. Check process memory cache
   if (globalForEnv.testVisibilityScope) {
     return globalForEnv.testVisibilityScope;
   }
 
+  // 3. Check database siteSetting
   try {
     const { getProductionPrismaClient } = await import("@/lib/prisma");
     const setting = await getProductionPrismaClient().siteSetting.findUnique({
@@ -112,6 +129,7 @@ export interface EnvTokenPayload {
   userId: string;
   email: string;
   allowStaffTesting?: boolean;
+  visibilityScope?: TestVisibilityScope;
   issuedAt: number;
 }
 
@@ -131,6 +149,7 @@ export async function signEnvToken(payload: Omit<EnvTokenPayload, "issuedAt">): 
     userId: payload.userId,
     email: payload.email,
     allowStaffTesting: Boolean(payload.allowStaffTesting),
+    visibilityScope: payload.visibilityScope || "ADMINS_ONLY",
     issuedAt: Date.now(),
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -150,11 +169,17 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
     const env = payload.env as AppEnvironment;
     if (env !== "LIVE" && env !== "TEST") return null;
 
+    const visibilityScope =
+      payload.visibilityScope === "ADMINS_AND_HOMEPAGE" || payload.visibilityScope === "ADMINS_ONLY"
+        ? (payload.visibilityScope as TestVisibilityScope)
+        : undefined;
+
     return {
       env,
       userId: payload.userId as string,
       email: payload.email as string,
       allowStaffTesting: Boolean(payload.allowStaffTesting),
+      visibilityScope,
       issuedAt: (payload.issuedAt as number) || Date.now(),
     };
   } catch {
