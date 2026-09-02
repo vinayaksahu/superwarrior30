@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 
 export function PublicNavbar() {
@@ -12,27 +12,80 @@ export function PublicNavbar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleSectionClick = (e: React.MouseEvent, sectionId: string) => {
-    setMobileOpen(false);
-    if (pathname === "/") {
-      e.preventDefault();
+  const scrollToSection = useCallback((sectionId: string, smooth = true) => {
+    let attempts = 0;
+    const maxAttempts = 15;
+
+    const tryScroll = () => {
       const el = document.getElementById(sectionId);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
+        el.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+      } else if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(tryScroll, 100);
+      }
+    };
+
+    tryScroll();
+  }, []);
+
+  // Handle URL hash on load or hash change, fixing any duplicate hashes like #testimonials#testimonials
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleHash = () => {
+      const rawHash = window.location.hash;
+      if (!rawHash) return;
+
+      // Extract target section ID cleanly (handles '#testimonials#testimonials' -> 'testimonials')
+      const cleaned = rawHash.replace(/^#+/, "");
+      const sectionId = cleaned.split("#")[0]?.trim();
+
+      if (sectionId) {
+        if (rawHash !== `#${sectionId}`) {
+          window.history.replaceState(null, "", `${window.location.pathname}#${sectionId}`);
+        }
+        scrollToSection(sectionId, true);
+      }
+    };
+
+    handleHash();
+    window.addEventListener("hashchange", handleHash);
+    return () => window.removeEventListener("hashchange", handleHash);
+  }, [pathname, scrollToSection]);
+
+  const handleSectionClick = (e: React.MouseEvent, sectionId: string) => {
+    e.preventDefault();
+    setMobileOpen(false);
+
+    const isHomePage =
+      pathname === "/" ||
+      (typeof window !== "undefined" &&
+        (window.location.pathname === "/" || window.location.pathname === ""));
+
+    if (isHomePage) {
+      scrollToSection(sectionId, true);
+      if (typeof window !== "undefined") {
         window.history.replaceState(null, "", `/#${sectionId}`);
       }
     } else {
-      e.preventDefault();
       router.push(`/#${sectionId}`);
     }
   };
 
   const handleLogoClick = (e: React.MouseEvent) => {
     setMobileOpen(false);
-    if (pathname === "/") {
+    const isHomePage =
+      pathname === "/" ||
+      (typeof window !== "undefined" &&
+        (window.location.pathname === "/" || window.location.pathname === ""));
+
+    if (isHomePage) {
       e.preventDefault();
       window.scrollTo({ top: 0, behavior: "smooth" });
-      window.history.replaceState(null, "", "/");
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", "/");
+      }
     }
   };
 
