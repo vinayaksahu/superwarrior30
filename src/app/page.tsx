@@ -19,13 +19,16 @@ import {
   Flame,
   Zap,
 } from "lucide-react";
+import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { getApprovedTestimonialsAction } from "@/server/actions/testimonial.actions";
 import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  // Fetch real published courses with safe fallback
+  const homepageEnv = await resolvePublicHomepageEnvironment();
+
+  // Fetch real published courses with safe fallback respecting homepage environment
   let featuredCourses: Array<{
     id: string;
     slug: string;
@@ -40,19 +43,23 @@ export default async function HomePage() {
   }> = [];
 
   try {
-    featuredCourses = await prisma.course.findMany({
-      where: { status: "PUBLISHED", deletedAt: null },
-      orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-      take: 3,
-      include: {
-        _count: { select: { modules: true } },
-      },
+    featuredCourses = await withEnvironmentContext(homepageEnv, async () => {
+      return await prisma.course.findMany({
+        where: { status: "PUBLISHED", deletedAt: null },
+        orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+        take: 3,
+        include: {
+          _count: { select: { modules: true } },
+        },
+      });
     });
   } catch (err) {
     console.warn("Could not load featured courses at build time:", err);
   }
 
-  const testimonials = await getApprovedTestimonialsAction("HOME");
+  const testimonials = await withEnvironmentContext(homepageEnv, async () => {
+    return await getApprovedTestimonialsAction("HOME");
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">

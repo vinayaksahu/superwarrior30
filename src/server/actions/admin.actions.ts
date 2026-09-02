@@ -273,7 +273,9 @@ export async function getAdminAuditLogsAction({
 // ==========================================
 
 export async function getAdminSettingsAction() {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  const { isSuperAdminUser } = await import("@/server/dal/auth-check");
+  const { resolveCurrentEnvironment } = await import("@/lib/env-context");
 
   const settings = await prisma.siteSetting.findMany();
   const settingsMap: Record<string, string> = {};
@@ -282,11 +284,17 @@ export async function getAdminSettingsAction() {
     settingsMap[s.key] = s.value;
   }
 
+  const currentEnvironment = await resolveCurrentEnvironment();
+  const isSuper = isSuperAdminUser(admin);
+
   return {
     siteName: settingsMap["site_name"] || "Super Warrior 30",
     supportEmail: settingsMap["support_email"] || "support@superwarrior30.com",
     announcementBanner: settingsMap["announcement_banner"] || "",
     isMaintenanceMode: settingsMap["maintenance_mode"] === "true",
+    testVisibilityScope: (settingsMap["test_mode_visibility_scope"] as "ADMINS_ONLY" | "ADMINS_AND_HOMEPAGE") || "ADMINS_ONLY",
+    isSuperAdmin: isSuper,
+    currentEnvironment,
   };
 }
 
@@ -295,11 +303,24 @@ export async function saveAdminSettingsAction(
   formData: FormData
 ): Promise<ActionState> {
   const admin = await requireAdmin();
+  const { isSuperAdminUser } = await import("@/server/dal/auth-check");
+  const { setCachedTestVisibilityScope } = await import("@/lib/env-context");
 
   const siteName = String(formData.get("siteName") || "Super Warrior 30").trim();
   const supportEmail = String(formData.get("supportEmail") || "").trim();
   const announcementBanner = String(formData.get("announcementBanner") || "").trim();
   const isMaintenanceMode = formData.get("isMaintenanceMode") === "true";
+  const rawVisibilityScope = String(formData.get("testVisibilityScope") || "").trim();
+
+  const isSuper = isSuperAdminUser(admin);
+  const validScope =
+    isSuper && (rawVisibilityScope === "ADMINS_ONLY" || rawVisibilityScope === "ADMINS_AND_HOMEPAGE")
+      ? rawVisibilityScope
+      : null;
+
+  if (validScope) {
+    setCachedTestVisibilityScope(validScope as "ADMINS_ONLY" | "ADMINS_AND_HOMEPAGE");
+  }
 
   await prisma.$transaction(async (tx) => {
     const keys = [
@@ -308,6 +329,10 @@ export async function saveAdminSettingsAction(
       { key: "announcement_banner", value: announcementBanner },
       { key: "maintenance_mode", value: isMaintenanceMode ? "true" : "false" },
     ];
+
+    if (validScope) {
+      keys.push({ key: "test_mode_visibility_scope", value: validScope });
+    }
 
     for (const item of keys) {
       await tx.siteSetting.upsert({
@@ -325,15 +350,21 @@ export async function saveAdminSettingsAction(
         action: "SETTINGS_UPDATED",
         entityType: "SiteSetting",
         entityId: "global",
-        newValues: { siteName, supportEmail, isMaintenanceMode },
+        newValues: {
+          siteName,
+          supportEmail,
+          isMaintenanceMode,
+          testVisibilityScope: validScope || undefined,
+        },
       },
     });
   });
 
-  revalidatePath("/", "layout");
   revalidatePath("/admin/settings");
+  revalidatePath("/", "layout");
   revalidatePath("/courses");
   revalidatePath("/dashboard");
+
   return { success: true, message: "Platform settings saved successfully." };
 }
 

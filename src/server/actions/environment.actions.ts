@@ -387,3 +387,91 @@ export async function logEnvironmentDiagnostics(contextLabel: string = "LMS") {
     console.log(`[${contextLabel}] BUNNY TARGET: production`);
   }
 }
+
+/**
+ * Returns the current test mode visibility scope
+ */
+export async function getTestVisibilityScopeAction(): Promise<{
+  success: boolean;
+  scope: import("@/lib/env-context").TestVisibilityScope;
+}> {
+  const { resolveTestVisibilityScope } = await import("@/lib/env-context");
+  const scope = await resolveTestVisibilityScope();
+  return { success: true, scope };
+}
+
+/**
+ * Updates the test mode visibility scope (ADMINS_ONLY vs ADMINS_AND_HOMEPAGE)
+ * Strictly restricted to SUPER_ADMIN (vinayaksahu3@gmail.com).
+ */
+export async function setTestVisibilityScopeAction(
+  scope: import("@/lib/env-context").TestVisibilityScope
+): Promise<{
+  success: boolean;
+  scope?: import("@/lib/env-context").TestVisibilityScope;
+  error?: string;
+}> {
+  try {
+    const user = await requireAuth();
+    if (!isSuperAdminUser(user)) {
+      return {
+        success: false,
+        error: "Access Denied: Only SUPER_ADMIN can configure test mode visibility scope.",
+      };
+    }
+
+    if (scope !== "ADMINS_ONLY" && scope !== "ADMINS_AND_HOMEPAGE") {
+      return {
+        success: false,
+        error: "Invalid visibility scope. Must be 'ADMINS_ONLY' or 'ADMINS_AND_HOMEPAGE'.",
+      };
+    }
+
+    const { resolveTestVisibilityScope, setCachedTestVisibilityScope } = await import("@/lib/env-context");
+    const previousScope = await resolveTestVisibilityScope();
+    setCachedTestVisibilityScope(scope);
+
+    const { getProductionPrismaClient } = await import("@/lib/prisma");
+    await getProductionPrismaClient().siteSetting.upsert({
+      where: { key: "test_mode_visibility_scope" },
+      update: { value: scope },
+      create: {
+        key: "test_mode_visibility_scope",
+        value: scope,
+        type: "string",
+      },
+    });
+
+    // Audit log
+    try {
+      await getProductionPrismaClient().auditLog.create({
+        data: {
+          actorId: user.id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: "VISIBILITY_SCOPE_CHANGE",
+          entityType: "System",
+          entityId: "TEST_VISIBILITY_SCOPE",
+          newValues: {
+            previousScope,
+            newScope: scope,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/settings/environment");
+    revalidatePath("/");
+
+    return { success: true, scope };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Failed to update visibility scope.",
+    };
+  }
+}

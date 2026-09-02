@@ -3,7 +3,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireAdmin, requirePermission } from "@/server/dal/auth";
 import { resolveCurrentEnvironment } from "@/lib/env-context";
-import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { revalidatePath } from "next/cache";
 import { uploadToBunnyStorage } from "@/lib/bunny/storage";
 import crypto from "crypto";
@@ -132,7 +131,6 @@ const STARTER_FALLBACK_TESTIMONIALS = [
 ];
 
 export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDING" | "ALL") {
-  await ensureDatabaseSchemaSync();
   try {
     const currentEnv = await resolveCurrentEnvironment();
     const isTesting = currentEnv === "TEST";
@@ -281,7 +279,6 @@ export async function uploadStudentTestimonialScreenshotAction(formData: FormDat
 export async function submitStudentTestimonialAction(input: StudentTestimonialInput) {
   try {
     const user = await requireAuth();
-    await ensureDatabaseSchemaSync();
 
     // 1. Mandatory consent check
     if (!input.consentGiven) {
@@ -395,7 +392,6 @@ export async function submitStudentTestimonialAction(input: StudentTestimonialIn
  */
 export async function getStudentTestimonialsAction() {
   const user = await requireAuth();
-  await ensureDatabaseSchemaSync();
 
   try {
     const testimonials = await prisma.testimonial.findMany({
@@ -454,7 +450,6 @@ export async function resubmitStudentTestimonialAction(
 ) {
   try {
     const user = await requireAuth();
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({
       where: { id },
@@ -554,7 +549,6 @@ export interface AdminTestimonialFilter {
  */
 export async function getAdminTestimonialsAction(filter?: AdminTestimonialFilter) {
   await requireAdmin();
-  await ensureDatabaseSchemaSync();
 
   try {
     const where: any = {};
@@ -662,7 +656,6 @@ export async function getAdminTestimonialsAction(filter?: AdminTestimonialFilter
 export async function approveTestimonialAction(id: string) {
   try {
     const admin = await requirePermission("testimonials.approve");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -719,7 +712,6 @@ export async function approveTestimonialAction(id: string) {
 export async function rejectTestimonialAction(id: string, reason: string) {
   try {
     const admin = await requirePermission("testimonials.approve");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -774,7 +766,6 @@ export async function rejectTestimonialAction(id: string, reason: string) {
 export async function toggleFeaturedTestimonialAction(id: string) {
   try {
     const admin = await requirePermission("testimonials.edit");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -808,7 +799,6 @@ export async function toggleFeaturedTestimonialAction(id: string) {
 export async function toggleTestimonialHomeAction(id: string) {
   try {
     const admin = await requirePermission("testimonials.edit");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -838,7 +828,6 @@ export async function toggleTestimonialHomeAction(id: string) {
 export async function toggleTestimonialLandingAction(id: string) {
   try {
     const admin = await requirePermission("testimonials.edit");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -868,7 +857,6 @@ export async function toggleTestimonialLandingAction(id: string) {
 export async function toggleVisibilityAction(id: string) {
   try {
     const admin = await requirePermission("testimonials.edit");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -912,7 +900,6 @@ export async function createAdminTestimonialAction(data: {
 }) {
   try {
     const admin = await requirePermission("testimonials.create");
-    await ensureDatabaseSchemaSync();
 
     const currentEnv = await resolveCurrentEnvironment();
     const isTesting = currentEnv === "TEST";
@@ -1011,7 +998,6 @@ export async function updateTestimonialAction(
 ) {
   try {
     const admin = await requirePermission("testimonials.edit");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -1067,7 +1053,6 @@ export async function updateTestimonialAction(
 export async function deleteTestimonialAction(id: string) {
   try {
     const admin = await requirePermission("testimonials.delete");
-    await ensureDatabaseSchemaSync();
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {

@@ -8,10 +8,12 @@ import { decrypt, type SessionPayload } from "@/lib/auth/session";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
 export type AppEnvironment = "LIVE" | "TEST";
+export type TestVisibilityScope = "ADMINS_ONLY" | "ADMINS_AND_HOMEPAGE";
 
 export const ENV_COOKIE_NAME = "sw30_admin_env";
 export const STAFF_ENV_COOKIE_NAME = "sw30_staff_env";
 export const DEFAULT_ENVIRONMENT: AppEnvironment = "LIVE";
+export const DEFAULT_VISIBILITY_SCOPE: TestVisibilityScope = "ADMINS_ONLY";
 
 const SECRET_KEY = process.env.JWT_SECRET_KEY || "fallback_dev_secret_key_64_characters_long_min_for_hs256_algo";
 const encodedKey = new TextEncoder().encode(SECRET_KEY);
@@ -19,9 +21,10 @@ const encodedKey = new TextEncoder().encode(SECRET_KEY);
 // AsyncLocalStorage to maintain environment context across async execution tree
 const environmentStorage = new AsyncLocalStorage<AppEnvironment>();
 
-// In-memory global state for staff testing activation (fast resolution cache)
+// In-memory global state for staff testing activation & visibility scope (fast resolution cache)
 const globalForEnv = globalThis as unknown as {
   staffTestingActive: boolean | undefined;
+  testVisibilityScope: TestVisibilityScope | undefined;
 };
 
 export function setStaffTestingActive(active: boolean) {
@@ -30,6 +33,59 @@ export function setStaffTestingActive(active: boolean) {
 
 export function isStaffTestingActive(): boolean {
   return Boolean(globalForEnv.staffTestingActive);
+}
+
+export function setCachedTestVisibilityScope(scope: TestVisibilityScope) {
+  globalForEnv.testVisibilityScope = scope;
+}
+
+export function getCachedTestVisibilityScope(): TestVisibilityScope {
+  return globalForEnv.testVisibilityScope || DEFAULT_VISIBILITY_SCOPE;
+}
+
+/**
+ * Resolves the testing mode visibility scope (ADMINS_ONLY vs ADMINS_AND_HOMEPAGE)
+ */
+export async function resolveTestVisibilityScope(): Promise<TestVisibilityScope> {
+  if (globalForEnv.testVisibilityScope) {
+    return globalForEnv.testVisibilityScope;
+  }
+
+  try {
+    const { getProductionPrismaClient } = await import("@/lib/prisma");
+    const setting = await getProductionPrismaClient().siteSetting.findUnique({
+      where: { key: "test_mode_visibility_scope" },
+    });
+    if (setting && (setting.value === "ADMINS_ONLY" || setting.value === "ADMINS_AND_HOMEPAGE")) {
+      const scope = setting.value as TestVisibilityScope;
+      setCachedTestVisibilityScope(scope);
+      return scope;
+    }
+  } catch {
+    // Fail-safe fallback
+  }
+
+  return DEFAULT_VISIBILITY_SCOPE;
+}
+
+/**
+ * Resolves the active data environment specifically for the public homepage.
+ * - IF environment is LIVE -> strictly LIVE
+ * - IF environment is TEST AND scope is ADMINS_ONLY -> strictly LIVE
+ * - IF environment is TEST AND scope is ADMINS_AND_HOMEPAGE -> TEST preview
+ */
+export async function resolvePublicHomepageEnvironment(): Promise<AppEnvironment> {
+  const currentEnv = await resolveCurrentEnvironment();
+  if (currentEnv === "LIVE") {
+    return "LIVE";
+  }
+
+  const visibilityScope = await resolveTestVisibilityScope();
+  if (visibilityScope === "ADMINS_AND_HOMEPAGE") {
+    return "TEST";
+  }
+
+  return "LIVE";
 }
 
 export interface EnvTokenPayload {
