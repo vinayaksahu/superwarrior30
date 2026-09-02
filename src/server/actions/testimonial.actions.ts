@@ -325,11 +325,9 @@ export async function submitStudentTestimonialAction(input: StudentTestimonialIn
       };
     }
 
-    // 2. Prevent impersonation - student name defaults to authentic profile name or email prefix
+    // 2. Prevent impersonation - student name is strictly locked to authentic profile name or email prefix
     const authenticName = (user.name || user.email.split("@")[0]).trim();
-    const studentName = input.displayName && input.displayName.trim().length > 0
-      ? input.displayName.trim()
-      : authenticName;
+    const studentName = authenticName;
 
     // 3. Validation
     const content = (input.content || "").trim();

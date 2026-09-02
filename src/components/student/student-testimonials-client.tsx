@@ -22,6 +22,7 @@ import {
   Trash2,
   RefreshCw,
   Plus,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
@@ -453,20 +454,22 @@ export function StudentTestimonialsClient({
             {/* 1. Student Identity & Photo */}
             <div className="grid gap-6 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <span>Your Display Name</span>
-                  <span className="text-destructive">*</span>
+                <label className="text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>Student Name</span>
+                  <span className="text-[10px] font-bold text-muted-foreground bg-muted/80 px-2 py-0.5 rounded-full border border-border/80">
+                    🔒 Non-Editable (Profile Identity)
+                  </span>
                 </label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  required
-                  placeholder="e.g. Rahul Sharma"
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-xs font-semibold text-foreground select-none">
+                  <User className="h-4 w-4 text-primary shrink-0" />
+                  <span className="font-bold">{user.name || user.email.split("@")[0]}</span>
+                  <span className="ml-auto flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+                    <ShieldCheck className="h-3 w-3" />
+                    Verified Student
+                  </span>
+                </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Pre-filled from your profile. Impersonation of other members is prohibited.
+                  Your official account name is automatically linked to your review to ensure authenticity.
                 </p>
               </div>
 
