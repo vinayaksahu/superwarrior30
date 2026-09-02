@@ -100,6 +100,8 @@ export async function ensureDatabaseSchemaSync(force = false) {
     // Ensure system admin accounts and wallets are accessible in LIVE mode
     `UPDATE "users" SET "isTestData" = false WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
     `UPDATE "wallets" SET "isTestData" = false WHERE "userId" IN (SELECT "id" FROM "users" WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com'));`,
+    `UPDATE "referral_relationships" SET "isTestData" = true WHERE "isTestData" IS NULL;`,
+    `UPDATE "referral_closures" SET "isTestData" = true WHERE "isTestData" IS NULL;`,
 
     // targeted super admin email update
     `UPDATE "users" SET "email" = 'vinayaksahu3@gmail.com' WHERE "email" = 'admin@superwarrior30.com' AND "role" = 'SUPER_ADMIN';`,

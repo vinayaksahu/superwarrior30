@@ -977,7 +977,13 @@ export async function getAdminReferralDashboardAction({
     availableCommissionsAgg,
     levelCounts,
   ] = await Promise.all([
-    prisma.referralRelationship.count(),
+    prisma.referralRelationship.count({
+      where: {
+        referred: {
+          role: "STUDENT",
+        },
+      },
+    }),
     prisma.referralCommissionRecord.aggregate({
       _sum: { commissionAmount: true },
       where: { status: { notIn: ["CANCELLED", "REVERSED"] } },
@@ -999,10 +1005,17 @@ export async function getAdminReferralDashboardAction({
     }),
   ]);
 
-  // Top referrers
+  // Top referrers (only real students with referred students)
   const topReferrers = await prisma.user.findMany({
     where: {
-      directReferrals: { some: {} },
+      role: "STUDENT",
+      directReferrals: {
+        some: {
+          referred: {
+            role: "STUDENT",
+          },
+        },
+      },
     },
     select: {
       id: true,
@@ -1010,7 +1023,17 @@ export async function getAdminReferralDashboardAction({
       email: true,
       referralCode: true,
       createdAt: true,
-      _count: { select: { directReferrals: true } },
+      _count: {
+        select: {
+          directReferrals: {
+            where: {
+              referred: {
+                role: "STUDENT",
+              },
+            },
+          },
+        },
+      },
       wallet: {
         select: {
           totalEarned: true,
