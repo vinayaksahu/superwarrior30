@@ -9,6 +9,7 @@ import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2 } from "lucide
 import { TestUserBadge } from "@/components/shared/test-user-badge";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Students Directory",
