@@ -562,11 +562,13 @@ export async function permanentDeleteCourseAction(
 
   // 1. Clean up external media assets (Bunny Stream + Bunny Storage + R2) safely
   await deleteThumbnailAssets(course);
+  const mediaDeletePromises: Promise<void>[] = [];
   for (const mod of course.modules) {
     for (const lesson of mod.lessons) {
-      await deleteMediaAssets(lesson);
+      mediaDeletePromises.push(deleteMediaAssets(lesson));
     }
   }
+  await Promise.all(mediaDeletePromises);
 
   // 2. Atomic Database Deletion:
   // - CourseEnrollments deleted explicitly
@@ -695,9 +697,11 @@ export async function deleteModuleAction(moduleId: string): Promise<ActionState>
   if (!mod) return { success: false, message: "Module not found." };
 
   // Delete lesson files from R2 and Bunny
+  const mediaDeletePromises: Promise<void>[] = [];
   for (const lesson of mod.lessons) {
-    await deleteMediaAssets(lesson);
+    mediaDeletePromises.push(deleteMediaAssets(lesson));
   }
+  await Promise.all(mediaDeletePromises);
 
   await prisma.module.delete({ where: { id: moduleId } });
 
@@ -706,14 +710,16 @@ export async function deleteModuleAction(moduleId: string): Promise<ActionState>
     where: { courseId: mod.courseId },
     orderBy: { position: "asc" },
   });
-  for (let i = 0; i < remaining.length; i++) {
-    if (remaining[i].position !== i + 1) {
-      await prisma.module.update({
-        where: { id: remaining[i].id },
-        data: { position: i + 1 },
-      });
-    }
-  }
+  await Promise.all(
+    remaining.map((item, i) => {
+      if (item.position !== i + 1) {
+        return prisma.module.update({
+          where: { id: item.id },
+          data: { position: i + 1 },
+        });
+      }
+    })
+  );
 
   revalidatePath(`/admin/courses/${mod.courseId}`);
   return { success: true, message: "Module deleted." };
@@ -997,14 +1003,16 @@ export async function deleteLessonAction(lessonId: string): Promise<ActionState>
     where: { moduleId },
     orderBy: { position: "asc" },
   });
-  for (let i = 0; i < remaining.length; i++) {
-    if (remaining[i].position !== i + 1) {
-      await prisma.lesson.update({
-        where: { id: remaining[i].id },
-        data: { position: i + 1 },
-      });
-    }
-  }
+  await Promise.all(
+    remaining.map((item, i) => {
+      if (item.position !== i + 1) {
+        return prisma.lesson.update({
+          where: { id: item.id },
+          data: { position: i + 1 },
+        });
+      }
+    })
+  );
 
   revalidatePath(`/admin/courses/${lesson.module.courseId}`);
   return { success: true, message: "Lesson deleted." };

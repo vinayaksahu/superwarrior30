@@ -40,11 +40,15 @@ function isPublicRoute(pathname: string): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = sessionCookie ? await decrypt(sessionCookie) : null;
 
   const isPublic = isPublicRoute(pathname);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
+
+  // Only decrypt session if the route needs authentication
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = (!isPublic || isAuthRoute) && sessionCookie
+    ? await decrypt(sessionCookie)
+    : null;
 
   // 1. Unauthenticated user trying to access protected route
   if (!session && !isPublic && !isAuthRoute) {

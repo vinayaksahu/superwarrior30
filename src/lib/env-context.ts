@@ -46,7 +46,7 @@ export function getCachedTestVisibilityScope(): TestVisibilityScope {
 /**
  * Resolves the testing mode visibility scope (ADMINS_ONLY vs ADMINS_AND_HOMEPAGE)
  */
-export async function resolveTestVisibilityScope(): Promise<TestVisibilityScope> {
+export const resolveTestVisibilityScope = cache(async (): Promise<TestVisibilityScope> => {
   // 1. Check if an admin has an active environment token with a chosen scope
   try {
     const cookieStore = await cookies();
@@ -83,7 +83,7 @@ export async function resolveTestVisibilityScope(): Promise<TestVisibilityScope>
   }
 
   return DEFAULT_VISIBILITY_SCOPE;
-}
+});
 
 /**
  * Resolves the active data environment specifically for the public homepage.
@@ -93,7 +93,7 @@ export async function resolveTestVisibilityScope(): Promise<TestVisibilityScope>
  *     - If global test_mode_active is "true" in database -> TEST preview
  *     - Otherwise -> LIVE
  */
-export async function resolvePublicHomepageEnvironment(): Promise<AppEnvironment> {
+export const resolvePublicHomepageEnvironment = cache(async (): Promise<AppEnvironment> => {
   const alsEnv = environmentStorage.getStore();
   if (alsEnv) {
     return alsEnv;
@@ -122,7 +122,7 @@ export async function resolvePublicHomepageEnvironment(): Promise<AppEnvironment
   }
 
   return "LIVE";
-}
+});
 
 export interface EnvTokenPayload {
   env: AppEnvironment;
@@ -198,7 +198,7 @@ export async function verifyEnvToken(token: string): Promise<EnvTokenPayload | n
  * 
  * Enforces server-side authorization: Standard users / students / public traffic ALWAYS run in LIVE mode.
  */
-export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
+export const resolveCurrentEnvironment = cache(async (): Promise<AppEnvironment> => {
   // 1. Check AsyncLocalStorage first (for explicit overrides e.g. public homepage test scope)
   const alsEnv = environmentStorage.getStore();
   if (alsEnv) {
@@ -339,7 +339,7 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
     // If running outside request context (e.g., CLI / background), fallback to DEFAULT_ENVIRONMENT
     return DEFAULT_ENVIRONMENT;
   }
-}
+});
 
 /**
  * Helper to get current synchronous environment if stored in ALS, otherwise returns undefined

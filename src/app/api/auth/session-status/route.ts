@@ -30,7 +30,7 @@ export async function GET() {
       return NextResponse.json({ authenticated: false });
     }
 
-    const user = await prisma.user.findUnique({
+    const userPromise = prisma.user.findUnique({
       where: { id: session.userId },
       select: {
         id: true,
@@ -38,6 +38,19 @@ export async function GET() {
         tokenVersion: true,
       },
     });
+
+    const devicePromise = session.deviceId
+      ? prisma.userDevice.findUnique({
+          where: { id: session.deviceId },
+          select: {
+            id: true,
+            isActive: true,
+            revokedAt: true,
+          },
+        })
+      : Promise.resolve(null);
+
+    const [user, device] = await Promise.all([userPromise, devicePromise]);
 
     if (!user) {
       return NextResponse.json({ authenticated: false });
@@ -53,14 +66,6 @@ export async function GET() {
 
     // Check device state
     if (session.deviceId) {
-      const device = await prisma.userDevice.findUnique({
-        where: { id: session.deviceId },
-        select: {
-          id: true,
-          isActive: true,
-          revokedAt: true,
-        },
-      });
 
       // If device was explicitly revoked by an admin action
       if (device && device.revokedAt !== null) {

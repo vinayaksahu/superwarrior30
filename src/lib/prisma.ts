@@ -1,11 +1,14 @@
 import { PrismaClient } from "@/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 import { resolveCurrentEnvironment, getSyncEnvironmentContext, type AppEnvironment } from "./env-context";
 
 // Global singletons to prevent multiple connection pools during dev/HMR
 const globalForPrisma = globalThis as unknown as {
   productionPrisma: PrismaClient | undefined;
   testPrisma: PrismaClient | undefined;
+  productionPool: pg.Pool | undefined;
+  testPool: pg.Pool | undefined;
 };
 
 /**
@@ -59,6 +62,37 @@ export function isProductionDatabaseConfigured(): boolean {
   return Boolean(getProductionDatabaseUrl());
 }
 
+function getOrCreatePool(rawUrl: string | undefined, envName: AppEnvironment): pg.Pool | null {
+  const connectionString = normalizeConnectionString(rawUrl);
+  if (!connectionString) return null;
+
+  if (envName === "TEST") {
+    if (!globalForPrisma.testPool) {
+      globalForPrisma.testPool = new pg.Pool({
+        connectionString,
+        max: 20,
+        idleTimeoutMillis: 120000,
+        connectionTimeoutMillis: 10000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+      });
+    }
+    return globalForPrisma.testPool;
+  }
+
+  if (!globalForPrisma.productionPool) {
+    globalForPrisma.productionPool = new pg.Pool({
+      connectionString,
+      max: 20,
+      idleTimeoutMillis: 120000,
+      connectionTimeoutMillis: 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+    });
+  }
+  return globalForPrisma.productionPool;
+}
+
 function createFailingPrismaClient(envName: AppEnvironment): PrismaClient {
   const reqVar =
     envName === "TEST"
@@ -97,13 +131,13 @@ function createFailingPrismaClient(envName: AppEnvironment): PrismaClient {
  * If the connection string is missing, returns a failing proxy that throws a clear, loud error.
  */
 function createPrismaClientForUrl(rawUrl: string | undefined, envName: AppEnvironment): PrismaClient {
-  const connectionString = normalizeConnectionString(rawUrl);
+  const pool = getOrCreatePool(rawUrl, envName);
 
-  if (!connectionString) {
+  if (!pool) {
     return createFailingPrismaClient(envName);
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,
     log:

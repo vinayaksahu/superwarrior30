@@ -204,27 +204,28 @@ export async function saveQuizAction(lessonId: string, payload: SaveQuizPayload)
   }
 
   // Create questions and options
-  for (let i = 0; i < payload.questions.length; i++) {
-    const q = payload.questions[i];
-    await prisma.quizQuestion.create({
-      data: {
-        quizId: quizId!,
-        questionText: q.questionText,
-        questionType: q.questionType,
-        imageUrl: q.imageUrl || null,
-        marks: q.marks || 1,
-        explanation: q.explanation || null,
-        sortOrder: i,
-        options: {
-          create: q.options.map((opt, optIdx) => ({
-            optionText: opt.optionText,
-            isCorrect: opt.isCorrect,
-            sortOrder: optIdx,
-          })),
+  await Promise.all(
+    payload.questions.map((q, i) =>
+      prisma.quizQuestion.create({
+        data: {
+          quizId: quizId!,
+          questionText: q.questionText,
+          questionType: q.questionType,
+          imageUrl: q.imageUrl || null,
+          marks: q.marks || 1,
+          explanation: q.explanation || null,
+          sortOrder: i,
+          options: {
+            create: q.options.map((opt, optIdx) => ({
+              optionText: opt.optionText,
+              isCorrect: opt.isCorrect,
+              sortOrder: optIdx,
+            })),
+          },
         },
-      },
-    });
-  }
+      })
+    )
+  );
 
   revalidatePath(`/admin/courses/${lesson.module.courseId}`);
   revalidatePath(`/learn/${lesson.module.course.slug}/${lesson.id}`);

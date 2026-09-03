@@ -1,11 +1,26 @@
 import { prisma } from "@/lib/prisma";
 import { resolveCurrentEnvironment } from "@/lib/env-context";
 
-const syncedEnvironments = new Set<string>();
+const globalForSync = globalThis as unknown as {
+  syncedEnvironments: Set<string> | undefined;
+  syncPromises: Map<string, Promise<void>> | undefined;
+};
 
-export async function ensureDatabaseSchemaSync(force = false) {
+const syncedEnvironments =
+  globalForSync.syncedEnvironments ?? (globalForSync.syncedEnvironments = new Set<string>());
+const syncPromises =
+  globalForSync.syncPromises ?? (globalForSync.syncPromises = new Map<string, Promise<void>>());
+
+export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
   const currentEnv = await resolveCurrentEnvironment();
   if (syncedEnvironments.has(currentEnv) && !force) return;
+
+  if (syncPromises.has(currentEnv) && !force) {
+    return syncPromises.get(currentEnv);
+  }
+
+  const runSync = async () => {
+    try {
 
   // 1. Ensure prerequisite ENUM types and base tables exist first before altering tables
   try {
@@ -818,5 +833,13 @@ export async function ensureDatabaseSchemaSync(force = false) {
     // ignore
   }
 
-  syncedEnvironments.add(currentEnv);
+    syncedEnvironments.add(currentEnv);
+  } finally {
+    syncPromises.delete(currentEnv);
+  }
+};
+
+const promise = runSync();
+syncPromises.set(currentEnv, promise);
+return promise;
 }

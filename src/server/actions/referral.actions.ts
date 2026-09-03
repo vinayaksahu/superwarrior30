@@ -433,78 +433,85 @@ export async function processMaturedCommissionsAction(): Promise<{
   let totalAmountCleared = 0;
   let clearedCount = 0;
 
-  for (const commission of maturedCommissions) {
-    try {
-      await prisma.$transaction(async (tx) => {
-        // 1. Mark commission as AVAILABLE
-        await tx.referralCommissionRecord.update({
-          where: { id: commission.id },
-          data: {
-            status: "AVAILABLE",
-            clearedAt: now,
-            clearedReason: "Matured after clearance holding period",
-          },
-        });
-
-        // 2. Fetch user wallet
-        const wallet = await tx.wallet.findUnique({
-          where: { userId: commission.beneficiaryId },
-        });
-
-        if (wallet) {
-          const balanceBefore = wallet.availableBalance;
-          const balanceAfter = wallet.availableBalance.plus(commission.commissionAmount);
-          const newPending = Prisma.Decimal.max(
-            0,
-            wallet.pendingBalance.minus(commission.commissionAmount)
-          );
-
-          await tx.wallet.update({
-            where: { id: wallet.id },
-            data: {
-              pendingBalance: newPending,
-              availableBalance: balanceAfter,
-            },
-          });
-
-          // 3. Record Wallet Transaction
-          await tx.walletTransaction.create({
-            data: {
-              walletId: wallet.id,
-              type: "CREDIT_COMMISSION",
-              status: "COMPLETED",
-              amount: commission.commissionAmount,
-              balanceBefore,
-              balanceAfter,
-              description: `Commission cleared and released to available balance (Order #${commission.order.orderNumber})`,
-              referenceType: "COMMISSION_RELEASE",
-              referenceId: commission.id,
-            },
-          });
-
-          // 4. Audit Log
-          await tx.auditLog.create({
-            data: {
-              actorId: commission.beneficiaryId,
-              actorEmail: commission.beneficiary.email,
-              action: "COMMISSION_RELEASED",
-              entityType: "ReferralCommissionRecord",
-              entityId: commission.id,
-              newValues: {
-                amount: Number(commission.commissionAmount),
-                orderNumber: commission.order.orderNumber,
-                clearedAt: now.toISOString(),
+  // Process matured commissions in parallel (batch of 5 at a time)
+  const batchSize = 5;
+  for (let i = 0; i < maturedCommissions.length; i += batchSize) {
+    const batch = maturedCommissions.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(async (commission) => {
+        try {
+          await prisma.$transaction(async (tx) => {
+            // 1. Mark commission as AVAILABLE
+            await tx.referralCommissionRecord.update({
+              where: { id: commission.id },
+              data: {
+                status: "AVAILABLE",
+                clearedAt: now,
+                clearedReason: "Matured after clearance holding period",
               },
-            },
-          });
-        }
-      });
+            });
 
-      totalAmountCleared += Number(commission.commissionAmount);
-      clearedCount++;
-    } catch (err) {
-      console.error(`Error clearing commission ${commission.id}:`, err);
-    }
+            // 2. Fetch user wallet
+            const wallet = await tx.wallet.findUnique({
+              where: { userId: commission.beneficiaryId },
+            });
+
+            if (wallet) {
+              const balanceBefore = wallet.availableBalance;
+              const balanceAfter = wallet.availableBalance.plus(commission.commissionAmount);
+              const newPending = Prisma.Decimal.max(
+                0,
+                wallet.pendingBalance.minus(commission.commissionAmount)
+              );
+
+              await tx.wallet.update({
+                where: { id: wallet.id },
+                data: {
+                  pendingBalance: newPending,
+                  availableBalance: balanceAfter,
+                },
+              });
+
+              // 3. Record Wallet Transaction
+              await tx.walletTransaction.create({
+                data: {
+                  walletId: wallet.id,
+                  type: "CREDIT_COMMISSION",
+                  status: "COMPLETED",
+                  amount: commission.commissionAmount,
+                  balanceBefore,
+                  balanceAfter,
+                  description: `Commission cleared and released to available balance (Order #${commission.order.orderNumber})`,
+                  referenceType: "COMMISSION_RELEASE",
+                  referenceId: commission.id,
+                },
+              });
+
+              // 4. Audit Log
+              await tx.auditLog.create({
+                data: {
+                  actorId: commission.beneficiaryId,
+                  actorEmail: commission.beneficiary.email,
+                  action: "COMMISSION_RELEASED",
+                  entityType: "ReferralCommissionRecord",
+                  entityId: commission.id,
+                  newValues: {
+                    amount: Number(commission.commissionAmount),
+                    orderNumber: commission.order.orderNumber,
+                    clearedAt: now.toISOString(),
+                  },
+                },
+              });
+            }
+          });
+
+          totalAmountCleared += Number(commission.commissionAmount);
+          clearedCount++;
+        } catch (err) {
+          console.error(`Error clearing commission ${commission.id}:`, err);
+        }
+      })
+    );
   }
 
   revalidatePath("/admin/referrals");

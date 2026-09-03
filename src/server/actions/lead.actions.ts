@@ -258,6 +258,9 @@ export async function getAdminFunnelAnalyticsAction() {
       courseViewed,
       checkoutStarted,
       purchased,
+      leadsBySource,
+      leadsByStage,
+      campaignStats,
     ] = await Promise.all([
       prisma.funnelEvent.count({ where: { eventType: "LANDING_PAGE_VISIT" } }),
       prisma.funnelEvent.count({ where: { eventType: "QUIZ_STARTED" } }),
@@ -265,37 +268,34 @@ export async function getAdminFunnelAnalyticsAction() {
       prisma.funnelEvent.count({ where: { eventType: "COURSE_VIEWED" } }),
       prisma.funnelEvent.count({ where: { eventType: "CHECKOUT_STARTED" } }),
       prisma.funnelEvent.count({ where: { eventType: "PURCHASE_COMPLETED" } }),
+      // UTM source breakdown
+      prisma.lead.groupBy({
+        by: ["utmSource"],
+        _count: { id: true },
+        where: { utmSource: { not: null } },
+        orderBy: { _count: { id: "desc" } },
+        take: 10,
+      }),
+      // Stage breakdown
+      prisma.lead.groupBy({
+        by: ["stage"],
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
+      // Campaign level breakdown (group by source + campaign)
+      prisma.lead.groupBy({
+        by: ["utmSource", "utmCampaign", "utmMedium"],
+        _count: { id: true },
+        where: {
+          OR: [
+            { utmSource: { not: null } },
+            { utmCampaign: { not: null } },
+          ],
+        },
+        orderBy: { _count: { id: "desc" } },
+        take: 20,
+      }),
     ]);
-
-    // UTM source breakdown
-    const leadsBySource = await prisma.lead.groupBy({
-      by: ["utmSource"],
-      _count: { id: true },
-      where: { utmSource: { not: null } },
-      orderBy: { _count: { id: "desc" } },
-      take: 10,
-    });
-
-    // Stage breakdown
-    const leadsByStage = await prisma.lead.groupBy({
-      by: ["stage"],
-      _count: { id: true },
-      orderBy: { _count: { id: "desc" } },
-    });
-
-    // Campaign level breakdown (group by source + campaign)
-    const campaignStats = await prisma.lead.groupBy({
-      by: ["utmSource", "utmCampaign", "utmMedium"],
-      _count: { id: true },
-      where: {
-        OR: [
-          { utmSource: { not: null } },
-          { utmCampaign: { not: null } },
-        ],
-      },
-      orderBy: { _count: { id: "desc" } },
-      take: 20,
-    });
 
     return {
       funnel: {

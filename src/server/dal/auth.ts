@@ -31,6 +31,19 @@ export const getCurrentUser = cache(async () => {
     session.email === "vinayaksahu3@gmail.com" ||
     session.email === "admin@superwarrior30.com";
 
+  const devicePromise = session.deviceId
+    ? prisma.userDevice.findUnique({
+        where: { id: session.deviceId },
+        select: {
+          id: true,
+          userId: true,
+          isActive: true,
+          revokedAt: true,
+          lastSeenAt: true,
+        },
+      }).catch(() => null)
+    : null;
+
   try {
     user = await prisma.user.findUnique({
       where: { id: session.userId },
@@ -136,15 +149,7 @@ export const getCurrentUser = cache(async () => {
   // Device-level session revocation check (One Active Device enforcement & Revoked Device check)
   if (session.deviceId) {
     try {
-      const device = await prisma.userDevice.findUnique({
-        where: { id: session.deviceId },
-        select: {
-          id: true,
-          userId: true,
-          isActive: true,
-          revokedAt: true,
-        },
-      });
+      const device = await devicePromise;
 
       // If device was explicitly revoked or deactivated
       if (device) {
@@ -152,13 +157,16 @@ export const getCurrentUser = cache(async () => {
           return null;
         }
 
-        // Async background update of lastSeenAt
-        prisma.userDevice
-          .update({
-            where: { id: device.id },
-            data: { lastSeenAt: new Date() },
-          })
-          .catch(() => {});
+        // Debounced background update of lastSeenAt (only if older than 5 minutes)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        if (!device.lastSeenAt || device.lastSeenAt < fiveMinutesAgo) {
+          prisma.userDevice
+            .update({
+              where: { id: device.id },
+              data: { lastSeenAt: new Date() },
+            })
+            .catch(() => {});
+        }
       }
     } catch {
       // Non-blocking device lookup during cross-database transitions

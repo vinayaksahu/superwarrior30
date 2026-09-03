@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { requireAuth, isSuperAdminUser, isStaffAdminUser } from "@/server/dal/auth";
@@ -17,7 +18,7 @@ import { prisma } from "@/lib/prisma";
 /**
  * Checks database for global staff testing permission
  */
-export async function isStaffTestingAllowedInDb(): Promise<boolean> {
+export const isStaffTestingAllowedInDb = cache(async (): Promise<boolean> => {
   try {
     const { getProductionPrismaClient } = await import("@/lib/prisma");
     const setting = await getProductionPrismaClient().siteSetting.findUnique({
@@ -32,7 +33,7 @@ export async function isStaffTestingAllowedInDb(): Promise<boolean> {
   } catch {
     return isStaffTestingActive();
   }
-}
+});
 
 /**
  * Master server action for Super Admin to switch environment between LIVE and TEST.

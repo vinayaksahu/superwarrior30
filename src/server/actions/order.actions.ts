@@ -200,32 +200,34 @@ export async function fulfillOrderPayment({
     });
 
     // 2. Enroll user in all courses in the order
-    for (const item of order.items) {
-      if (item.courseId) {
-        await tx.courseEnrollment.upsert({
-          where: {
-            userId_courseId: {
-              userId: order.userId,
-              courseId: item.courseId,
+    await Promise.all(
+      order.items
+        .filter((item) => item.courseId)
+        .map((item) =>
+          tx.courseEnrollment.upsert({
+            where: {
+              userId_courseId: {
+                userId: order.userId,
+                courseId: item.courseId!,
+              },
             },
-          },
-          update: {
-            status: "ACTIVE",
-            orderId: order.id,
-            enrolledAt: new Date(),
-            isTestData: false,
-          },
-          create: {
-            userId: order.userId,
-            courseId: item.courseId,
-            orderId: order.id,
-            status: "ACTIVE",
-            progressPercentage: 0.0,
-            isTestData: false,
-          },
-        });
-      }
-    }
+            update: {
+              status: "ACTIVE",
+              orderId: order.id,
+              enrolledAt: new Date(),
+              isTestData: false,
+            },
+            create: {
+              userId: order.userId,
+              courseId: item.courseId!,
+              orderId: order.id,
+              status: "ACTIVE",
+              progressPercentage: 0.0,
+              isTestData: false,
+            },
+          })
+        )
+    );
 
     // 3. Record Coupon Redemption if coupon was applied
     if (order.couponId) {
@@ -602,20 +604,22 @@ export async function adminRefundOrderAction(orderId: string): Promise<ActionSta
     });
 
     // 2. Revoke associated enrollments
-    for (const item of order.items) {
-      if (item.courseId) {
-        await tx.courseEnrollment.updateMany({
-          where: {
-            userId: order.userId,
-            courseId: item.courseId,
-            orderId: order.id,
-          },
-          data: {
-            status: "REVOKED",
-          },
-        });
-      }
-    }
+    await Promise.all(
+      order.items
+        .filter((item) => item.courseId)
+        .map((item) =>
+          tx.courseEnrollment.updateMany({
+            where: {
+              userId: order.userId,
+              courseId: item.courseId!,
+              orderId: order.id,
+            },
+            data: {
+              status: "REVOKED",
+            },
+          })
+        )
+    );
 
     // 3. Reverse associated referral commissions safely
     await reverseOrderCommissions(tx, orderId);

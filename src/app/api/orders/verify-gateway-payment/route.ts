@@ -11,14 +11,6 @@ export async function POST(req: Request) {
   try {
     await ensureDatabaseSchemaSync();
 
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required." },
-        { status: 401 }
-      );
-    }
-
     const body = await req.json();
     const {
       orderId,
@@ -33,16 +25,26 @@ export async function POST(req: Request) {
       );
     }
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        items: {
-          include: {
-            course: { select: { slug: true } },
+    const [user, order] = await Promise.all([
+      getCurrentUser(),
+      prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            include: {
+              course: { select: { slug: true } },
+            },
           },
         },
-      },
-    });
+      })
+    ]);
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
 
     if (!order) {
       return NextResponse.json(

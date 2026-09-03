@@ -410,6 +410,8 @@ model Order {
   @@index([isTestData, status, createdAt(sort: Desc)])
   @@index([orderNumber])
   @@index([gatewayOrderId])
+  @@index([couponId])
+  @@index([paymentId])
   @@map("orders")
 }
 
@@ -550,6 +552,8 @@ model ReferralCommissionRecord {
   @@index([status])
   @@index([isTestData, status, availableAt])
   @@index([createdAt])
+  @@index([snapshotId])
+  @@index([clearedById])
   @@map("referral_commission_records")
 }
 
@@ -1140,6 +1144,8 @@ model MediaAsset {
   @@index([isTestData, deletedAt, status])
   @@index([uploadedById])
   @@index([environment, isTestData])
+  @@index([storageKey])
+  @@index([bunnyVideoId])
   @@map("media_assets")
 }
 
@@ -1422,6 +1428,7 @@ model HomeworkSubmission {
   @@index([userId, status])
   @@index([status, submittedAt(sort: Desc)])
   @@index([isTestData, homeworkId])
+  @@index([reviewedById])
   @@map("homework_submissions")
 }
 

@@ -436,33 +436,37 @@ export async function getUserEnrolledCoursesAction() {
         include: { items: true },
       });
 
+      const upsertPromises: Promise<any>[] = [];
       for (const po of (paidOrders as any[])) {
         for (const item of (po.items || [])) {
           if (item.courseId) {
-            await prisma.courseEnrollment.upsert({
-              where: {
-                userId_courseId: {
+            upsertPromises.push(
+              prisma.courseEnrollment.upsert({
+                where: {
+                  userId_courseId: {
+                    userId: user.id,
+                    courseId: item.courseId,
+                  },
+                },
+                update: {
+                  status: "ACTIVE",
+                  orderId: po.id,
+                  isTestData: false,
+                },
+                create: {
                   userId: user.id,
                   courseId: item.courseId,
+                  orderId: po.id,
+                  status: "ACTIVE",
+                  progressPercentage: 0.0,
+                  isTestData: false,
                 },
-              },
-              update: {
-                status: "ACTIVE",
-                orderId: po.id,
-                isTestData: false,
-              },
-              create: {
-                userId: user.id,
-                courseId: item.courseId,
-                orderId: po.id,
-                status: "ACTIVE",
-                progressPercentage: 0.0,
-                isTestData: false,
-              },
-            });
+              })
+            );
           }
         }
       }
+      await Promise.all(upsertPromises);
     } catch (autoHealError) {
       console.error("[Enrollment] Auto-heal check failed for user orders:", {
         userId: user.id,
@@ -504,27 +508,31 @@ export async function getUserEnrolledCoursesAction() {
           select: { id: true },
         });
 
+        const adminUpsertPromises: Promise<any>[] = [];
         for (const c of publishedCourses) {
-          await prisma.courseEnrollment.upsert({
-            where: {
-              userId_courseId: {
+          adminUpsertPromises.push(
+            prisma.courseEnrollment.upsert({
+              where: {
+                userId_courseId: {
+                  userId: user.id,
+                  courseId: c.id,
+                },
+              },
+              update: {
+                status: "ACTIVE",
+                isTestData: false,
+              },
+              create: {
                 userId: user.id,
                 courseId: c.id,
+                status: "ACTIVE",
+                progressPercentage: 0.0,
+                isTestData: false,
               },
-            },
-            update: {
-              status: "ACTIVE",
-              isTestData: false,
-            },
-            create: {
-              userId: user.id,
-              courseId: c.id,
-              status: "ACTIVE",
-              progressPercentage: 0.0,
-              isTestData: false,
-            },
-          });
+            })
+          );
         }
+        await Promise.all(adminUpsertPromises);
 
         // Re-fetch after admin auto-enrollment
         enrollments = await prisma.courseEnrollment.findMany({

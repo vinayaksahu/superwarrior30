@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import * as tus from "tus-js-client";
 import { toast } from "sonner";
 import { BUNNY_VIDEO_POLL_INTERVAL } from "@/lib/constants";
@@ -583,30 +583,48 @@ export function UploadManagerProvider({ children }: { children: React.ReactNode 
     setUploads((prev) => prev.filter((u) => u.id !== id));
   }, []);
 
-  const openManagerModal = () => setIsManagerModalOpen(true);
-  const closeManagerModal = () => setIsManagerModalOpen(false);
-  const toggleManagerModal = () => setIsManagerModalOpen((prev) => !prev);
+  const openManagerModal = useCallback(() => setIsManagerModalOpen(true), []);
+  const closeManagerModal = useCallback(() => setIsManagerModalOpen(false), []);
+  const toggleManagerModal = useCallback(() => setIsManagerModalOpen((prev) => !prev), []);
+
+  const contextValue = useMemo(
+    () => ({
+      uploads,
+      activeCount,
+      isManagerModalOpen,
+      isWidgetVisible,
+      openManagerModal,
+      closeManagerModal,
+      toggleManagerModal,
+      setIsWidgetVisible,
+      uploadFiles,
+      pauseUpload,
+      resumeUpload,
+      cancelUpload,
+      retryUpload,
+      clearCompleted,
+      removeUpload,
+    }),
+    [
+      uploads,
+      activeCount,
+      isManagerModalOpen,
+      isWidgetVisible,
+      openManagerModal,
+      closeManagerModal,
+      toggleManagerModal,
+      uploadFiles,
+      pauseUpload,
+      resumeUpload,
+      cancelUpload,
+      retryUpload,
+      clearCompleted,
+      removeUpload,
+    ]
+  );
 
   return (
-    <UploadManagerContext.Provider
-      value={{
-        uploads,
-        activeCount,
-        isManagerModalOpen,
-        isWidgetVisible,
-        openManagerModal,
-        closeManagerModal,
-        toggleManagerModal,
-        setIsWidgetVisible,
-        uploadFiles,
-        pauseUpload,
-        resumeUpload,
-        cancelUpload,
-        retryUpload,
-        clearCompleted,
-        removeUpload,
-      }}
-    >
+    <UploadManagerContext.Provider value={contextValue}>
       {children}
     </UploadManagerContext.Provider>
   );

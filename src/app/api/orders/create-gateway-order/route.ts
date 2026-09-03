@@ -151,14 +151,17 @@ export async function POST(req: Request) {
     }
 
     // Check if already active enrolled
-    const existingEnrollment = await prisma.courseEnrollment.findFirst({
-      where: {
-        userId: user.id,
-        courseId: course.id,
-        status: "ACTIVE",
-      },
-      select: { id: true, status: true },
-    });
+    const [existingEnrollment, brokerSettings] = await Promise.all([
+      prisma.courseEnrollment.findFirst({
+        where: {
+          userId: user.id,
+          courseId: course.id,
+          status: "ACTIVE",
+        },
+        select: { id: true, status: true },
+      }),
+      getBrokerSettings(),
+    ]);
 
     if (existingEnrollment && existingEnrollment.status === "ACTIVE") {
       return NextResponse.json(
@@ -172,7 +175,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const brokerSettings = await getBrokerSettings();
 
     // 1. Calculate Promo Coupon Discount
     let couponId: string | null = null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -210,38 +210,38 @@ export function AdminSidebar({
     userEmail === "vinayaksahu3@gmail.com" ||
     userEmail === "admin@superwarrior30.com";
 
-  const permsSet = new Set(userPermissions);
-
-  // Keep settings sub-menu open by default or when on settings routes
   const [settingsOpen, setSettingsOpen] = useState(true);
 
   // Filter links based on granular permissions or Super Admin authority
-  const visibleLinks = allSidebarLinks
-    .map((link) => {
-      // If link has children (like Settings), filter visible children
-      if (link.children) {
-        const visibleChildren = isSuper
-          ? link.children
-          : link.children.filter(
-              (child) => !child.requiredPermission || permsSet.has(child.requiredPermission)
-            );
+  const visibleLinks = useMemo(() => {
+    const permsSet = new Set(userPermissions);
+    return allSidebarLinks
+      .map((link) => {
+        // If link has children (like Settings), filter visible children
+        if (link.children) {
+          const visibleChildren = isSuper
+            ? link.children
+            : link.children.filter(
+                (child) => !child.requiredPermission || permsSet.has(child.requiredPermission)
+              );
 
-        if (visibleChildren.length === 0) return null;
+          if (visibleChildren.length === 0) return null;
 
-        return {
-          ...link,
-          children: visibleChildren,
-        };
-      }
+          return {
+            ...link,
+            children: visibleChildren,
+          };
+        }
 
-      // Check single link permission
-      if (isSuper) return link;
-      if (link.requiredPermission && !permsSet.has(link.requiredPermission)) {
-        return null;
-      }
-      return link;
-    })
-    .filter(Boolean) as SidebarLink[];
+        // Check single link permission
+        if (isSuper) return link;
+        if (link.requiredPermission && !permsSet.has(link.requiredPermission)) {
+          return null;
+        }
+        return link;
+      })
+      .filter(Boolean) as SidebarLink[];
+  }, [userPermissions, isSuper]);
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar-background lg:block">

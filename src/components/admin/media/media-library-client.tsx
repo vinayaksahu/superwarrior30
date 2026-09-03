@@ -119,11 +119,11 @@ export function MediaLibraryClient({
   }, [fetchAssets]);
 
   // Auto-poll if any items on screen are in UPLOADING or PROCESSING status
-  useEffect(() => {
-    const hasPending = items.some(
-      (item) => item.status === "UPLOADING" || item.status === "PROCESSING" || item.status === "QUEUED"
-    );
+  const hasPending = items.some(
+    (item) => item.status === "UPLOADING" || item.status === "PROCESSING" || item.status === "QUEUED"
+  );
 
+  useEffect(() => {
     if (!hasPending) return;
 
     const interval = setInterval(() => {
@@ -131,7 +131,7 @@ export function MediaLibraryClient({
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [items, fetchAssets]);
+  }, [hasPending, fetchAssets]);
 
   const [isSyncing, setIsSyncing] = useState(false);
 
