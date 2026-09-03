@@ -133,11 +133,25 @@ export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Pro
     process.env.BUNNY_STREAM_LIBRARY_ID ||
     "";
 
+  const envStoragePassword =
+    (currentEnv === "TEST"
+      ? process.env.BUNNY_TEST_STORAGE_PASSWORD
+      : process.env.BUNNY_PRODUCTION_STORAGE_PASSWORD) ||
+    process.env.BUNNY_STORAGE_PASSWORD ||
+    "";
+
+  const envCdnHostname =
+    (currentEnv === "TEST"
+      ? process.env.BUNNY_TEST_CDN_HOSTNAME
+      : process.env.BUNNY_PRODUCTION_CDN_HOSTNAME) ||
+    process.env.BUNNY_CDN_HOSTNAME ||
+    "";
+
   const config: ResolvedBunnyConfig = {
     source: "ENV",
     isProductionReady: Boolean(
       envStorageZone &&
-      process.env.BUNNY_STORAGE_PASSWORD &&
+      envStoragePassword &&
       envStreamLibraryId &&
       process.env.BUNNY_STREAM_API_KEY
     ),
@@ -149,12 +163,12 @@ export async function getResolvedBunnyConfig(forceRefresh: boolean = false): Pro
 
     storageZoneId: "",
     storageZoneName: envStorageZone.trim(),
-    storagePassword: (process.env.BUNNY_STORAGE_PASSWORD || "").trim(),
+    storagePassword: envStoragePassword.trim(),
     storageHostname: (process.env.BUNNY_STORAGE_HOSTNAME || "storage.bunnycdn.com").trim(),
 
     pullZoneId: "",
     pullZoneName: "",
-    cdnHostname: (process.env.BUNNY_CDN_HOSTNAME || "").trim(),
+    cdnHostname: envCdnHostname.trim(),
 
     streamLibraryId: envStreamLibraryId.trim(),
     streamLibraryName: "",
