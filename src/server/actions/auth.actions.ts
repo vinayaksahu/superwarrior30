@@ -473,7 +473,13 @@ export async function loginAction(
       activeDeviceId
     );
 
-    const destination = user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+    const isStaffOrAdminDest =
+      user.role === "ADMIN" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "SUPPORT" ||
+      Boolean(user.adminRole);
+
+    const destination = isStaffOrAdminDest ? "/admin" : "/dashboard";
     redirect(destination);
   } catch (error: any) {
     if (error?.digest?.startsWith("NEXT_REDIRECT") || error?.message === "NEXT_REDIRECT") {
@@ -575,12 +581,17 @@ export async function verifyLoginOtpAction(
     })
     .catch(() => {});
 
-  const destination =
-    user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+  const isStaffOrAdminDest =
+    user.role === "ADMIN" ||
+    user.role === "SUPER_ADMIN" ||
+    user.role === "SUPPORT" ||
+    Boolean(user.adminRole);
+
+  const destination = isStaffOrAdminDest ? "/admin" : "/dashboard";
 
   return {
     success: true,
-    message: "Login successful!",
+    message: "Login verified successfully.",
     data: { destination },
   };
 }

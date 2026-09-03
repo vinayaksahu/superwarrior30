@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/server/dal/auth";
 import { StudentNav } from "@/components/student/student-nav";
 import { StudentHeader } from "@/components/student/student-header";
@@ -8,6 +9,16 @@ export default async function StudentLayout({
   children: React.ReactNode;
 }) {
   const user = await requireAuth();
+
+  // If user is Admin or Staff, automatically direct them to the Admin Portal (/admin)
+  if (
+    user.role === "SUPER_ADMIN" ||
+    user.role === "ADMIN" ||
+    user.role === "SUPPORT" ||
+    Boolean(user.adminRole)
+  ) {
+    redirect("/admin");
+  }
 
   return (
     <div className="min-h-screen bg-background">
