@@ -704,11 +704,11 @@ export async function registerAction(
         errors: { referralCode: ["Referral code not found."] },
       };
     }
-    // HARD INHERITANCE: If referrer is TEST, new user is TEST. If referrer is LIVE, new user is LIVE.
-    targetIsTestData = referrer.isTestData === true;
+    // HARD INHERITANCE: If referrer is explicitly TEST and environment is TEST, mark as test data.
+    targetIsTestData = Boolean(referrer?.isTestData && (await resolveCurrentEnvironment()) === "TEST");
   } else {
     // Direct registration without referral:
-    // Only authorized testing sessions create TEST accounts; standard public registrations are LIVE.
+    // Only dedicated testing database sessions mark as test data; standard registrations are LIVE.
     const currentEnv = await resolveCurrentEnvironment();
     targetIsTestData = currentEnv === "TEST";
   }
