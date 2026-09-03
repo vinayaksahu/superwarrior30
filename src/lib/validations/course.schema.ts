@@ -51,7 +51,7 @@ export const lessonSchema = z.object({
     .string()
     .min(1, "Lesson title is required")
     .max(200, "Title must be less than 200 characters"),
-  contentType: z.enum(["VIDEO", "PDF", "TEXT"]),
+  contentType: z.enum(["VIDEO", "PDF", "TEXT", "QUIZ", "ASSIGNMENT"]),
   textContent: z
     .string()
     .max(50000)

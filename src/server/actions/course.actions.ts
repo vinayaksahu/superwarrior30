@@ -811,19 +811,42 @@ export async function addLessonAction(
     counter++;
   }
 
-  await prisma.lesson.create({
+  const createdLesson = await prisma.lesson.create({
     data: {
       moduleId,
       title: validated.data.title,
       slug,
       position: nextPosition,
-      contentType: validated.data.contentType as "VIDEO" | "PDF" | "TEXT",
+      contentType: validated.data.contentType as any,
       textContent: validated.data.textContent || null,
       durationSec: validated.data.durationSec,
       isFreePreview: validated.data.isFreePreview,
       isPublished: validated.data.isPublished,
     },
   });
+
+  // Auto-initialize Quiz or Homework record if lesson is QUIZ or ASSIGNMENT
+  if (validated.data.contentType === "QUIZ") {
+    await prisma.quiz.create({
+      data: {
+        lessonId: createdLesson.id,
+        title: validated.data.title,
+        passingPercentage: 60,
+        isPublished: true,
+      },
+    }).catch(() => {});
+  } else if (validated.data.contentType === "ASSIGNMENT") {
+    await prisma.homework.create({
+      data: {
+        lessonId: createdLesson.id,
+        title: validated.data.title,
+        instructions: "Please complete the task instructions and submit your analysis.",
+        totalMarks: 100,
+        passingMarks: 50,
+        status: "PUBLISHED",
+      },
+    }).catch(() => {});
+  }
 
   revalidatePath(`/admin/courses/${mod.courseId}`);
   return { success: true, message: "Lesson added." };
@@ -856,13 +879,42 @@ export async function updateLessonAction(
     where: { id: lessonId },
     data: {
       title: validated.data.title,
-      contentType: validated.data.contentType as "VIDEO" | "PDF" | "TEXT",
+      contentType: validated.data.contentType as any,
       textContent: validated.data.textContent || null,
       durationSec: validated.data.durationSec,
       isFreePreview: validated.data.isFreePreview,
       isPublished: validated.data.isPublished,
     },
   });
+
+  // If changing content type to QUIZ or ASSIGNMENT, ensure corresponding record exists
+  if (validated.data.contentType === "QUIZ") {
+    const existingQuiz = await prisma.quiz.findUnique({ where: { lessonId } });
+    if (!existingQuiz) {
+      await prisma.quiz.create({
+        data: {
+          lessonId,
+          title: validated.data.title,
+          passingPercentage: 60,
+          isPublished: true,
+        },
+      }).catch(() => {});
+    }
+  } else if (validated.data.contentType === "ASSIGNMENT") {
+    const existingHw = await prisma.homework.findUnique({ where: { lessonId } });
+    if (!existingHw) {
+      await prisma.homework.create({
+        data: {
+          lessonId,
+          title: validated.data.title,
+          instructions: "Please complete the task instructions and submit your analysis.",
+          totalMarks: 100,
+          passingMarks: 50,
+          status: "PUBLISHED",
+        },
+      }).catch(() => {});
+    }
+  }
 
   revalidatePath(`/admin/courses/${lesson.module.courseId}`);
   return { success: true, message: "Lesson updated." };
