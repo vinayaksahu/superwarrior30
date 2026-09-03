@@ -13,18 +13,30 @@ import { getResolvedBunnyConfig, uploadToBunnyStorage } from "@/lib/bunny";
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: "Unauthorized. Admin privileges required." },
+        { success: false, error: "Unauthorized. Please log in to upload files." },
         { status: 401 }
       );
     }
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const category = (formData.get("category") as string) || "pdf";
+    const category = ((formData.get("category") as string) || "pdf").toLowerCase();
     const courseId = formData.get("courseId") as string;
     const lessonId = formData.get("lessonId") as string | null;
+
+    const isStudentUpload =
+      category === "homework" ||
+      category === "submission" ||
+      category === "student";
+
+    if (!isStudentUpload && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Admin privileges required." },
+        { status: 401 }
+      );
+    }
 
     if (!file) {
       return NextResponse.json(
@@ -54,12 +66,14 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     let storagePath: string;
-    if (category === "thumbnail") {
-      storagePath = `courses/${courseId}/thumbnail-${uniqueId}.${ext}`;
+    if (isStudentUpload) {
+      storagePath = `homework/${user.id}/${uniqueId}.${ext}`;
+    } else if (category === "thumbnail") {
+      storagePath = `courses/${courseId || "general"}/thumbnail-${uniqueId}.${ext}`;
     } else if (category === "pdf" && lessonId) {
-      storagePath = `courses/${courseId}/lessons/${lessonId}/doc-${uniqueId}.${ext}`;
+      storagePath = `courses/${courseId || "general"}/lessons/${lessonId}/doc-${uniqueId}.${ext}`;
     } else {
-      storagePath = `courses/${courseId}/files/${uniqueId}.${ext}`;
+      storagePath = `courses/${courseId || "general"}/files/${uniqueId}.${ext}`;
     }
 
     const contentType = file.type || (category === "pdf" ? "application/pdf" : "image/jpeg");
@@ -69,12 +83,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         key: storagePath,
-        bunnyVideoId: null,
+        url: result.cdnUrl,
         cdnUrl: result.cdnUrl,
+        bunnyVideoId: null,
         provider: "BUNNY",
         filename,
         category,
-        message: `${filename} uploaded to Bunny CDN!`,
+        message: `${filename} uploaded to CDN!`,
       });
     }
 
@@ -95,6 +110,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         key: storagePath,
+        url: `https://${process.env.R2_PUBLIC_DOMAIN || "r2.superwarrior30.com"}/${storagePath}`,
         bunnyVideoId: null,
         cdnUrl: null,
         provider: "R2",
