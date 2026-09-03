@@ -32,6 +32,14 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
   const [title, setTitle] = useState(course?.title || "");
   const [slug, setSlug] = useState(course?.slug || "");
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(!!course);
+  const [shortDescription, setShortDescription] = useState(course?.shortDescription || "");
+  const [fullDescription, setFullDescription] = useState(course?.fullDescription || "");
+  const [price, setPrice] = useState(course?.price !== undefined ? course.price.toString() : "4999");
+  const [compareAtPrice, setCompareAtPrice] = useState(course?.compareAtPrice !== null && course?.compareAtPrice !== undefined ? course.compareAtPrice.toString() : "");
+  const [status, setStatus] = useState<string>(course?.status || "DRAFT");
+  const [difficulty, setDifficulty] = useState<string>(course?.difficulty || "BEGINNER");
+  const [isFeatured, setIsFeatured] = useState<boolean>(Boolean(course?.isFeatured));
+  const [isReferralEligible, setIsReferralEligible] = useState<boolean>(course?.isReferralEligible !== false);
   const [thumbnailKey, setThumbnailKey] = useState<string | null>(
     course?.thumbnailCdnUrl || course?.thumbnailKey || null
   );
@@ -187,7 +195,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
                 id="shortDescription"
                 name="shortDescription"
                 type="text"
-                defaultValue={course?.shortDescription || ""}
+                value={shortDescription}
+                onChange={(e) => setShortDescription(e.target.value)}
                 placeholder="A concise summary of who this course is for and what they will learn"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
@@ -204,7 +213,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
                 id="fullDescription"
                 name="fullDescription"
                 rows={7}
-                defaultValue={course?.fullDescription || ""}
+                value={fullDescription}
+                onChange={(e) => setFullDescription(e.target.value)}
                 placeholder="Detailed curriculum overview, key learning outcomes, prerequisites, and strategy details..."
                 className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
@@ -235,7 +245,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
                     type="number"
                     step="0.01"
                     min="0"
-                    defaultValue={course?.price?.toString() || "4999"}
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
                     placeholder="4999"
                     required
                     className="flex h-10 w-full rounded-md border border-input bg-background pl-7 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -260,7 +271,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
                     type="number"
                     step="0.01"
                     min="0"
-                    defaultValue={course?.compareAtPrice?.toString() || ""}
+                    value={compareAtPrice}
+                    onChange={(e) => setCompareAtPrice(e.target.value)}
                     placeholder="9999"
                     className="flex h-10 w-full rounded-md border border-input bg-background pl-7 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
@@ -290,7 +302,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
               <select
                 id="status"
                 name="status"
-                defaultValue={course?.status || "DRAFT"}
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="DRAFT">Draft (Hidden from Public)</option>
@@ -306,7 +319,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
               <select
                 id="difficulty"
                 name="difficulty"
-                defaultValue={course?.difficulty || "BEGINNER"}
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="BEGINNER">Beginner</option>
@@ -321,7 +335,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
                   type="checkbox"
                   name="isFeatured"
                   value="true"
-                  defaultChecked={course?.isFeatured || false}
+                  checked={isFeatured}
+                  onChange={(e) => setIsFeatured(e.target.checked)}
                   className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
                 />
                 <div>
@@ -337,7 +352,8 @@ export function CourseForm({ course, isEdit = false }: CourseFormProps) {
                   type="checkbox"
                   name="isReferralEligible"
                   value="true"
-                  defaultChecked={course?.isReferralEligible !== false}
+                  checked={isReferralEligible}
+                  onChange={(e) => setIsReferralEligible(e.target.checked)}
                   className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
                 />
                 <div>
