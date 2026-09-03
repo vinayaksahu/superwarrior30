@@ -66,6 +66,7 @@ async function runTests() {
   const originalDbTestingUrl = process.env.DATABASE_TESTING_URL;
   delete process.env.TEST_DATABASE_URL;
   delete process.env.DATABASE_TESTING_URL;
+  delete (globalThis as any).testPrisma;
 
   const testConfiguredWhenEmpty = isTestDatabaseConfigured();
   assert(testConfiguredWhenEmpty === false, "isTestDatabaseConfigured() returns false when test DB variables are missing");
@@ -85,6 +86,7 @@ async function runTests() {
   // Restore test env vars if they existed
   if (originalTestDbUrl) process.env.TEST_DATABASE_URL = originalTestDbUrl;
   if (originalDbTestingUrl) process.env.DATABASE_TESTING_URL = originalDbTestingUrl;
+  delete (globalThis as any).testPrisma;
 
   // TEST 5: Dynamic Proxy Universal Dispatch (All models routed without exceptions)
   console.log("\n--- TEST 5: DYNAMIC PROXY UNIVERSAL MODEL DISPATCH ---");
