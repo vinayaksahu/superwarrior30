@@ -67,6 +67,16 @@ export async function switchEnvironmentAction(
       };
     }
 
+    if (targetEnv === "TEST") {
+      const { isTestDatabaseConfigured } = await import("@/lib/prisma");
+      if (!isTestDatabaseConfigured()) {
+        return {
+          success: false,
+          error: "Cannot switch to Testing Mode: TEST_DATABASE_URL is not configured in server environment variables. Please configure TEST_DATABASE_URL in your environment to enable testing mode.",
+        };
+      }
+    }
+
     if (visibilityScope && (visibilityScope === "ADMINS_ONLY" || visibilityScope === "ADMINS_AND_HOMEPAGE")) {
       const { setCachedTestVisibilityScope } = await import("@/lib/env-context");
       setCachedTestVisibilityScope(visibilityScope);
@@ -300,6 +310,16 @@ export async function switchStaffEnvironmentAction(targetEnv: AppEnvironment): P
       };
     }
 
+    if (targetEnv === "TEST") {
+      const { isTestDatabaseConfigured } = await import("@/lib/prisma");
+      if (!isTestDatabaseConfigured()) {
+        return {
+          success: false,
+          error: "Cannot switch to Testing Mode: TEST_DATABASE_URL is not configured in server environment variables.",
+        };
+      }
+    }
+
     const cookieStore = await cookies();
     const token = await signEnvToken({
       env: targetEnv,
@@ -374,6 +394,8 @@ export async function getCurrentEnvironmentAction(): Promise<{
 export async function getEnvironmentDiagnosticsAction(): Promise<{
   activeEnvironment: "LIVE" | "TEST";
   databaseTarget: string;
+  databaseName?: string;
+  isDatabaseConfigured: boolean;
   bunnyStorageTarget: string;
   bunnyStreamTarget: string;
   isSuperAdmin: boolean;
@@ -385,16 +407,21 @@ export async function getEnvironmentDiagnosticsAction(): Promise<{
     const env = await resolveCurrentEnvironment();
     const staffAllowed = await isStaffTestingAllowedInDb();
 
+    const { verifyDatabaseIdentity } = await import("@/lib/prisma");
+    const dbIdentity = await verifyDatabaseIdentity(env);
+
     const { getResolvedBunnyConfig } = await import("@/lib/bunny/config");
     const bunnyConfig = await getResolvedBunnyConfig();
 
-    const dbTarget = env === "TEST" ? "testing" : "production";
+    const dbTarget = env === "TEST" ? "TEST" : "PRODUCTION";
     const bunnyStorageTarget = bunnyConfig.storageZoneName || (env === "TEST" ? "testing_zone" : "production_zone");
     const bunnyStreamTarget = bunnyConfig.streamLibraryId || (env === "TEST" ? "testing_stream_library" : "production_stream_library");
 
     return {
       activeEnvironment: env,
       databaseTarget: dbTarget,
+      databaseName: dbIdentity.databaseName || (env === "TEST" ? "test_db" : "production_db"),
+      isDatabaseConfigured: dbIdentity.isConfigured,
       bunnyStorageTarget,
       bunnyStreamTarget,
       isSuperAdmin: isSuper,
@@ -403,7 +430,9 @@ export async function getEnvironmentDiagnosticsAction(): Promise<{
   } catch {
     return {
       activeEnvironment: "LIVE",
-      databaseTarget: "production",
+      databaseTarget: "PRODUCTION",
+      databaseName: "production_db",
+      isDatabaseConfigured: true,
       bunnyStorageTarget: "production_zone",
       bunnyStreamTarget: "production_stream_library",
       isSuperAdmin: false,

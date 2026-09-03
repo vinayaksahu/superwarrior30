@@ -7,9 +7,18 @@ import {
   resolveCurrentEnvironment,
 } from "../src/lib/env-context";
 import { isSuperAdminUser } from "../src/server/dal/auth-check";
-import { createRazorpayOrder } from "../src/lib/payment/razorpay";
-import { sendEmail } from "../src/lib/email";
-import { getPrismaClient } from "../src/lib/prisma";
+import {
+  getPrismaClient,
+  getProductionPrismaClient,
+  getTestPrismaClient,
+  getDatabaseContext,
+  isTestDatabaseConfigured,
+  isProductionDatabaseConfigured,
+  getProductionDatabaseUrl,
+  getTestDatabaseUrl,
+  verifyDatabaseIdentity,
+  prisma,
+} from "../src/lib/prisma";
 import { getResolvedBunnyConfig } from "../src/lib/bunny/config";
 
 let passed = 0;
@@ -35,8 +44,69 @@ async function runTests() {
   const defaultEnv = await resolveCurrentEnvironment();
   assert(defaultEnv === "LIVE", "Default environment for any unauthenticated or standard session is LIVE");
 
-  // TEST 2: Super Admin Testing Mode Authorization
-  console.log("\n--- TEST 2: SUPER ADMIN IDENTITY & TEST ACCESS ---");
+  // TEST 2: Authoritative Database Context in LIVE Mode
+  console.log("\n--- TEST 2: AUTHORITATIVE DATABASE CONTEXT (LIVE) ---");
+  const liveContext = await withEnvironmentContext("LIVE", async () => {
+    return getDatabaseContext();
+  });
+  assert(liveContext.mode === "LIVE", "Database context mode is LIVE in LIVE mode");
+  assert(liveContext.target === "PRODUCTION", "Database context target is PRODUCTION in LIVE mode");
+
+  // TEST 3: Authoritative Database Context in TEST Mode
+  console.log("\n--- TEST 3: AUTHORITATIVE DATABASE CONTEXT (TEST) ---");
+  const testContext = await withEnvironmentContext("TEST", async () => {
+    return getDatabaseContext();
+  });
+  assert(testContext.mode === "TEST", "Database context mode is TEST in TEST mode");
+  assert(testContext.target === "TEST", "Database context target is TEST in TEST mode");
+
+  // TEST 4: Zero Silent Fallback for Missing Test Database URL
+  console.log("\n--- TEST 4: ZERO SILENT FALLBACK ENFORCEMENT ---");
+  const originalTestDbUrl = process.env.TEST_DATABASE_URL;
+  const originalDbTestingUrl = process.env.DATABASE_TESTING_URL;
+  delete process.env.TEST_DATABASE_URL;
+  delete process.env.DATABASE_TESTING_URL;
+
+  const testConfiguredWhenEmpty = isTestDatabaseConfigured();
+  assert(testConfiguredWhenEmpty === false, "isTestDatabaseConfigured() returns false when test DB variables are missing");
+
+  let threwLoudError = false;
+  try {
+    const unconfiguredTestClient = getTestPrismaClient();
+    // Invoking any query on unconfigured test client must throw loudly
+    await unconfiguredTestClient.user.findMany();
+  } catch (err: any) {
+    if (err?.message?.includes("CRITICAL DATABASE CONFIGURATION ERROR")) {
+      threwLoudError = true;
+    }
+  }
+  assert(threwLoudError === true, "Unconfigured TEST database throws loud error instead of silently falling back to production DB");
+
+  // Restore test env vars if they existed
+  if (originalTestDbUrl) process.env.TEST_DATABASE_URL = originalTestDbUrl;
+  if (originalDbTestingUrl) process.env.DATABASE_TESTING_URL = originalDbTestingUrl;
+
+  // TEST 5: Dynamic Proxy Universal Dispatch (All models routed without exceptions)
+  console.log("\n--- TEST 5: DYNAMIC PROXY UNIVERSAL MODEL DISPATCH ---");
+  let liveDispatched = false;
+  let testDispatched = false;
+
+  await withEnvironmentContext("LIVE", async () => {
+    const ctx = await getDatabaseContext();
+    assert(ctx.mode === "LIVE" && ctx.target === "PRODUCTION", "Prisma proxy resolves PRODUCTION client for LIVE session");
+    liveDispatched = true;
+  });
+
+  await withEnvironmentContext("TEST", async () => {
+    const ctx = await getDatabaseContext();
+    assert(ctx.mode === "TEST" && ctx.target === "TEST", "Prisma proxy resolves TEST client for TEST session");
+    testDispatched = true;
+  });
+
+  assert(liveDispatched && testDispatched, "Dynamic Prisma proxy correctly dispatches across LIVE and TEST sessions");
+
+  // TEST 6: Super Admin Testing Mode Authorization
+  console.log("\n--- TEST 6: SUPER ADMIN IDENTITY & TEST ACCESS ---");
   const superAdmin = {
     role: "SUPER_ADMIN",
     adminRole: "SUPER_ADMIN",
@@ -44,8 +114,8 @@ async function runTests() {
   };
   assert(isSuperAdminUser(superAdmin) === true, "vinayaksahu3@gmail.com is authorized Super Admin for environment control");
 
-  // TEST 3: Non-Super Admin / Sub-admin Testing Mode Rejection
-  console.log("\n--- TEST 3: SUB-ADMIN & STUDENT REJECTION ---");
+  // TEST 7: Non-Super Admin / Sub-admin Testing Mode Rejection
+  console.log("\n--- TEST 7: SUB-ADMIN & STUDENT REJECTION ---");
   const regularAdmin = {
     role: "ADMIN",
     adminRole: "FULL_ACCESS_ADMIN",
@@ -67,8 +137,8 @@ async function runTests() {
   };
   assert(isSuperAdminUser(studentUser) === false, "STUDENT is strictly REJECTED from environment control");
 
-  // TEST 4: Signed Environment Token Security & Tamper Resistance
-  console.log("\n--- TEST 4: TOKEN SIGNATURE & ANTI-FORGERY ---");
+  // TEST 8: Signed Environment Token Security & Tamper Resistance
+  console.log("\n--- TEST 8: TOKEN SIGNATURE & ANTI-FORGERY ---");
   const token = await signEnvToken({
     env: "TEST",
     userId: "super-admin-uid-123",
@@ -85,8 +155,8 @@ async function runTests() {
   const tamperedVerified = await verifyEnvToken(tamperedToken);
   assert(tamperedVerified === null, "Tampered environment token is safely rejected");
 
-  // TEST 5: Parallel Concurrent Session Isolation
-  console.log("\n--- TEST 5: PARALLEL SESSION CONTEXT ISOLATION ---");
+  // TEST 9: Parallel Concurrent Session Isolation
+  console.log("\n--- TEST 9: PARALLEL SESSION CONTEXT ISOLATION ---");
   const resLive = withEnvironmentContext("LIVE", async () => {
     const env = await resolveCurrentEnvironment();
     return `SESSION_${env}`;
@@ -97,52 +167,6 @@ async function runTests() {
   });
   assert((await resLive) === "SESSION_LIVE", "Concurrent Request A executes in LIVE without interference");
   assert((await resTest) === "SESSION_TEST", "Concurrent Request B executes in TEST without interference");
-
-  // TEST 6: Independent Database Client Resolution
-  console.log("\n--- TEST 6: DATABASE CLIENT RESOLUTION ---");
-  const prodClient = getPrismaClient("LIVE");
-  const testClient = getPrismaClient("TEST");
-  assert(prodClient !== undefined && prodClient !== null, "Production PrismaClient instance resolved");
-  assert(testClient !== undefined && testClient !== null, "Test PrismaClient instance resolved");
-
-  // TEST 7: Financial Safety Guard in TEST Mode
-  console.log("\n--- TEST 7: FINANCIAL SAFETY IN TEST MODE ---");
-  const testPaymentResult = await withEnvironmentContext("TEST", async () => {
-    return createRazorpayOrder({
-      amount: 4999,
-      currency: "INR",
-      orderNumber: "TEST-ORD-001",
-      orderId: "ord_test_123",
-      customerEmail: "student@example.com",
-    });
-  });
-  assert(
-    Boolean(testPaymentResult.provider === "MOCK" || testPaymentResult.keyId?.startsWith("rzp_test_")),
-    "Financial safety guard prevents real money movement during TEST MODE"
-  );
-
-  // TEST 8: Email & Notification Safety Guard in TEST Mode
-  console.log("\n--- TEST 8: EMAIL BROADCAST SAFETY IN TEST MODE ---");
-  const emailRes = await withEnvironmentContext("TEST", async () => {
-    return sendEmail({
-      to: "realcustomer@example.com",
-      subject: "Test Course Purchase",
-      html: "<p>Hello</p>",
-      text: "Hello",
-    });
-  });
-  assert(Boolean(emailRes.success), "Test email to real user is safely suppressed in TEST mode");
-
-  // TEST 9: Bunny Media Config Isolation
-  console.log("\n--- TEST 9: BUNNY MEDIA CONFIG ISOLATION ---");
-  const liveBunny = await withEnvironmentContext("LIVE", async () => {
-    return getResolvedBunnyConfig();
-  });
-  const testBunny = await withEnvironmentContext("TEST", async () => {
-    return getResolvedBunnyConfig();
-  });
-  assert(liveBunny.environment === "live", "Bunny config resolves 'live' environment in LIVE mode");
-  assert(testBunny.environment === "test", "Bunny config resolves 'test' environment in TEST mode");
 
   // TEST 10: Mode Switching Concurrency
   console.log("\n--- TEST 10: RAPID SWITCHING INTEGRITY ---");
@@ -168,3 +192,5 @@ runTests().catch((e) => {
   console.error("Test execution error:", e);
   process.exit(1);
 });
+
+

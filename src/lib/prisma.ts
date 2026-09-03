@@ -8,32 +8,6 @@ const globalForPrisma = globalThis as unknown as {
   testPrisma: PrismaClient | undefined;
 };
 
-const ISOLATED_MODELS = new Set([
-  "user",
-  "order",
-  "orderItem",
-  "course",
-  "courseEnrollment",
-  "lessonProgress",
-  "referralCommissionRecord",
-  "referralRelationship",
-  "referralClosure",
-  "wallet",
-  "walletTransaction",
-  "withdrawal",
-  "lead",
-  "testimonial",
-  "testimonialMedia",
-  "liveSession",
-  "brokerOfferClaim",
-  "supportInquiry",
-  "auditLog",
-  "systemPaymentMethod",
-  "funnelEvent",
-  "mediaAsset",
-  "lessonMedia",
-]);
-
 /**
  * Normalizes connection string:
  * - Replaces sslmode=require with sslmode=verify-full
@@ -48,20 +22,85 @@ export function normalizeConnectionString(url: string | undefined): string {
 }
 
 /**
- * Creates a PrismaClient connected to the designated connection string
+ * Retrieves the configured production database URL.
+ */
+export function getProductionDatabaseUrl(): string {
+  return (
+    process.env.DATABASE_PRODUCTION_URL ||
+    process.env.PRODUCTION_DATABASE_URL ||
+    process.env.DATABASE_URL ||
+    ""
+  ).trim();
+}
+
+/**
+ * Retrieves the configured test database URL.
+ * STRICT ISOLATION RULE: NEVER falls back to DATABASE_URL or production database.
+ */
+export function getTestDatabaseUrl(): string {
+  return (
+    process.env.DATABASE_TESTING_URL ||
+    process.env.TEST_DATABASE_URL ||
+    ""
+  ).trim();
+}
+
+/**
+ * Checks if the test database connection string is properly configured.
+ */
+export function isTestDatabaseConfigured(): boolean {
+  return Boolean(getTestDatabaseUrl());
+}
+
+/**
+ * Checks if the production database connection string is properly configured.
+ */
+export function isProductionDatabaseConfigured(): boolean {
+  return Boolean(getProductionDatabaseUrl());
+}
+
+function createFailingPrismaClient(envName: AppEnvironment): PrismaClient {
+  const reqVar =
+    envName === "TEST"
+      ? "TEST_DATABASE_URL (or DATABASE_TESTING_URL)"
+      : "DATABASE_URL (or DATABASE_PRODUCTION_URL)";
+  const errorMessage = `[CRITICAL DATABASE CONFIGURATION ERROR] Database connection URL for environment '${envName}' is not configured. Expected environment variable '${reqVar}'. Automatic fallback across database environments is strictly prohibited for security and data integrity.`;
+
+  const modelHandler = new Proxy({}, {
+    get(_t, prop) {
+      if (prop === "then" || prop === "catch" || prop === "finally" || typeof prop === "symbol") {
+        return undefined;
+      }
+      return () => {
+        throw new Error(errorMessage);
+      };
+    },
+  });
+
+  return new Proxy({} as PrismaClient, {
+    get(_target, prop) {
+      if (prop === "then" || prop === "catch" || prop === "finally" || typeof prop === "symbol") {
+        return undefined;
+      }
+      if (typeof prop === "string" && prop.startsWith("$")) {
+        return () => {
+          throw new Error(errorMessage);
+        };
+      }
+      return modelHandler;
+    },
+  });
+}
+
+/**
+ * Creates a PrismaClient connected to the designated connection string.
+ * If the connection string is missing, returns a failing proxy that throws a clear, loud error.
  */
 function createPrismaClientForUrl(rawUrl: string | undefined, envName: AppEnvironment): PrismaClient {
   const connectionString = normalizeConnectionString(rawUrl);
 
   if (!connectionString) {
-    // Fail-safe error placeholder client if URL is missing
-    return new Proxy({} as PrismaClient, {
-      get() {
-        throw new Error(
-          `[CRITICAL DATABASE ERROR] Database connection URL for environment '${envName}' is not configured.`
-        );
-      },
-    });
+    return createFailingPrismaClient(envName);
   }
 
   const adapter = new PrismaPg({ connectionString });
@@ -75,43 +114,36 @@ function createPrismaClientForUrl(rawUrl: string | undefined, envName: AppEnviro
 }
 
 /**
- * Returns or initializes the Production (LIVE) Prisma Client singleton
+ * Returns or initializes the Production (LIVE) Prisma Client singleton.
  */
 export function getProductionPrismaClient(): PrismaClient {
   if (globalForPrisma.productionPrisma) {
     return globalForPrisma.productionPrisma;
   }
 
-  const prodUrl =
-    process.env.DATABASE_PRODUCTION_URL ||
-    process.env.PRODUCTION_DATABASE_URL ||
-    process.env.DATABASE_URL;
-
+  const prodUrl = getProductionDatabaseUrl();
   const client = createPrismaClientForUrl(prodUrl, "LIVE");
   globalForPrisma.productionPrisma = client;
   return client;
 }
 
 /**
- * Returns or initializes the Test (TESTING) Prisma Client singleton
+ * Returns or initializes the Test (TESTING) Prisma Client singleton.
+ * STRICT: Only uses dedicated test database connection strings.
  */
 export function getTestPrismaClient(): PrismaClient {
   if (globalForPrisma.testPrisma) {
     return globalForPrisma.testPrisma;
   }
 
-  const testUrl =
-    process.env.DATABASE_TESTING_URL ||
-    process.env.TEST_DATABASE_URL ||
-    process.env.DATABASE_URL;
-
+  const testUrl = getTestDatabaseUrl();
   const client = createPrismaClientForUrl(testUrl, "TEST");
   globalForPrisma.testPrisma = client;
   return client;
 }
 
 /**
- * Returns the PrismaClient for an explicit environment
+ * Returns the PrismaClient for an explicit environment (LIVE or TEST).
  */
 export function getPrismaClient(env: AppEnvironment = "LIVE"): PrismaClient {
   if (env === "TEST") {
@@ -121,8 +153,33 @@ export function getPrismaClient(env: AppEnvironment = "LIVE"): PrismaClient {
 }
 
 /**
+ * Single Authoritative Database Context
+ */
+export interface DatabaseContext {
+  mode: AppEnvironment;
+  target: "PRODUCTION" | "TEST";
+  client: PrismaClient;
+  isTestConfigured: boolean;
+  isProductionConfigured: boolean;
+}
+
+/**
+ * Resolves the authoritative database context for the active session.
+ */
+export async function getDatabaseContext(): Promise<DatabaseContext> {
+  const mode = await resolveCurrentEnvironment();
+  const client = getPrismaClient(mode);
+  return {
+    mode,
+    target: mode === "TEST" ? "TEST" : "PRODUCTION",
+    client,
+    isTestConfigured: isTestDatabaseConfigured(),
+    isProductionConfigured: isProductionDatabaseConfigured(),
+  };
+}
+
+/**
  * Resolves the appropriate database client for the current request / session context.
- * Fail-safe: NEVER falls back between production and test if connection fails.
  */
 export async function getDatabaseForSession(): Promise<PrismaClient> {
   const env = await resolveCurrentEnvironment();
@@ -130,7 +187,7 @@ export async function getDatabaseForSession(): Promise<PrismaClient> {
 }
 
 /**
- * Synchronous client resolution using AsyncLocalStorage if available, otherwise defaulting to LIVE
+ * Synchronous client resolution using AsyncLocalStorage if available, otherwise defaulting to LIVE.
  */
 export function getSyncDatabaseClient(): PrismaClient {
   const syncEnv = getSyncEnvironmentContext();
@@ -138,143 +195,62 @@ export function getSyncDatabaseClient(): PrismaClient {
 }
 
 /**
- * Adjusts query arguments based on active environment (LIVE vs TEST)
+ * Safe database identity verification diagnostic helper.
+ * Executes SELECT current_database(), current_user to verify physical isolation without exposing credentials.
  */
-function scopeQueryArgsForEnvironment(
-  modelName: string,
-  method: string,
-  args: any,
-  env: AppEnvironment
-): any {
-  if (!ISOLATED_MODELS.has(modelName)) {
-    return args;
+export async function verifyDatabaseIdentity(env: AppEnvironment): Promise<{
+  environment: AppEnvironment;
+  isConfigured: boolean;
+  databaseName?: string;
+  databaseUser?: string;
+  isSamePhysicalAsOther?: boolean;
+  error?: string;
+}> {
+  try {
+    const isConfigured = env === "TEST" ? isTestDatabaseConfigured() : isProductionDatabaseConfigured();
+    if (!isConfigured) {
+      return {
+        environment: env,
+        isConfigured: false,
+        error: `Database connection string for '${env}' is not set.`,
+      };
+    }
+
+    const prodUrl = normalizeConnectionString(getProductionDatabaseUrl());
+    const testUrl = normalizeConnectionString(getTestDatabaseUrl());
+    const isSameConnectionString = Boolean(prodUrl && testUrl && prodUrl === testUrl);
+
+    const client = getPrismaClient(env);
+    const result = await client.$queryRawUnsafe<Array<{ current_database: string; current_user: string }>>(
+      "SELECT current_database(), current_user"
+    );
+
+    const row = result?.[0];
+    return {
+      environment: env,
+      isConfigured: true,
+      databaseName: row?.current_database,
+      databaseUser: row?.current_user,
+      isSamePhysicalAsOther: isSameConnectionString,
+    };
+  } catch (err: any) {
+    return {
+      environment: env,
+      isConfigured: false,
+      error: err?.message || "Failed to query database identity.",
+    };
   }
-
-  const currentArgs = args ? { ...args } : {};
-
-  // LIVE MODE: filter out test records
-  if (env === "LIVE") {
-    if (
-      method === "findMany" ||
-      method === "findFirst" ||
-      method === "count" ||
-      method === "aggregate" ||
-      method === "groupBy"
-    ) {
-      const where = currentArgs.where ? { ...currentArgs.where } : {};
-
-      // For user queries: do not filter out admin/staff accounts needed for authentication
-      if (modelName === "user") {
-        const isAdminQuery =
-          where.role === "SUPER_ADMIN" ||
-          where.role === "ADMIN" ||
-          (typeof where.role === "object" && where.role?.in?.some?.((r: string) => r !== "STUDENT")) ||
-          (typeof where.email === "string" &&
-            (where.email.includes("admin") || where.email === "vinayaksahu3@gmail.com"));
-
-        if (!isAdminQuery && where.isTestData === undefined) {
-          where.isTestData = false;
-        }
-      } else {
-        if (where.isTestData === undefined) {
-          where.isTestData = false;
-        }
-      }
-
-      currentArgs.where = where;
-      return currentArgs;
-    }
-
-    if (method === "create" && currentArgs.data) {
-      if (currentArgs.data.isTestData === undefined) {
-        currentArgs.data = { ...currentArgs.data, isTestData: false };
-      }
-      return currentArgs;
-    }
-
-    if (method === "createMany" && Array.isArray(currentArgs.data)) {
-      currentArgs.data = currentArgs.data.map((item: any) => ({
-        ...item,
-        isTestData: item.isTestData !== undefined ? item.isTestData : false,
-      }));
-      return currentArgs;
-    }
-
-    if (method === "upsert") {
-      if (currentArgs.create && currentArgs.create.isTestData === undefined) {
-        currentArgs.create = { ...currentArgs.create, isTestData: false };
-      }
-      return currentArgs;
-    }
-  }
-
-  // TEST MODE: isolate test records on shared databases
-  if (env === "TEST") {
-    if (
-      method === "findMany" ||
-      method === "findFirst" ||
-      method === "count" ||
-      method === "aggregate" ||
-      method === "groupBy"
-    ) {
-      const where = currentArgs.where ? { ...currentArgs.where } : {};
-
-      // For user queries: do not filter out admin/staff accounts needed for authentication
-      if (modelName === "user") {
-        const isAdminQuery =
-          where.role === "SUPER_ADMIN" ||
-          where.role === "ADMIN" ||
-          (typeof where.role === "object" && where.role?.in?.some?.((r: string) => r !== "STUDENT")) ||
-          (typeof where.email === "string" &&
-            (where.email.includes("admin") || where.email === "vinayaksahu3@gmail.com"));
-
-        if (!isAdminQuery && where.isTestData === undefined) {
-          where.isTestData = true;
-        }
-      } else if (modelName === "course" || modelName === "coupon" || modelName === "systemPaymentMethod") {
-        // Shared catalog & settings models: accessible in both modes unless explicitly scoped
-      } else {
-        if (where.isTestData === undefined) {
-          where.isTestData = true;
-        }
-      }
-
-      currentArgs.where = where;
-      return currentArgs;
-    }
-
-    if (method === "create" && currentArgs.data) {
-      if (currentArgs.data.isTestData === undefined) {
-        currentArgs.data = { ...currentArgs.data, isTestData: true };
-      }
-      return currentArgs;
-    }
-
-    if (method === "createMany" && Array.isArray(currentArgs.data)) {
-      currentArgs.data = currentArgs.data.map((item: any) => ({
-        ...item,
-        isTestData: item.isTestData !== undefined ? item.isTestData : true,
-      }));
-      return currentArgs;
-    }
-
-    if (method === "upsert") {
-      if (currentArgs.create && currentArgs.create.isTestData === undefined) {
-        currentArgs.create = { ...currentArgs.create, isTestData: true };
-      }
-      return currentArgs;
-    }
-  }
-
-  return currentArgs;
 }
 
 /**
  * Dynamic Environment-Aware Prisma Proxy
  * 
- * Transparently wraps all model operations (prisma.user.*, prisma.order.*, etc.)
- * and client methods (prisma.$transaction, prisma.$queryRaw, etc.) to dispatch to
- * the correct database (LIVE vs TEST) based on the requesting session.
+ * Transparently dispatches all model operations (prisma.user, prisma.order, prisma.course,
+ * prisma.module, prisma.lesson, prisma.coupon, prisma.siteSetting, etc.) and top-level client
+ * methods (prisma.$transaction, prisma.$queryRaw, etc.) to the authoritative database client
+ * for the requesting session.
+ * 
+ * ALL models are strictly isolated. There are NO whitelists or exceptions.
  */
 function createDynamicPrismaProxy(): PrismaClient {
   const modelProxyCache = new Map<string | symbol, any>();
@@ -305,29 +281,12 @@ function createDynamicPrismaProxy(): PrismaClient {
 
       const modelName = String(prop);
 
-      // Model delegate wrapper (prisma.user, prisma.course, prisma.wallet, etc.)
+      // Model delegate wrapper (prisma.user, prisma.course, prisma.wallet, prisma.siteSetting, etc.)
       const modelProxy = new Proxy({}, {
         get(_modelTarget, methodProp) {
-          const methodName = String(methodProp);
-
           return async (...methodArgs: any[]) => {
-            // Non-isolated system models (e.g. siteSetting) always use the production client directly without resolving environment
-            if (!ISOLATED_MODELS.has(modelName)) {
-              const activeClient = getProductionPrismaClient();
-              const model = (activeClient as any)[prop];
-              if (!model) {
-                throw new Error(`[Database Error] Model '${modelName}' not found on PrismaClient.`);
-              }
-              const modelMethod = model[methodProp];
-              if (typeof modelMethod !== "function") {
-                return modelMethod;
-              }
-              return modelMethod.apply(model, methodArgs);
-            }
-
-            const env = await resolveCurrentEnvironment();
-            const activeClient = getPrismaClient(env);
-            const model = (activeClient as any)[prop];
+            const activeClient = await getDatabaseForSession();
+            const model = (activeClient as any)[modelName];
             if (!model) {
               throw new Error(`[Database Error] Model '${modelName}' not found on PrismaClient.`);
             }
@@ -335,13 +294,7 @@ function createDynamicPrismaProxy(): PrismaClient {
             if (typeof modelMethod !== "function") {
               return modelMethod;
             }
-
-            const scopedArgs =
-              methodArgs.length > 0
-                ? [scopeQueryArgsForEnvironment(modelName, methodName, methodArgs[0], env), ...methodArgs.slice(1)]
-                : methodArgs;
-
-            return modelMethod.apply(model, scopedArgs);
+            return modelMethod.apply(model, methodArgs);
           };
         },
       });
@@ -354,3 +307,4 @@ function createDynamicPrismaProxy(): PrismaClient {
 
 // Universal dynamic proxy export used across all server actions, DAL, and routes
 export const prisma = createDynamicPrismaProxy();
+

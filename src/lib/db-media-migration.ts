@@ -1,5 +1,5 @@
 import "server-only";
-import { getProductionPrismaClient, getTestPrismaClient } from "@/lib/prisma";
+import { getProductionPrismaClient, getTestPrismaClient, isTestDatabaseConfigured } from "@/lib/prisma";
 import type { AppEnvironment } from "@/lib/env-context";
 
 let isMigratedProduction = false;
@@ -86,6 +86,10 @@ CREATE INDEX IF NOT EXISTS "lesson_media_isTestData_lessonId_idx" ON "lesson_med
 export async function ensureMediaTablesExist(env: AppEnvironment = "LIVE"): Promise<void> {
   if (env === "LIVE" && isMigratedProduction) return;
   if (env === "TEST" && isMigratedTest) return;
+
+  if (env === "TEST" && !isTestDatabaseConfigured()) {
+    return;
+  }
 
   try {
     const client = env === "TEST" ? getTestPrismaClient() : getProductionPrismaClient();

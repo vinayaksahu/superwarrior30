@@ -577,7 +577,7 @@ export function TestingModeBanner({
         </span>
       </div>
       <div className="text-[11px] text-amber-400/90 font-mono hidden md:block">
-        DATABASE: TEST_DATABASE_URL
+        DATABASE TARGET: TEST DATABASE
       </div>
     </div>
   );

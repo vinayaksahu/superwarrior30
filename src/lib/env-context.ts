@@ -301,16 +301,18 @@ export async function resolveCurrentEnvironment(): Promise<AppEnvironment> {
         // 4. Check if student account belongs to Testing environment
         if (session.userId) {
           try {
-            const { getTestPrismaClient } = await import("@/lib/prisma");
-            const testUser = await getTestPrismaClient().user.findUnique({
-              where: { id: session.userId },
-              select: { id: true, isTestData: true },
-            });
-            if (testUser && testUser.isTestData) {
-              return "TEST";
+            const { getTestPrismaClient, isTestDatabaseConfigured } = await import("@/lib/prisma");
+            if (isTestDatabaseConfigured()) {
+              const testUser = await getTestPrismaClient().user.findUnique({
+                where: { id: session.userId },
+                select: { id: true, isTestData: true },
+              });
+              if (testUser && testUser.isTestData) {
+                return "TEST";
+              }
             }
           } catch {
-            // Fallback
+            // Non-blocking fallback to LIVE
           }
         }
       }

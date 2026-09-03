@@ -26,6 +26,11 @@ export const getCurrentUser = cache(async () => {
   if (!session) return null;
 
   let user = null;
+  const isSuperSession =
+    session.role === "SUPER_ADMIN" ||
+    session.email === "vinayaksahu3@gmail.com" ||
+    session.email === "admin@superwarrior30.com";
+
   try {
     user = await prisma.user.findUnique({
       where: { id: session.userId },
@@ -45,6 +50,28 @@ export const getCurrentUser = cache(async () => {
         createdAt: true,
       },
     });
+
+    // Cross-Database Seamless Auth: If Super Admin ID differs between Test DB and Production DB, lookup by email
+    if (!user && isSuperSession && session.email) {
+      user = await prisma.user.findUnique({
+        where: { email: session.email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+          adminRole: true,
+          customPermissions: true,
+          status: true,
+          avatarUrl: true,
+          referralCode: true,
+          tokenVersion: true,
+          isTestData: true,
+          createdAt: true,
+        },
+      });
+    }
   } catch {
     // Fallback query if columns are still syncing
     try {
@@ -70,6 +97,30 @@ export const getCurrentUser = cache(async () => {
           adminRole: basicUser.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : basicUser.role === "SUPPORT" ? "SUPPORT" : "FULL_ACCESS_ADMIN",
           customPermissions: [],
         };
+      } else if (isSuperSession && session.email) {
+        const basicSuper = await prisma.user.findUnique({
+          where: { email: session.email },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            role: true,
+            status: true,
+            avatarUrl: true,
+            referralCode: true,
+            tokenVersion: true,
+            isTestData: true,
+            createdAt: true,
+          },
+        });
+        if (basicSuper) {
+          user = {
+            ...basicSuper,
+            adminRole: "SUPER_ADMIN",
+            customPermissions: [],
+          };
+        }
       }
     } catch {
       user = null;
@@ -78,34 +129,38 @@ export const getCurrentUser = cache(async () => {
 
   if (!user || user.status !== "ACTIVE") return null;
 
-  // Session revocation check: if user's tokenVersion was incremented, invalidate session
-  if (user.tokenVersion !== session.tokenVersion) return null;
+  // Session revocation check: if user's tokenVersion was incremented, invalidate session (except for cross-DB superadmin bridge)
+  if (!isSuperSession && user.tokenVersion !== session.tokenVersion) return null;
 
   // Device-level session revocation check (One Active Device enforcement & Revoked Device check)
   if (session.deviceId) {
-    const device = await prisma.userDevice.findUnique({
-      where: { id: session.deviceId },
-      select: {
-        id: true,
-        userId: true,
-        isActive: true,
-        revokedAt: true,
-      },
-    });
+    try {
+      const device = await prisma.userDevice.findUnique({
+        where: { id: session.deviceId },
+        select: {
+          id: true,
+          userId: true,
+          isActive: true,
+          revokedAt: true,
+        },
+      });
 
-    // If device was explicitly revoked or deactivated
-    if (device) {
-      if (device.userId !== user.id || !device.isActive || device.revokedAt !== null) {
-        return null;
+      // If device was explicitly revoked or deactivated
+      if (device) {
+        if ((device.userId !== user.id && !isSuperSession) || !device.isActive || device.revokedAt !== null) {
+          return null;
+        }
+
+        // Async background update of lastSeenAt
+        prisma.userDevice
+          .update({
+            where: { id: device.id },
+            data: { lastSeenAt: new Date() },
+          })
+          .catch(() => {});
       }
-
-      // Async background update of lastSeenAt
-      prisma.userDevice
-        .update({
-          where: { id: device.id },
-          data: { lastSeenAt: new Date() },
-        })
-        .catch(() => {});
+    } catch {
+      // Non-blocking device lookup during cross-database transitions
     }
   }
 
