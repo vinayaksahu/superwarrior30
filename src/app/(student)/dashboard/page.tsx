@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireAuth } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import { getUserEnrolledCoursesAction } from "@/server/actions/enrollment.actions";
+import { getStudentHomeworkDashboardListAction } from "@/server/actions/homework.actions";
 import { formatCurrency } from "@/lib/utils";
 import {
   PlayCircle,
@@ -13,6 +14,8 @@ import {
   Wallet,
   TrendingUp,
   Clock,
+  Award,
+  RotateCcw,
 } from "lucide-react";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
 
@@ -31,9 +34,10 @@ export default async function StudentDashboardPage() {
   let totalEarned = 0;
   let referralCount = 0;
   let pendingOrders: any[] = [];
+  let homeworkList: Awaited<ReturnType<typeof getStudentHomeworkDashboardListAction>> = [];
 
   try {
-    const [courses, wallet, referrals, pending] = await Promise.all([
+    const [courses, wallet, referrals, pending, homeworks] = await Promise.all([
       getUserEnrolledCoursesAction().catch((err) => {
         console.error("[Dashboard] Error fetching enrolled courses:", {
           userId: user.id,
@@ -83,6 +87,10 @@ export default async function StudentDashboardPage() {
         });
         return [];
       }),
+      getStudentHomeworkDashboardListAction().catch((err) => {
+        console.error("[Dashboard] Error fetching homework list:", err);
+        return [];
+      }),
     ]);
 
     enrolledCourses = courses || [];
@@ -90,6 +98,7 @@ export default async function StudentDashboardPage() {
     totalEarned = Number(wallet?.totalEarned ?? 0);
     referralCount = referrals || 0;
     pendingOrders = pending || [];
+    homeworkList = homeworks || [];
   } catch (error) {
     console.error("Error loading student dashboard:", error);
   }
@@ -321,6 +330,97 @@ export default async function StudentDashboardPage() {
           </div>
         ) : null}
       </div>
+
+      {/* ========================================================
+          HOMEWORK & PRACTICAL ASSIGNMENTS SECTION
+      ======================================================== */}
+      {homeworkList.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex items-center justify-between border-b border-border pb-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-amber-400" />
+                <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight">
+                  Homework & Practical Assignments
+                </h2>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Assigned trading exercises, chart analysis tasks, and mentor feedback.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {homeworkList.map((hw) => {
+              const isReviewed = hw.status === "REVIEWED";
+              const isReturned = hw.status === "RETURNED_FOR_RESUBMISSION";
+              const isSubmitted = hw.status === "SUBMITTED";
+              const isOverdue = hw.status === "OVERDUE";
+
+              return (
+                <div
+                  key={hw.homeworkId}
+                  className="flex flex-col justify-between rounded-xl border border-border/80 bg-background/60 p-5 space-y-4 hover:border-primary/40 hover:bg-background transition-all"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                          isReviewed
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                            : isReturned
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                            : isSubmitted
+                            ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
+                            : isOverdue
+                            ? "bg-red-500/10 border-red-500/30 text-red-400"
+                            : "bg-muted text-muted-foreground border-border"
+                        }`}
+                      >
+                        {isReviewed && <CheckCircle2 className="h-3 w-3" />}
+                        {isReturned && <RotateCcw className="h-3 w-3" />}
+                        {isSubmitted && <Clock className="h-3 w-3" />}
+                        {hw.status.replace(/_/g, " ")}
+                      </span>
+
+                      {hw.marksObtained !== null && (
+                        <span className="text-xs font-black text-amber-400">
+                          {hw.marksObtained} / {hw.totalMarks} ({hw.percentage}%)
+                        </span>
+                      )}
+                    </div>
+
+                    <h3 className="font-bold text-sm text-foreground line-clamp-1">{hw.title}</h3>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">
+                      {hw.courseTitle} • {hw.moduleTitle}
+                    </p>
+
+                    {hw.deadline && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Due: {new Date(hw.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-3 border-t border-border/40 flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground">
+                      {hw.attemptNumber > 0 ? `Attempt #${hw.attemptNumber}` : "Not submitted yet"}
+                    </span>
+
+                    <Link
+                      href={`/learn/${hw.courseSlug}/${hw.lessonId}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90"
+                    >
+                      {isReviewed ? "View Feedback" : isReturned ? "Resubmit" : isSubmitted ? "View Status" : "Open Task"}
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -30,6 +30,8 @@ import {
   Database,
   Mail,
   Film,
+  Award,
+  HelpCircle,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -62,6 +64,18 @@ export const allSidebarLinks: SidebarLink[] = [
     href: "/admin/courses",
     label: "Courses",
     icon: BookOpen,
+    requiredPermission: "courses.view",
+  },
+  {
+    href: "/admin/homework",
+    label: "Homework Reviews",
+    icon: Award,
+    requiredPermission: "courses.view",
+  },
+  {
+    href: "/admin/quizzes",
+    label: "Quiz Assessments",
+    icon: HelpCircle,
     requiredPermission: "courses.view",
   },
   {

@@ -27,6 +27,10 @@ import {
   X,
   Clock,
   Layers,
+  HelpCircle,
+  Award,
+  CheckSquare,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -70,7 +74,9 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
 
   const [addingLessonModuleId, setAddingLessonModuleId] = useState<string | null>(null);
   const [newLessonTitle, setNewLessonTitle] = useState("");
-  const [newLessonType, setNewLessonType] = useState<"VIDEO" | "PDF" | "TEXT">("VIDEO");
+  const [newLessonType, setNewLessonType] = useState<
+    "VIDEO" | "PDF" | "TEXT" | "QUIZ" | "ASSIGNMENT"
+  >("VIDEO");
 
   const [activeEditingLesson, setActiveEditingLesson] = useState<LessonType | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -363,8 +369,12 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
                             <Video className="h-4 w-4 text-primary" />
                           ) : lesson.contentType === "PDF" ? (
                             <FileText className="h-4 w-4 text-amber-500" />
-                          ) : (
+                          ) : lesson.contentType === "TEXT" ? (
                             <AlignLeft className="h-4 w-4 text-sky-500" />
+                          ) : lesson.contentType === "QUIZ" ? (
+                            <HelpCircle className="h-4 w-4 text-purple-400" />
+                          ) : (
+                            <Award className="h-4 w-4 text-emerald-400" />
                           )}
                         </div>
 
@@ -373,7 +383,11 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
                             {lesson.title}
                           </p>
                           <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                            <span>{lesson.contentType}</span>
+                            <span className="font-semibold text-amber-400/90">
+                              {lesson.contentType === "ASSIGNMENT"
+                                ? "HOMEWORK / ASSIGNMENT"
+                                : lesson.contentType}
+                            </span>
                             {!lesson.isFreePreview && lesson.durationSec >= 60 && (
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
@@ -460,12 +474,18 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
                       />
                       <select
                         value={newLessonType}
-                        onChange={(e) => setNewLessonType(e.target.value as "VIDEO" | "PDF" | "TEXT")}
-                        className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+                        onChange={(e) =>
+                          setNewLessonType(
+                            e.target.value as "VIDEO" | "PDF" | "TEXT" | "QUIZ" | "ASSIGNMENT"
+                          )
+                        }
+                        className="h-9 rounded-md border border-input bg-background px-2.5 text-xs font-semibold"
                       >
                         <option value="VIDEO">Video Lesson</option>
                         <option value="PDF">PDF Document</option>
                         <option value="TEXT">Text Article</option>
+                        <option value="QUIZ">Quiz</option>
+                        <option value="ASSIGNMENT">Homework / Assignment</option>
                       </select>
                     </div>
                     <div className="flex justify-end gap-2">

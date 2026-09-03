@@ -5,7 +5,21 @@ import { updateLessonAction, updateLessonFileAction } from "@/server/actions/cou
 import { attachMediaToLessonAction } from "@/server/actions/media.actions";
 import { FileUploader } from "@/components/admin/file-uploader";
 import { MediaPickerModal } from "@/components/admin/media/media-picker-modal";
-import { X, Video, FileText, AlignLeft, Loader2, PlayCircle, Eye, Film, FolderOpen } from "lucide-react";
+import { QuizBuilder } from "@/components/admin/quiz/quiz-builder";
+import { HomeworkBuilder } from "@/components/admin/homework/homework-builder";
+import {
+  X,
+  Video,
+  FileText,
+  AlignLeft,
+  Loader2,
+  PlayCircle,
+  Eye,
+  Film,
+  FolderOpen,
+  HelpCircle,
+  Award,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface LessonEditModalProps {
@@ -16,7 +30,7 @@ interface LessonEditModalProps {
     title: string;
     slug: string;
     position: number;
-    contentType: "VIDEO" | "PDF" | "TEXT" | string;
+    contentType: "VIDEO" | "PDF" | "TEXT" | "QUIZ" | "ASSIGNMENT" | string;
     videoKey: string | null;
     pdfKey: string | null;
     bunnyVideoId?: string | null;
@@ -37,8 +51,10 @@ export function LessonEditModal({
   onClose,
   onRefresh,
 }: LessonEditModalProps) {
-  const [contentType, setContentType] = useState<"VIDEO" | "PDF" | "TEXT">(
-    (lesson.contentType as "VIDEO" | "PDF" | "TEXT") || "VIDEO"
+  const [contentType, setContentType] = useState<
+    "VIDEO" | "PDF" | "TEXT" | "QUIZ" | "ASSIGNMENT"
+  >(
+    (lesson.contentType as "VIDEO" | "PDF" | "TEXT" | "QUIZ" | "ASSIGNMENT") || "VIDEO"
   );
   const [videoKey, setVideoKey] = useState<string | null>(lesson.videoKey);
   const [pdfKey, setPdfKey] = useState<string | null>(lesson.pdfKey);
@@ -162,12 +178,26 @@ export function LessonEditModal({
                     ? "bg-primary/10 text-primary border-primary/20"
                     : contentType === "PDF"
                     ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                    : "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                    : contentType === "TEXT"
+                    ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                    : contentType === "QUIZ"
+                    ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 }`}>
                   {contentType === "VIDEO" && <Video className="h-3 w-3" />}
                   {contentType === "PDF" && <FileText className="h-3 w-3" />}
                   {contentType === "TEXT" && <AlignLeft className="h-3 w-3" />}
-                  {contentType === "VIDEO" ? "Video Lesson" : contentType === "PDF" ? "PDF Document" : "Text Article"}
+                  {contentType === "QUIZ" && <HelpCircle className="h-3 w-3" />}
+                  {contentType === "ASSIGNMENT" && <Award className="h-3 w-3" />}
+                  {contentType === "VIDEO"
+                    ? "Video Lesson"
+                    : contentType === "PDF"
+                    ? "PDF Document"
+                    : contentType === "TEXT"
+                    ? "Text Article"
+                    : contentType === "QUIZ"
+                    ? "Quiz"
+                    : "Homework / Assignment"}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">Upload and manage content for this lesson</p>
@@ -182,7 +212,58 @@ export function LessonEditModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Content Type Selector Switcher */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-6 py-2.5">
+          <span className="text-xs font-bold text-muted-foreground mr-1">Lesson Type:</span>
+          {[
+            { type: "VIDEO", label: "Video Lesson", icon: Video },
+            { type: "PDF", label: "PDF Document", icon: FileText },
+            { type: "TEXT", label: "Text Article", icon: AlignLeft },
+            { type: "QUIZ", label: "Quiz", icon: HelpCircle },
+            { type: "ASSIGNMENT", label: "Homework / Assignment", icon: Award },
+          ].map(({ type, label, icon: Icon }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setContentType(type as any)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                contentType === type
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-background border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {contentType === "QUIZ" ? (
+          <div className="p-6">
+            <QuizBuilder
+              lessonId={lesson.id}
+              lessonTitle={lesson.title}
+              onSaveSuccess={() => {
+                if (onRefresh) onRefresh();
+                onClose();
+              }}
+              onClose={onClose}
+            />
+          </div>
+        ) : contentType === "ASSIGNMENT" ? (
+          <div className="p-6">
+            <HomeworkBuilder
+              lessonId={lesson.id}
+              lessonTitle={lesson.title}
+              onSaveSuccess={() => {
+                if (onRefresh) onRefresh();
+                onClose();
+              }}
+              onClose={onClose}
+            />
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <input type="hidden" name="contentType" value={contentType} />
 
           {/* Lesson Title */}
@@ -420,6 +501,7 @@ export function LessonEditModal({
             </button>
           </div>
         </form>
+        )}
       </div>
 
       {/* Select from Media Library Modal */}

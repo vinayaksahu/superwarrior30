@@ -51,6 +51,9 @@ model User {
   // Learning
   enrollments    CourseEnrollment[]
   lessonProgress LessonProgress[]
+  quizAttempts   QuizAttempt[]
+  homeworkSubmissions         HomeworkSubmission[]
+  reviewedHomeworkSubmissions  HomeworkSubmission[] @relation("HomeworkReviewedBy")
 
   // Commerce
   orders            Order[]
@@ -207,6 +210,8 @@ enum LessonContentType {
   VIDEO
   PDF
   TEXT
+  QUIZ
+  ASSIGNMENT
 }
 
 model Course {
@@ -283,6 +288,8 @@ model Lesson {
   module   Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   progress LessonProgress[]
   media    LessonMedia[]
+  quiz     Quiz?
+  homework Homework?
 
   @@unique([moduleId, position])
   @@unique([moduleId, slug])
@@ -1213,4 +1220,247 @@ model SupportInquiryMessage {
   @@index([createdAt])
   @@map("support_inquiry_messages")
 }
+
+// ==========================================
+// QUIZ SYSTEM
+// ==========================================
+
+enum QuizQuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+}
+
+enum QuizShowAnswers {
+  IMMEDIATELY
+  AFTER_REVIEW
+  NEVER
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  PASSED
+  FAILED
+}
+
+model Quiz {
+  id                String            @id @default(cuid())
+  lessonId          String            @unique
+  title             String
+  description       String?           @db.Text
+  passingPercentage Int               @default(70)
+  timeLimitMinutes  Int?              // null = unlimited
+  maxAttempts       Int               @default(3)
+  showAnswers       QuizShowAnswers   @default(IMMEDIATELY)
+  shuffleQuestions  Boolean           @default(false)
+  shuffleOptions    Boolean           @default(false)
+  isPublished       Boolean           @default(true)
+  isTestData        Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  lesson            Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions         QuizQuestion[]
+  attempts          QuizAttempt[]
+
+  @@index([lessonId])
+  @@index([isTestData, lessonId])
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id           String           @id @default(cuid())
+  quizId       String
+  questionText String           @db.Text
+  questionType QuizQuestionType @default(SINGLE_CHOICE)
+  imageUrl     String?
+  marks        Int              @default(1)
+  explanation  String?          @db.Text
+  sortOrder    Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  quiz         Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options      QuizOption[]
+  answers      QuizAnswer[]
+
+  @@index([quizId, sortOrder])
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id         String       @id @default(cuid())
+  questionId String
+  optionText String       @db.Text
+  isCorrect  Boolean      @default(false)
+  sortOrder  Int          @default(0)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, sortOrder])
+  @@map("quiz_options")
+}
+
+model QuizAttempt {
+  id               String            @id @default(cuid())
+  quizId           String
+  userId           String
+  attemptNumber    Int               @default(1)
+  score            Decimal           @default(0.00) @db.Decimal(6, 2)
+  totalMarks       Decimal           @default(0.00) @db.Decimal(6, 2)
+  percentage       Decimal           @default(0.00) @db.Decimal(5, 2)
+  status           QuizAttemptStatus @default(IN_PROGRESS)
+  startedAt        DateTime          @default(now())
+  submittedAt      DateTime?
+  timeTakenSeconds Int?
+  isTestData       Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+
+  quiz             Quiz              @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers          QuizAnswer[]
+
+  @@unique([quizId, userId, attemptNumber])
+  @@index([quizId, userId])
+  @@index([userId, status])
+  @@index([isTestData, quizId])
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id                String       @id @default(cuid())
+  attemptId         String
+  questionId        String
+  selectedOptionIds Json?        @db.JsonB // Array of selected QuizOption IDs
+  textAnswer        String?      @db.Text
+  isCorrect         Boolean      @default(false)
+  marksAwarded      Decimal      @default(0.00) @db.Decimal(6, 2)
+  createdAt         DateTime     @default(now())
+
+  attempt           QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question          QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("quiz_answers")
+}
+
+// ==========================================
+// HOMEWORK & ASSIGNMENT SYSTEM
+// ==========================================
+
+enum HomeworkStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum HomeworkSubmissionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  REVIEWED
+  RETURNED_FOR_RESUBMISSION
+}
+
+model Homework {
+  id                  String               @id @default(cuid())
+  lessonId            String               @unique
+  title               String
+  description         String?
+  instructions        String               @db.Text
+  totalMarks          Decimal              @default(100.00) @db.Decimal(6, 2)
+  passingMarks        Decimal?             @db.Decimal(6, 2)
+  deadline            DateTime?
+  allowLateSubmission Boolean              @default(true)
+  maxAttempts         Int                  @default(3)
+  status              HomeworkStatus       @default(PUBLISHED)
+  attachedMediaIds    Json?                @db.JsonB // List of media assets attached as study material
+  isTestData          Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  lesson              Lesson               @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  submissions         HomeworkSubmission[]
+
+  @@index([lessonId])
+  @@index([isTestData, lessonId])
+  @@map("homework_assignments")
+}
+
+model HomeworkSubmission {
+  id            String                    @id @default(cuid())
+  homeworkId    String
+  userId        String
+  attemptNumber Int                       @default(1)
+  textAnswer    String?                   @db.Text
+  status        HomeworkSubmissionStatus  @default(SUBMITTED)
+  marksObtained Decimal?                  @db.Decimal(6, 2)
+  percentage    Decimal?                  @db.Decimal(5, 2)
+  isPassed      Boolean?
+  feedback      String?                   @db.Text
+  adminNote     String?                   @db.Text
+  reviewedById  String?
+  reviewedAt    DateTime?
+  submittedAt   DateTime                  @default(now())
+  isLate        Boolean                   @default(false)
+  isTestData    Boolean                   @default(false)
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  homework      Homework                  @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy    User?                     @relation("HomeworkReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  files         HomeworkSubmissionFile[]
+  history       HomeworkSubmissionHistory[]
+
+  @@unique([homeworkId, userId, attemptNumber])
+  @@index([homeworkId, userId])
+  @@index([userId, status])
+  @@index([status, submittedAt(sort: Desc)])
+  @@index([isTestData, homeworkId])
+  @@map("homework_submissions")
+}
+
+model HomeworkSubmissionFile {
+  id               String             @id @default(cuid())
+  submissionId     String
+  fileUrl          String
+  storageKey       String?
+  originalFilename String
+  fileSize         Int                @default(0)
+  mimeType         String?
+  createdAt        DateTime           @default(now())
+
+  submission       HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@map("homework_submission_files")
+}
+
+model HomeworkSubmissionHistory {
+  id            String                   @id @default(cuid())
+  submissionId  String
+  attemptNumber Int
+  textAnswer    String?                  @db.Text
+  filesSnapshot Json?                    @db.JsonB
+  status        HomeworkSubmissionStatus
+  marksObtained Decimal?                 @db.Decimal(6, 2)
+  feedback      String?                  @db.Text
+  adminNote     String?                  @db.Text
+  reviewedById  String?
+  reviewedAt    DateTime?
+  submittedAt   DateTime
+  isLate        Boolean                  @default(false)
+  createdAt     DateTime                 @default(now())
+
+  submission    HomeworkSubmission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, attemptNumber])
+  @@map("homework_submission_history")
+}
+
 

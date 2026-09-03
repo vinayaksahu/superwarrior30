@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
+import { StudentQuizView } from "@/components/learning/student-quiz-view";
+import { StudentHomeworkView } from "@/components/learning/student-homework-view";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { getEnrolledLessonMediaUrlAction } from "@/server/actions/enrollment.actions";
 import {
@@ -21,6 +23,8 @@ import {
   Menu,
   X,
   BookOpen,
+  HelpCircle,
+  Award,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -255,8 +259,12 @@ export function CourseClassroomView({
                       <Video className="h-3.5 w-3.5 text-primary" />
                     ) : lesson.contentType === "PDF" ? (
                       <FileText className="h-3.5 w-3.5 text-amber-400" />
-                    ) : (
+                    ) : lesson.contentType === "TEXT" ? (
                       <AlignLeft className="h-3.5 w-3.5 text-sky-400" />
+                    ) : lesson.contentType === "QUIZ" ? (
+                      <HelpCircle className="h-3.5 w-3.5 text-purple-400" />
+                    ) : (
+                      <Award className="h-3.5 w-3.5 text-emerald-400" />
                     )}
                   </div>
                 </Link>
@@ -445,6 +453,18 @@ export function CourseClassroomView({
             <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
             <p className="text-xs text-muted-foreground">Loading secure course media...</p>
           </div>
+        ) : mediaData?.contentType === "QUIZ" ? (
+          <StudentQuizView
+            lessonId={activeLessonId}
+            courseSlug={courseSlug}
+            onLessonCompleted={() => handleToggleComplete()}
+          />
+        ) : mediaData?.contentType === "ASSIGNMENT" ? (
+          <StudentHomeworkView
+            lessonId={activeLessonId}
+            courseSlug={courseSlug}
+            onLessonCompleted={() => handleToggleComplete()}
+          />
         ) : mediaData?.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
             mediaData.provider === "BUNNY" || mediaData.bunnyVideoId ? (
