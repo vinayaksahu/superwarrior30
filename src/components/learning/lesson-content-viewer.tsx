@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedPdfViewer } from "./protected-pdf-viewer";
+import { ProtectedVideoPlayer } from "./protected-video-player";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 
 interface LessonContentViewerProps {
@@ -218,33 +219,12 @@ export function LessonContentViewer({
 
         {mediaData.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
-            mediaData.provider === "BUNNY" ? (
-              /* Bunny Stream Embedded Player (HLS, token-authenticated) */
-              <div className="aspect-video w-full">
-                <iframe
-                  src={mediaData.signedUrl}
-                  loading="lazy"
-                  className="h-full w-full border-0"
-                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  title={mediaData.title}
-                />
-              </div>
-            ) : (
-              /* R2 Native HTML5 Video Player (MP4) */
-              <div className="aspect-video w-full">
-                <video
-                  ref={videoRef}
-                  src={mediaData.signedUrl}
-                  controls
-                  controlsList="nodownload noplaybackrate"
-                  disablePictureInPicture
-                  onContextMenu={(e) => e.preventDefault()}
-                  onEnded={handleVideoEnded}
-                  className="h-full w-full object-contain select-none"
-                />
-              </div>
-            )
+            <ProtectedVideoPlayer
+              src={mediaData.signedUrl}
+              title={mediaData.title}
+              durationSec={mediaData.durationSec}
+              onEnded={handleVideoEnded}
+            />
           ) : (
             <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 text-muted-foreground p-8 text-center bg-card">
               <AlertCircle className="h-8 w-8 text-muted-foreground/50" />
