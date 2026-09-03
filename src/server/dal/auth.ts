@@ -51,8 +51,8 @@ export const getCurrentUser = cache(async () => {
       },
     });
 
-    // Cross-Database Seamless Auth: If Super Admin ID differs between Test DB and Production DB, lookup by email
-    if (!user && isSuperSession && session.email) {
+    // Cross-Database Seamless Auth: If User ID differs between Test DB and Production DB, lookup by email
+    if (!user && session.email) {
       user = await prisma.user.findUnique({
         where: { email: session.email },
         select: {
@@ -97,8 +97,8 @@ export const getCurrentUser = cache(async () => {
           adminRole: basicUser.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : basicUser.role === "SUPPORT" ? "SUPPORT" : "FULL_ACCESS_ADMIN",
           customPermissions: [],
         };
-      } else if (isSuperSession && session.email) {
-        const basicSuper = await prisma.user.findUnique({
+      } else if (session.email) {
+        const basicByEmail = await prisma.user.findUnique({
           where: { email: session.email },
           select: {
             id: true,
@@ -114,10 +114,10 @@ export const getCurrentUser = cache(async () => {
             createdAt: true,
           },
         });
-        if (basicSuper) {
+        if (basicByEmail) {
           user = {
-            ...basicSuper,
-            adminRole: "SUPER_ADMIN",
+            ...basicByEmail,
+            adminRole: basicByEmail.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : basicByEmail.role === "SUPPORT" ? "SUPPORT" : "FULL_ACCESS_ADMIN",
             customPermissions: [],
           };
         }
@@ -129,8 +129,9 @@ export const getCurrentUser = cache(async () => {
 
   if (!user || user.status !== "ACTIVE") return null;
 
-  // Session revocation check: if user's tokenVersion was incremented, invalidate session (except for cross-DB superadmin bridge)
-  if (!isSuperSession && user.tokenVersion !== session.tokenVersion) return null;
+  // Session revocation check: if user's tokenVersion was incremented, invalidate session (except for cross-DB email transition bridge)
+  const isCrossDbTransition = user.id !== session.userId && user.email === session.email;
+  if (!isSuperSession && !isCrossDbTransition && user.tokenVersion !== session.tokenVersion) return null;
 
   // Device-level session revocation check (One Active Device enforcement & Revoked Device check)
   if (session.deviceId) {
