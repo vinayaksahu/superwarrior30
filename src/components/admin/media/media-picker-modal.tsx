@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface MediaPickerModalProps {
-  mediaType: "VIDEO" | "PDF" | "IMAGE";
+  mediaType?: "VIDEO" | "PDF" | "IMAGE" | "DOCUMENT" | "ALL";
   currentMediaId?: string | null;
   onSelect: (media: any) => Promise<void> | void;
   onClose: () => void;
@@ -47,12 +47,15 @@ function formatDuration(seconds: number): string {
 }
 
 export function MediaPickerModal({
-  mediaType,
+  mediaType = "ALL",
   currentMediaId,
   onSelect,
   onClose,
   title,
 }: MediaPickerModalProps) {
+  const [activeTab, setActiveTab] = useState<"ALL" | "IMAGE" | "PDF" | "VIDEO">(
+    mediaType === "DOCUMENT" ? "ALL" : mediaType
+  );
   const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -65,23 +68,29 @@ export function MediaPickerModal({
   const loadMedia = useCallback(async (searchQuery: string) => {
     setIsLoading(true);
     try {
+      const typeFilter = activeTab === "ALL" ? (mediaType === "DOCUMENT" ? undefined : undefined) : activeTab;
       const res = await getMediaAssetsAction({
         page: 1,
         pageSize: 50,
-        mediaType,
+        mediaType: typeFilter as any,
         status: "READY", // ONLY READY media is selectable
         search: searchQuery,
         sort: "newest",
       });
       if (res.success && res.data) {
-        setItems(res.data);
+        // If DOCUMENT mode and ALL is active, filter out VIDEO
+        if (mediaType === "DOCUMENT" && activeTab === "ALL") {
+          setItems(res.data.filter((item: any) => item.mediaType === "PDF" || item.mediaType === "IMAGE"));
+        } else {
+          setItems(res.data);
+        }
       }
     } catch (err) {
       console.error("Error loading media for picker:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [mediaType]);
+  }, [activeTab, mediaType]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -121,17 +130,21 @@ export function MediaPickerModal({
     }
   };
 
-  const isVideo = mediaType === "VIDEO";
-  const isPdf = mediaType === "PDF";
-  const isImage = mediaType === "IMAGE";
+  const isVideo = activeTab === "VIDEO";
+  const isPdf = activeTab === "PDF";
+  const isImage = activeTab === "IMAGE";
 
   const modalTitle =
     title ||
-    (isVideo
+    (mediaType === "VIDEO"
       ? "Select Video from Media Library"
-      : isPdf
+      : mediaType === "PDF"
       ? "Select PDF Document from Media Library"
-      : "Select Image from Media Library");
+      : mediaType === "IMAGE"
+      ? "Select Image from Media Library"
+      : "Select Media Resource from Media Library");
+
+  const showTabs = mediaType === "ALL" || mediaType === "DOCUMENT";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in overflow-y-auto">
@@ -151,7 +164,7 @@ export function MediaPickerModal({
             <div>
               <h3 className="text-base font-bold text-foreground">{modalTitle}</h3>
               <p className="text-xs text-muted-foreground">
-                Only READY and verified {mediaType.toLowerCase()} assets are listed
+                Only READY and verified media assets are listed
               </p>
             </div>
           </div>
@@ -165,6 +178,61 @@ export function MediaPickerModal({
           </button>
         </div>
 
+        {/* Filter Tabs (when ALL or DOCUMENT) */}
+        {showTabs && (
+          <div className="flex items-center gap-1.5 border-b border-border px-6 py-2 bg-muted/10">
+            <button
+              type="button"
+              onClick={() => setActiveTab("ALL")}
+              className={`rounded-lg px-3 py-1 text-xs font-bold transition cursor-pointer ${
+                activeTab === "ALL"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              All Assets
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("IMAGE")}
+              className={`inline-flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-bold transition cursor-pointer ${
+                activeTab === "IMAGE"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              Images / Charts
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("PDF")}
+              className={`inline-flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-bold transition cursor-pointer ${
+                activeTab === "PDF"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              PDFs / Documents
+            </button>
+            {mediaType === "ALL" && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("VIDEO")}
+                className={`inline-flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-bold transition cursor-pointer ${
+                  activeTab === "VIDEO"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <Film className="h-3.5 w-3.5" />
+                Videos
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Action Bar: Search & Upload New */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4 bg-muted/20">
           <div className="relative flex-1 min-w-[200px]">
@@ -173,7 +241,7 @@ export function MediaPickerModal({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${mediaType.toLowerCase()}s by name...`}
+              placeholder={`Search ${activeTab === "ALL" ? "media" : activeTab.toLowerCase() + "s"} by name...`}
               className="h-9 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
@@ -181,7 +249,15 @@ export function MediaPickerModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept={isVideo ? "video/*" : isPdf ? "application/pdf" : "image/*"}
+            accept={
+              activeTab === "VIDEO"
+                ? "video/*"
+                : activeTab === "PDF"
+                ? "application/pdf"
+                : activeTab === "IMAGE"
+                ? "image/*"
+                : "image/*,application/pdf,video/*"
+            }
             className="hidden"
             onChange={handleUploadNew}
           />
@@ -191,7 +267,7 @@ export function MediaPickerModal({
             className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer transition-colors"
           >
             <UploadCloud className="h-3.5 w-3.5" />
-            Upload New {mediaType === "VIDEO" ? "Video" : mediaType === "PDF" ? "PDF" : "Image"}
+            Upload New {activeTab === "VIDEO" ? "Video" : activeTab === "PDF" ? "PDF" : activeTab === "IMAGE" ? "Image" : "Media"}
           </button>
         </div>
 

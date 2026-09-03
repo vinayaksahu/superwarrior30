@@ -15,6 +15,7 @@ import {
   Clock,
   Award,
   FileText,
+  ImageIcon,
   Paperclip,
   Plus,
   Trash2,
@@ -52,6 +53,7 @@ export function HomeworkBuilder({
   const [status, setStatus] = useState<"DRAFT" | "PUBLISHED" | "CLOSED">("PUBLISHED");
   const [attachedMedia, setAttachedMedia] = useState<HomeworkAttachment[]>([]);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [mediaPickerType, setMediaPickerType] = useState<"IMAGE" | "PDF" | "DOCUMENT">("DOCUMENT");
 
   useEffect(() => {
     let isMounted = true;
@@ -102,16 +104,21 @@ export function HomeworkBuilder({
   }, [lessonId, lessonTitle]);
 
   const handleAttachMedia = (media: any) => {
+    const isImg =
+      media.mediaType === "IMAGE" ||
+      media.mimeType?.startsWith("image/") ||
+      Boolean(media.thumbnailUrl && !media.bunnyVideoId);
+
     const item: HomeworkAttachment = {
       mediaId: media.id,
-      title: media.title || media.originalFilename || "Attached Resource",
-      url: media.storageUrl || media.bunnyCdnUrl || "",
-      type: media.mediaType || "DOCUMENT",
+      title: media.title || media.fileName || media.originalFileName || "Attached Resource",
+      url: media.storageUrl || media.bunnyCdnUrl || media.thumbnailUrl || "",
+      type: isImg ? "IMAGE" : "PDF",
       size: media.fileSize || 0,
     };
     setAttachedMedia([...attachedMedia, item]);
     setShowMediaPicker(false);
-    toast.success("Attached media asset!");
+    toast.success(`Attached ${isImg ? "image/chart" : "PDF"} successfully!`);
   };
 
   const handleRemoveMedia = (idx: number) => {
@@ -291,60 +298,112 @@ export function HomeworkBuilder({
 
       {/* Media Attachments Section */}
       <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
               Study Materials & Attachments
             </h4>
-            <p className="text-[11px] text-muted-foreground">Attach reference charts, assignment PDFs, or templates.</p>
+            <p className="text-[11px] text-muted-foreground">Attach reference charts (PNG/JPG), assignment PDFs, or templates.</p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowMediaPicker(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20"
-          >
-            <Paperclip className="h-3.5 w-3.5" />
-            Attach From Media Library
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMediaPickerType("IMAGE");
+                setShowMediaPicker(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20 px-3 py-1.5 text-xs font-bold text-sky-400 hover:bg-sky-500/20 cursor-pointer"
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              Attach Chart / Image
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMediaPickerType("PDF");
+                setShowMediaPicker(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500/20 cursor-pointer"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Attach PDF
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMediaPickerType("DOCUMENT");
+                setShowMediaPicker(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer"
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              Media Library
+            </button>
+          </div>
         </div>
 
         {attachedMedia.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            No media attachments yet. Click "Attach From Media Library" to add PDFs, templates, or chart images.
+          <div className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
+            No media attachments yet. Click <span className="text-foreground font-bold">"Attach Chart / Image"</span> or <span className="text-foreground font-bold">"Attach PDF"</span> to add reference study materials.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {attachedMedia.map((att, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between rounded-xl border border-border bg-background p-3 text-xs"
-              >
-                <div className="flex items-center gap-2.5 min-w-0 mr-2">
-                  <FileText className="h-4 w-4 text-amber-400 shrink-0" />
-                  <span className="truncate font-semibold text-foreground">{att.title}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {att.url && (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-1 text-muted-foreground hover:text-foreground"
+            {attachedMedia.map((att, idx) => {
+              const isImage = att.type === "IMAGE" || att.url?.match(/\.(png|jpg|jpeg|webp|gif|svg)/i);
+
+              return (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between rounded-xl border border-border bg-background p-3 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 mr-2">
+                    {isImage ? (
+                      <div className="h-9 w-9 rounded-lg overflow-hidden border border-border shrink-0 bg-black/40 flex items-center justify-center">
+                        {att.url ? (
+                          <img src={att.url} alt={att.title} className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-4 w-4 text-sky-400" />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="h-9 w-9 rounded-lg border border-border shrink-0 bg-amber-500/10 flex items-center justify-center">
+                        <FileText className="h-4 w-4 text-amber-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <span className="truncate font-semibold text-foreground block">{att.title}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                        {isImage ? "Chart / Image" : "PDF Document"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {att.url && (
+                      <a
+                        href={att.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                        title="View Full Resource"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMedia(idx)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 cursor-pointer"
+                      title="Remove Attachment"
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveMedia(idx)}
-                    className="p-1 text-muted-foreground hover:text-red-400"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -352,7 +411,7 @@ export function HomeworkBuilder({
       {/* Media Picker Modal */}
       {showMediaPicker && (
         <MediaPickerModal
-          mediaType="PDF"
+          mediaType={mediaPickerType}
           onSelect={handleAttachMedia}
           onClose={() => setShowMediaPicker(false)}
         />

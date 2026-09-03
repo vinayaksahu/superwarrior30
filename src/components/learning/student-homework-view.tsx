@@ -12,6 +12,7 @@ import {
   Calendar,
   Clock,
   FileText,
+  ImageIcon,
   Paperclip,
   CheckCircle2,
   AlertCircle,
@@ -24,6 +25,9 @@ import {
   ChevronUp,
   RotateCcw,
   Sparkles,
+  Maximize2,
+  ZoomIn,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +52,7 @@ export function StudentHomeworkView({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [activeLightboxImg, setActiveLightboxImg] = useState<{ url: string; title: string } | null>(null);
   const [isSubmitting, startSubmitTransition] = useTransition();
 
   const loadHomework = async () => {
@@ -264,31 +269,128 @@ export function StudentHomeworkView({
           </div>
         </div>
 
-        {/* Attached Study Materials */}
+        {/* Attached Study Materials & Reference Charts */}
         {homework.attachedMedia && homework.attachedMedia.length > 0 && (
-          <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-              Reference Materials & Templates
+          <div className="space-y-4 pt-2">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Paperclip className="h-3.5 w-3.5 text-amber-400" />
+              Reference Materials, Charts & Templates
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {homework.attachedMedia.map((att: any, idx: number) => (
-                <a
-                  key={idx}
-                  href={att.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between rounded-xl border border-border bg-background p-3.5 text-xs hover:border-primary/50 transition-all group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 mr-2">
-                    <Paperclip className="h-4 w-4 text-amber-400 shrink-0" />
-                    <span className="truncate font-semibold text-foreground group-hover:text-amber-300">
-                      {att.title}
-                    </span>
-                  </div>
-                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground shrink-0" />
-                </a>
-              ))}
-            </div>
+
+            {/* Reference Images / Charts (Visual Display) */}
+            {(() => {
+              const imageAttachments = homework.attachedMedia.filter(
+                (att: any) =>
+                  att.type === "IMAGE" ||
+                  att.url?.match(/\.(png|jpg|jpeg|webp|gif|svg)/i) ||
+                  att.mimeType?.startsWith("image/")
+              );
+              const docAttachments = homework.attachedMedia.filter(
+                (att: any) => !imageAttachments.includes(att)
+              );
+
+              return (
+                <div className="space-y-3">
+                  {/* Image/Chart Cards */}
+                  {imageAttachments.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {imageAttachments.map((att: any, idx: number) => (
+                        <div
+                          key={`img-${idx}`}
+                          className="group rounded-2xl border border-border bg-background overflow-hidden hover:border-primary/50 transition-all shadow-md flex flex-col"
+                        >
+                          {/* Image Thumbnail Container */}
+                          <div
+                            onClick={() =>
+                              setActiveLightboxImg({
+                                url: att.url,
+                                title: att.title || "Reference Chart Analysis",
+                              })
+                            }
+                            className="relative aspect-video w-full bg-black/60 overflow-hidden cursor-zoom-in flex items-center justify-center group-hover:opacity-95 transition-opacity"
+                          >
+                            <img
+                              src={att.url}
+                              alt={att.title || "Reference Chart"}
+                              className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <span className="inline-flex items-center gap-1 rounded-xl bg-black/75 border border-white/20 px-3 py-1.5 text-xs font-bold text-white shadow-xl backdrop-blur-md">
+                                <ZoomIn className="h-3.5 w-3.5 text-amber-400" />
+                                Click to Zoom & Inspect Chart
+                              </span>
+                            </div>
+                            <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-md bg-black/75 border border-white/15 px-2 py-0.5 text-[10px] font-bold text-sky-400 backdrop-blur-md">
+                              <ImageIcon className="h-3 w-3" />
+                              Reference Chart
+                            </span>
+                          </div>
+
+                          {/* Footer Info */}
+                          <div className="p-3 flex items-center justify-between gap-2 border-t border-border bg-card/50">
+                            <span className="truncate text-xs font-bold text-foreground">
+                              {att.title || "Reference Chart"}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveLightboxImg({
+                                    url: att.url,
+                                    title: att.title || "Reference Chart Analysis",
+                                  })
+                                }
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                                title="Expand Image"
+                              >
+                                <Maximize2 className="h-3.5 w-3.5" />
+                              </button>
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                                title="Open in New Tab"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Document / PDF Cards */}
+                  {docAttachments.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {docAttachments.map((att: any, idx: number) => (
+                        <a
+                          key={`doc-${idx}`}
+                          href={att.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-between rounded-xl border border-border bg-background p-3.5 text-xs hover:border-primary/50 transition-all group"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 mr-2">
+                            <FileText className="h-4 w-4 text-amber-400 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="truncate font-semibold text-foreground group-hover:text-amber-300 block">
+                                {att.title}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                                PDF Document
+                              </span>
+                            </div>
+                          </div>
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -585,6 +687,61 @@ export function StudentHomeworkView({
                 {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Confirm Submission
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* High-Resolution Reference Chart / Image Lightbox */}
+      {activeLightboxImg && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-3 sm:p-6 animate-in fade-in"
+          onClick={() => setActiveLightboxImg(null)}
+        >
+          <div
+            className="relative max-h-[95vh] max-w-[95vw] sm:max-w-5xl w-full flex flex-col items-center justify-center animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Bar with Title and Actions */}
+            <div className="w-full flex items-center justify-between pb-3 text-white px-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="inline-flex items-center gap-1 rounded bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[10px] font-bold text-sky-400">
+                  <ImageIcon className="h-3 w-3" />
+                  Reference Chart
+                </span>
+                <span className="truncate text-xs sm:text-sm font-bold">{activeLightboxImg.title}</span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={activeLightboxImg.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
+                  title="Open Full Resolution in New Tab"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Open Full Size</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveLightboxImg(null)}
+                  className="rounded-lg p-1.5 bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Main High-Res Image Container */}
+            <div className="relative max-h-[82vh] w-full flex items-center justify-center overflow-auto rounded-2xl border border-white/15 bg-black/70 shadow-2xl p-2">
+              <img
+                src={activeLightboxImg.url}
+                alt={activeLightboxImg.title}
+                className="max-h-[80vh] w-auto max-w-full object-contain rounded-lg shadow-lg select-none"
+              />
             </div>
           </div>
         </div>
