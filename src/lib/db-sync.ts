@@ -167,107 +167,40 @@ export async function ensureDatabaseSchemaSync(force = false) {
     `ALTER TABLE "system_payment_methods" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "funnel_events" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
 
-    // Ensure ALL critical business data is accessible in LIVE mode
-    // Orders & Order Items — real purchases must always be visible
-    `UPDATE "orders" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "orders" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    `UPDATE "order_items" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "order_items" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Courses — published courses must be visible
-    `UPDATE "courses" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
+    // Ensure clean separation between LIVE PRODUCTION and TEST data
+    // 1. Root Super Admin & staff accounts must be LIVE
+    `UPDATE "users" SET "isTestData" = false WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
+    `UPDATE "wallets" SET "isTestData" = false WHERE "userId" IN (SELECT "id" FROM "users" WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com'));`,
+
+    // 2. Restore all test student accounts and their associated test records to isTestData = true
+    `UPDATE "users" SET "isTestData" = true WHERE "role" = 'STUDENT' AND "email" NOT IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
+    `UPDATE "orders" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "order_items" SET "isTestData" = true WHERE "orderId" IN (SELECT "id" FROM "orders" WHERE "isTestData" = true);`,
+    `UPDATE "course_enrollments" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "wallets" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "wallet_transactions" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "referral_commission_records" SET "isTestData" = true WHERE "recipientId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true) OR "buyerId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "referral_relationships" SET "isTestData" = true WHERE "isTestData" IS NULL OR "referrerId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true) OR "referredId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "referral_closures" SET "isTestData" = true WHERE "isTestData" IS NULL OR "leadId" IN (SELECT "id" FROM "leads" WHERE "isTestData" = true);`,
+    `UPDATE "broker_offer_claims" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "leads" SET "isTestData" = true WHERE "isTestData" IS NULL;`,
+    `UPDATE "withdrawals" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "testimonials" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+
+    // 3. Shared catalog & platform configuration assets (accessible in both LIVE & TEST modes)
+    `UPDATE "courses" SET "isTestData" = false WHERE "deletedAt" IS NULL;`,
     `ALTER TABLE "courses" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Course Enrollments — purchased enrollments must be visible
-    `UPDATE "course_enrollments" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "course_enrollments" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Coupons — promo coupons must be visible
-    `UPDATE "coupons" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
+    `UPDATE "coupons" SET "isTestData" = false;`,
     `ALTER TABLE "coupons" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Users — all real users must be visible
-    `UPDATE "users" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "users" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Wallets — user wallets must be visible
-    `UPDATE "wallets" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "wallets" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Lesson Progress
-    `UPDATE "lesson_progress" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "lesson_progress" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Wallet Transactions
-    `UPDATE "wallet_transactions" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "wallet_transactions" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Referral relationships & closures
-    `UPDATE "referral_relationships" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "referral_relationships" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    `UPDATE "referral_closures" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "referral_closures" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Referral commissions
-    `UPDATE "referral_commission_records" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "referral_commission_records" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Broker offer claims
-    `UPDATE "broker_offer_claims" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "broker_offer_claims" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Testimonials
-    `UPDATE "testimonials" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "testimonials" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    `UPDATE "testimonial_media" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "testimonial_media" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Live Sessions
-    `UPDATE "live_sessions" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "live_sessions" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Support Inquiries
-    `UPDATE "support_inquiries" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "support_inquiries" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Withdrawals
-    `UPDATE "withdrawals" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "withdrawals" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Leads
-    `UPDATE "leads" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "leads" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Audit Logs
-    `UPDATE "audit_logs" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "audit_logs" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // System Payment Methods
-    `UPDATE "system_payment_methods" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
+    `UPDATE "system_payment_methods" SET "isTestData" = false;`,
     `ALTER TABLE "system_payment_methods" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Funnel Events
-    `UPDATE "funnel_events" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "funnel_events" ALTER COLUMN "isTestData" SET DEFAULT false;`,
-    // Media Assets & Lesson Media
-    `UPDATE "media_assets" SET "isTestData" = false WHERE "isTestData" IS NULL OR "isTestData" = true;`,
-    `ALTER TABLE "media_assets" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+    `ALTER TABLE "orders" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+    `ALTER TABLE "order_items" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+    `ALTER TABLE "course_enrollments" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+    `ALTER TABLE "users" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+
     // targeted super admin email update
     `UPDATE "users" SET "email" = 'vinayaksahu3@gmail.com' WHERE "email" = 'admin@superwarrior30.com' AND "role" = 'SUPER_ADMIN';`,
-
-    // AUTO-REPAIR: Ensure every PAID, APPROVED, or COMPLETED order has an active CourseEnrollment
-    `INSERT INTO "course_enrollments" ("id", "userId", "courseId", "orderId", "status", "progressPercentage", "isTestData", "enrolledAt")
-     SELECT 
-       'cm_enr_' || md5(o."userId" || '_' || oi."courseId" || '_' || o."id"),
-       o."userId",
-       oi."courseId",
-       o."id",
-       'ACTIVE'::"EnrollmentStatus",
-       0.00,
-       false,
-       COALESCE(o."paidAt", o."createdAt", NOW())
-     FROM "orders" o
-     JOIN "order_items" oi ON oi."orderId" = o."id"
-     WHERE o."status" IN ('PAID', 'APPROVED', 'COMPLETED')
-       AND oi."courseId" IS NOT NULL
-       AND NOT EXISTS (
-         SELECT 1 FROM "course_enrollments" ce
-         WHERE ce."userId" = o."userId" AND ce."courseId" = oi."courseId"
-       );`,
-
-    // AUTO-REPAIR: Update any existing enrollments for paid orders to ACTIVE and isTestData=false
-    `UPDATE "course_enrollments" ce
-     SET "status" = 'ACTIVE'::"EnrollmentStatus", "isTestData" = false
-     WHERE ce."status" != 'ACTIVE'
-       AND EXISTS (
-         SELECT 1 FROM "orders" o
-         JOIN "order_items" oi ON oi."orderId" = o."id"
-         WHERE o."userId" = ce."userId"
-           AND oi."courseId" = ce."courseId"
-           AND o."status" IN ('PAID', 'APPROVED', 'COMPLETED')
-       );`,
 
     // AUTO-ENROLL ADMINS: Ensure ADMIN and SUPER_ADMIN users have active enrollments for published courses
     `INSERT INTO "course_enrollments" ("id", "userId", "courseId", "orderId", "status", "progressPercentage", "isTestData", "enrolledAt")

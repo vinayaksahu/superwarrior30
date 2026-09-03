@@ -13,6 +13,7 @@ const ISOLATED_MODELS = new Set([
   "order",
   "orderItem",
   "course",
+  "courseEnrollment",
   "lessonProgress",
   "referralCommissionRecord",
   "referralRelationship",
@@ -207,8 +208,41 @@ function scopeQueryArgsForEnvironment(
     }
   }
 
-  // TEST MODE: mark created records as test records
+  // TEST MODE: isolate test records on shared databases
   if (env === "TEST") {
+    if (
+      method === "findMany" ||
+      method === "findFirst" ||
+      method === "count" ||
+      method === "aggregate" ||
+      method === "groupBy"
+    ) {
+      const where = currentArgs.where ? { ...currentArgs.where } : {};
+
+      // For user queries: do not filter out admin/staff accounts needed for authentication
+      if (modelName === "user") {
+        const isAdminQuery =
+          where.role === "SUPER_ADMIN" ||
+          where.role === "ADMIN" ||
+          (typeof where.role === "object" && where.role?.in?.some?.((r: string) => r !== "STUDENT")) ||
+          (typeof where.email === "string" &&
+            (where.email.includes("admin") || where.email === "vinayaksahu3@gmail.com"));
+
+        if (!isAdminQuery && where.isTestData === undefined) {
+          where.isTestData = true;
+        }
+      } else if (modelName === "course" || modelName === "coupon" || modelName === "systemPaymentMethod") {
+        // Shared catalog & settings models: accessible in both modes unless explicitly scoped
+      } else {
+        if (where.isTestData === undefined) {
+          where.isTestData = true;
+        }
+      }
+
+      currentArgs.where = where;
+      return currentArgs;
+    }
+
     if (method === "create" && currentArgs.data) {
       if (currentArgs.data.isTestData === undefined) {
         currentArgs.data = { ...currentArgs.data, isTestData: true };
