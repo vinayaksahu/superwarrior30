@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getPublicCourseBySlugAction } from "@/server/actions/course.actions";
 import { checkUserEnrollment } from "@/server/actions/enrollment.actions";
 import { FreePreviewButton } from "@/components/courses/free-preview-modal";
+import { ExpandableDescription } from "@/components/courses/expandable-description";
 import { PublicNavbar } from "@/components/shared/public-navbar";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
@@ -142,9 +143,7 @@ export default async function CourseDetailPage({
                     About This Course
                   </h2>
                 </div>
-                <div className="rounded-2xl border border-border/80 bg-card/60 p-6 sm:p-8 shadow-sm">
-                  <MarkdownContent content={course.fullDescription} />
-                </div>
+                <ExpandableDescription content={course.fullDescription} />
               </section>
             )}
 
