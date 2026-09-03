@@ -90,11 +90,13 @@ export default async function CourseDetailPage({
         </div>
       </div>
 
-      {/* Hero Header Section */}
-      <div className="border-b border-border/40 bg-gradient-to-b from-muted/30 to-background py-12 md:py-16">
-        <div className="container mx-auto px-4 max-w-6xl">
-          <div className="grid gap-12 lg:grid-cols-3">
-            <div className="lg:col-span-2 space-y-5">
+      {/* Main Unified Course Page Content */}
+      <div className="container mx-auto px-4 max-w-6xl py-8 md:py-10">
+        <div className="grid gap-8 lg:gap-10 lg:grid-cols-3 items-start">
+          {/* Left Main Column: Hero info, About Course, Curriculum */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Header / Intro */}
+            <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
                   {course.difficulty} Level
@@ -104,16 +106,16 @@ export default async function CourseDetailPage({
                 </span>
               </div>
 
-              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl text-foreground">
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
                 {course.title}
               </h1>
 
-              <p className="text-lg text-muted-foreground leading-relaxed">
+              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
                 {course.shortDescription ||
                   "Master the market dynamics, chart structures, trade execution, and risk control protocols used by professional traders."}
               </p>
 
-              <div className="flex flex-wrap items-center gap-6 pt-2 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-5 pt-1 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Layers className="h-4 w-4 text-primary" />
                   <span>{course.modules.length} Modules</span>
@@ -131,104 +133,36 @@ export default async function CourseDetailPage({
               </div>
             </div>
 
-            {/* Pricing / Enrollment Sticky Card */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-24 rounded-2xl border border-border bg-card p-6 shadow-xl space-y-6 overflow-hidden">
-                {(course.thumbnailUrl || course.thumbnailCdnUrl) && (
-                  <div className="relative -mx-6 -mt-6 aspect-video overflow-hidden border-b border-border bg-muted">
-                    <img
-                      src={course.thumbnailUrl || course.thumbnailCdnUrl || ""}
-                      alt={course.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Lifetime Access
-                  </p>
-                  <div className="mt-2 flex items-baseline gap-3">
-                    <span className="text-3xl font-extrabold text-foreground">
-                      {formatCurrency(course.price.toString())}
-                    </span>
-                    {course.compareAtPrice && (
-                      <span className="text-base text-muted-foreground line-through">
-                        {formatCurrency(course.compareAtPrice.toString())}
-                      </span>
-                    )}
-                    {discountPct && discountPct > 0 && (
-                      <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-500">
-                        {discountPct}% OFF
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {isEnrolled ? (
-                  <Link
-                    href={`/learn/${course.slug}`}
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 text-sm font-bold text-black shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400"
-                  >
-                    <PlayCircle className="h-5 w-5" />
-                    Start / Continue Learning
-                  </Link>
-                ) : (
-                  <Link
-                    href={`/checkout/${course.id}`}
-                    className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-[1.01]"
-                  >
-                    Enroll Now
-                  </Link>
-                )}
-
-                <div className="space-y-3 border-t border-border pt-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                    <span>Instant access to all modules & future updates</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                    <span>Downloadable PDF cheat sheets & resources</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                    <span>High-definition streaming on mobile & desktop</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Course Content & Curriculum */}
-      <div className="container mx-auto px-4 max-w-6xl mt-12">
-        <div className="grid gap-12 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-12">
-            {/* Description */}
+            {/* Description: About This Course */}
             {course.fullDescription && (
               <section className="space-y-4">
-                <h2 className="text-2xl font-bold tracking-tight text-foreground">
-                  About This Course
-                </h2>
-                <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-6 w-1 rounded-full bg-primary" />
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                    About This Course
+                  </h2>
+                </div>
+                <div className="rounded-2xl border border-border/80 bg-card/60 p-6 sm:p-8 shadow-sm">
                   <MarkdownContent content={course.fullDescription} />
                 </div>
               </section>
             )}
 
             {/* Curriculum Syllabus */}
-            <section className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-foreground">
-                  Course Curriculum
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-6 w-1 rounded-full bg-primary" />
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                    Course Curriculum
+                  </h2>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">
                   {course.modules.length} modules • {totalLessons} lessons
-                </p>
+                </span>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {course.modules.map((module) => (
                   <div
                     key={module.id}
@@ -298,6 +232,73 @@ export default async function CourseDetailPage({
                 ))}
               </div>
             </section>
+          </div>
+
+          {/* Right Column: Pricing / Enrollment Sticky Card */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-20 rounded-2xl border border-border bg-card p-6 shadow-xl space-y-6 overflow-hidden">
+              {(course.thumbnailUrl || course.thumbnailCdnUrl) && (
+                <div className="relative -mx-6 -mt-6 aspect-video overflow-hidden border-b border-border bg-muted">
+                  <img
+                    src={course.thumbnailUrl || course.thumbnailCdnUrl || ""}
+                    alt={course.title}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Lifetime Access
+                </p>
+                <div className="mt-2 flex items-baseline gap-3">
+                  <span className="text-3xl font-extrabold text-foreground">
+                    {formatCurrency(course.price.toString())}
+                  </span>
+                  {course.compareAtPrice && (
+                    <span className="text-base text-muted-foreground line-through">
+                      {formatCurrency(course.compareAtPrice.toString())}
+                    </span>
+                  )}
+                  {discountPct && discountPct > 0 && (
+                    <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-500">
+                      {discountPct}% OFF
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {isEnrolled ? (
+                <Link
+                  href={`/learn/${course.slug}`}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 text-sm font-bold text-black shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400"
+                >
+                  <PlayCircle className="h-5 w-5" />
+                  Start / Continue Learning
+                </Link>
+              ) : (
+                <Link
+                  href={`/checkout/${course.id}`}
+                  className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-[1.01]"
+                >
+                  Enroll Now
+                </Link>
+              )}
+
+              <div className="space-y-3 border-t border-border pt-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                  <span>Instant access to all modules & future updates</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                  <span>Downloadable PDF cheat sheets & resources</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                  <span>High-definition streaming on mobile & desktop</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

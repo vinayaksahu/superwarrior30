@@ -258,16 +258,29 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
       }
     }
 
-    // Unordered List item: - text or * text or + text
-    const ulMatch = trimmed.match(/^[-*+]\s+(.+)$/);
+    // Special sub-headings: e.g. "WHAT YOU GET:" or "KEY HIGHLIGHTS:"
+    if (/^[A-Z0-9\s&/\\—–-]{3,50}:$/.test(trimmed)) {
+      flushList();
+      elements.push(
+        <div key={`section-head-${index++}`} className="pt-4 pb-1">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-primary">
+            {trimmed.replace(/:$/, "")}
+          </span>
+        </div>
+      );
+      continue;
+    }
+
+    // Unordered List item: - text or * text or + text or • text
+    const ulMatch = trimmed.match(/^[-*+•]\s*(.+)$/);
     if (ulMatch) {
       if (inList !== "ul") {
         flushList();
         inList = "ul";
       }
       listItems.push(
-        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm text-muted-foreground leading-relaxed">
-          <span className="mt-1.5 flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm sm:text-[15px] text-foreground/90 leading-relaxed">
+          <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" />
           <span className="flex-1">{renderInline(ulMatch[1])}</span>
         </li>
       );
@@ -282,9 +295,9 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
         inList = "ol";
       }
       listItems.push(
-        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm text-muted-foreground leading-relaxed">
-          <span className="font-mono text-xs font-bold text-primary shrink-0 mt-0.5">
-            {olMatch[1]}.
+        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm sm:text-[15px] text-foreground/90 leading-relaxed">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-bold text-primary shrink-0 mt-0.5">
+            {olMatch[1]}
           </span>
           <span className="flex-1">{renderInline(olMatch[2])}</span>
         </li>
@@ -295,7 +308,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
     // Regular Paragraph
     flushList();
     elements.push(
-      <p key={`p-${index++}`} className="my-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
+      <p key={`p-${index++}`} className="my-3 text-sm sm:text-[15px] leading-relaxed text-foreground/85">
         {renderInline(trimmed)}
       </p>
     );
