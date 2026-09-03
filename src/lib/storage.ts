@@ -127,8 +127,9 @@ export async function getMediaUrl(
       return getSecurePlaybackUrl(
         lesson.bunnyVideoId,
         expiresIn || SIGNED_URL_EXPIRY.VIDEO,
-        "embed",
-        bunnyConfig.streamLibraryId
+        "hls",
+        bunnyConfig.streamLibraryId,
+        bunnyConfig.tokenSecurityKey
       );
     }
     if (type === "pdf" && lesson.bunnyCdnUrl) {

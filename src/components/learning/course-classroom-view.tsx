@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
+import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
 import { StudentQuizView } from "@/components/learning/student-quiz-view";
 import { StudentHomeworkView } from "@/components/learning/student-homework-view";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -467,33 +468,12 @@ export function CourseClassroomView({
           />
         ) : mediaData?.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
-            mediaData.provider === "BUNNY" || mediaData.bunnyVideoId ? (
-              /* Bunny Stream Responsive Embed Player */
-              <div className="relative rounded-2xl border border-border bg-black/95 shadow-2xl overflow-hidden aspect-video w-full">
-                <iframe
-                  src={mediaData.signedUrl}
-                  loading="lazy"
-                  className="h-full w-full border-0"
-                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  title={mediaData.title}
-                />
-              </div>
-            ) : (
-              /* Legacy R2 HTML5 Player */
-              <div className="relative rounded-2xl border border-border bg-black/95 shadow-2xl overflow-hidden aspect-video w-full">
-                <video
-                  ref={videoRef}
-                  src={mediaData.signedUrl}
-                  controls
-                  controlsList="nodownload noplaybackrate"
-                  disablePictureInPicture
-                  onContextMenu={(e) => e.preventDefault()}
-                  onEnded={handleToggleComplete}
-                  className="h-full w-full object-contain select-none"
-                />
-              </div>
-            )
+            <ProtectedVideoPlayer
+              src={mediaData.signedUrl}
+              title={mediaData.title}
+              durationSec={mediaData.durationSec}
+              onEnded={() => handleToggleComplete()}
+            />
           ) : (
             <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 text-muted-foreground p-8 text-center bg-card rounded-2xl border border-border">
               <AlertCircle className="h-8 w-8 text-muted-foreground/50" />

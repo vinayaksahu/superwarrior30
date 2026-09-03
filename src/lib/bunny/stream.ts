@@ -191,17 +191,35 @@ export async function getVideoStatus(guid: string): Promise<VideoEncodingStatus>
  */
 export function getSecurePlaybackUrl(
   guid: string,
-  _expiresInSec: number = 3600,
+  expiresInSec: number = 3600,
   format: "hls" | "embed" = "embed",
-  libraryIdOverride?: string
+  libraryIdOverride?: string,
+  tokenSecurityKeyOverride?: string
 ): string {
   const libraryId = libraryIdOverride || bunnyStreamConfig.libraryId;
+  const tokenKey = tokenSecurityKeyOverride || (process.env.BUNNY_TOKEN_SECURITY_KEY || "");
+  const expires = Math.floor(Date.now() / 1000) + expiresInSec;
 
   if (format === "embed") {
+    if (tokenKey) {
+      // Bunny Token Auth for embed: SHA256(token_security_key + video_id + expiration)
+      const hashableBase = `${tokenKey}${guid}${expires}`;
+      const token = crypto.createHash("sha256").update(hashableBase).digest("hex");
+      return `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?token=${token}&expires=${expires}&autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
+    }
     return `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
   }
 
-  return `https://vz-${libraryId}.b-cdn.net/${guid}/playlist.m3u8`;
+  const pullZoneHost =
+    libraryId === "740163" ? "vz-647be451-8da.b-cdn.net" : `vz-${libraryId}.b-cdn.net`;
+
+  if (tokenKey) {
+    const hashableBase = `${tokenKey}/${guid}/playlist.m3u8${expires}`;
+    const token = crypto.createHash("sha256").update(hashableBase).digest("hex");
+    return `https://${pullZoneHost}/${guid}/playlist.m3u8?token=${token}&expires=${expires}`;
+  }
+
+  return `https://${pullZoneHost}/${guid}/playlist.m3u8`;
 }
 
 /**
