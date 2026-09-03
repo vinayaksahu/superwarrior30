@@ -80,7 +80,7 @@ async function main() {
   if (existingStream) {
     streamLibraryId = String(existingStream.id);
     streamLibraryName = existingStream.name;
-    streamApiKey = existingStream.apiKey;
+    streamApiKey = existingStream.apiKey || "";
     console.log(`✅ Linked Video Library: ${streamLibraryName} (ID: ${streamLibraryId})`);
   } else {
     console.log(`⚡ Creating Video Library: sw30-production-stream...`);
@@ -88,7 +88,7 @@ async function main() {
     if (createStreamRes.success && createStreamRes.library) {
       streamLibraryId = String(createStreamRes.library.id);
       streamLibraryName = createStreamRes.library.name;
-      streamApiKey = createStreamRes.library.apiKey;
+      streamApiKey = createStreamRes.library.apiKey || "";
       console.log(`✅ Created Video Library: ${streamLibraryName} (ID: ${streamLibraryId})`);
     }
   }
@@ -103,7 +103,7 @@ async function main() {
   });
 
   const payload = {
-    provider: "BUNNY",
+    provider: "BUNNY" as const,
     environment: "production",
     isEnabled: true,
     isProductionReady: true,

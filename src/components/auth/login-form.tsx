@@ -291,8 +291,34 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
         )}
 
         {state?.message && !state.success && (
-          <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            {state.message}
+          <div className="mb-4 rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+            {(() => {
+              const text = state.message;
+              const urlRegex = /(https?:\/\/[^\s]+|\/(?:adminlogin|superadminlogin|login|forgot-password))/g;
+              const parts = text.split(urlRegex);
+
+              return (
+                <div className="space-y-2">
+                  <p>
+                    {parts.map((part, i) => {
+                      if (part.match(urlRegex)) {
+                        const href = part.startsWith("http") ? new URL(part).pathname : part;
+                        return (
+                          <Link
+                            key={i}
+                            href={href}
+                            className="inline-flex items-center gap-1 font-black underline underline-offset-4 text-primary hover:text-primary/80 transition-colors cursor-pointer ml-1"
+                          >
+                            {part}
+                          </Link>
+                        );
+                      }
+                      return part;
+                    })}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         )}
 
