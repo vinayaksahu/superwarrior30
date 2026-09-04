@@ -14,11 +14,33 @@ import {
 } from "lucide-react";
 
 let pdfEngineLoadingPromise: Promise<any> | null = null;
+const PDFJS_CDN_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER_CDN_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-function setWorkerSrc(pdfjsLib: any) {
+function setWorkerSrc(pdfjsLib: any, useCdn = false) {
   if (pdfjsLib?.GlobalWorkerOptions) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = useCdn ? PDFJS_WORKER_CDN_URL : "/pdf.worker.min.js";
   }
+}
+
+function injectScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      script.remove();
+      reject(new Error(`Failed to load ${src}`));
+    };
+    document.head.appendChild(script);
+  });
 }
 
 function loadPdfEngine(): Promise<any> {
@@ -30,37 +52,33 @@ function loadPdfEngine(): Promise<any> {
   }
 
   if (!pdfEngineLoadingPromise) {
-    pdfEngineLoadingPromise = new Promise<any>((resolve, reject) => {
-      if (win.pdfjsLib) {
-        setWorkerSrc(win.pdfjsLib);
-        resolve(win.pdfjsLib);
-        return;
-      }
-      const existing = document.querySelector('script[src="/pdf.min.js"]') as HTMLScriptElement | null;
-      if (existing) {
-        if (win.pdfjsLib) {
-          setWorkerSrc(win.pdfjsLib);
-          resolve(win.pdfjsLib);
-          return;
+    pdfEngineLoadingPromise = (async () => {
+      try {
+        // Attempt 1: Load local self-hosted script
+        try {
+          await injectScript("/pdf.min.js");
+          if (win.pdfjsLib) {
+            setWorkerSrc(win.pdfjsLib, false);
+            return win.pdfjsLib;
+          }
+        } catch (localErr) {
+          console.warn("Local PDF engine load failed, trying CDN fallback:", localErr);
         }
-        existing.addEventListener("load", () => {
-          setWorkerSrc(win.pdfjsLib);
-          resolve(win.pdfjsLib);
-        });
-        existing.addEventListener("error", () => reject(new Error("Failed to load PDF viewer script")));
-        return;
-      }
 
-      const script = document.createElement("script");
-      script.src = "/pdf.min.js";
-      script.async = true;
-      script.onload = () => {
-        setWorkerSrc(win.pdfjsLib);
-        resolve(win.pdfjsLib);
-      };
-      script.onerror = () => reject(new Error("Failed to load PDF viewer engine"));
-      document.head.appendChild(script);
-    });
+        // Attempt 2: Load from trusted Cloudflare CDN (whitelisted in CSP)
+        await injectScript(PDFJS_CDN_URL);
+        if (win.pdfjsLib) {
+          setWorkerSrc(win.pdfjsLib, true);
+          return win.pdfjsLib;
+        }
+
+        throw new Error("PDF viewer engine could not be initialized");
+      } catch (err) {
+        // Reset promise on failure so retry button can re-attempt
+        pdfEngineLoadingPromise = null;
+        throw err;
+      }
+    })();
   }
 
   return pdfEngineLoadingPromise;

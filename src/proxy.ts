@@ -14,6 +14,8 @@ const PUBLIC_ROUTES = [
   "/refund-policy",
   "/sitemap.xml",
   "/robots.txt",
+  "/pdf.min.js",
+  "/pdf.worker.min.js",
 ];
 
 const AUTH_ROUTES = [
@@ -27,6 +29,8 @@ const AUTH_ROUTES = [
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.includes(pathname)) return true;
+  // Allow public static assets in /public folder (e.g. .js, .css, images, fonts)
+  if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|ttf|eot|map|wasm)$/i.test(pathname)) return true;
   // Allow /courses/[slug] as public
   if (pathname.startsWith("/courses/")) return true;
   // Allow /super-warrior-30 and any subpaths as public
@@ -96,6 +100,6 @@ export const config = {
      * - public assets
      * - api routes (handled separately)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|map|wasm)$).*)",
   ],
 };
