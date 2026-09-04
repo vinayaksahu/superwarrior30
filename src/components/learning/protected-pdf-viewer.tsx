@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { cn } from "@/lib/utils";
 import {
   Loader2,
   ChevronLeft,
@@ -68,9 +69,18 @@ function loadPdfEngine(): Promise<any> {
 interface ProtectedPdfViewerProps {
   pdfUrl: string;
   title: string;
+  maxPages?: number;
+  className?: string;
+  viewportHeightClass?: string;
 }
 
-export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
+export function ProtectedPdfViewer({
+  pdfUrl,
+  title,
+  maxPages,
+  className,
+  viewportHeightClass,
+}: ProtectedPdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +88,7 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
 
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [docNumPages, setDocNumPages] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(0);
   const [scale, setScale] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -119,7 +130,10 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
 
         if (!isCancelled) {
           setPdfDoc(doc);
-          setTotalPages(doc.numPages);
+          setDocNumPages(doc.numPages);
+          const effectiveTotal =
+            maxPages && maxPages > 0 ? Math.min(doc.numPages, maxPages) : doc.numPages;
+          setTotalPages(effectiveTotal);
           setCurrentPage(1);
           setLoading(false);
         }
@@ -138,7 +152,20 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
     return () => {
       isCancelled = true;
     };
-  }, [pdfUrl, retryCount]);
+  }, [pdfUrl, retryCount, maxPages]);
+
+  // Clean up in-flight render task on unmount
+  useEffect(() => {
+    return () => {
+      if (currentRenderTaskRef.current) {
+        try {
+          currentRenderTaskRef.current.cancel();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, []);
 
   // Render current page onto Canvas preserving exact aspect ratio
   const renderPage = useCallback(
@@ -164,13 +191,14 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
         if (!ctx) return;
 
         // Determine container width for responsive fit
-        const containerWidth =
+        const rawWidth =
           scrollAreaRef.current?.clientWidth ||
           containerRef.current?.clientWidth ||
-          window.innerWidth;
-        const isMobile = window.innerWidth < 640;
-        const sidePadding = isMobile ? 16 : 48;
-        const availableWidth = Math.max(containerWidth - sidePadding, 280);
+          (typeof window !== "undefined" ? window.innerWidth : 360);
+        const containerWidth = rawWidth > 0 ? rawWidth : 360;
+        const isMobile = typeof window !== "undefined" ? window.innerWidth < 640 : false;
+        const sidePadding = isMobile ? 12 : 32;
+        const availableWidth = Math.max(containerWidth - sidePadding, 220);
 
         // Get unscaled natural PDF page dimensions (scale = 1.0)
         const unscaledViewport = page.getViewport({ scale: 1.0 });
@@ -237,7 +265,8 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
 
   const handlePageChange = useCallback(
     (newPage: number) => {
-      const target = Math.max(1, Math.min(newPage, totalPages));
+      const maxAllowed = totalPages > 0 ? totalPages : 1;
+      const target = Math.max(1, Math.min(newPage, maxAllowed));
       setCurrentPage(target);
       if (scrollAreaRef.current) {
         scrollAreaRef.current.scrollTo({ top: 0, behavior: "smooth" });
@@ -267,7 +296,10 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col w-full bg-neutral-950 rounded-2xl border border-border overflow-hidden select-none shadow-2xl"
+      className={cn(
+        "flex flex-col w-full bg-neutral-950 rounded-2xl border border-border overflow-hidden select-none shadow-2xl",
+        className
+      )}
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* Sticky Top Controls Toolbar (Clean & Accessible) */}
@@ -293,6 +325,11 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
 
               <span className="px-2 font-mono text-[11px] font-bold text-amber-400">
                 {currentPage} / {totalPages}
+                {maxPages && docNumPages > maxPages ? (
+                  <span className="ml-1 text-[9px] text-amber-500/80 font-normal">
+                    (Preview)
+                  </span>
+                ) : null}
               </span>
 
               <button
@@ -354,7 +391,10 @@ export function ProtectedPdfViewer({ pdfUrl, title }: ProtectedPdfViewerProps) {
       */}
       <div
         ref={scrollAreaRef}
-        className="relative flex justify-center items-start overflow-y-auto overflow-x-auto w-full h-[75vh] min-h-[460px] max-h-[860px] p-2 sm:p-6 bg-neutral-900/60"
+        className={cn(
+          "relative flex justify-center items-start overflow-y-auto overflow-x-auto w-full p-2 sm:p-4 bg-neutral-900/60 touch-pan-x touch-pan-y",
+          viewportHeightClass || "h-[75vh] min-h-[460px] max-h-[860px]"
+        )}
       >
         {loading && (
           <div className="flex flex-col items-center justify-center gap-3 py-24 text-center my-auto">

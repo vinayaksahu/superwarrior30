@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
+import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
 import { Eye, X, Loader2, Play, Lock, RotateCcw, Sparkles, AlertCircle, Clock, FileText, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 
@@ -187,7 +188,7 @@ export function FreePreviewButton({
             </div>
 
             {/* Content Body */}
-            <div className="p-5 sm:p-6">
+            <div className="p-3 sm:p-6">
               {isPending ? (
                 <div className="flex h-64 flex-col items-center justify-center gap-3">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -285,7 +286,7 @@ export function FreePreviewButton({
                     )}
                   </div>
                 </div>
-              ) : mediaData?.signedUrl && contentType === "PDF" ? (
+              ) : (mediaData?.signedUrl || mediaData?.lesson?.pdfKey || mediaData?.lesson?.bunnyCdnUrl) && contentType === "PDF" ? (
                 <div className="space-y-3">
                   {/* PDF Preview Notice */}
                   <div className="flex items-center justify-between bg-black/60 backdrop-blur-md px-3.5 py-2 rounded-xl border border-border text-xs">
@@ -298,14 +299,14 @@ export function FreePreviewButton({
                     </span>
                   </div>
 
-                  {/* PDF Embed */}
-                  <div className="relative h-[460px] w-full rounded-xl overflow-hidden border border-border bg-neutral-900 shadow-inner">
-                    <iframe
-                      src={`/api/lessons/${lessonId}/pdf?preview=true#toolbar=0&navpanes=0`}
-                      className="h-full w-full border-0"
-                      title={lessonTitle}
-                    />
-                  </div>
+                  {/* Protected Canvas PDF Viewer (Renders directly inside popup across mobile and desktop) */}
+                  <ProtectedPdfViewer
+                    pdfUrl={`/api/lessons/${lessonId}/pdf?preview=true`}
+                    title={lessonTitle}
+                    maxPages={previewLimit}
+                    className="rounded-xl border border-border shadow-inner"
+                    viewportHeightClass="h-[380px] sm:h-[480px] min-h-[300px] max-h-[580px]"
+                  />
 
                   {/* Paywall Banner under PDF */}
                   <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
