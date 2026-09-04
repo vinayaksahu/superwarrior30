@@ -23,6 +23,10 @@ interface ProtectedVideoPlayerProps {
   src: string;
   title: string;
   durationSec?: number;
+  lessonId?: string;
+  initialPositionSeconds?: number;
+  initialWatchedSeconds?: number;
+  onProgressSave?: (lastPositionSeconds: number, watchTimeSeconds: number) => void;
   onEnded?: () => void;
   watermarkText?: string;
   maxPreviewSeconds?: number;
@@ -35,6 +39,10 @@ export function ProtectedVideoPlayer({
   src,
   title,
   durationSec,
+  lessonId,
+  initialPositionSeconds = 0,
+  initialWatchedSeconds = 0,
+  onProgressSave,
   onEnded,
   watermarkText = "Trade Warrior Academy • Protected Content",
   maxPreviewSeconds,
@@ -45,10 +53,41 @@ export function ProtectedVideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const hasResumedRef = useRef(false);
+  const lastSavedTimeRef = useRef(0);
+  const lastPersistTimeRef = useRef(0);
+
+  // Helper to read initial stored position & watched duration
+  const getStoredPosition = useCallback(() => {
+    let pos = initialPositionSeconds || 0;
+    if (typeof window !== "undefined" && lessonId) {
+      try {
+        const stored = parseFloat(localStorage.getItem(`video_pos_${lessonId}`) || "0");
+        if (!isNaN(stored) && stored > pos) {
+          pos = stored;
+        }
+      } catch {}
+    }
+    return pos;
+  }, [initialPositionSeconds, lessonId]);
+
+  const getStoredWatched = useCallback(() => {
+    let watched = initialWatchedSeconds || 0;
+    if (typeof window !== "undefined" && lessonId) {
+      try {
+        const stored = parseFloat(localStorage.getItem(`video_watched_${lessonId}`) || "0");
+        if (!isNaN(stored) && stored > watched) {
+          watched = stored;
+        }
+      } catch {}
+    }
+    return Math.max(watched, getStoredPosition());
+  }, [initialWatchedSeconds, lessonId, getStoredPosition]);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(durationSec || 0);
+  const [maxWatchedTime, setMaxWatchedTime] = useState<number>(getStoredWatched());
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -65,6 +104,13 @@ export function ProtectedVideoPlayer({
   const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
 
+  // Reset resume state when src or lessonId changes
+  useEffect(() => {
+    hasResumedRef.current = false;
+    const initialWatched = getStoredWatched();
+    setMaxWatchedTime(initialWatched);
+  }, [src, lessonId, getStoredWatched]);
+
   // Detect Mobile
   useEffect(() => {
     const checkMobile = () => {
@@ -77,14 +123,33 @@ export function ProtectedVideoPlayer({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Show quick on-screen feedback (e.g., "+10s", "-10s", "1.5x")
+  // Show quick on-screen feedback (e.g., "+10s", "-10s", "1.5x", "Resumed at 0:39")
   const triggerFeedback = (text: string) => {
     setFeedbackOverlay(text);
     if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
     feedbackTimeoutRef.current = setTimeout(() => {
       setFeedbackOverlay(null);
-    }, 800);
+    }, 1200);
   };
+
+  // Resume playback position
+  const applyResume = useCallback(() => {
+    if (hasResumedRef.current || !videoRef.current) return;
+    const targetPos = getStoredPosition();
+    const vidDur = videoRef.current.duration || duration || 0;
+
+    // Auto-resume if saved position > 2s and not within the final 5s of the video
+    if (targetPos > 2 && (vidDur === 0 || targetPos < vidDur - 5)) {
+      videoRef.current.currentTime = targetPos;
+      setCurrentTime(targetPos);
+      hasResumedRef.current = true;
+      const m = Math.floor(targetPos / 60);
+      const s = Math.floor(targetPos % 60);
+      triggerFeedback(`Resumed at ${m}:${s < 10 ? "0" : ""}${s}`);
+    } else {
+      hasResumedRef.current = true;
+    }
+  }, [getStoredPosition, duration]);
 
   // Initialize Video & HLS
   useEffect(() => {
@@ -113,6 +178,7 @@ export function ProtectedVideoPlayer({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsBuffering(false);
+        applyResume();
         if (autoPlay && video) {
           video.play().catch(() => {});
         }
@@ -140,6 +206,7 @@ export function ProtectedVideoPlayer({
       video.src = src;
       video.addEventListener("loadedmetadata", () => {
         setIsBuffering(false);
+        applyResume();
         if (autoPlay && video) {
           video.play().catch(() => {});
         }
@@ -154,7 +221,7 @@ export function ProtectedVideoPlayer({
         hlsRef.current = null;
       }
     };
-  }, [src]);
+  }, [src, applyResume, autoPlay]);
 
   // Sync Fullscreen state from browser events
   useEffect(() => {
@@ -244,6 +311,24 @@ export function ProtectedVideoPlayer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [volume, isPlaying, isMuted]);
 
+  // Save progress immediately to localStorage & server
+  const persistProgressNow = useCallback(() => {
+    if (!videoRef.current) return;
+    const cur = videoRef.current.currentTime;
+    const watched = Math.max(cur, maxWatchedTime);
+
+    if (lessonId) {
+      try {
+        localStorage.setItem(`video_pos_${lessonId}`, Math.floor(cur).toString());
+        localStorage.setItem(`video_watched_${lessonId}`, Math.floor(watched).toString());
+      } catch {}
+    }
+
+    if (onProgressSave) {
+      onProgressSave(Math.floor(cur), Math.floor(watched));
+    }
+  }, [lessonId, maxWatchedTime, onProgressSave]);
+
   // Video Events
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -252,9 +337,36 @@ export function ProtectedVideoPlayer({
       if (!duration || duration === 0) {
         setDuration(videoRef.current.duration);
       }
+
+      // Mark furthest watched position
+      if (cur > maxWatchedTime) {
+        setMaxWatchedTime(cur);
+      }
+
       if (maxPreviewSeconds && cur >= maxPreviewSeconds) {
         videoRef.current.pause();
         onPreviewLimitReached?.();
+      }
+
+      // Throttle save to localStorage every ~1.5s
+      const now = Date.now();
+      if (now - lastSavedTimeRef.current >= 1500) {
+        lastSavedTimeRef.current = now;
+        if (lessonId) {
+          try {
+            localStorage.setItem(`video_pos_${lessonId}`, Math.floor(cur).toString());
+            localStorage.setItem(
+              `video_watched_${lessonId}`,
+              Math.floor(Math.max(cur, maxWatchedTime)).toString()
+            );
+          } catch {}
+        }
+      }
+
+      // Sync to database progress API every ~6s
+      if (now - lastPersistTimeRef.current >= 6000 && onProgressSave) {
+        lastPersistTimeRef.current = now;
+        onProgressSave(Math.floor(cur), Math.floor(Math.max(cur, maxWatchedTime)));
       }
     }
   };
@@ -264,7 +376,26 @@ export function ProtectedVideoPlayer({
     setIsBuffering(false);
     setIsPlaying(true);
   };
-  const handlePause = () => setIsPlaying(false);
+  const handlePause = () => {
+    setIsPlaying(false);
+    persistProgressNow();
+  };
+
+  // Sync on tab blur or close
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        persistProgressNow();
+      }
+    };
+    window.addEventListener("beforeunload", persistProgressNow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      persistProgressNow();
+      window.removeEventListener("beforeunload", persistProgressNow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [persistProgressNow]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -286,6 +417,18 @@ export function ProtectedVideoPlayer({
     setCurrentTime(time);
     if (videoRef.current) {
       videoRef.current.currentTime = time;
+    }
+    if (time > maxWatchedTime) {
+      setMaxWatchedTime(time);
+    }
+    if (lessonId) {
+      try {
+        localStorage.setItem(`video_pos_${lessonId}`, Math.floor(time).toString());
+        localStorage.setItem(`video_watched_${lessonId}`, Math.floor(Math.max(time, maxWatchedTime)).toString());
+      } catch {}
+    }
+    if (onProgressSave) {
+      onProgressSave(Math.floor(time), Math.floor(Math.max(time, maxWatchedTime)));
     }
   };
 
@@ -474,6 +617,16 @@ export function ProtectedVideoPlayer({
     ? Math.min(duration || maxPreviewSeconds, maxPreviewSeconds)
     : duration;
 
+  const currentPercent =
+    effectiveDuration > 0
+      ? Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100))
+      : 0;
+
+  const watchedPercent =
+    effectiveDuration > 0
+      ? Math.min(100, Math.max(0, (maxWatchedTime / effectiveDuration) * 100))
+      : 0;
+
   return (
     <div
       ref={containerRef}
@@ -497,6 +650,8 @@ export function ProtectedVideoPlayer({
         onPause={handlePause}
         onEnded={onEnded}
         onClick={togglePlay}
+        onLoadedMetadata={applyResume}
+        onCanPlay={applyResume}
         className="h-full w-full object-contain cursor-pointer"
       />
 
@@ -569,15 +724,53 @@ export function ProtectedVideoPlayer({
 
         {/* Bottom Bar: Timeline & Control Buttons */}
         <div className="space-y-2 pt-2">
-          {/* Progress Timeline Scrub Bar */}
-          <div className="flex items-center gap-2">
+          {/* Progress Timeline Scrub Bar with Marked Watched Progress */}
+          <div className="group/timeline relative flex items-center h-6 w-full cursor-pointer select-none">
+            {/* Timeline Background Track */}
+            <div className="absolute inset-x-0 h-1.5 sm:h-2 rounded-full bg-white/20 backdrop-blur-sm overflow-hidden transition-all duration-200 group-hover/timeline:h-2.5">
+              {/* 1. Marked Watched Track (Jitna user dekh chuka hai) */}
+              <div
+                className="absolute top-0 bottom-0 left-0 bg-amber-500/40 rounded-full transition-[width] duration-150"
+                style={{ width: `${Math.min(100, Math.max(0, watchedPercent))}%` }}
+                title={`Watched: ${formatTime(maxWatchedTime)}`}
+              />
+
+              {/* 2. Current Playhead Progress Track */}
+              <div
+                className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-[width] duration-75 shadow-sm"
+                style={{ width: `${Math.min(100, Math.max(0, currentPercent))}%` }}
+              />
+            </div>
+
+            {/* Marked Watched Milestone Pin (Shows boundary of furthest point watched) */}
+            {watchedPercent > 0.5 && (
+              <div
+                className="pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 flex flex-col items-center"
+                style={{ left: `${Math.min(100, Math.max(0, watchedPercent))}%` }}
+              >
+                <div
+                  className="h-3 sm:h-3.5 w-1 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]"
+                  title={`Watched up to ${formatTime(maxWatchedTime)}`}
+                />
+              </div>
+            )}
+
+            {/* Invisible Range Slider (For seamless mouse & touch scrubbing) */}
             <input
               type="range"
               min={0}
               max={effectiveDuration || 100}
+              step="0.1"
               value={currentTime}
               onChange={handleSeek}
-              className="h-1.5 sm:h-2 w-full cursor-pointer appearance-none rounded-lg bg-white/30 accent-primary focus:outline-none transition-all hover:h-2.5"
+              className="absolute inset-0 h-full w-full opacity-0 cursor-pointer z-20"
+              title={`${formatTime(currentTime)} / ${formatTime(effectiveDuration)}`}
+            />
+
+            {/* Current Scrub Thumb */}
+            <div
+              className="pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-white border-2 border-amber-500 shadow-md shadow-black/70 transition-transform duration-100 group-hover/timeline:scale-125 z-10"
+              style={{ left: `${Math.min(100, Math.max(0, currentPercent))}%` }}
             />
           </div>
 
@@ -638,10 +831,20 @@ export function ProtectedVideoPlayer({
                 />
               </div>
 
-              {/* Time Display */}
-              <span className="font-mono text-[11px] sm:text-xs text-white/90">
-                {formatTime(currentTime)} / {formatTime(effectiveDuration)}
-              </span>
+              {/* Time Display with Watched Indicator */}
+              <div className="flex items-center gap-1.5 font-mono text-[11px] sm:text-xs text-white/90">
+                <span>{formatTime(currentTime)}</span>
+                <span className="text-white/40">/</span>
+                <span>{formatTime(effectiveDuration)}</span>
+                {maxWatchedTime > 2 && (
+                  <span
+                    className="hidden sm:inline-flex items-center gap-1 rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-sans font-bold text-amber-400"
+                    title={`You have watched up to ${formatTime(maxWatchedTime)}`}
+                  >
+                    Watched: {formatTime(maxWatchedTime)}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Right Controls: Speed, Mobile Landscape, Desktop Fullscreen */}

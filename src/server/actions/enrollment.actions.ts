@@ -172,14 +172,16 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
       lessonId: true,
       status: true,
       watchTimeSeconds: true,
+      lastPositionSeconds: true,
     },
   });
 
-  const progressMap: Record<string, { status: string; watchTimeSeconds: number }> = {};
+  const progressMap: Record<string, { status: string; watchTimeSeconds: number; lastPositionSeconds: number }> = {};
   for (const record of progressRecords) {
     progressMap[record.lessonId] = {
       status: record.status,
-      watchTimeSeconds: record.watchTimeSeconds,
+      watchTimeSeconds: record.watchTimeSeconds || 0,
+      lastPositionSeconds: record.lastPositionSeconds || 0,
     };
   }
 
@@ -261,7 +263,20 @@ export async function getEnrolledLessonMediaUrlAction({
   const detectedProvider = isBunny ? "BUNNY" : (lesson.mediaProvider || "R2");
 
   // Safe server-side diagnostic logging (no secret tokens)
-  console.log(`[Playback Diagnostics] lessonId=${lesson.id} contentType=${lesson.contentType} mediaProvider=${lesson.mediaProvider} bunnyVideoId=${lesson.bunnyVideoId ? "[PRESENT]" : "[NULL]"} detectedProvider=${detectedProvider} signedUrlHostname=${signedUrl ? new URL(signedUrl).hostname : "null"}`);
+  // Step 4: Fetch user's existing progress for resume
+  const userProgress = await prisma.lessonProgress.findUnique({
+    where: {
+      userId_lessonId: {
+        userId: user.id,
+        lessonId: lesson.id,
+      },
+    },
+    select: {
+      status: true,
+      watchTimeSeconds: true,
+      lastPositionSeconds: true,
+    },
+  });
 
   return {
     lessonId: lesson.id,
@@ -272,6 +287,9 @@ export async function getEnrolledLessonMediaUrlAction({
     durationSec: lesson.durationSec,
     provider: detectedProvider,
     bunnyVideoId: lesson.bunnyVideoId,
+    lastPositionSeconds: userProgress?.lastPositionSeconds || 0,
+    watchTimeSeconds: userProgress?.watchTimeSeconds || 0,
+    status: userProgress?.status || "NOT_STARTED",
   };
 }
 

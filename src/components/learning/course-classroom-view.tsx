@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
@@ -50,7 +50,7 @@ interface CourseClassroomViewProps {
   courseTitle: string;
   activeLessonId: string;
   modules: ModuleInfo[];
-  initialProgressMap: Record<string, { status: string; watchTimeSeconds: number }>;
+  initialProgressMap: Record<string, { status: string; watchTimeSeconds: number; lastPositionSeconds?: number }>;
   initialProgressPercentage: number;
   prevLessonId?: string;
   nextLessonId?: string;
@@ -78,6 +78,8 @@ export function CourseClassroomView({
     durationSec: number;
     provider?: string;
     bunnyVideoId?: string | null;
+    lastPositionSeconds?: number;
+    watchTimeSeconds?: number;
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -209,6 +211,37 @@ export function CourseClassroomView({
       setIsSaving(false);
     }
   };
+
+  // Background progress saving from video player (debounced updates)
+  const handleVideoProgressSave = useCallback(
+    async (lastPositionSeconds: number, watchTimeSeconds: number) => {
+      // 1. Optimistic update
+      setProgressMap((prev) => ({
+        ...prev,
+        [activeLessonId]: {
+          status: prev[activeLessonId]?.status || "IN_PROGRESS",
+          watchTimeSeconds: Math.max(prev[activeLessonId]?.watchTimeSeconds || 0, watchTimeSeconds),
+          lastPositionSeconds,
+        },
+      }));
+
+      // 2. Persist to API
+      try {
+        await fetch(`/api/lessons/${activeLessonId}/progress`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: progressMap[activeLessonId]?.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS",
+            lastPositionSeconds,
+            watchTimeSeconds,
+          }),
+        });
+      } catch (err) {
+        console.warn("Auto-save video progress error:", err);
+      }
+    },
+    [activeLessonId, progressMap]
+  );
 
   const pdfStreamUrl = `/api/lessons/${activeLessonId}/pdf`;
 
@@ -469,9 +502,21 @@ export function CourseClassroomView({
         ) : mediaData?.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
             <ProtectedVideoPlayer
+              lessonId={activeLessonId}
               src={mediaData.signedUrl}
               title={mediaData.title}
               durationSec={mediaData.durationSec}
+              initialPositionSeconds={
+                mediaData.lastPositionSeconds ??
+                progressMap[activeLessonId]?.lastPositionSeconds ??
+                0
+              }
+              initialWatchedSeconds={
+                mediaData.watchTimeSeconds ??
+                progressMap[activeLessonId]?.watchTimeSeconds ??
+                0
+              }
+              onProgressSave={handleVideoProgressSave}
               onEnded={() => handleToggleComplete()}
             />
           ) : (

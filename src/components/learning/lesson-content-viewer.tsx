@@ -48,6 +48,8 @@ export function LessonContentViewer({
     durationSec: number;
     provider?: string;
     bunnyVideoId?: string | null;
+    lastPositionSeconds?: number;
+    watchTimeSeconds?: number;
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -140,6 +142,22 @@ export function LessonContentViewer({
     }
   };
 
+  const handleVideoProgressSave = async (lastPositionSeconds: number, watchTimeSeconds: number) => {
+    try {
+      await fetch(`/api/lessons/${lessonId}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: completed ? "COMPLETED" : "IN_PROGRESS",
+          lastPositionSeconds,
+          watchTimeSeconds,
+        }),
+      });
+    } catch (err) {
+      console.warn("Auto-save video progress error:", err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-3">
@@ -220,9 +238,13 @@ export function LessonContentViewer({
         {mediaData.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
             <ProtectedVideoPlayer
+              lessonId={lessonId}
               src={mediaData.signedUrl}
               title={mediaData.title}
               durationSec={mediaData.durationSec}
+              initialPositionSeconds={mediaData.lastPositionSeconds ?? 0}
+              initialWatchedSeconds={mediaData.watchTimeSeconds ?? 0}
+              onProgressSave={handleVideoProgressSave}
               onEnded={handleVideoEnded}
             />
           ) : (
