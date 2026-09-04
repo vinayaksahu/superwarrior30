@@ -425,7 +425,11 @@ export function LessonEditModal({
                         type="number"
                         min="5"
                         max="600"
-                        defaultValue={lesson.durationSec > 0 ? lesson.durationSec : 15}
+                        defaultValue={
+                          lesson.durationSec > 0 && lesson.durationSec <= 600
+                            ? lesson.durationSec
+                            : 120
+                        }
                         placeholder="e.g. 15, 30 or 60"
                         className="flex h-10 w-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />

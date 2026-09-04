@@ -1056,13 +1056,29 @@ export async function updateLessonAction(
   });
   if (!lesson) return { success: false, message: "Lesson not found." };
 
+  let finalDurationSec = validated.data.durationSec;
+  // If editing a video lesson that already has a real video file, preserve the full video duration
+  if (validated.data.contentType === "VIDEO") {
+    if (lesson.durationSec > 600 && validated.data.durationSec <= 600) {
+      finalDurationSec = lesson.durationSec;
+    } else if (lesson.bunnyVideoId) {
+      const asset = await prisma.mediaAsset.findFirst({
+        where: { bunnyVideoId: lesson.bunnyVideoId },
+        select: { duration: true },
+      });
+      if (asset?.duration && asset.duration > 0) {
+        finalDurationSec = asset.duration;
+      }
+    }
+  }
+
   await prisma.lesson.update({
     where: { id: lessonId },
     data: {
       title: validated.data.title,
       contentType: validated.data.contentType as any,
       textContent: validated.data.textContent || null,
-      durationSec: validated.data.durationSec,
+      durationSec: finalDurationSec,
       isFreePreview: validated.data.isFreePreview,
       isPublished: validated.data.isPublished,
     },
@@ -1134,6 +1150,13 @@ export async function updateLessonFileAction(
     if (fileType === "video" && bunnyVideoId) {
       updateData.bunnyVideoId = bunnyVideoId;
       updateData.videoKey = null; // clear R2 key
+      const asset = await prisma.mediaAsset.findFirst({
+        where: { bunnyVideoId },
+        select: { duration: true },
+      });
+      if (asset?.duration && asset.duration > 0) {
+        updateData.durationSec = asset.duration;
+      }
     }
     if (fileType === "pdf" && bunnyCdnUrl) {
       updateData.bunnyCdnUrl = bunnyCdnUrl;

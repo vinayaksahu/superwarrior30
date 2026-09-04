@@ -278,13 +278,24 @@ export async function getEnrolledLessonMediaUrlAction({
     },
   });
 
+  let finalDurationSec = lesson.durationSec;
+  if (lesson.contentType === "VIDEO" && (!finalDurationSec || finalDurationSec <= 120) && lesson.bunnyVideoId) {
+    const asset = await prisma.mediaAsset.findFirst({
+      where: { bunnyVideoId: lesson.bunnyVideoId },
+      select: { duration: true },
+    });
+    if (asset?.duration && asset.duration > 0) {
+      finalDurationSec = asset.duration;
+    }
+  }
+
   return {
     lessonId: lesson.id,
     title: lesson.title,
     contentType: lesson.contentType,
     textContent: lesson.textContent,
     signedUrl,
-    durationSec: lesson.durationSec,
+    durationSec: finalDurationSec,
     provider: detectedProvider,
     bunnyVideoId: lesson.bunnyVideoId,
     lastPositionSeconds: userProgress?.lastPositionSeconds || 0,

@@ -47,16 +47,27 @@ export function FreePreviewButton({
   } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const previewLimit =
-    (initialDurationSec && initialDurationSec > 0)
+  const rawSec =
+    initialDurationSec && initialDurationSec > 0
       ? initialDurationSec
-      : (mediaData?.lesson?.durationSec && mediaData.lesson.durationSec > 0)
+      : mediaData?.lesson?.durationSec && mediaData.lesson.durationSec > 0
       ? mediaData.lesson.durationSec
+      : 0;
+
+  const previewLimit =
+    contentType === "VIDEO"
+      ? rawSec > 0 && rawSec <= 300
+        ? rawSec
+        : 120
       : contentType === "PDF"
-      ? 1
+      ? rawSec > 0 && rawSec <= 20
+        ? rawSec
+        : 1
       : contentType === "TEXT"
-      ? 150
-      : 15;
+      ? rawSec > 0 && rawSec <= 1000
+        ? rawSec
+        : 150
+      : 120;
 
   // Preview countdown & limit state
   const [timeLeft, setTimeLeft] = useState(previewLimit);
@@ -80,7 +91,14 @@ export function FreePreviewButton({
           const res = await getLessonPreviewMediaUrlAction(lessonId);
           setMediaData(res);
           if (res?.lesson?.durationSec && res.lesson.durationSec > 0) {
-            setTimeLeft(res.lesson.durationSec);
+            const resDur = res.lesson.durationSec;
+            const effLimit =
+              contentType === "VIDEO"
+                ? resDur <= 300
+                  ? resDur
+                  : 120
+                : resDur;
+            setTimeLeft(effLimit);
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : "Failed to load preview";

@@ -132,9 +132,27 @@ export function ProtectedVideoPlayer({
     }, 1200);
   };
 
+  // Reliably update duration from actual media stream whenever metadata arrives
+  const updateDuration = useCallback((d?: number) => {
+    const rawDur =
+      typeof d === "number" && !isNaN(d) && isFinite(d) && d > 0
+        ? d
+        : (videoRef.current?.duration ?? 0);
+
+    if (typeof rawDur === "number" && !isNaN(rawDur) && isFinite(rawDur) && rawDur > 0) {
+      setDuration((prev) => {
+        if (Math.abs(prev - rawDur) > 1) {
+          return Math.round(rawDur);
+        }
+        return prev;
+      });
+    }
+  }, []);
+
   // Resume playback position
   const applyResume = useCallback(() => {
     if (hasResumedRef.current || !videoRef.current) return;
+    updateDuration();
     const targetPos = getStoredPosition();
     const vidDur = videoRef.current.duration || duration || 0;
 
@@ -149,7 +167,7 @@ export function ProtectedVideoPlayer({
     } else {
       hasResumedRef.current = true;
     }
-  }, [getStoredPosition, duration]);
+  }, [getStoredPosition, duration, updateDuration]);
 
   // Initialize Video & HLS
   useEffect(() => {
@@ -160,6 +178,9 @@ export function ProtectedVideoPlayer({
     setIsBuffering(true);
 
     const isHlsStream = src.includes(".m3u8");
+
+    let handleNativeMeta: (() => void) | null = null;
+    let handleNativeDuration: (() => void) | null = null;
 
     if (isHlsStream && Hls.isSupported()) {
       if (hlsRef.current) {
@@ -176,8 +197,15 @@ export function ProtectedVideoPlayer({
       hls.loadSource(src);
       hls.attachMedia(video);
 
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        if (data?.details?.totalduration) {
+          updateDuration(data.details.totalduration);
+        }
+      });
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsBuffering(false);
+        updateDuration();
         applyResume();
         if (autoPlay && video) {
           video.play().catch(() => {});
@@ -204,24 +232,39 @@ export function ProtectedVideoPlayer({
     } else if (video.canPlayType("application/vnd.apple.mpegurl") || !isHlsStream) {
       // Native Safari HLS or direct MP4 stream
       video.src = src;
-      video.addEventListener("loadedmetadata", () => {
+
+      handleNativeMeta = () => {
         setIsBuffering(false);
+        updateDuration(video.duration);
         applyResume();
         if (autoPlay && video) {
           video.play().catch(() => {});
         }
-      });
+      };
+
+      handleNativeDuration = () => {
+        updateDuration(video.duration);
+      };
+
+      video.addEventListener("loadedmetadata", handleNativeMeta);
+      video.addEventListener("durationchange", handleNativeDuration);
     } else {
       setError("Your browser does not support HLS video streaming.");
     }
 
     return () => {
+      if (handleNativeMeta && video) {
+        video.removeEventListener("loadedmetadata", handleNativeMeta);
+      }
+      if (handleNativeDuration && video) {
+        video.removeEventListener("durationchange", handleNativeDuration);
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [src, applyResume, autoPlay]);
+  }, [src, applyResume, autoPlay, updateDuration]);
 
   // Sync Fullscreen state from browser events
   useEffect(() => {
@@ -334,9 +377,7 @@ export function ProtectedVideoPlayer({
     if (videoRef.current) {
       const cur = videoRef.current.currentTime;
       setCurrentTime(cur);
-      if (!duration || duration === 0) {
-        setDuration(videoRef.current.duration);
-      }
+      updateDuration(videoRef.current.duration);
 
       // Mark furthest watched position
       if (cur > maxWatchedTime) {
@@ -650,8 +691,15 @@ export function ProtectedVideoPlayer({
         onPause={handlePause}
         onEnded={onEnded}
         onClick={togglePlay}
-        onLoadedMetadata={applyResume}
-        onCanPlay={applyResume}
+        onLoadedMetadata={() => {
+          updateDuration();
+          applyResume();
+        }}
+        onCanPlay={() => {
+          updateDuration();
+          applyResume();
+        }}
+        onDurationChange={() => updateDuration()}
         className="h-full w-full object-contain cursor-pointer"
       />
 
