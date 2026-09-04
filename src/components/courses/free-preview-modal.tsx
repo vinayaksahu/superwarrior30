@@ -286,7 +286,7 @@ export function FreePreviewButton({
                     )}
                   </div>
                 </div>
-              ) : (mediaData?.signedUrl || mediaData?.lesson?.pdfKey || mediaData?.lesson?.bunnyCdnUrl) && contentType === "PDF" ? (
+              ) : mediaData?.signedUrl && contentType === "PDF" ? (
                 <div className="space-y-3">
                   {/* PDF Preview Notice */}
                   <div className="flex items-center justify-between bg-black/60 backdrop-blur-md px-3.5 py-2 rounded-xl border border-border text-xs">
