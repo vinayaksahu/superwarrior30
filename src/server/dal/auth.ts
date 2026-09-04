@@ -144,7 +144,7 @@ export const getCurrentUser = cache(async () => {
 
   // Session revocation check: if user's tokenVersion was incremented, invalidate session (except for cross-DB email transition bridge)
   const isCrossDbTransition = user.id !== session.userId && user.email === session.email;
-  if (!isSuperSession && !isCrossDbTransition && user.tokenVersion !== session.tokenVersion) return null;
+  if (!isCrossDbTransition && user.tokenVersion !== session.tokenVersion) return null;
 
   // Device-level session revocation check (One Active Device enforcement & Revoked Device check)
   if (session.deviceId) {

@@ -4,7 +4,22 @@ import { hashPassword } from "@/lib/auth/password";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // STRICT SECURITY: Endpoint is completely disabled in production environments
+  if (process.env.NODE_ENV === "production") {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  // Development/Test authorization gate
+  const authHeader = req.headers.get("authorization") || req.headers.get("x-admin-init-secret");
+  const initSecret = process.env.ADMIN_INIT_SECRET;
+  if (!initSecret || (authHeader !== `Bearer ${initSecret}` && authHeader !== initSecret)) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized: Missing or invalid initialization secret." },
+      { status: 401 }
+    );
+  }
+
   try {
     // Step 1: Create all PostgreSQL tables and enums if they do not exist
     await prisma.$executeRawUnsafe(`
@@ -592,12 +607,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: "Database tables created and Super Admin account initialized successfully! You can now login.",
-      loginUrl: "https://www.superwarrior30.com/login",
-      adminCredentials: {
-        email: "vinayaksahu3@gmail.com",
-        password: "Admin@123",
-      },
+      message: "Database tables verified and initialized successfully in development mode.",
     });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : "Initialization error";

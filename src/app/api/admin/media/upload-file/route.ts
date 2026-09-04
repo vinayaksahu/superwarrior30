@@ -32,14 +32,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { success: false, error: "File size exceeds the 50MB limit." },
+        { status: 400 }
+      );
+    }
+
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const DANGEROUS_EXTENSIONS = ["html", "htm", "svg", "exe", "bat", "cmd", "sh", "php", "js", "ts", "jsx", "tsx"];
+    if (DANGEROUS_EXTENSIONS.includes(ext)) {
+      return NextResponse.json(
+        { success: false, error: "Unsupported or unsafe file type." },
+        { status: 400 }
+      );
+    }
+
+    // Sanitize storageKey to strictly prevent path traversal
+    let path: string;
+    if (storageKey) {
+      const sanitizedKey = storageKey.trim().replace(/\\/g, "/");
+      if (
+        sanitizedKey.includes("..") ||
+        sanitizedKey.startsWith("/") ||
+        !/^[a-zA-Z0-9_\-\./]+$/.test(sanitizedKey) ||
+        !sanitizedKey.startsWith("media/")
+      ) {
+        return NextResponse.json(
+          { success: false, error: "Invalid or unsafe storageKey provided." },
+          { status: 400 }
+        );
+      }
+      path = sanitizedKey;
+    } else {
+      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+      path = `media/files/${Date.now()}_${safeName}`;
+    }
+
     const bunnyConfig = await getResolvedBunnyConfig();
     const isBunnyActive = Boolean(bunnyConfig.storageZoneName && bunnyConfig.storagePassword && bunnyConfig.cdnHostname);
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const contentType = file.type || "application/octet-stream";
-
-    const path = storageKey || `media/files/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
 
     if (isBunnyActive) {
       const result = await uploadToBunnyStorage(path, buffer, contentType);

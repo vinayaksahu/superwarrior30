@@ -77,8 +77,7 @@ export async function MaintenanceGuard({ children }: { children: React.ReactNode
     pathname.startsWith("/login") ||
     pathname.startsWith("/adminlogin") ||
     pathname.startsWith("/superadminlogin") ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/init-db")
+    pathname.startsWith("/api/auth")
   ) {
     return <>{children}</>;
   }

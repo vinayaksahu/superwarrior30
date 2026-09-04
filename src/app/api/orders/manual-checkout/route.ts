@@ -234,6 +234,56 @@ export async function POST(req: Request) {
         appliedReferrerId = referrerUser.id;
         const refPct = Number(brokerSettings.referralDiscountPercentage) || 10;
         referralDiscount = Number(((Number(course.price) * refPct) / 100).toFixed(2));
+
+        // Ensure user is attached to referral tree if not already attached
+        try {
+          const existingRel = await prisma.referralRelationship.findUnique({
+            where: { referredId: user.id },
+          });
+
+          if (!existingRel) {
+            const { resolveCurrentEnvironment } = await import("@/lib/env-context");
+            const currentEnv = await resolveCurrentEnvironment();
+            const isTestData = currentEnv === "TEST";
+
+            await prisma.$transaction(async (tx) => {
+              await tx.referralRelationship.create({
+                data: {
+                  referrerId: referrerUser.id,
+                  referredId: user.id,
+                  isTestData,
+                },
+              });
+
+              await tx.referralClosure.create({
+                data: {
+                  ancestorId: referrerUser.id,
+                  descendantId: user.id,
+                  depth: 1,
+                  isTestData,
+                },
+              });
+
+              const uplineAncestors = await tx.referralClosure.findMany({
+                where: { descendantId: referrerUser.id },
+              });
+
+              if (uplineAncestors.length > 0) {
+                await tx.referralClosure.createMany({
+                  data: uplineAncestors.map((anc) => ({
+                    ancestorId: anc.ancestorId,
+                    descendantId: user.id,
+                    depth: anc.depth + 1,
+                    isTestData,
+                  })),
+                  skipDuplicates: true,
+                });
+              }
+            });
+          }
+        } catch (refTreeErr) {
+          console.error("Referral tree linking error during checkout:", refTreeErr);
+        }
       }
     }
 
@@ -421,6 +471,8 @@ export async function POST(req: Request) {
       submittedAt: new Date().toISOString(),
       customerEmail: user.email,
       customerName: user.name || "Student",
+      referralCode: requestedReferralCode || null,
+      appliedReferrerId: appliedReferrerId || null,
     };
 
     let order;

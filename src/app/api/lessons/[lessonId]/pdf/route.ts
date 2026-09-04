@@ -89,6 +89,16 @@ export async function GET(
     const shouldLimitPages = isPreviewParam || (!isEnrolled && !isAdmin && lesson.isFreePreview);
     const maxPages = lesson.durationSec && lesson.durationSec > 0 ? lesson.durationSec : 1;
 
+    const getResponseHeaders = (isLimited: boolean) => ({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
+      "Cache-Control": isLimited
+        ? "public, max-age=1800"
+        : "private, no-cache, no-store, must-revalidate",
+      "Pragma": isLimited ? "auto" : "no-cache",
+      "X-Content-Type-Options": "nosniff",
+    });
+
     // 3. Handle Bunny CDN / HTTP URL (stream directly with dual fallback)
     const effectivePdfUrl = lesson.bunnyCdnUrl || (lesson.pdfKey?.startsWith("http") ? lesson.pdfKey : null);
     if (effectivePdfUrl) {
@@ -133,12 +143,7 @@ export async function GET(
           }
 
           return new NextResponse(Buffer.from(pdfBytes), {
-            headers: {
-              "Content-Type": "application/pdf",
-              "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
-              "Cache-Control": "public, max-age=3600",
-              "Access-Control-Allow-Origin": "*",
-            },
+            headers: getResponseHeaders(shouldLimitPages),
           });
         }
 
@@ -163,12 +168,7 @@ export async function GET(
       }
 
       return new NextResponse(Buffer.from(pdfBytes), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
-          "Cache-Control": "public, max-age=3600",
-          "Access-Control-Allow-Origin": "*",
-        },
+        headers: getResponseHeaders(shouldLimitPages),
       });
     }
 
@@ -191,12 +191,7 @@ export async function GET(
           }
 
           return new NextResponse(Buffer.from(pdfBytes), {
-            headers: {
-              "Content-Type": "application/pdf",
-              "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
-              "Cache-Control": "public, max-age=3600",
-              "Access-Control-Allow-Origin": "*",
-            },
+            headers: getResponseHeaders(shouldLimitPages),
           });
         }
       } catch (r2Err) {

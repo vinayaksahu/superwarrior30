@@ -192,6 +192,49 @@ export async function getSystemPaymentMethodsAction(
   }
 }
 
+/**
+ * Sanitizes payment method details so sensitive credentials (keySecret, webhookSecret, saltKey)
+ * are NEVER exposed to client components, browsers, or network payloads.
+ */
+function sanitizePaymentMethodDetailsForClient(
+  details: PaymentMethodItem["details"] | undefined,
+  type: string
+): PaymentMethodItem["details"] {
+  if (!details) return {};
+  if (type === "GATEWAY") {
+    return {
+      provider: details.provider,
+      mode: details.mode,
+      keyId: details.keyId, // Public Key ID (safe if needed for frontend SDK checkout initialization)
+      // STRICT: keySecret, webhookSecret, merchantId, saltKey, saltIndex are stripped
+    };
+  }
+  return {
+    upiId: details.upiId,
+    payeeName: details.payeeName,
+    qrCodeUrl: details.qrCodeUrl,
+    bankName: details.bankName,
+    accountName: details.accountName,
+    accountNumber: details.accountNumber,
+    ifsc: details.ifsc,
+    branch: details.branch,
+    network: details.network,
+    walletAddress: details.walletAddress,
+  };
+}
+
+/**
+ * Safe public action for student checkout and public pages.
+ * Strictly sanitizes all payment details to prevent private gateway key leakage.
+ */
+export async function getPublicPaymentMethodsAction(): Promise<PaymentMethodItem[]> {
+  const methods = await getSystemPaymentMethodsAction(false);
+  return methods.map((m) => ({
+    ...m,
+    details: sanitizePaymentMethodDetailsForClient(m.details, m.type),
+  }));
+}
+
 export async function createPaymentMethodAction(
   _prevState: ActionState | null,
   formData: FormData

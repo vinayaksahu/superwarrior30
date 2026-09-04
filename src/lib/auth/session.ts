@@ -3,8 +3,25 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME, SESSION_DURATION } from "@/lib/constants";
 import { UserRole } from "@/generated/prisma";
 
-const SECRET_KEY = process.env.JWT_SECRET_KEY || "fallback_dev_secret_key_64_characters_long_min_for_hs256_algo";
-const encodedKey = new TextEncoder().encode(SECRET_KEY);
+function getJwtSecretKey(): Uint8Array {
+  const secret = process.env.JWT_SECRET_KEY;
+  if (!secret || secret.trim().length === 0) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[FATAL SECURITY CONFIGURATION] JWT_SECRET_KEY environment variable is missing in production. Application failed closed to prevent token forgery."
+      );
+    }
+    return new TextEncoder().encode("dev_only_non_production_secret_key_64_characters_minimum_hs256_sw30");
+  }
+
+  if (process.env.NODE_ENV === "production" && secret.length < 32) {
+    throw new Error(
+      "[FATAL SECURITY CONFIGURATION] JWT_SECRET_KEY must be at least 32 characters long for HS256 algorithm security."
+    );
+  }
+
+  return new TextEncoder().encode(secret);
+}
 
 export interface SessionPayload {
   userId: string;
@@ -29,14 +46,14 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(encodedKey);
+    .sign(getJwtSecretKey());
 }
 
 export async function decrypt(
   token: string
 ): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, encodedKey, {
+    const { payload } = await jwtVerify(token, getJwtSecretKey(), {
       algorithms: ["HS256"],
     });
     return {

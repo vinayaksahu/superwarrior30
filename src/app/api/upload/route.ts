@@ -45,6 +45,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 1. File Size Verification (15MB student, 30MB admin)
+    const maxFileSize = isStudentUpload ? 15 * 1024 * 1024 : 30 * 1024 * 1024;
+    if (file.size > maxFileSize) {
+      return NextResponse.json(
+        { success: false, error: `File size exceeds the limit (${isStudentUpload ? "15MB" : "30MB"}).` },
+        { status: 400 }
+      );
+    }
+
+    // 2. Strict Extension & Dangerous File Type Protection
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const dangerousExtensions = ["html", "htm", "svg", "exe", "js", "mjs", "sh", "bat", "cmd", "php", "py", "vbs", "jar", "bin"];
+    if (dangerousExtensions.includes(ext)) {
+      return NextResponse.json(
+        { success: false, error: `File type .${ext} is prohibited for security reasons.` },
+        { status: 400 }
+      );
+    }
+
+    const allowedStudentExtensions = ["pdf", "png", "jpg", "jpeg", "webp"];
+    if (isStudentUpload && !allowedStudentExtensions.includes(ext)) {
+      return NextResponse.json(
+        { success: false, error: `Disallowed student file format (.${ext}). Allowed formats: PDF, PNG, JPG, JPEG, WEBP.` },
+        { status: 400 }
+      );
+    }
+
+    if (category === "pdf" && ext !== "pdf") {
+      return NextResponse.json(
+        { success: false, error: "Document category requires a .pdf file." },
+        { status: 400 }
+      );
+    }
+
     // Videos MUST use direct TUS upload to Bunny Stream to bypass server body limits
     if (category === "video") {
       return NextResponse.json(
@@ -56,14 +90,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    // 3. Magic Bytes Content Signature Validation
+    const isValidSignature = (() => {
+      if (ext === "pdf") {
+        return buffer.subarray(0, 4).toString("ascii") === "%PDF";
+      }
+      if (ext === "png") {
+        return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+      }
+      if (ext === "jpg" || ext === "jpeg") {
+        return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+      }
+      if (ext === "webp") {
+        return buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+      }
+      return !isStudentUpload;
+    })();
+
+    if (!isValidSignature) {
+      return NextResponse.json(
+        { success: false, error: "File content does not match its claimed file extension." },
+        { status: 400 }
+      );
+    }
+
     const bunnyConfig = await getResolvedBunnyConfig();
     const isBunnyActive = Boolean(bunnyConfig.storageZoneName && bunnyConfig.storagePassword && bunnyConfig.cdnHostname);
 
-    const filename = file.name;
-    const ext = filename.split(".").pop()?.toLowerCase() || "bin";
+    const filename = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const uniqueId = crypto.randomUUID();
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
 
     let storagePath: string;
     if (isStudentUpload) {

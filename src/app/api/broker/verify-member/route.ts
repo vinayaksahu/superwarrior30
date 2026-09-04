@@ -1,13 +1,45 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifyBrokerMemberIdServer } from "@/lib/broker/verification";
 import { getBrokerSettings } from "@/lib/broker/config";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
+
+    // Rate limit: 15 verification requests per minute per IP
+    const rateLimit = await checkRateLimit({
+      key: `broker-verify:${ip}`,
+      limit: 15,
+      windowSeconds: 60,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          isVerified: false,
+          message: "Too many verification requests. Please try again in a minute.",
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const { memberId } = body;
+
+    if (!memberId || typeof memberId !== "string" || !memberId.trim() || memberId.trim().length > 64) {
+      return NextResponse.json(
+        {
+          success: false,
+          isVerified: false,
+          message: "Please provide a valid Member ID.",
+        },
+        { status: 400 }
+      );
+    }
 
     const settings = await getBrokerSettings();
 

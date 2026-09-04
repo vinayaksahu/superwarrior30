@@ -1,13 +1,41 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/server/dal/auth";
 import { getBrokerSettings } from "@/lib/broker/config";
-import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+function maskAffiliateName(fullName: string | null | undefined): string {
+  if (!fullName || !fullName.trim()) return "Verified Affiliate Partner";
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) {
+    const first = parts[0];
+    return first.length > 2 ? `${first.slice(0, 2)}*** (Partner)` : `${first} (Partner)`;
+  }
+  const first = parts[0];
+  const lastInitial = parts[parts.length - 1][0]?.toUpperCase() || "";
+  return `${first} ${lastInitial}. (Verified Partner)`;
+}
+
+export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
+
+    // Rate limit: 20 validation requests per minute per IP
+    const rateLimit = await checkRateLimit({
+      key: `ref-validate:${ip}`,
+      limit: 20,
+      windowSeconds: 60,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { valid: false, message: "Too many referral code attempts. Please try again in a minute." },
+        { status: 429 }
+      );
+    }
+
     const currentUser = await getCurrentUser();
 
     const body = await req.json();
@@ -81,11 +109,11 @@ export async function POST(req: Request) {
     const referralPct = Number(brokerSettings.referralDiscountPercentage) || 10;
     const discountAmount = Number(((coursePrice * referralPct) / 100).toFixed(2));
     const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
+    const maskedName = maskAffiliateName(referrerUser.name);
 
     return NextResponse.json({
       valid: true,
-      referrerId: referrerUser.id,
-      referrerName: referrerUser.name || "Affiliate Partner",
+      referrerName: maskedName,
       code: referrerUser.referralCode,
       discountPercentage: referralPct,
       discountAmount,

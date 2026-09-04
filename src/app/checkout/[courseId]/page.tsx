@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/server/dal/auth";
-import { getSystemPaymentMethodsAction } from "@/server/actions/payment-method.actions";
+import { getPublicPaymentMethodsAction } from "@/server/actions/payment-method.actions";
 import { getBrokerPublicConfigAction } from "@/server/actions/broker.actions";
 import { ManualCheckoutClient } from "@/components/checkout/manual-checkout-client";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
@@ -78,7 +78,7 @@ export default async function CheckoutPage({
 
   const [paymentMethods, brokerConfig] = await withEnvironmentContext(pageEnv, async () => {
     return await Promise.all([
-      getSystemPaymentMethodsAction(false),
+      getPublicPaymentMethodsAction(),
       getBrokerPublicConfigAction(),
     ]);
   });
