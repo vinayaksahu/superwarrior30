@@ -112,18 +112,92 @@ export async function getCoursesAction({
   }
 }
 
+export async function normalizeCourseHierarchy(courseId: string): Promise<void> {
+  try {
+    const modules = await prisma.module.findMany({
+      where: { courseId },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      include: {
+        lessons: {
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+          select: { id: true, position: true },
+        },
+      },
+    });
+
+    if (!modules || modules.length === 0) return;
+
+    // Check if hierarchy needs renumbering (corrupt <= 0 or duplicates or non-sequential)
+    let needsRenumbering = false;
+    for (let i = 0; i < modules.length; i++) {
+      if (modules[i].position !== i + 1) {
+        needsRenumbering = true;
+        break;
+      }
+      for (let j = 0; j < modules[i].lessons.length; j++) {
+        if (modules[i].lessons[j].position !== j + 1) {
+          needsRenumbering = true;
+          break;
+        }
+      }
+      if (needsRenumbering) break;
+    }
+
+    if (!needsRenumbering) return;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Modules Pass 1: high temporary offsets to avoid unique constraint collisions
+      for (let i = 0; i < modules.length; i++) {
+        await tx.module.update({
+          where: { id: modules[i].id },
+          data: { position: 100000 + i },
+        });
+      }
+
+      // 2. Modules Pass 2: clean 1-based sequential integers
+      for (let i = 0; i < modules.length; i++) {
+        await tx.module.update({
+          where: { id: modules[i].id },
+          data: { position: i + 1 },
+        });
+      }
+
+      // 3. Lessons for each module: two-pass update
+      for (const mod of modules) {
+        if (!mod.lessons || mod.lessons.length === 0) continue;
+
+        for (let j = 0; j < mod.lessons.length; j++) {
+          await tx.lesson.update({
+            where: { id: mod.lessons[j].id },
+            data: { position: 100000 + j },
+          });
+        }
+
+        for (let j = 0; j < mod.lessons.length; j++) {
+          await tx.lesson.update({
+            where: { id: mod.lessons[j].id },
+            data: { position: j + 1 },
+          });
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error in normalizeCourseHierarchy:", error);
+  }
+}
+
 export async function getCourseByIdAction(id: string) {
   await requireAdmin();
 
   try {
-    const course = await prisma.course.findUnique({
+    let course = await prisma.course.findUnique({
       where: { id },
       include: {
         modules: {
-          orderBy: { position: "asc" },
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
           include: {
             lessons: {
-              orderBy: { position: "asc" },
+              orderBy: [{ position: "asc" }, { createdAt: "asc" }],
             },
           },
         },
@@ -136,6 +210,46 @@ export async function getCourseByIdAction(id: string) {
     });
 
     if (!course) throw new Error("Course not found");
+
+    // Auto-heal check: if any module or lesson has invalid/corrupted positions, normalize immediately
+    let needsHeal = false;
+    for (let i = 0; i < course.modules.length; i++) {
+      if (course.modules[i].position !== i + 1) {
+        needsHeal = true;
+        break;
+      }
+      for (let j = 0; j < course.modules[i].lessons.length; j++) {
+        if (course.modules[i].lessons[j].position !== j + 1) {
+          needsHeal = true;
+          break;
+        }
+      }
+      if (needsHeal) break;
+    }
+
+    if (needsHeal) {
+      await normalizeCourseHierarchy(id);
+      course = await prisma.course.findUnique({
+        where: { id },
+        include: {
+          modules: {
+            orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+            include: {
+              lessons: {
+                orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+              },
+            },
+          },
+          _count: {
+            select: {
+              enrollments: true,
+            },
+          },
+        },
+      });
+      if (!course) throw new Error("Course not found");
+    }
+
     return course;
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : "";
@@ -152,10 +266,10 @@ export async function getCourseByIdAction(id: string) {
           where: { id },
           include: {
             modules: {
-              orderBy: { position: "asc" },
+              orderBy: [{ position: "asc" }, { createdAt: "asc" }],
               include: {
                 lessons: {
-                  orderBy: { position: "asc" },
+                  orderBy: [{ position: "asc" }, { createdAt: "asc" }],
                 },
               },
             },
@@ -634,13 +748,13 @@ export async function addModuleAction(
     };
   }
 
-  // Get next position
+  // Get next position safely
   const lastModule = await prisma.module.findFirst({
     where: { courseId },
     orderBy: { position: "desc" },
     select: { position: true },
   });
-  const nextPosition = (lastModule?.position ?? 0) + 1;
+  const nextPosition = Math.max(0, lastModule?.position ?? 0) + 1;
 
   await prisma.module.create({
     data: {
@@ -685,82 +799,142 @@ export async function updateModuleAction(
 }
 
 export async function deleteModuleAction(moduleId: string): Promise<ActionState> {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const mod = await prisma.module.findUnique({
-    where: { id: moduleId },
-    include: {
-      lessons: { select: { videoKey: true, pdfKey: true, bunnyVideoId: true, bunnyCdnUrl: true, mediaProvider: true } },
-    },
-  });
+    const mod = await prisma.module.findUnique({
+      where: { id: moduleId },
+      include: {
+        lessons: { select: { videoKey: true, pdfKey: true, bunnyVideoId: true, bunnyCdnUrl: true, mediaProvider: true } },
+      },
+    });
 
-  if (!mod) return { success: false, message: "Module not found." };
+    if (!mod) return { success: false, message: "Module not found." };
 
-  // Delete lesson files from R2 and Bunny
-  const mediaDeletePromises: Promise<void>[] = [];
-  for (const lesson of mod.lessons) {
-    mediaDeletePromises.push(deleteMediaAssets(lesson));
+    // Delete lesson files from R2 and Bunny
+    const mediaDeletePromises: Promise<void>[] = [];
+    for (const lesson of mod.lessons) {
+      mediaDeletePromises.push(deleteMediaAssets(lesson));
+    }
+    await Promise.all(mediaDeletePromises);
+
+    const courseId = mod.courseId;
+
+    await prisma.module.delete({ where: { id: moduleId } });
+
+    // Re-order remaining modules sequentially inside an interactive transaction
+    const remaining = await prisma.module.findMany({
+      where: { courseId },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: { id: true, position: true },
+    });
+
+    if (remaining.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        // Pass 1: high offsets to prevent unique constraint collisions
+        for (let i = 0; i < remaining.length; i++) {
+          await tx.module.update({
+            where: { id: remaining[i].id },
+            data: { position: 100000 + i },
+          });
+        }
+        // Pass 2: sequential 1-based integers
+        for (let i = 0; i < remaining.length; i++) {
+          await tx.module.update({
+            where: { id: remaining[i].id },
+            data: { position: i + 1 },
+          });
+        }
+      });
+    }
+
+    revalidatePath(`/admin/courses/${courseId}`);
+    revalidatePath("/dashboard/courses");
+    return { success: true, message: "Module deleted." };
+  } catch (error: any) {
+    console.error("Error in deleteModuleAction:", error);
+    return {
+      success: false,
+      message: error?.message || "Failed to delete module.",
+    };
   }
-  await Promise.all(mediaDeletePromises);
-
-  await prisma.module.delete({ where: { id: moduleId } });
-
-  // Re-order remaining modules
-  const remaining = await prisma.module.findMany({
-    where: { courseId: mod.courseId },
-    orderBy: { position: "asc" },
-  });
-  await Promise.all(
-    remaining.map((item, i) => {
-      if (item.position !== i + 1) {
-        return prisma.module.update({
-          where: { id: item.id },
-          data: { position: i + 1 },
-        });
-      }
-    })
-  );
-
-  revalidatePath(`/admin/courses/${mod.courseId}`);
-  return { success: true, message: "Module deleted." };
 }
 
 export async function reorderModuleAction(
   moduleId: string,
   direction: "up" | "down"
 ): Promise<ActionState> {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const mod = await prisma.module.findUnique({ where: { id: moduleId } });
-  if (!mod) return { success: false, message: "Module not found." };
+    const targetModule = await prisma.module.findUnique({
+      where: { id: moduleId },
+      select: { id: true, courseId: true, position: true },
+    });
+    if (!targetModule) return { success: false, message: "Module not found." };
 
-  const targetPosition = direction === "up" ? mod.position - 1 : mod.position + 1;
-  if (targetPosition < 1) return { success: false, message: "Already at top." };
+    const courseId = targetModule.courseId;
 
-  const swapTarget = await prisma.module.findFirst({
-    where: { courseId: mod.courseId, position: targetPosition },
-  });
+    // Auto-heal any corrupt/negative positions first
+    await normalizeCourseHierarchy(courseId);
 
-  if (!swapTarget) return { success: false, message: "Cannot move further." };
+    // Fetch all siblings ordered cleanly by position
+    const modules = await prisma.module.findMany({
+      where: { courseId },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: { id: true, position: true },
+    });
 
-  // Swap positions using a transaction
-  await prisma.$transaction([
-    prisma.module.update({
-      where: { id: mod.id },
-      data: { position: -1 }, // temporary
-    }),
-    prisma.module.update({
-      where: { id: swapTarget.id },
-      data: { position: mod.position },
-    }),
-    prisma.module.update({
-      where: { id: mod.id },
-      data: { position: targetPosition },
-    }),
-  ]);
+    const currentIndex = modules.findIndex((m) => m.id === moduleId);
+    if (currentIndex === -1) return { success: false, message: "Module not found in list." };
 
-  revalidatePath(`/admin/courses/${mod.courseId}`);
-  return { success: true, message: "Module reordered." };
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0) return { success: false, message: "Already at top." };
+    if (targetIndex >= modules.length) return { success: false, message: "Already at bottom." };
+
+    // Swap elements in the array
+    const newOrder = [...modules];
+    const temp = newOrder[currentIndex];
+    newOrder[currentIndex] = newOrder[targetIndex];
+    newOrder[targetIndex] = temp;
+
+    // Execute two-pass update inside interactive transaction to prevent unique constraint conflicts
+    await prisma.$transaction(async (tx) => {
+      // Pass 1: Set temporary high offsets
+      for (let i = 0; i < newOrder.length; i++) {
+        await tx.module.update({
+          where: { id: newOrder[i].id },
+          data: { position: 100000 + i },
+        });
+      }
+      // Pass 2: Set clean 1-based sequential integers
+      for (let i = 0; i < newOrder.length; i++) {
+        await tx.module.update({
+          where: { id: newOrder[i].id },
+          data: { position: i + 1 },
+        });
+      }
+    });
+
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { slug: true },
+    });
+
+    revalidatePath(`/admin/courses/${courseId}`);
+    if (course?.slug) {
+      revalidatePath(`/courses/${course.slug}`);
+    }
+    revalidatePath("/dashboard/courses");
+
+    return { success: true, message: "Module reordered." };
+  } catch (error: any) {
+    console.error("Error in reorderModuleAction:", error);
+    return {
+      success: false,
+      message: error?.message || "Failed to reorder module. Please try again.",
+    };
+  }
 }
 
 // ==========================================
@@ -790,13 +964,13 @@ export async function addLessonAction(
   });
   if (!mod) return { success: false, message: "Module not found." };
 
-  // Get next position
+  // Get next position safely
   const lastLesson = await prisma.lesson.findFirst({
     where: { moduleId },
     orderBy: { position: "desc" },
     select: { position: true },
   });
-  const nextPosition = (lastLesson?.position ?? 0) + 1;
+  const nextPosition = Math.max(0, lastLesson?.position ?? 0) + 1;
 
   // Generate slug from title
   const baseSlug = validated.data.title
@@ -984,80 +1158,142 @@ export async function updateLessonFileAction(
 }
 
 export async function deleteLessonAction(lessonId: string): Promise<ActionState> {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-    include: { module: { select: { courseId: true } } },
-  });
-  if (!lesson) return { success: false, message: "Lesson not found." };
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { module: { select: { courseId: true } } },
+    });
+    if (!lesson) return { success: false, message: "Lesson not found." };
 
-  // Delete files from R2 and Bunny
-  await deleteMediaAssets(lesson);
+    // Delete files from R2 and Bunny
+    await deleteMediaAssets(lesson);
 
-  const moduleId = lesson.moduleId;
-  await prisma.lesson.delete({ where: { id: lessonId } });
+    const moduleId = lesson.moduleId;
+    const courseId = lesson.module?.courseId;
 
-  // Re-order remaining lessons
-  const remaining = await prisma.lesson.findMany({
-    where: { moduleId },
-    orderBy: { position: "asc" },
-  });
-  await Promise.all(
-    remaining.map((item, i) => {
-      if (item.position !== i + 1) {
-        return prisma.lesson.update({
-          where: { id: item.id },
-          data: { position: i + 1 },
-        });
-      }
-    })
-  );
+    await prisma.lesson.delete({ where: { id: lessonId } });
 
-  revalidatePath(`/admin/courses/${lesson.module.courseId}`);
-  return { success: true, message: "Lesson deleted." };
+    // Re-order remaining lessons sequentially inside an interactive transaction
+    const remaining = await prisma.lesson.findMany({
+      where: { moduleId },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: { id: true, position: true },
+    });
+
+    if (remaining.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        // Pass 1: high offsets to prevent unique constraint collisions
+        for (let i = 0; i < remaining.length; i++) {
+          await tx.lesson.update({
+            where: { id: remaining[i].id },
+            data: { position: 100000 + i },
+          });
+        }
+        // Pass 2: clean 1-based sequential integers
+        for (let i = 0; i < remaining.length; i++) {
+          await tx.lesson.update({
+            where: { id: remaining[i].id },
+            data: { position: i + 1 },
+          });
+        }
+      });
+    }
+
+    if (courseId) {
+      revalidatePath(`/admin/courses/${courseId}`);
+    }
+    revalidatePath("/dashboard/courses");
+    return { success: true, message: "Lesson deleted." };
+  } catch (error: any) {
+    console.error("Error in deleteLessonAction:", error);
+    return {
+      success: false,
+      message: error?.message || "Failed to delete lesson.",
+    };
+  }
 }
 
 export async function reorderLessonAction(
   lessonId: string,
   direction: "up" | "down"
 ): Promise<ActionState> {
-  await requireAdmin();
+  try {
+    await requireAdmin();
 
-  const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
-  if (!lesson) return { success: false, message: "Lesson not found." };
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { module: { select: { courseId: true } } },
+    });
+    if (!lesson) return { success: false, message: "Lesson not found." };
 
-  const targetPosition = direction === "up" ? lesson.position - 1 : lesson.position + 1;
-  if (targetPosition < 1) return { success: false, message: "Already at top." };
+    const moduleId = lesson.moduleId;
+    const courseId = lesson.module?.courseId;
 
-  const swapTarget = await prisma.lesson.findFirst({
-    where: { moduleId: lesson.moduleId, position: targetPosition },
-  });
+    if (courseId) {
+      // Auto-heal any corrupt/negative positions in the course first
+      await normalizeCourseHierarchy(courseId);
+    }
 
-  if (!swapTarget) return { success: false, message: "Cannot move further." };
+    // Fetch all siblings ordered cleanly by position
+    const lessons = await prisma.lesson.findMany({
+      where: { moduleId },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: { id: true, position: true },
+    });
 
-  const mod = await prisma.module.findUnique({
-    where: { id: lesson.moduleId },
-    select: { courseId: true },
-  });
+    const currentIndex = lessons.findIndex((l) => l.id === lessonId);
+    if (currentIndex === -1) return { success: false, message: "Lesson not found in list." };
 
-  await prisma.$transaction([
-    prisma.lesson.update({
-      where: { id: lesson.id },
-      data: { position: -1 },
-    }),
-    prisma.lesson.update({
-      where: { id: swapTarget.id },
-      data: { position: lesson.position },
-    }),
-    prisma.lesson.update({
-      where: { id: lesson.id },
-      data: { position: targetPosition },
-    }),
-  ]);
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0) return { success: false, message: "Already at top." };
+    if (targetIndex >= lessons.length) return { success: false, message: "Already at bottom." };
 
-  if (mod) revalidatePath(`/admin/courses/${mod.courseId}`);
-  return { success: true, message: "Lesson reordered." };
+    // Swap elements in the array
+    const newOrder = [...lessons];
+    const temp = newOrder[currentIndex];
+    newOrder[currentIndex] = newOrder[targetIndex];
+    newOrder[targetIndex] = temp;
+
+    // Two-pass update inside interactive transaction to prevent unique constraint conflicts
+    await prisma.$transaction(async (tx) => {
+      // Pass 1: Set temporary high offsets
+      for (let i = 0; i < newOrder.length; i++) {
+        await tx.lesson.update({
+          where: { id: newOrder[i].id },
+          data: { position: 100000 + i },
+        });
+      }
+      // Pass 2: Set clean 1-based sequential integers
+      for (let i = 0; i < newOrder.length; i++) {
+        await tx.lesson.update({
+          where: { id: newOrder[i].id },
+          data: { position: i + 1 },
+        });
+      }
+    });
+
+    if (courseId) {
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { slug: true },
+      });
+      revalidatePath(`/admin/courses/${courseId}`);
+      if (course?.slug) {
+        revalidatePath(`/courses/${course.slug}`);
+      }
+    }
+    revalidatePath("/dashboard/courses");
+
+    return { success: true, message: "Lesson reordered." };
+  } catch (error: any) {
+    console.error("Error in reorderLessonAction:", error);
+    return {
+      success: false,
+      message: error?.message || "Failed to reorder lesson. Please try again.",
+    };
+  }
 }
 
 // ==========================================
@@ -1199,6 +1435,11 @@ export async function getPublicCourseBySlugAction(slug: string) {
     });
 
     if (!course) return null;
+
+    if (course.modules.some((m) => m.position <= 0 || m.lessons.some((l) => l.position <= 0))) {
+      await normalizeCourseHierarchy(course.id);
+      return getPublicCourseBySlugAction(slug);
+    }
 
     let thumbnailUrl = course.thumbnailCdnUrl;
     if (!thumbnailUrl && course.thumbnailKey) {

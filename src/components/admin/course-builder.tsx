@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   addModuleAction,
   updateModuleAction,
@@ -67,6 +68,7 @@ interface CourseBuilderProps {
 }
 
 export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
+  const router = useRouter();
   const [isAddingModule, setIsAddingModule] = useState(false);
   const [newModuleTitle, setNewModuleTitle] = useState("");
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
@@ -95,6 +97,7 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
         toast.success("Module added!");
         setNewModuleTitle("");
         setIsAddingModule(false);
+        router.refresh();
       } else {
         toast.error(res.message || "Failed to add module");
       }
@@ -113,6 +116,7 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
       if (res.success) {
         toast.success("Module updated!");
         setEditingModuleId(null);
+        router.refresh();
       } else {
         toast.error(res.message || "Failed to update module");
       }
@@ -126,6 +130,7 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
       const res = await deleteModuleAction(moduleId);
       if (res.success) {
         toast.success("Module deleted!");
+        router.refresh();
       } else {
         toast.error(res.message || "Failed to delete module");
       }
@@ -136,7 +141,10 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
     startTransition(async () => {
       const res = await reorderModuleAction(moduleId, direction);
       if (!res.success) {
-        toast.error(res.message || "Could not reorder");
+        toast.error(res.message || "Could not reorder module");
+      } else {
+        toast.success("Module reordered!");
+        router.refresh();
       }
     });
   };
@@ -156,6 +164,7 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
         toast.success("Lesson added!");
         setNewLessonTitle("");
         setAddingLessonModuleId(null);
+        router.refresh();
       } else {
         toast.error(res.message || "Failed to add lesson");
       }
@@ -170,6 +179,7 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
       if (res.success) {
         toast.success("Lesson deleted!");
         await recalculateCourseDurationAction(courseId);
+        router.refresh();
       } else {
         toast.error(res.message || "Failed to delete lesson");
       }
@@ -180,7 +190,10 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
     startTransition(async () => {
       const res = await reorderLessonAction(lessonId, direction);
       if (!res.success) {
-        toast.error(res.message || "Could not reorder");
+        toast.error(res.message || "Could not reorder lesson");
+      } else {
+        toast.success("Lesson reordered!");
+        router.refresh();
       }
     });
   };
@@ -532,7 +545,7 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
           lesson={activeEditingLesson}
           onClose={() => setActiveEditingLesson(null)}
           onRefresh={() => {
-            // will revalidate from server actions
+            router.refresh();
           }}
         />
       )}
