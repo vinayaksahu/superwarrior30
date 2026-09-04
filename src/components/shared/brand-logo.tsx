@@ -16,6 +16,7 @@ export function BrandLogo({
   showText = true,
   isTestMode = false,
 }: BrandLogoProps) {
+  const dimensions =
     size === "sm"
       ? { width: 32, height: 32, textClass: "text-xs font-bold", subClass: "text-[8px]" }
       : size === "lg"
