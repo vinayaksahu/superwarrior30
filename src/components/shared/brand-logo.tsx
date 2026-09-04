@@ -16,12 +16,11 @@ export function BrandLogo({
   showText = true,
   isTestMode = false,
 }: BrandLogoProps) {
-  const dimensions =
     size === "sm"
-      ? { width: 32, height: 32, textClass: "text-sm", subClass: "text-[8px]" }
+      ? { width: 32, height: 32, textClass: "text-xs font-bold", subClass: "text-[8px]" }
       : size === "lg"
-      ? { width: 54, height: 54, textClass: "text-lg font-black", subClass: "text-[10px]" }
-      : { width: 42, height: 42, textClass: "text-base font-extrabold", subClass: "text-[9px]" };
+      ? { width: 54, height: 54, textClass: "text-base sm:text-lg font-black", subClass: "text-[10px]" }
+      : { width: 42, height: 42, textClass: "text-xs sm:text-base font-extrabold", subClass: "text-[9px]" };
 
   const content = (
     <div className={cn("flex items-center gap-2 sm:gap-3 min-w-0", className)}>
@@ -39,7 +38,7 @@ export function BrandLogo({
       {showText && (
         <div className="flex flex-col leading-tight min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className={cn("font-black tracking-tight text-foreground truncate text-xs sm:text-base", dimensions.textClass)}>
+            <span className={cn("tracking-tight text-foreground truncate", dimensions.textClass)}>
               RAHUL <span className="text-amber-400">TRADE WARRIOR</span>
             </span>
             {isTestMode && (

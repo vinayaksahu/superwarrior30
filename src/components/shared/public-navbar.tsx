@@ -123,8 +123,8 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
         </div>
       )}
 
-      <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-6 min-w-0">
-        <div onClick={handleLogoClick} className="cursor-pointer">
+      <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-6 min-w-0 max-w-full">
+        <div onClick={handleLogoClick} className="cursor-pointer min-w-0 shrink">
           <BrandLogo href="/" size="md" isTestMode={isTestMode} />
         </div>
 
@@ -179,7 +179,7 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
           </Link>
           <Link
             href="/register"
-            className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-2.5 sm:px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 shrink-0"
+            className="inline-flex h-8 sm:h-9 items-center justify-center rounded-xl bg-primary px-2.5 sm:px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 shrink-0"
           >
             Get Started
           </Link>

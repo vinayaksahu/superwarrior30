@@ -20,10 +20,10 @@ export function ExpandableDescription({
   const isLongContent = content.length > 350 || content.split("\n").length > 7;
 
   return (
-    <div className="rounded-2xl border border-border/80 bg-card/60 p-6 sm:p-8 shadow-sm space-y-4">
+    <div className="rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-6 md:p-8 shadow-sm space-y-4 max-w-full overflow-hidden">
       <div
         className={cn(
-          "relative transition-all duration-300 ease-in-out",
+          "relative transition-all duration-300 ease-in-out min-w-0 max-w-full",
           !isExpanded && isLongContent && cn(initialMaxHeight, "overflow-hidden")
         )}
       >

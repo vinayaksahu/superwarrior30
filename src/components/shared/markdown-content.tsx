@@ -220,7 +220,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           elements.push(
             <h2
               key={`h1-${index++}`}
-              className="mt-6 mb-3 text-xl sm:text-2xl font-black tracking-tight text-foreground border-b border-border/60 pb-2"
+              className="mt-6 mb-3 text-xl sm:text-2xl font-black tracking-tight text-foreground border-b border-border/60 pb-2 break-words"
             >
               {renderInline(text)}
             </h2>
@@ -229,17 +229,17 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           elements.push(
             <h3
               key={`h2-${index++}`}
-              className="mt-5 mb-2.5 text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2"
+              className="mt-5 mb-2.5 text-base sm:text-xl font-bold tracking-tight text-foreground flex items-start gap-2 min-w-0"
             >
-              <span className="h-2 w-2 rounded-full bg-primary inline-block" />
-              {renderInline(text)}
+              <span className="h-2 w-2 rounded-full bg-primary inline-block mt-2 shrink-0" />
+              <span className="flex-1 min-w-0 break-words">{renderInline(text)}</span>
             </h3>
           );
         } else if (level === 3) {
           elements.push(
             <h4
               key={`h3-${index++}`}
-              className="mt-4 mb-2 text-base font-bold text-foreground"
+              className="mt-4 mb-2 text-sm sm:text-base font-bold text-foreground break-words"
             >
               {renderInline(text)}
             </h4>
@@ -248,7 +248,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           elements.push(
             <h5
               key={`h4-${index++}`}
-              className="mt-3 mb-1.5 text-sm font-bold text-foreground uppercase tracking-wider text-muted-foreground"
+              className="mt-3 mb-1.5 text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider text-muted-foreground break-words"
             >
               {renderInline(text)}
             </h5>
@@ -279,9 +279,9 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
         inList = "ul";
       }
       listItems.push(
-        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm sm:text-[15px] text-foreground/90 leading-relaxed">
+        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm sm:text-[15px] text-foreground/90 leading-relaxed min-w-0">
           <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" />
-          <span className="flex-1">{renderInline(ulMatch[1])}</span>
+          <span className="flex-1 min-w-0 break-words">{renderInline(ulMatch[1])}</span>
         </li>
       );
       continue;
@@ -295,11 +295,11 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
         inList = "ol";
       }
       listItems.push(
-        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm sm:text-[15px] text-foreground/90 leading-relaxed">
+        <li key={`li-${index++}`} className="flex items-start gap-2.5 text-sm sm:text-[15px] text-foreground/90 leading-relaxed min-w-0">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-bold text-primary shrink-0 mt-0.5">
             {olMatch[1]}
           </span>
-          <span className="flex-1">{renderInline(olMatch[2])}</span>
+          <span className="flex-1 min-w-0 break-words">{renderInline(olMatch[2])}</span>
         </li>
       );
       continue;
@@ -308,7 +308,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
     // Regular Paragraph
     flushList();
     elements.push(
-      <p key={`p-${index++}`} className="my-3 text-sm sm:text-[15px] leading-relaxed text-foreground/85">
+      <p key={`p-${index++}`} className="my-3 text-sm sm:text-[15px] leading-relaxed text-foreground/85 break-words">
         {renderInline(trimmed)}
       </p>
     );
@@ -319,5 +319,5 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
   flushCodeBlock();
   flushBlockquote();
 
-  return <div className={cn("space-y-1", className)}>{elements}</div>;
+  return <div className={cn("space-y-1 min-w-0 max-w-full overflow-hidden break-words", className)}>{elements}</div>;
 }

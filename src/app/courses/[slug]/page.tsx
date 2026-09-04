@@ -76,11 +76,11 @@ export default async function CourseDetailPage({
     : null;
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 w-full max-w-full overflow-x-hidden">
       <PublicNavbar isTestMode={pageEnv === "TEST"} />
       {/* Top Breadcrumb */}
       <div className="border-b border-border/40 bg-muted/20 py-4">
-        <div className="container mx-auto px-4 max-w-6xl">
+        <div className="container mx-auto px-4 max-w-6xl w-full min-w-0">
           <Link
             href="/courses"
             className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
@@ -92,10 +92,10 @@ export default async function CourseDetailPage({
       </div>
 
       {/* Main Unified Course Page Content */}
-      <div className="container mx-auto px-4 max-w-6xl py-8 md:py-10">
-        <div className="grid gap-8 lg:gap-10 lg:grid-cols-3 items-start">
+      <div className="container mx-auto px-4 max-w-6xl py-6 sm:py-8 md:py-10 w-full min-w-0">
+        <div className="grid gap-8 lg:gap-10 lg:grid-cols-3 items-start w-full min-w-0">
           {/* Left Main Column: Hero info, About Course, Curriculum */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-6 sm:space-y-8 min-w-0 max-w-full">
             {/* Header / Intro */}
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -107,27 +107,27 @@ export default async function CourseDetailPage({
                 </span>
               </div>
 
-              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-foreground break-words">
                 {course.title}
               </h1>
 
-              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
+              <p className="text-sm sm:text-base md:text-lg text-muted-foreground leading-relaxed break-words">
                 {course.shortDescription ||
                   "Master the market dynamics, chart structures, trade execution, and risk control protocols used by professional traders."}
               </p>
 
-              <div className="flex flex-wrap items-center gap-5 pt-1 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-primary" />
+              <div className="flex flex-wrap items-center gap-3 sm:gap-5 pt-1 text-xs sm:text-sm text-muted-foreground">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Layers className="h-4 w-4 text-primary shrink-0" />
                   <span>{course.modules.length} Modules</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-primary" />
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <BookOpen className="h-4 w-4 text-primary shrink-0" />
                   <span>{totalLessons} Lessons</span>
                 </div>
                 {course.totalDuration > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Clock className="h-4 w-4 text-primary shrink-0" />
                     <span>{Math.round(course.totalDuration / 3600)} Hours Content</span>
                   </div>
                 )}
@@ -136,10 +136,10 @@ export default async function CourseDetailPage({
 
             {/* Description: About This Course */}
             {course.fullDescription && (
-              <section className="space-y-4">
+              <section className="space-y-4 min-w-0 max-w-full">
                 <div className="flex items-center gap-2.5">
-                  <div className="h-6 w-1 rounded-full bg-primary" />
-                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                  <div className="h-6 w-1 rounded-full bg-primary shrink-0" />
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-foreground">
                     About This Course
                   </h2>
                 </div>
@@ -148,46 +148,46 @@ export default async function CourseDetailPage({
             )}
 
             {/* Curriculum Syllabus */}
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-6 w-1 rounded-full bg-primary" />
-                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            <section className="space-y-4 min-w-0 max-w-full">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-6 w-1 rounded-full bg-primary shrink-0" />
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-foreground truncate">
                     Course Curriculum
                   </h2>
                 </div>
-                <span className="text-xs text-muted-foreground font-medium">
+                <span className="text-xs text-muted-foreground font-medium shrink-0">
                   {course.modules.length} modules • {totalLessons} lessons
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 min-w-0 max-w-full">
                 {course.modules.map((module) => (
                   <div
                     key={module.id}
-                    className="rounded-xl border border-border bg-card overflow-hidden shadow-sm"
+                    className="rounded-xl border border-border bg-card overflow-hidden shadow-sm min-w-0"
                   >
-                    <div className="border-b border-border bg-muted/40 px-5 py-3.5 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    <div className="border-b border-border bg-muted/40 px-3.5 sm:px-5 py-3 sm:py-3.5 flex items-center justify-between gap-2 min-w-0">
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
                           {module.position}
                         </span>
-                        <h3 className="font-semibold text-foreground text-sm sm:text-base">
+                        <h3 className="font-semibold text-foreground text-xs sm:text-base truncate">
                           {module.title}
                         </h3>
                       </div>
-                      <span className="text-xs text-muted-foreground font-medium">
+                      <span className="text-xs text-muted-foreground font-medium shrink-0">
                         {module.lessons.length} lessons
                       </span>
                     </div>
 
-                    <div className="divide-y divide-border/50">
+                    <div className="divide-y divide-border/50 min-w-0">
                       {module.lessons.map((lesson) => (
                         <div
                           key={lesson.id}
-                          className="flex items-center justify-between px-5 py-3.5 text-sm transition-colors hover:bg-muted/20"
+                          className="flex items-center justify-between px-3.5 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm transition-colors hover:bg-muted/20 gap-2 min-w-0"
                         >
-                          <div className="flex items-center gap-3 min-w-0 mr-3">
+                          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2 sm:mr-3">
                             {lesson.contentType === "VIDEO" ? (
                               <Video className="h-4 w-4 text-primary shrink-0" />
                             ) : lesson.contentType === "PDF" ? (
@@ -196,12 +196,12 @@ export default async function CourseDetailPage({
                               <AlignLeft className="h-4 w-4 text-sky-500 shrink-0" />
                             )}
 
-                            <span className="font-medium text-foreground truncate">
+                            <span className="font-medium text-foreground truncate min-w-0">
                               {lesson.title}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-3 shrink-0">
+                          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                             {!lesson.isFreePreview && lesson.durationSec >= 60 && (
                               <span className="text-xs text-muted-foreground hidden sm:inline">
                                 {Math.round(lesson.durationSec / 60)} min
@@ -234,10 +234,10 @@ export default async function CourseDetailPage({
           </div>
 
           {/* Right Column: Pricing / Enrollment Sticky Card */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-20 rounded-2xl border border-border bg-card p-6 shadow-xl space-y-6 overflow-hidden">
+          <div className="lg:col-span-1 min-w-0 max-w-full">
+            <div className="sticky top-20 rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xl space-y-6 overflow-hidden max-w-full">
               {(course.thumbnailUrl || course.thumbnailCdnUrl) && (
-                <div className="relative -mx-6 -mt-6 aspect-video overflow-hidden border-b border-border bg-muted">
+                <div className="relative -mx-5 sm:-mx-6 -mt-5 sm:-mt-6 aspect-video overflow-hidden border-b border-border bg-muted">
                   <img
                     src={course.thumbnailUrl || course.thumbnailCdnUrl || ""}
                     alt={course.title}
