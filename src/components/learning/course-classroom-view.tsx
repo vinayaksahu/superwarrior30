@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
@@ -67,6 +67,7 @@ export function CourseClassroomView({
   nextLessonId,
 }: CourseClassroomViewProps) {
   const router = useRouter();
+  const [currentLessonId, setCurrentLessonId] = useState(activeLessonId);
   const [progressMap, setProgressMap] = useState(initialProgressMap);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [mediaData, setMediaData] = useState<{
@@ -91,6 +92,58 @@ export function CourseClassroomView({
     setProgressMap(initialProgressMap);
   }, [initialProgressMap]);
 
+  // Sync activeLessonId if prop changes
+  useEffect(() => {
+    if (activeLessonId && activeLessonId !== currentLessonId) {
+      setCurrentLessonId(activeLessonId);
+    }
+  }, [activeLessonId, currentLessonId]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      const urlLessonId = parts[parts.length - 1];
+      if (urlLessonId && urlLessonId !== currentLessonId) {
+        const exists = modules.some((m) => m.lessons?.some((l) => l.id === urlLessonId));
+        if (exists) {
+          setCurrentLessonId(urlLessonId);
+        }
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [currentLessonId, modules]);
+
+  // Instant Lesson Switcher
+  const handleSelectLesson = useCallback(
+    (lessonId: string) => {
+      if (lessonId === currentLessonId) return;
+      setCurrentLessonId(lessonId);
+      window.history.pushState(null, "", `/learn/${courseSlug}/${lessonId}`);
+      router.push(`/learn/${courseSlug}/${lessonId}`, { scroll: false });
+    },
+    [currentLessonId, courseSlug, router]
+  );
+
+  // Flatten all lessons across modules for dynamic next/previous navigation
+  const flatLessons = useMemo(() => {
+    const list: { id: string; title: string }[] = [];
+    for (const mod of modules) {
+      for (const lesson of mod.lessons || []) {
+        list.push({ id: lesson.id, title: lesson.title });
+      }
+    }
+    return list;
+  }, [modules]);
+
+  const currentLessonIndex = flatLessons.findIndex((l) => l.id === currentLessonId);
+  const computedPrevLessonId = currentLessonIndex > 0 ? flatLessons[currentLessonIndex - 1].id : undefined;
+  const computedNextLessonId =
+    currentLessonIndex >= 0 && currentLessonIndex < flatLessons.length - 1
+      ? flatLessons[currentLessonIndex + 1].id
+      : undefined;
+
   // Compute total lessons
   const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
 
@@ -104,7 +157,7 @@ export function CourseClassroomView({
       ? Math.round((completedLessonsCount / totalLessons) * 100)
       : initialProgressPercentage;
 
-  const isCurrentCompleted = progressMap[activeLessonId]?.status === "COMPLETED";
+  const isCurrentCompleted = progressMap[currentLessonId]?.status === "COMPLETED";
 
   // Anti-Piracy Keyboard & Screenshot Protection
   useEffect(() => {
@@ -131,7 +184,7 @@ export function CourseClassroomView({
       try {
         const res = await getEnrolledLessonMediaUrlAction({
           courseSlug,
-          lessonId: activeLessonId,
+          lessonId: currentLessonId,
         });
         if (isMounted) {
           setMediaData(res);
@@ -152,28 +205,28 @@ export function CourseClassroomView({
     return () => {
       isMounted = false;
     };
-  }, [activeLessonId, courseSlug]);
+  }, [currentLessonId, courseSlug]);
 
   // Real-time persistent toggle completion
   const handleToggleComplete = async () => {
     if (isSaving) return;
-    const prevStatus = progressMap[activeLessonId]?.status || "NOT_STARTED";
+    const prevStatus = progressMap[currentLessonId]?.status || "NOT_STARTED";
     const newStatus = isCurrentCompleted ? "IN_PROGRESS" : "COMPLETED";
 
     // 1. Instant Optimistic UI Update in Sidebar & Topbar
     setProgressMap((prev) => ({
       ...prev,
-      [activeLessonId]: {
-        ...(prev[activeLessonId] || {}),
+      [currentLessonId]: {
+        ...(prev[currentLessonId] || {}),
         status: newStatus,
-        watchTimeSeconds: prev[activeLessonId]?.watchTimeSeconds || 0,
+        watchTimeSeconds: prev[currentLessonId]?.watchTimeSeconds || 0,
       },
     }));
 
     // 2. Background API Call
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/lessons/${activeLessonId}/progress`, {
+      const res = await fetch(`/api/lessons/${currentLessonId}/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -185,10 +238,10 @@ export function CourseClassroomView({
         // Rollback optimistic update on failure
         setProgressMap((prev) => ({
           ...prev,
-          [activeLessonId]: {
-            ...(prev[activeLessonId] || {}),
+          [currentLessonId]: {
+            ...(prev[currentLessonId] || {}),
             status: prevStatus,
-            watchTimeSeconds: prev[activeLessonId]?.watchTimeSeconds || 0,
+            watchTimeSeconds: prev[currentLessonId]?.watchTimeSeconds || 0,
           },
         }));
         throw new Error(data.error || "Failed to persist lesson completion");
@@ -218,20 +271,20 @@ export function CourseClassroomView({
       // 1. Optimistic update
       setProgressMap((prev) => ({
         ...prev,
-        [activeLessonId]: {
-          status: prev[activeLessonId]?.status || "IN_PROGRESS",
-          watchTimeSeconds: Math.max(prev[activeLessonId]?.watchTimeSeconds || 0, watchTimeSeconds),
+        [currentLessonId]: {
+          status: prev[currentLessonId]?.status || "IN_PROGRESS",
+          watchTimeSeconds: Math.max(prev[currentLessonId]?.watchTimeSeconds || 0, watchTimeSeconds),
           lastPositionSeconds,
         },
       }));
 
       // 2. Persist to API
       try {
-        await fetch(`/api/lessons/${activeLessonId}/progress`, {
+        await fetch(`/api/lessons/${currentLessonId}/progress`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status: progressMap[activeLessonId]?.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS",
+            status: progressMap[currentLessonId]?.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS",
             lastPositionSeconds,
             watchTimeSeconds,
           }),
@@ -240,73 +293,103 @@ export function CourseClassroomView({
         console.warn("Auto-save video progress error:", err);
       }
     },
-    [activeLessonId, progressMap]
+    [currentLessonId, progressMap]
   );
 
-  const pdfStreamUrl = `/api/lessons/${activeLessonId}/pdf`;
+  const pdfStreamUrl = `/api/lessons/${currentLessonId}/pdf`;
 
   // Helper for curriculum items
   const renderCurriculumList = (onItemClick?: () => void) => (
     <div className="space-y-4">
-      {modules.map((module) => (
-        <div key={module.id} className="space-y-1.5">
-          <div className="px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-500/90">
-            Module {module.position}: {module.title}
+      {modules.map((module) => {
+        const firstLesson = module.lessons?.[0];
+        const isModuleActive = module.lessons?.some((l) => l.id === currentLessonId);
+
+        return (
+          <div key={module.id} className="space-y-1.5">
+            {/* Clickable Module Header */}
+            <button
+              type="button"
+              onClick={() => {
+                if (firstLesson) {
+                  handleSelectLesson(firstLesson.id);
+                  onItemClick?.();
+                }
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[11px] font-extrabold uppercase tracking-wider transition-all cursor-pointer group ${
+                isModuleActive
+                  ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                  : "text-amber-500/80 hover:text-amber-300 hover:bg-muted/60"
+              }`}
+              title={firstLesson ? `Go to ${module.title}` : undefined}
+            >
+              <span className="truncate">
+                Module {module.position}: {module.title}
+              </span>
+              <ChevronRight
+                className={`h-3 w-3 shrink-0 transition-transform text-amber-400/70 ${
+                  isModuleActive ? "rotate-90 text-amber-400 font-bold" : "group-hover:translate-x-0.5"
+                }`}
+              />
+            </button>
+
+            <div className="space-y-1 pl-1">
+              {module.lessons.map((lesson) => {
+                const isCurrent = lesson.id === currentLessonId;
+                const isCompleted = progressMap[lesson.id]?.status === "COMPLETED";
+
+                return (
+                  <button
+                    key={lesson.id}
+                    type="button"
+                    onClick={() => {
+                      handleSelectLesson(lesson.id);
+                      onItemClick?.();
+                    }}
+                    className={`w-full text-left flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold transition-all cursor-pointer ${
+                      isCurrent
+                        ? "bg-amber-500/15 text-amber-300 border border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
+                        : isCompleted
+                        ? "bg-emerald-500/5 text-foreground hover:bg-muted"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 mr-2">
+                      {isCompleted ? (
+                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                          <CheckCircle2 className="h-3.5 w-3.5 fill-emerald-500/20 text-emerald-400" />
+                        </div>
+                      ) : (
+                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-muted-foreground/30 text-transparent">
+                          <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />
+                        </div>
+                      )}
+
+                      <span className={`truncate ${isCompleted ? "text-foreground font-semibold" : ""}`}>
+                        {lesson.title}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
+                      {lesson.contentType === "VIDEO" ? (
+                        <Video className="h-3.5 w-3.5 text-primary" />
+                      ) : lesson.contentType === "PDF" ? (
+                        <FileText className="h-3.5 w-3.5 text-amber-400" />
+                      ) : lesson.contentType === "TEXT" ? (
+                        <AlignLeft className="h-3.5 w-3.5 text-sky-400" />
+                      ) : lesson.contentType === "QUIZ" ? (
+                        <HelpCircle className="h-3.5 w-3.5 text-purple-400" />
+                      ) : (
+                        <Award className="h-3.5 w-3.5 text-emerald-400" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-
-          <div className="space-y-1">
-            {module.lessons.map((lesson) => {
-              const isCurrent = lesson.id === activeLessonId;
-              const isCompleted = progressMap[lesson.id]?.status === "COMPLETED";
-
-              return (
-                <Link
-                  key={lesson.id}
-                  href={`/learn/${courseSlug}/${lesson.id}`}
-                  onClick={onItemClick}
-                  className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold transition-all ${
-                    isCurrent
-                      ? "bg-amber-500/15 text-amber-300 border border-amber-500/40 shadow-sm"
-                      : isCompleted
-                      ? "bg-emerald-500/5 text-foreground hover:bg-muted"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 mr-2">
-                    {isCompleted ? (
-                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                        <CheckCircle2 className="h-3.5 w-3.5 fill-emerald-500/20 text-emerald-400" />
-                      </div>
-                    ) : (
-                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-muted-foreground/30 text-transparent">
-                        <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />
-                      </div>
-                    )}
-
-                    <span className={`truncate ${isCompleted ? "text-foreground font-semibold" : ""}`}>
-                      {lesson.title}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
-                    {lesson.contentType === "VIDEO" ? (
-                      <Video className="h-3.5 w-3.5 text-primary" />
-                    ) : lesson.contentType === "PDF" ? (
-                      <FileText className="h-3.5 w-3.5 text-amber-400" />
-                    ) : lesson.contentType === "TEXT" ? (
-                      <AlignLeft className="h-3.5 w-3.5 text-sky-400" />
-                    ) : lesson.contentType === "QUIZ" ? (
-                      <HelpCircle className="h-3.5 w-3.5 text-purple-400" />
-                    ) : (
-                      <Award className="h-3.5 w-3.5 text-emerald-400" />
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 
@@ -489,31 +572,34 @@ export function CourseClassroomView({
           </div>
         ) : mediaData?.contentType === "QUIZ" ? (
           <StudentQuizView
-            lessonId={activeLessonId}
+            key={currentLessonId}
+            lessonId={currentLessonId}
             courseSlug={courseSlug}
             onLessonCompleted={() => handleToggleComplete()}
           />
         ) : mediaData?.contentType === "ASSIGNMENT" ? (
           <StudentHomeworkView
-            lessonId={activeLessonId}
+            key={currentLessonId}
+            lessonId={currentLessonId}
             courseSlug={courseSlug}
             onLessonCompleted={() => handleToggleComplete()}
           />
         ) : mediaData?.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
             <ProtectedVideoPlayer
-              lessonId={activeLessonId}
+              key={currentLessonId}
+              lessonId={currentLessonId}
               src={mediaData.signedUrl}
               title={mediaData.title}
               durationSec={mediaData.durationSec}
               initialPositionSeconds={
                 mediaData.lastPositionSeconds ??
-                progressMap[activeLessonId]?.lastPositionSeconds ??
+                progressMap[currentLessonId]?.lastPositionSeconds ??
                 0
               }
               initialWatchedSeconds={
                 mediaData.watchTimeSeconds ??
-                progressMap[activeLessonId]?.watchTimeSeconds ??
+                progressMap[currentLessonId]?.watchTimeSeconds ??
                 0
               }
               onProgressSave={handleVideoProgressSave}
@@ -526,9 +612,9 @@ export function CourseClassroomView({
             </div>
           )
         ) : mediaData?.contentType === "PDF" ? (
-          <ProtectedPdfViewer pdfUrl={pdfStreamUrl} title={mediaData.title} />
+          <ProtectedPdfViewer key={currentLessonId} pdfUrl={pdfStreamUrl} title={mediaData.title} />
         ) : (
-          <div className="p-8 bg-card text-foreground rounded-2xl border border-border">
+          <div key={currentLessonId} className="p-8 bg-card text-foreground rounded-2xl border border-border">
             <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
               {mediaData?.textContent || "No text content available for this lesson."}
             </div>
@@ -537,10 +623,10 @@ export function CourseClassroomView({
 
         {/* Next / Previous Lesson Navigation Footer */}
         <div className="flex items-center justify-between pt-2 sm:pt-4">
-          {prevLessonId ? (
+          {computedPrevLessonId ? (
             <button
               type="button"
-              onClick={() => router.push(`/learn/${courseSlug}/${prevLessonId}`)}
+              onClick={() => handleSelectLesson(computedPrevLessonId)}
               className="inline-flex items-center gap-1.5 rounded-xl border border-input bg-card px-3 sm:px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -550,10 +636,10 @@ export function CourseClassroomView({
             <div />
           )}
 
-          {nextLessonId ? (
+          {computedNextLessonId ? (
             <button
               type="button"
-              onClick={() => router.push(`/learn/${courseSlug}/${nextLessonId}`)}
+              onClick={() => handleSelectLesson(computedNextLessonId)}
               className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 sm:px-5 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 cursor-pointer"
             >
               Next Lesson

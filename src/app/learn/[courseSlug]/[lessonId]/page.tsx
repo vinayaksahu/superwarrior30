@@ -57,6 +57,7 @@ export default async function CourseLearnLessonPage({
   return (
     <div className="min-h-screen bg-background">
       <CourseClassroomView
+        key={lessonId}
         courseSlug={course.slug}
         courseTitle={course.title}
         activeLessonId={lessonId}

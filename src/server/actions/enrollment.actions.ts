@@ -233,16 +233,8 @@ export async function getEnrolledLessonMediaUrlAction({
 
   // Step 2: Verify Enrollment or Free Preview
   if (!isAdmin && !lesson.isFreePreview) {
-    const enrollment = await prisma.courseEnrollment.findUnique({
-      where: {
-        userId_courseId: {
-          userId: user.id,
-          courseId: lesson.module.course.id,
-        },
-      },
-    });
-
-    if (!enrollment || enrollment.status !== "ACTIVE") {
+    const isEnrolled = await checkUserEnrollment(lesson.module.course.id);
+    if (!isEnrolled) {
       throw new Error("Access denied. Please purchase the course to view this lesson.");
     }
   }
