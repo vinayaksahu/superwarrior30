@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { getMediaAssetDetailsAction, pollMediaProcessingStatusAction } from "@/server/actions/media.actions";
+import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
 import {
   X,
   Film,
@@ -193,14 +194,12 @@ export function MediaDetailsDrawer({
               {/* Preview Box */}
               <div className="overflow-hidden rounded-2xl border border-border bg-black shadow-md">
                 {isVideo && media.playbackUrl ? (
-                  <div className="relative aspect-video w-full">
-                    <iframe
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden">
+                    <ProtectedVideoPlayer
                       src={media.playbackUrl}
-                      loading="lazy"
-                      className="h-full w-full border-0"
-                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                      allowFullScreen
                       title={media.fileName}
+                      watermarkText="Admin Preview • Super Warrior 30"
+                      className="h-full w-full object-contain rounded-none border-0"
                     />
                   </div>
                 ) : isVideo && media.bunnyVideoId ? (

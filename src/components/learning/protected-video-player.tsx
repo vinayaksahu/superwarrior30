@@ -25,6 +25,10 @@ interface ProtectedVideoPlayerProps {
   durationSec?: number;
   onEnded?: () => void;
   watermarkText?: string;
+  maxPreviewSeconds?: number;
+  onPreviewLimitReached?: () => void;
+  autoPlay?: boolean;
+  className?: string;
 }
 
 export function ProtectedVideoPlayer({
@@ -33,6 +37,10 @@ export function ProtectedVideoPlayer({
   durationSec,
   onEnded,
   watermarkText = "Trade Warrior Academy • Protected Content",
+  maxPreviewSeconds,
+  onPreviewLimitReached,
+  autoPlay = false,
+  className = "",
 }: ProtectedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +113,9 @@ export function ProtectedVideoPlayer({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsBuffering(false);
+        if (autoPlay && video) {
+          video.play().catch(() => {});
+        }
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -129,6 +140,9 @@ export function ProtectedVideoPlayer({
       video.src = src;
       video.addEventListener("loadedmetadata", () => {
         setIsBuffering(false);
+        if (autoPlay && video) {
+          video.play().catch(() => {});
+        }
       });
     } else {
       setError("Your browser does not support HLS video streaming.");
@@ -233,9 +247,14 @@ export function ProtectedVideoPlayer({
   // Video Events
   const handleTimeUpdate = () => {
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+      const cur = videoRef.current.currentTime;
+      setCurrentTime(cur);
       if (!duration || duration === 0) {
         setDuration(videoRef.current.duration);
+      }
+      if (maxPreviewSeconds && cur >= maxPreviewSeconds) {
+        videoRef.current.pause();
+        onPreviewLimitReached?.();
       }
     }
   };
@@ -250,6 +269,9 @@ export function ProtectedVideoPlayer({
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
+      if (maxPreviewSeconds && videoRef.current.currentTime >= maxPreviewSeconds) {
+        videoRef.current.currentTime = 0;
+      }
       videoRef.current.play().catch(() => {});
     } else {
       videoRef.current.pause();
@@ -257,7 +279,10 @@ export function ProtectedVideoPlayer({
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = Number(e.target.value);
+    let time = Number(e.target.value);
+    if (maxPreviewSeconds && time > maxPreviewSeconds) {
+      time = maxPreviewSeconds;
+    }
     setCurrentTime(time);
     if (videoRef.current) {
       videoRef.current.currentTime = time;
@@ -284,7 +309,8 @@ export function ProtectedVideoPlayer({
 
   const handleSkip = (seconds: number) => {
     if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
+    const maxT = maxPreviewSeconds ? Math.min(duration || maxPreviewSeconds, maxPreviewSeconds) : duration;
+    videoRef.current.currentTime = Math.max(0, Math.min(maxT, videoRef.current.currentTime + seconds));
     triggerFeedback(`${seconds > 0 ? `+${seconds}s` : `${seconds}s`}`);
   };
 
@@ -444,6 +470,10 @@ export function ProtectedVideoPlayer({
     );
   }
 
+  const effectiveDuration = maxPreviewSeconds
+    ? Math.min(duration || maxPreviewSeconds, maxPreviewSeconds)
+    : duration;
+
   return (
     <div
       ref={containerRef}
@@ -454,7 +484,7 @@ export function ProtectedVideoPlayer({
       className={`group relative w-full overflow-hidden bg-black select-none transition-all duration-300 ${
         isFullscreen
           ? "fixed inset-0 z-50 h-screen w-screen rounded-none border-none max-w-none"
-          : "aspect-video rounded-2xl border border-border shadow-2xl"
+          : className || "aspect-video rounded-2xl border border-border shadow-2xl"
       }`}
     >
       {/* HTML5 Video Element */}
@@ -544,7 +574,7 @@ export function ProtectedVideoPlayer({
             <input
               type="range"
               min={0}
-              max={duration || 100}
+              max={effectiveDuration || 100}
               value={currentTime}
               onChange={handleSeek}
               className="h-1.5 sm:h-2 w-full cursor-pointer appearance-none rounded-lg bg-white/30 accent-primary focus:outline-none transition-all hover:h-2.5"
@@ -610,7 +640,7 @@ export function ProtectedVideoPlayer({
 
               {/* Time Display */}
               <span className="font-mono text-[11px] sm:text-xs text-white/90">
-                {formatTime(currentTime)} / {formatTime(duration)}
+                {formatTime(currentTime)} / {formatTime(effectiveDuration)}
               </span>
             </div>
 

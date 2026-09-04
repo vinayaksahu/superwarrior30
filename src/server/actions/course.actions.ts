@@ -7,6 +7,7 @@ import { requireAdmin, requireSuperAdmin, requireSuperAdminAction, getCurrentUse
 import { courseSchema, moduleSchema, lessonSchema } from "@/lib/validations/course.schema";
 import { slugify } from "@/lib/utils";
 import { deleteR2Object, createPresignedDownloadUrl, getMediaUrl, getThumbnailUrl, deleteMediaAssets, deleteThumbnailAssets, deleteLessonMediaAsset } from "@/lib/storage";
+import { getResolvedBunnyConfig, getSecurePlaybackUrl } from "@/lib/bunny";
 import { PAGINATION, SIGNED_URL_EXPIRY } from "@/lib/constants";
 import type { ActionState } from "@/types";
 
@@ -1534,5 +1535,12 @@ export async function getThumbnailSignedUrlAction(thumbnailKey: string, thumbnai
   if (thumbnailCdnUrl) return thumbnailCdnUrl;
   if (!thumbnailKey) return null;
   return createPresignedDownloadUrl(thumbnailKey, SIGNED_URL_EXPIRY.THUMBNAIL);
+}
+
+export async function getBunnyStreamPlaybackUrlAction(bunnyVideoId: string) {
+  await requireAdmin();
+  const config = await getResolvedBunnyConfig();
+  if (!config.streamLibraryId) return null;
+  return getSecurePlaybackUrl(bunnyVideoId, 7200, "hls", config.streamLibraryId, config.tokenSecurityKey);
 }
 

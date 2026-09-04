@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions";
 import { MarkdownContent } from "@/components/shared/markdown-content";
+import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
 import { Eye, X, Loader2, Play, Lock, RotateCcw, Sparkles, AlertCircle, Clock, FileText, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 
@@ -265,41 +266,22 @@ export function FreePreviewButton({
                       </div>
                     )}
 
-                    {/* Active Video Player / Iframe */}
+                    {/* Active Video Player */}
                     {!isLimitReached && (
-                      mediaData.provider === "BUNNY" || mediaData.bunnyVideoId ? (
-                        <iframe
-                          key={replayKey}
-                          src={
-                            mediaData.signedUrl.includes("autoplay=")
-                              ? mediaData.signedUrl.replace("autoplay=false", "autoplay=true")
-                              : `${mediaData.signedUrl}&autoplay=true`
-                          }
-                          loading="lazy"
-                          className="h-full w-full border-0"
-                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                          allowFullScreen
-                          title={lessonTitle}
-                        />
-                      ) : (
-                        <video
-                          key={replayKey}
-                          ref={videoRef}
-                          src={mediaData.signedUrl}
-                          controls
-                          controlsList="nodownload"
-                          onContextMenu={(e) => e.preventDefault()}
-                          autoPlay
-                          onTimeUpdate={(e) => {
-                            if (e.currentTarget.currentTime >= previewLimit) {
-                              e.currentTarget.pause();
-                              setIsLimitReached(true);
-                              setTimeLeft(0);
-                            }
-                          }}
-                          className="h-full w-full object-contain"
-                        />
-                      )
+                      <ProtectedVideoPlayer
+                        key={replayKey}
+                        src={mediaData.signedUrl}
+                        title={lessonTitle}
+                        durationSec={previewLimit}
+                        maxPreviewSeconds={previewLimit}
+                        onPreviewLimitReached={() => {
+                          setIsLimitReached(true);
+                          setTimeLeft(0);
+                        }}
+                        autoPlay
+                        watermarkText="Free Preview • Super Warrior 30"
+                        className="h-full w-full object-contain rounded-none border-0"
+                      />
                     )}
                   </div>
                 </div>

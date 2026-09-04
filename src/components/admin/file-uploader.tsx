@@ -5,7 +5,8 @@ import { UploadCloud, CheckCircle2, AlertCircle, Loader2, FileIcon, X, Film, Pau
 import { toast } from "sonner";
 import * as tus from "tus-js-client";
 import { BUNNY_VIDEO_POLL_INTERVAL } from "@/lib/constants";
-import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions";
+import { getLessonPreviewMediaUrlAction, getBunnyStreamPlaybackUrlAction } from "@/server/actions/course.actions";
+import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
 
 interface UploadResult {
   key: string | null;
@@ -71,14 +72,22 @@ export function FileUploader({
   }, [currentKey]);
 
   useEffect(() => {
-    if (category === "video" && (currentBunnyVideoId || currentKey) && lessonId) {
-      getLessonPreviewMediaUrlAction(lessonId)
-        .then((res) => {
-          if (res?.signedUrl) {
-            setVideoEmbedUrl(res.signedUrl);
-          }
-        })
-        .catch(() => {});
+    if (category === "video" && (currentBunnyVideoId || currentKey)) {
+      if (lessonId) {
+        getLessonPreviewMediaUrlAction(lessonId)
+          .then((res) => {
+            if (res?.signedUrl) {
+              setVideoEmbedUrl(res.signedUrl);
+            }
+          })
+          .catch(() => {});
+      } else if (currentBunnyVideoId) {
+        getBunnyStreamPlaybackUrlAction(currentBunnyVideoId)
+          .then((url) => {
+            if (url) setVideoEmbedUrl(url);
+          })
+          .catch(() => {});
+      }
     }
   }, [category, currentBunnyVideoId, currentKey, lessonId]);
 
@@ -121,6 +130,10 @@ export function FileUploader({
         if (lessonId) {
           getLessonPreviewMediaUrlAction(lessonId).then((mediaRes) => {
             if (mediaRes?.signedUrl) setVideoEmbedUrl(mediaRes.signedUrl);
+          });
+        } else if (guid) {
+          getBunnyStreamPlaybackUrlAction(guid).then((url) => {
+            if (url) setVideoEmbedUrl(url);
           });
         }
         toast.success("Video encoding complete! Ready for playback.");
@@ -551,13 +564,11 @@ export function FileUploader({
 
         <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border bg-black shadow-md">
           {videoEmbedUrl ? (
-            <iframe
+            <ProtectedVideoPlayer
               src={videoEmbedUrl}
-              loading="lazy"
-              className="h-full w-full border-0"
-              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-              title="Lesson Video Preview"
+              title={fileName || "Lesson Video Preview"}
+              watermarkText="Admin Preview • Super Warrior 30"
+              className="h-full w-full object-contain rounded-none border-0"
             />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground bg-black/70 p-4 text-center">

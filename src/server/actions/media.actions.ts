@@ -333,7 +333,7 @@ export async function getMediaAssetDetailsAction(mediaId: string) {
         }
 
         if (config.streamLibraryId) {
-          playbackUrl = getSecurePlaybackUrl(asset.bunnyVideoId, 7200, "embed", config.streamLibraryId);
+          playbackUrl = getSecurePlaybackUrl(asset.bunnyVideoId, 7200, "hls", config.streamLibraryId, config.tokenSecurityKey);
         }
       } catch {}
     } else if (asset.storageUrl) {
