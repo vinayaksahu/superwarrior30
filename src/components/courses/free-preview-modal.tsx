@@ -251,7 +251,7 @@ export function FreePreviewButton({
                         </h4>
 
                         <p className="text-xs sm:text-sm text-neutral-300 max-w-md mb-5 leading-relaxed">
-                          Enroll now to get unlimited access to the full video, all modules, downloadable resources, and live community mentorship.
+                          Enroll now to get access to all modules, live practical trading classes, 1-to-1 private mentorship, and structured study resources.
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md justify-center">

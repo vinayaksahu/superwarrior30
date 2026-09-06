@@ -27,6 +27,9 @@ import {
   Lock,
   Globe,
   Radio,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
 } from "lucide-react";
 import {
   type PaymentMethodItem,
@@ -34,6 +37,7 @@ import {
   updatePaymentMethodAction,
   togglePaymentMethodStatusAction,
   deletePaymentMethodAction,
+  reorderPaymentMethodsAction,
 } from "@/server/actions/payment-method.actions";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +55,8 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethodItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [actionMessage, setActionMessage] = useState<{ success: boolean; text: string } | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // Gateway form state
   const [gatewayProvider, setGatewayProvider] = useState<"RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM">("RAZORPAY");
@@ -98,6 +104,93 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
         setActionMessage({ success: false, text: res.message || "Failed to delete" });
       }
       setTimeout(() => setActionMessage(null), 4000);
+    });
+  };
+
+  const handleMoveMethod = (id: string, direction: "left" | "right") => {
+    const currentIndex = methods.findIndex((m) => m.id === id);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === "left" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= methods.length) return;
+
+    // Optimistic swap
+    const newMethods = [...methods];
+    const temp = newMethods[currentIndex];
+    newMethods[currentIndex] = newMethods[targetIndex];
+    newMethods[targetIndex] = temp;
+
+    const updated = newMethods.map((m, idx) => ({ ...m, displayOrder: idx }));
+    setMethods(updated);
+
+    startTransition(async () => {
+      const res = await reorderPaymentMethodsAction(updated.map((m) => m.id));
+      if (res.success) {
+        setActionMessage({
+          success: true,
+          text: `Position updated: "${temp.title}" moved ${direction === "left" ? "left (earlier)" : "right (later)"}. Checkout order updated.`,
+        });
+      } else {
+        setMethods(methods);
+        setActionMessage({ success: false, text: res.message || "Failed to reorder payment methods." });
+      }
+      setTimeout(() => setActionMessage(null), 3500);
+    });
+  };
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverId !== id) {
+      setDragOverId(id);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    const fromIndex = methods.findIndex((m) => m.id === draggedId);
+    const toIndex = methods.findIndex((m) => m.id === targetId);
+
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const newMethods = [...methods];
+    const [moved] = newMethods.splice(fromIndex, 1);
+    newMethods.splice(toIndex, 0, moved);
+
+    const updated = newMethods.map((m, idx) => ({ ...m, displayOrder: idx }));
+    setMethods(updated);
+    setDraggedId(null);
+    setDragOverId(null);
+
+    startTransition(async () => {
+      const res = await reorderPaymentMethodsAction(updated.map((m) => m.id));
+      if (res.success) {
+        setActionMessage({
+          success: true,
+          text: `Position updated: "${moved.title}" moved to position #${toIndex + 1}. Checkout order updated.`,
+        });
+      } else {
+        setMethods(methods);
+        setActionMessage({ success: false, text: res.message || "Failed to reorder payment methods." });
+      }
+      setTimeout(() => setActionMessage(null), 3500);
     });
   };
 
@@ -317,31 +410,115 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
         </button>
       </div>
 
+      {/* Reorder Info Helper Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs">
+        <div className="flex items-center gap-2.5 text-foreground">
+          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <span className="leading-relaxed">
+            <strong>Sequence / Order Settings:</strong> Har card par diye gaye <strong>◀ Left</strong> aur <strong>Right ▶</strong> buttons se payment methods ko aage-piche karein (ya card drag karein). Position <strong>#1</strong> checkout par sabse pehle dikhega aur by default select hoga.
+          </span>
+        </div>
+        {selectedTab !== "ALL" && (
+          <button
+            onClick={() => setSelectedTab("ALL")}
+            className="text-[11px] font-bold text-primary underline hover:text-primary/80 cursor-pointer"
+          >
+            Switch to &ldquo;All&rdquo; view
+          </button>
+        )}
+      </div>
+
       {/* Payment Methods Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredMethods.map((method) => (
-          <div
-            key={method.id}
-            className={cn(
-              "relative flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-sm transition-all",
-              method.type === "GATEWAY" && method.isActive
-                ? "border-primary/50 shadow-md ring-1 ring-primary/20"
-                : method.isActive
-                ? "border-border/80 hover:border-primary/40"
-                : "border-border/40 opacity-60 bg-card/40"
-            )}
-          >
-            <div className="space-y-4">
-              {/* Method Title & Badges */}
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-foreground text-base line-clamp-1">
-                      {method.title}
-                    </h3>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+        {filteredMethods.map((method) => {
+          const globalIndex = methods.findIndex((m) => m.id === method.id);
+          const isFirst = globalIndex === 0;
+          const isLast = globalIndex === methods.length - 1;
+          const isBeingDragged = draggedId === method.id;
+          const isDragTarget = dragOverId === method.id && draggedId !== method.id;
+
+          return (
+            <div
+              key={method.id}
+              draggable
+              onDragStart={(e) => handleDragStart(e, method.id)}
+              onDragOver={(e) => handleDragOver(e, method.id)}
+              onDragEnd={handleDragEnd}
+              onDrop={(e) => handleDrop(e, method.id)}
+              className={cn(
+                "relative flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-sm transition-all",
+                isBeingDragged && "opacity-40 scale-[0.98] border-dashed border-primary",
+                isDragTarget && "ring-2 ring-primary border-primary bg-primary/5 scale-[1.01]",
+                method.type === "GATEWAY" && method.isActive
+                  ? "border-primary/50 shadow-md ring-1 ring-primary/20"
+                  : method.isActive
+                  ? "border-border/80 hover:border-primary/40"
+                  : "border-border/40 opacity-60 bg-card/40"
+              )}
+            >
+              <div className="space-y-3.5">
+                {/* Reorder Header & Position Controls */}
+                <div
+                  className="flex items-center justify-between border-b border-border/50 pb-2.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-1.5">
                     <span
+                      className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+                      title="Drag to reorder"
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-md px-2 py-0.5 font-mono text-xs font-black",
+                        globalIndex === 0
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : "bg-muted text-muted-foreground border border-border"
+                      )}
+                    >
+                      #{globalIndex + 1}
+                    </span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">
+                      {globalIndex === 0 ? "⚡ Checkout Default" : `Priority #${globalIndex + 1}`}
+                    </span>
+                  </div>
+
+                  {/* Move Left / Right buttons */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleMoveMethod(method.id, "left")}
+                      disabled={isFirst || isPending}
+                      title={isFirst ? "Already at first position" : "Move Left (Pehle rkhein)"}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-background/80 hover:bg-primary hover:text-primary-foreground hover:border-primary h-7 px-2 text-xs font-bold text-foreground disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer shadow-xs"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <span className="text-[10px]">Left</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveMethod(method.id, "right")}
+                      disabled={isLast || isPending}
+                      title={isLast ? "Already at last position" : "Move Right (Baad me rkhein)"}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-background/80 hover:bg-primary hover:text-primary-foreground hover:border-primary h-7 px-2 text-xs font-bold text-foreground disabled:opacity-20 disabled:pointer-events-none transition-all cursor-pointer shadow-xs"
+                    >
+                      <span className="text-[10px]">Right</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Method Title & Badges */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-foreground text-base line-clamp-1">
+                        {method.title}
+                      </h3>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
                         method.type === "GATEWAY"
@@ -628,7 +805,8 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
               </div>
             </div>
           </div>
-        ))}
+        );
+      })}
       </div>
 
       {/* Modern Web App Confirmation Dialog for Deletion */}

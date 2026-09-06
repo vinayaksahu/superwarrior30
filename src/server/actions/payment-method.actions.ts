@@ -32,6 +32,7 @@ export interface PaymentMethodItem {
   };
   instructions: string | null;
   isActive: boolean;
+  displayOrder: number;
   createdAt: Date;
 }
 
@@ -50,6 +51,7 @@ const fallbackPaymentMethods: PaymentMethodItem[] = [
     instructions:
       "Scan the QR code or send payment to the UPI ID. After completing payment, enter the 12-digit UTR / Reference Number below.",
     isActive: true,
+    displayOrder: 0,
     createdAt: new Date(),
   },
   {
@@ -65,6 +67,7 @@ const fallbackPaymentMethods: PaymentMethodItem[] = [
     instructions:
       "Send exact USDT amount via BEP-20 network to the deposit address. Paste your transaction hash (TxID) below.",
     isActive: true,
+    displayOrder: 2,
     createdAt: new Date(),
   },
   {
@@ -81,6 +84,7 @@ const fallbackPaymentMethods: PaymentMethodItem[] = [
     instructions:
       "Transfer exact amount via IMPS/NEFT/RTGS. Enter the bank transfer reference/UTR number below.",
     isActive: true,
+    displayOrder: 1,
     createdAt: new Date(),
   },
 ];
@@ -114,9 +118,18 @@ async function ensureSystemPaymentTable() {
         "details" JSONB NOT NULL,
         "instructions" TEXT,
         "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "displayOrder" INTEGER NOT NULL DEFAULT 0,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "system_payment_methods" ADD COLUMN IF NOT EXISTS "displayOrder" INTEGER NOT NULL DEFAULT 0;
     `);
   } catch {
     // ignore
@@ -132,7 +145,7 @@ export async function getSystemPaymentMethodsAction(
     const where = includeInactive ? {} : { isActive: true };
     const methods = await prisma.systemPaymentMethod.findMany({
       where,
-      orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
+      orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
     });
 
     const { resolveCurrentEnvironment } = await import("@/lib/env-context");
@@ -154,6 +167,7 @@ export async function getSystemPaymentMethodsAction(
               details: item.details,
               instructions: item.instructions,
               isActive: item.isActive,
+              displayOrder: item.displayOrder,
             },
           });
         }
@@ -173,6 +187,7 @@ export async function getSystemPaymentMethodsAction(
       details: (m.details as PaymentMethodItem["details"]) || {},
       instructions: m.instructions,
       isActive: m.isActive,
+      displayOrder: (m as any).displayOrder ?? 0,
       createdAt: m.createdAt,
     }));
   } catch (error) {
@@ -335,6 +350,12 @@ export async function createPaymentMethodAction(
   }
 
   try {
+    const lastMethod = await prisma.systemPaymentMethod.findFirst({
+      orderBy: { displayOrder: "desc" },
+      select: { displayOrder: true },
+    });
+    const nextOrder = (lastMethod?.displayOrder ?? -1) + 1;
+
     const newMethod = await prisma.systemPaymentMethod.create({
       data: {
         type,
@@ -342,6 +363,7 @@ export async function createPaymentMethodAction(
         details,
         instructions,
         isActive: true,
+        displayOrder: nextOrder,
       },
     });
 
@@ -540,3 +562,45 @@ export async function deletePaymentMethodAction(id: string): Promise<ActionState
     return { success: false, message: msg };
   }
 }
+
+export async function reorderPaymentMethodsAction(
+  orderedIds: string[]
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  await ensureSystemPaymentTable();
+
+  try {
+    if (!orderedIds || orderedIds.length === 0) {
+      return { success: false, message: "No payment methods provided." };
+    }
+
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.systemPaymentMethod.update({
+          where: { id },
+          data: { displayOrder: index },
+        })
+      )
+    );
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: admin.id,
+        actorEmail: admin.email,
+        actorRole: admin.role,
+        action: "PAYMENT_METHODS_REORDERED",
+        entityType: "SystemPaymentMethod",
+        entityId: "all",
+        newValues: { orderedIds },
+      },
+    });
+
+    revalidatePath("/admin/payment-methods");
+    revalidatePath("/checkout");
+    return { success: true, message: "Payment methods reordered successfully." };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to reorder payment methods";
+    return { success: false, message: msg };
+  }
+}
+

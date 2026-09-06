@@ -65,9 +65,8 @@ export function ManualCheckoutClient({
   const router = useRouter();
   const activeMethods = paymentMethods.filter((m) => m.isActive);
 
-  // Default to gateway first if active, otherwise first available method
-  const defaultMethod =
-    activeMethods.find((m) => m.type === "GATEWAY") || activeMethods[0];
+  // Default to the first configured payment method (respecting admin custom display order)
+  const defaultMethod = activeMethods[0];
 
   const [selectedMethodId, setSelectedMethodId] = useState<string>(
     defaultMethod?.id || ""

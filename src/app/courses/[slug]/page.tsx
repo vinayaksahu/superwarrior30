@@ -143,7 +143,10 @@ export default async function CourseDetailPage({
                     About This Course
                   </h2>
                 </div>
-                <ExpandableDescription content={course.fullDescription} />
+                <ExpandableDescription
+                  content={course.fullDescription}
+                  initialMaxHeight="max-h-[500px]"
+                />
               </section>
             )}
 
@@ -283,18 +286,37 @@ export default async function CourseDetailPage({
                 </Link>
               )}
 
-              <div className="space-y-3 border-t border-border pt-4 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                  <span>Instant access to all modules & future updates</span>
+              <div className="space-y-2.5 border-t border-border pt-4 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground text-xs uppercase tracking-wider mb-2">
+                  What&apos;s Included:
+                </p>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-foreground font-medium">Live Practical Trading Classes</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                  <span>Downloadable PDF cheat sheets & resources</span>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-foreground font-medium">1-to-1 Private Mentorship – 3 Months</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                  <span>High-definition streaming on mobile & desktop</span>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-foreground font-medium">Recorded Classes – 1 Year Access</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-foreground/90">3 Months Trading Homework &amp; Practice</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-foreground/90">Structured Study Material &amp; Notes</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-foreground/90">Quizzes &amp; Progress Assessments</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-foreground/90">Instant Access to All Modules</span>
                 </div>
               </div>
             </div>
