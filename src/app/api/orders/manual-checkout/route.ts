@@ -463,9 +463,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const totalDiscount = couponDiscount + referralDiscount + brokerInstantDiscount;
-    const discountAmount = totalDiscount;
-    const finalPayable = Math.max(0, Number(course.price) - totalDiscount);
+    const totalDiscount = Number((couponDiscount + referralDiscount + brokerInstantDiscount).toFixed(2));
+    const finalPayable = Math.max(0, Math.round(coursePrice - totalDiscount));
+    const discountAmount = Math.max(0, Number((coursePrice - finalPayable).toFixed(2)));
 
     const orderNumber = generateOrderNumber();
     const cleanUtr = utrRef.trim();

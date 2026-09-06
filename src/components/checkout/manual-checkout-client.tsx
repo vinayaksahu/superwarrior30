@@ -207,7 +207,7 @@ export function ManualCheckoutClient({
   }
 
   const totalDiscount = Number((brokerDiscount + referralDiscount + couponDiscount).toFixed(2));
-  const finalPayableAmount = Math.max(0, Number((course.price - totalDiscount).toFixed(2)));
+  const finalPayableAmount = Math.max(0, Math.round(Number(course.price) - totalDiscount));
   const finalAmount = finalPayableAmount;
 
   // Submission state
