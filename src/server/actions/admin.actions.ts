@@ -258,6 +258,8 @@ export async function getAdminAuditLogsAction({
       entityId: l.entityId,
       oldValues: l.oldValues as Record<string, unknown> | null,
       newValues: l.newValues as Record<string, unknown> | null,
+      ipAddress: l.ipAddress,
+      userAgent: l.userAgent,
       createdAt: l.createdAt,
     })),
     total,

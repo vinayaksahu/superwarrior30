@@ -15,9 +15,11 @@ import { Prisma } from "@/generated/prisma";
 export async function validateAndCalculateCouponAction({
   code,
   courseId,
+  basePrice,
 }: {
   code: string;
   courseId: string;
+  basePrice?: number;
 }) {
   const user = await requireAuth();
 
@@ -151,11 +153,15 @@ export async function validateAndCalculateCouponAction({
     };
   }
 
-  // 9. Calculate discount
+  // 9. Calculate discount (use basePrice for sequential balance if provided)
+  const calculationBase = typeof basePrice === "number" && !isNaN(basePrice)
+    ? Math.max(0, basePrice)
+    : coursePrice;
+
   let discountAmount = 0;
   if (coupon.discountType === "PERCENTAGE") {
     const percentage = Number(coupon.discountValue);
-    discountAmount = (coursePrice * percentage) / 100;
+    discountAmount = (calculationBase * percentage) / 100;
     if (coupon.maxDiscountAmount !== null) {
       const maxDiscount = Number(coupon.maxDiscountAmount);
       if (discountAmount > maxDiscount) {
@@ -165,12 +171,12 @@ export async function validateAndCalculateCouponAction({
   } else {
     // FIXED_AMOUNT
     const fixedVal = Number(coupon.discountValue);
-    discountAmount = Math.min(fixedVal, coursePrice);
+    discountAmount = Math.min(fixedVal, calculationBase);
   }
 
   // Round to 2 decimal places
   discountAmount = Number(discountAmount.toFixed(2));
-  const finalPrice = Number(Math.max(0, coursePrice - discountAmount).toFixed(2));
+  const finalPrice = Number(Math.max(0, calculationBase - discountAmount).toFixed(2));
 
   return {
     valid: true,
@@ -178,8 +184,10 @@ export async function validateAndCalculateCouponAction({
     code: coupon.code,
     discountType: coupon.discountType,
     discountValue: Number(coupon.discountValue),
+    maxDiscountAmount: coupon.maxDiscountAmount !== null ? Number(coupon.maxDiscountAmount) : null,
     discountAmount,
     originalPrice: coursePrice,
+    calculationBase,
     finalPrice,
     message: `Coupon "${coupon.code}" applied! You save ₹${discountAmount}.`,
   };

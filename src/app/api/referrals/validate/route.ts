@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const currentUser = await getCurrentUser();
 
     const body = await req.json();
-    const { code, courseId } = body;
+    const { code, courseId, currentBalance } = body;
 
     if (!code || typeof code !== "string" || !code.trim()) {
       return NextResponse.json(
@@ -107,8 +107,12 @@ export async function POST(req: NextRequest) {
     }
 
     const referralPct = Number(brokerSettings.referralDiscountPercentage) || 10;
-    const discountAmount = Number(((coursePrice * referralPct) / 100).toFixed(2));
-    const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
+    const calculationBase = typeof currentBalance === "number" && !isNaN(currentBalance)
+      ? Math.max(0, currentBalance)
+      : coursePrice;
+
+    const discountAmount = Number(((calculationBase * referralPct) / 100).toFixed(2));
+    const finalPrice = Math.max(0, Number((calculationBase - discountAmount).toFixed(2)));
     const maskedName = maskAffiliateName(referrerUser.name);
 
     return NextResponse.json({
@@ -118,6 +122,7 @@ export async function POST(req: NextRequest) {
       discountPercentage: referralPct,
       discountAmount,
       originalPrice: coursePrice,
+      calculationBase,
       finalPrice,
       message: `Referral code "${referrerUser.referralCode}" applied! You unlocked ${referralPct}% instant discount (-₹${discountAmount}).`,
     });

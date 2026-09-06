@@ -202,92 +202,9 @@ export async function POST(req: Request) {
 
     const brokerSettings = await getBrokerSettings();
 
-    // 1. Calculate Promo Coupon Discount
-    let couponId: string | null = null;
-    let couponDiscount = 0.0;
-    const requestedCouponCode = (body.couponCode || "").trim().toUpperCase();
+    const coursePrice = Number(course.price);
 
-    if (requestedCouponCode && brokerSettings.isCouponEnabled !== false) {
-      const couponRes = await validateAndCalculateCouponAction({
-        code: requestedCouponCode,
-        courseId: course.id,
-      });
-
-      if (couponRes.valid && couponRes.couponId) {
-        couponId = couponRes.couponId;
-        couponDiscount = couponRes.discountAmount;
-      }
-    }
-
-    // 2. Calculate Referral Discount
-    let referralDiscount = 0.0;
-    let appliedReferrerId: string | null = null;
-    const requestedReferralCode = (body.referralCode || "").trim().toUpperCase();
-
-    if (requestedReferralCode && brokerSettings.isReferralDiscountEnabled !== false) {
-      const referrerUser = await prisma.user.findUnique({
-        where: { referralCode: requestedReferralCode },
-        select: { id: true, name: true, referralCode: true, status: true },
-      });
-
-      if (referrerUser && referrerUser.status === "ACTIVE" && referrerUser.id !== user.id) {
-        appliedReferrerId = referrerUser.id;
-        const refPct = Number(brokerSettings.referralDiscountPercentage) || 10;
-        referralDiscount = Number(((Number(course.price) * refPct) / 100).toFixed(2));
-
-        // Ensure user is attached to referral tree if not already attached
-        try {
-          const existingRel = await prisma.referralRelationship.findUnique({
-            where: { referredId: user.id },
-          });
-
-          if (!existingRel) {
-            const { resolveCurrentEnvironment } = await import("@/lib/env-context");
-            const currentEnv = await resolveCurrentEnvironment();
-            const isTestData = currentEnv === "TEST";
-
-            await prisma.$transaction(async (tx) => {
-              await tx.referralRelationship.create({
-                data: {
-                  referrerId: referrerUser.id,
-                  referredId: user.id,
-                  isTestData,
-                },
-              });
-
-              await tx.referralClosure.create({
-                data: {
-                  ancestorId: referrerUser.id,
-                  descendantId: user.id,
-                  depth: 1,
-                  isTestData,
-                },
-              });
-
-              const uplineAncestors = await tx.referralClosure.findMany({
-                where: { descendantId: referrerUser.id },
-              });
-
-              if (uplineAncestors.length > 0) {
-                await tx.referralClosure.createMany({
-                  data: uplineAncestors.map((anc) => ({
-                    ancestorId: anc.ancestorId,
-                    descendantId: user.id,
-                    depth: anc.depth + 1,
-                    isTestData,
-                  })),
-                  skipDuplicates: true,
-                });
-              }
-            });
-          }
-        } catch (refTreeErr) {
-          console.error("Referral tree linking error during checkout:", refTreeErr);
-        }
-      }
-    }
-
-    // 3. Broker Offer Server-Side Processing
+    // 1. Broker Offer Server-Side Processing (Stage 1)
     let brokerClaimData: {
       brokerName: string;
       brokerMemberId: string;
@@ -330,7 +247,7 @@ export async function POST(req: Request) {
       // 2. Minimum order amount validation
       if (
         brokerSettings.minimumOrderAmount > 0 &&
-        Number(course.price) < brokerSettings.minimumOrderAmount
+        coursePrice < brokerSettings.minimumOrderAmount
       ) {
         return NextResponse.json(
           {
@@ -380,7 +297,7 @@ export async function POST(req: Request) {
       }
 
       const offerPct = Number(brokerSettings.offerPercentage) || 40;
-      let calculatedBrokerValue = (Number(course.price) * offerPct) / 100;
+      let calculatedBrokerValue = (coursePrice * offerPct) / 100;
 
       // Cap at maximum benefit amount if configured
       if (
@@ -394,7 +311,7 @@ export async function POST(req: Request) {
       const cleanMemberId = requestedBrokerMemberId || "PARTNER-CLAIM";
 
       if (brokerSettings.mode === "INSTANT_DISCOUNT") {
-        brokerInstantDiscount = calculatedBrokerValue;
+        brokerInstantDiscount = Number(calculatedBrokerValue.toFixed(2));
       }
 
       let isAutoVerified = false;
@@ -410,7 +327,7 @@ export async function POST(req: Request) {
         mode: brokerSettings.mode,
         verificationStatus: isAutoVerified ? "VERIFIED" : "PENDING",
         verifiedAt: isAutoVerified ? new Date() : undefined,
-        coursePrice: new Prisma.Decimal(Number(course.price).toFixed(2)),
+        coursePrice: new Prisma.Decimal(coursePrice.toFixed(2)),
         offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
         calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
         cashbackStatus:
@@ -418,6 +335,97 @@ export async function POST(req: Request) {
             ? "PENDING_VERIFICATION"
             : "NOT_APPLICABLE",
       };
+    }
+
+    // Balance remaining after Broker Instant Discount
+    const balanceAfterBroker = Math.max(0, Number((coursePrice - brokerInstantDiscount).toFixed(2)));
+
+    // 2. Calculate Referral Discount (Stage 2: sequentially applied to balanceAfterBroker)
+    let referralDiscount = 0.0;
+    let appliedReferrerId: string | null = null;
+    const requestedReferralCode = (body.referralCode || "").trim().toUpperCase();
+
+    if (requestedReferralCode && brokerSettings.isReferralDiscountEnabled !== false) {
+      const referrerUser = await prisma.user.findUnique({
+        where: { referralCode: requestedReferralCode },
+        select: { id: true, name: true, referralCode: true, status: true },
+      });
+
+      if (referrerUser && referrerUser.status === "ACTIVE" && referrerUser.id !== user.id) {
+        appliedReferrerId = referrerUser.id;
+        const refPct = Number(brokerSettings.referralDiscountPercentage) || 10;
+        referralDiscount = Number(((balanceAfterBroker * refPct) / 100).toFixed(2));
+
+        // Ensure user is attached to referral tree if not already attached
+        try {
+          const existingRel = await prisma.referralRelationship.findUnique({
+            where: { referredId: user.id },
+          });
+
+          if (!existingRel) {
+            const { resolveCurrentEnvironment } = await import("@/lib/env-context");
+            const currentEnv = await resolveCurrentEnvironment();
+            const isTestData = currentEnv === "TEST";
+
+            await prisma.$transaction(async (tx) => {
+              await tx.referralRelationship.create({
+                data: {
+                  referrerId: referrerUser.id,
+                  referredId: user.id,
+                  isTestData,
+                },
+              });
+
+              await tx.referralClosure.create({
+                data: {
+                  ancestorId: referrerUser.id,
+                  descendantId: user.id,
+                  depth: 1,
+                  isTestData,
+                },
+              });
+
+              const ancestorClosures = await tx.referralClosure.findMany({
+                where: { descendantId: referrerUser.id },
+              });
+
+              for (const ancestor of ancestorClosures) {
+                await tx.referralClosure.create({
+                  data: {
+                    ancestorId: ancestor.ancestorId,
+                    descendantId: user.id,
+                    depth: ancestor.depth + 1,
+                    isTestData,
+                  },
+                });
+              }
+            });
+          }
+        } catch {
+          // Non-fatal if referral relationship write fails
+        }
+      }
+    }
+
+    // Balance remaining after Referral Discount
+    const balanceAfterReferral = Math.max(0, Number((balanceAfterBroker - referralDiscount).toFixed(2)));
+
+    // 3. Calculate Promo Coupon Discount (Stage 3: sequentially applied to balanceAfterReferral)
+    let couponId: string | null = null;
+    let couponDiscount = 0.0;
+    const requestedCouponCode = (body.couponCode || "").trim().toUpperCase();
+
+    if (requestedCouponCode && brokerSettings.isCouponEnabled !== false) {
+      const couponRes = await validateAndCalculateCouponAction({
+        code: requestedCouponCode,
+        courseId: course.id,
+        basePrice: balanceAfterReferral,
+      });
+
+      if (couponRes.valid && couponRes.couponId) {
+        couponId = couponRes.couponId;
+        couponDiscount = couponRes.discountAmount;
+      }
     }
 
     // 4. Stacking Rules Validation

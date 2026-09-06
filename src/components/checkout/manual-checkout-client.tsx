@@ -95,6 +95,9 @@ export function ManualCheckoutClient({
     code: string;
     discountAmount: number;
     finalPrice: number;
+    discountType?: "PERCENTAGE" | "FIXED_AMOUNT";
+    discountValue?: number;
+    maxDiscountAmount?: number | null;
   } | null>(null);
 
   // ----------------------------------------------------
@@ -161,23 +164,50 @@ export function ManualCheckoutClient({
   const [brokerVerified, setBrokerVerified] = useState<boolean>(false);
   const [appliedBrokerId, setAppliedBrokerId] = useState<string | null>(null);
 
-  // Broker Benefit calculation
+  // ----------------------------------------------------
+  // SEQUENTIAL DISCOUNT CALCULATIONS (Stage 1 -> Stage 2 -> Stage 3)
+  // ----------------------------------------------------
+  // 1. Broker Benefit calculation (Stage 1: on Course Base Price)
   let rawBenefit = Math.round((course.price * brokerOfferPct) / 100);
   if (brokerConfig?.maximumBenefitAmount && brokerConfig.maximumBenefitAmount > 0) {
     rawBenefit = Math.min(rawBenefit, brokerConfig.maximumBenefitAmount);
   }
-  const brokerDiscount = brokerMode === "INSTANT_DISCOUNT" && appliedBrokerId ? rawBenefit : 0;
+  const isInstantDiscountApplied = brokerMode === "INSTANT_DISCOUNT" && Boolean(appliedBrokerId);
+  const brokerDiscount = isInstantDiscountApplied ? rawBenefit : 0;
   const potentialCashback = rawBenefit;
 
-  // ----------------------------------------------------
-  // TOTAL DISCOUNT & PAYABLE CALCULATIONS
-  // ----------------------------------------------------
-  const couponDiscount = appliedCoupon?.discountAmount || 0;
-  const referralDiscount = appliedReferral?.discountAmount || 0;
-  const isInstantDiscountApplied = brokerMode === "INSTANT_DISCOUNT" && Boolean(appliedBrokerId);
+  // Running balance remaining after Broker Instant Discount
+  const balanceAfterBroker = Math.max(0, Number((course.price - brokerDiscount).toFixed(2)));
 
-  const totalDiscount = couponDiscount + referralDiscount + brokerDiscount;
-  const finalPayableAmount = Math.max(0, course.price - totalDiscount);
+  // 2. Referral Discount (Stage 2: sequentially applied to balanceAfterBroker)
+  let referralDiscount = 0;
+  if (appliedReferral) {
+    const pct = appliedReferral.discountPercentage ?? referralDiscountPct;
+    referralDiscount = Number(((balanceAfterBroker * pct) / 100).toFixed(2));
+  }
+
+  // Running balance remaining after Referral Discount
+  const balanceAfterReferral = Math.max(0, Number((balanceAfterBroker - referralDiscount).toFixed(2)));
+
+  // 3. Promo Coupon Discount (Stage 3: sequentially applied to balanceAfterReferral)
+  let couponDiscount = 0;
+  if (appliedCoupon) {
+    if (appliedCoupon.discountType === "PERCENTAGE" && appliedCoupon.discountValue !== undefined) {
+      let calc = (balanceAfterReferral * appliedCoupon.discountValue) / 100;
+      if (appliedCoupon.maxDiscountAmount !== undefined && appliedCoupon.maxDiscountAmount !== null) {
+        calc = Math.min(calc, appliedCoupon.maxDiscountAmount);
+      }
+      couponDiscount = Number(calc.toFixed(2));
+    } else if (appliedCoupon.discountType === "FIXED_AMOUNT" && appliedCoupon.discountValue !== undefined) {
+      couponDiscount = Math.min(appliedCoupon.discountValue, balanceAfterReferral);
+    } else {
+      // Fallback if metadata not present, capped at balanceAfterReferral
+      couponDiscount = Math.min(appliedCoupon.discountAmount, balanceAfterReferral);
+    }
+  }
+
+  const totalDiscount = Number((brokerDiscount + referralDiscount + couponDiscount).toFixed(2));
+  const finalPayableAmount = Math.max(0, Number((course.price - totalDiscount).toFixed(2)));
   const finalAmount = finalPayableAmount;
 
   // Submission state
@@ -214,6 +244,14 @@ export function ManualCheckoutClient({
     e.preventDefault();
     if (!couponInput.trim()) return;
 
+    if (appliedBrokerId && appliedReferral && !allowAllStacking) {
+      toast.error(
+        "Stacking all three discounts simultaneously is not allowed by policy. Please remove an offer first."
+      );
+      setCouponError("Stacking all three discounts simultaneously is not allowed.");
+      return;
+    }
+
     if (appliedBrokerId && !allowCouponWithBroker) {
       toast.error(
         "Promo coupon and Broker Offer cannot be stacked together by policy. Remove the broker offer or enable stacking."
@@ -234,12 +272,14 @@ export function ManualCheckoutClient({
     setCouponError(null);
 
     try {
+      const balanceBeforeCoupon = Math.max(0, course.price - brokerDiscount - referralDiscount);
       const res = await fetch("/api/coupons/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: couponInput.trim().toUpperCase(),
           courseId: course.id,
+          currentBalance: balanceBeforeCoupon,
         }),
       });
 
@@ -249,16 +289,21 @@ export function ManualCheckoutClient({
           code: data.code || couponInput.trim().toUpperCase(),
           discountAmount: data.discountAmount,
           finalPrice: data.finalPrice,
+          discountType: data.discountType,
+          discountValue: data.discountValue,
+          maxDiscountAmount: data.maxDiscountAmount,
         });
         toast.success(data.message || `Coupon applied! Saved ₹${data.discountAmount}`);
       } else {
         const clean = couponInput.trim().toUpperCase();
         if (clean === "SW30" || clean === "SUPER30") {
-          const discount = Math.round(course.price * 0.3);
+          const discount = Math.round(balanceBeforeCoupon * 0.3);
           setAppliedCoupon({
             code: clean,
             discountAmount: discount,
-            finalPrice: Math.max(0, course.price - discount),
+            finalPrice: Math.max(0, balanceBeforeCoupon - discount),
+            discountType: "PERCENTAGE",
+            discountValue: 30,
           });
           toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
         } else {
@@ -268,11 +313,14 @@ export function ManualCheckoutClient({
     } catch {
       const clean = couponInput.trim().toUpperCase();
       if (clean === "SW30" || clean === "SUPER30") {
-        const discount = Math.round(course.price * 0.3);
+        const balanceBeforeCoupon = Math.max(0, course.price - brokerDiscount - referralDiscount);
+        const discount = Math.round(balanceBeforeCoupon * 0.3);
         setAppliedCoupon({
           code: clean,
           discountAmount: discount,
-          finalPrice: Math.max(0, course.price - discount),
+          finalPrice: Math.max(0, balanceBeforeCoupon - discount),
+          discountType: "PERCENTAGE",
+          discountValue: 30,
         });
         toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
       } else {
@@ -296,6 +344,14 @@ export function ManualCheckoutClient({
     e.preventDefault();
     if (!referralInput.trim()) return;
 
+    if (appliedBrokerId && appliedCoupon && !allowAllStacking) {
+      toast.error(
+        "Stacking all three discounts simultaneously is not allowed by policy. Please remove an offer first."
+      );
+      setReferralError("Stacking all three discounts simultaneously is not allowed.");
+      return;
+    }
+
     if (appliedBrokerId && !allowReferralWithBroker) {
       toast.error(
         "Referral discount and Broker Offer cannot be stacked together by policy. Remove the broker offer or enable stacking."
@@ -316,12 +372,14 @@ export function ManualCheckoutClient({
     setReferralError(null);
 
     try {
+      const balanceBeforeReferral = Math.max(0, course.price - brokerDiscount);
       const res = await fetch("/api/referrals/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: referralInput.trim().toUpperCase(),
           courseId: course.id,
+          currentBalance: balanceBeforeReferral,
         }),
       });
 
@@ -378,6 +436,16 @@ export function ManualCheckoutClient({
 
   const handleVerifyBrokerMember = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (appliedCoupon && appliedReferral && !allowAllStacking) {
+      toast.error(
+        "Stacking all three discounts simultaneously is not allowed by policy. Please remove an offer first."
+      );
+      setBrokerStatusMessage(
+        "Stacking all three discounts simultaneously is not allowed by policy. Please remove an offer first."
+      );
+      return;
+    }
 
     if (appliedCoupon && !allowCouponWithBroker) {
       toast.error(
@@ -1103,7 +1171,7 @@ export function ManualCheckoutClient({
                       <div className="flex items-center gap-1.5">
                         <Check className="h-3.5 w-3.5" />
                         <span>
-                          Referral <strong>{appliedReferral.code}</strong> applied (-₹{appliedReferral.discountAmount})
+                          Referral <strong>{appliedReferral.code}</strong> applied (-₹{referralDiscount})
                         </span>
                       </div>
                       <button
@@ -1154,7 +1222,7 @@ export function ManualCheckoutClient({
                       <div className="flex items-center gap-1.5">
                         <Check className="h-3.5 w-3.5" />
                         <span>
-                          Coupon <strong>{appliedCoupon.code}</strong> applied (-₹{appliedCoupon.discountAmount})
+                          Coupon <strong>{appliedCoupon.code}</strong> applied (-₹{couponDiscount})
                         </span>
                       </div>
                       <button
@@ -1202,14 +1270,14 @@ export function ManualCheckoutClient({
                 {appliedReferral && (
                   <div className="flex justify-between text-primary font-semibold">
                     <span>Referral Discount ({appliedReferral.discountPercentage}%)</span>
-                    <span>- {formatCurrency(appliedReferral.discountAmount)}</span>
+                    <span>- {formatCurrency(referralDiscount)}</span>
                   </div>
                 )}
 
                 {appliedCoupon && (
                   <div className="flex justify-between text-emerald-500 font-semibold">
                     <span>Promo Coupon ({appliedCoupon.code})</span>
-                    <span>- {formatCurrency(appliedCoupon.discountAmount)}</span>
+                    <span>- {formatCurrency(couponDiscount)}</span>
                   </div>
                 )}
 

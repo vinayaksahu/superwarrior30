@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const currentUser = await getCurrentUser();
 
     const body = await req.json();
-    const { code, courseId } = body;
+    const { code, courseId, currentBalance } = body;
 
     if (!code || typeof code !== "string" || !code.trim()) {
       return NextResponse.json(
@@ -119,18 +119,22 @@ export async function POST(req: Request) {
       });
     }
 
+    const calculationBase = typeof currentBalance === "number" && !isNaN(currentBalance)
+      ? Math.max(0, currentBalance)
+      : coursePrice;
+
     let discountAmount = 0;
     if (coupon.discountType === "PERCENTAGE") {
-      discountAmount = (coursePrice * Number(coupon.discountValue)) / 100;
+      discountAmount = (calculationBase * Number(coupon.discountValue)) / 100;
       if (coupon.maxDiscountAmount !== null) {
         discountAmount = Math.min(discountAmount, Number(coupon.maxDiscountAmount));
       }
     } else {
-      discountAmount = Math.min(Number(coupon.discountValue), coursePrice);
+      discountAmount = Math.min(Number(coupon.discountValue), calculationBase);
     }
 
     discountAmount = Number(discountAmount.toFixed(2));
-    const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
+    const finalPrice = Math.max(0, Number((calculationBase - discountAmount).toFixed(2)));
 
     return NextResponse.json({
       valid: true,
@@ -138,8 +142,10 @@ export async function POST(req: Request) {
       code: coupon.code,
       discountType: coupon.discountType,
       discountValue: Number(coupon.discountValue),
+      maxDiscountAmount: coupon.maxDiscountAmount !== null ? Number(coupon.maxDiscountAmount) : null,
       discountAmount,
       originalPrice: coursePrice,
+      calculationBase,
       finalPrice,
       message: `Promo coupon "${coupon.code}" applied! You save ₹${discountAmount}.`,
     });
