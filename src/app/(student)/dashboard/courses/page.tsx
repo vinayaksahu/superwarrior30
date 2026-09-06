@@ -200,7 +200,11 @@ export default async function StudentCoursesPage() {
 
               <div className="border-t border-border/60 bg-muted/20 p-4">
                 <Link
-                  href={`/learn/${course.courseSlug}`}
+                  href={
+                    course.nextLessonId
+                      ? `/learn/${course.courseSlug}/${course.nextLessonId}`
+                      : `/learn/${course.courseSlug}`
+                  }
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground shadow transition-colors hover:bg-primary/90"
                 >
                   <PlayCircle className="h-4 w-4" />

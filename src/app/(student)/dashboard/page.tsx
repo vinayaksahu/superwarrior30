@@ -318,7 +318,11 @@ export default async function StudentDashboardPage() {
                   </span>
 
                   <Link
-                    href={`/learn/${course.courseSlug}`}
+                    href={
+                      course.nextLessonId
+                        ? `/learn/${course.courseSlug}/${course.nextLessonId}`
+                        : `/learn/${course.courseSlug}`
+                    }
                     className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90"
                   >
                     <PlayCircle className="h-3.5 w-3.5" />

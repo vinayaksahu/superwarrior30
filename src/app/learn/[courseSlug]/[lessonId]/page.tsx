@@ -25,7 +25,7 @@ export default async function CourseLearnLessonPage({
 
   let contentData;
   try {
-    contentData = await getEnrolledCourseContentAction(courseSlug);
+    contentData = await getEnrolledCourseContentAction(courseSlug, lessonId);
   } catch (error) {
     console.error("[Learn Lesson] Access check failed:", {
       courseSlug,
@@ -35,7 +35,7 @@ export default async function CourseLearnLessonPage({
     redirect(`/courses/${courseSlug}`);
   }
 
-  const { course, progressMap, stats } = contentData;
+  const { course, progressMap, stats, initialMediaData } = contentData;
 
   // Flatten lessons to compute previous and next pointers
   const flatLessons: { id: string }[] = [];
@@ -66,6 +66,7 @@ export default async function CourseLearnLessonPage({
         initialProgressPercentage={stats.progressPercentage}
         prevLessonId={prevLessonId}
         nextLessonId={nextLessonId}
+        initialMediaData={initialMediaData}
       />
     </div>
   );

@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getEnrolledCourseContentAction } from "@/server/actions/enrollment.actions";
+import { CourseClassroomView } from "@/components/learning/course-classroom-view";
 import {
   GraduationCap,
   Clock,
@@ -13,6 +15,15 @@ export const dynamic = "force-dynamic";
 
 interface CourseLearnIndexProps {
   params: Promise<{ courseSlug: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: CourseLearnIndexProps): Promise<Metadata> {
+  const { courseSlug } = await params;
+  return {
+    title: `Learning | ${courseSlug.replace(/-/g, " ")} | Rahul Trade Warrior Academy`,
+  };
 }
 
 export default async function CourseLearnIndexPage({
@@ -32,27 +43,41 @@ export default async function CourseLearnIndexPage({
     redirect(`/courses/${courseSlug}`);
   }
 
-  const { course, progressMap } = contentData;
+  const { course, progressMap, stats, activeLessonId, initialMediaData } = contentData;
 
-  // Find all published lessons in order
-  const allLessons: { id: string }[] = [];
-  for (const mod of course.modules || []) {
-    for (const lesson of mod.lessons || []) {
-      allLessons.push({ id: lesson.id });
+  // If course has lessons, render the classroom view directly on the first response!
+  // No 307 HTTP redirect, zero latency!
+  if (activeLessonId && initialMediaData) {
+    const flatLessons: { id: string }[] = [];
+    for (const mod of course.modules || []) {
+      for (const lesson of mod.lessons || []) {
+        flatLessons.push({ id: lesson.id });
+      }
     }
-  }
 
-  // If course has lessons, redirect to first incomplete lesson
-  if (allLessons.length > 0) {
-    const firstIncompleteLesson = allLessons.find(
-      (l) => progressMap[l.id]?.status !== "COMPLETED"
+    const currentIndex = flatLessons.findIndex((l) => l.id === activeLessonId);
+    const prevLessonId = currentIndex > 0 ? flatLessons[currentIndex - 1].id : undefined;
+    const nextLessonId =
+      currentIndex >= 0 && currentIndex < flatLessons.length - 1
+        ? flatLessons[currentIndex + 1].id
+        : undefined;
+
+    return (
+      <div className="min-h-screen bg-background">
+        <CourseClassroomView
+          key={activeLessonId}
+          courseSlug={course.slug}
+          courseTitle={course.title}
+          activeLessonId={activeLessonId}
+          modules={course.modules}
+          initialProgressMap={progressMap}
+          initialProgressPercentage={stats.progressPercentage}
+          prevLessonId={prevLessonId}
+          nextLessonId={nextLessonId}
+          initialMediaData={initialMediaData}
+        />
+      </div>
     );
-
-    const targetLessonId = firstIncompleteLesson
-      ? firstIncompleteLesson.id
-      : allLessons[0].id;
-
-    redirect(`/learn/${courseSlug}/${targetLessonId}`);
   }
 
   // If course has 0 lessons created yet, render student classroom hub

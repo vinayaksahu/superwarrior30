@@ -56,18 +56,24 @@ export async function checkUserEnrollment(courseId: string): Promise<boolean> {
 // 2. SECURE COURSE CONTENT ACCESS
 // ==========================================
 
-export async function getEnrolledCourseContentAction(courseSlug: string) {
-  await ensureDatabaseSchemaSync();
+export async function getEnrolledCourseContentAction(
+  courseSlug: string,
+  targetLessonId?: string
+) {
   const user = await requireAuth();
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
-  // Step 1: Fetch Course
+  // Step 1: Fetch Course with enrollment in a single optimized query
   const course = await prisma.course.findFirst({
     where: {
       slug: courseSlug,
       deletedAt: null,
     },
     include: {
+      enrollments: {
+        where: { userId: user.id },
+        select: { id: true, status: true, progressPercentage: true },
+      },
       modules: {
         where: { isPublished: true },
         orderBy: { position: "asc" },
@@ -102,20 +108,14 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
   }
 
   // Step 2: Verify Active Enrollment
-  let enrollment = null;
-  try {
-    enrollment = await prisma.courseEnrollment.findFirst({
-      where: {
-        userId: user.id,
-        courseId: course.id,
-      },
-    });
-  } catch {
-    // fallback
-  }
+  let isEnrolled =
+    isAdmin ||
+    course.enrollments.some(
+      (e) => e.status === "ACTIVE" || e.status === "COMPLETED"
+    );
 
   // Fallback: check if student has a PAID order for this course and auto-heal enrollment
-  if (!enrollment || enrollment.status !== "ACTIVE") {
+  if (!isEnrolled) {
     try {
       const paidOrder = await prisma.order.findFirst({
         where: {
@@ -126,7 +126,7 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
       });
 
       if (paidOrder) {
-        enrollment = await prisma.courseEnrollment.upsert({
+        await prisma.courseEnrollment.upsert({
           where: {
             userId_courseId: {
               userId: user.id,
@@ -147,6 +147,7 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
             isTestData: false,
           },
         });
+        isEnrolled = true;
       }
     } catch (autoHealErr) {
       console.error("[Enrollment] Auto-heal failed in getEnrolledCourseContentAction:", {
@@ -157,12 +158,19 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
     }
   }
 
-  if (!isAdmin && (!enrollment || enrollment.status !== "ACTIVE")) {
+  if (!isEnrolled) {
     throw new Error("Access denied. Please purchase the course to view content.");
   }
 
-  // Step 3: Fetch Progress
-  const allLessonIds = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
+  // Step 3: Flatten lessons and fetch progress in parallel
+  const allLessons: any[] = [];
+  for (const mod of course.modules) {
+    for (const lesson of mod.lessons) {
+      allLessons.push(lesson);
+    }
+  }
+
+  const allLessonIds = allLessons.map((l) => l.id);
   const progressRecords = await prisma.lessonProgress.findMany({
     where: {
       userId: user.id,
@@ -176,7 +184,10 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
     },
   });
 
-  const progressMap: Record<string, { status: string; watchTimeSeconds: number; lastPositionSeconds: number }> = {};
+  const progressMap: Record<
+    string,
+    { status: string; watchTimeSeconds: number; lastPositionSeconds: number }
+  > = {};
   for (const record of progressRecords) {
     progressMap[record.lessonId] = {
       status: record.status,
@@ -187,8 +198,73 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
 
   // Step 4: Calculate Stats
   const totalLessons = allLessonIds.length;
-  const completedLessons = progressRecords.filter((p) => p.status === "COMPLETED").length;
-  const progressPercentage = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const completedLessons = progressRecords.filter(
+    (p) => p.status === "COMPLETED"
+  ).length;
+  const progressPercentage =
+    totalLessons > 0
+      ? Math.round((completedLessons / totalLessons) * 100)
+      : 0;
+
+  // Step 5: Resolve Active Lesson & Generate Media Data on Server
+  let activeLesson = null;
+  if (targetLessonId) {
+    activeLesson = allLessons.find((l) => l.id === targetLessonId) || null;
+  }
+  if (!activeLesson && allLessons.length > 0) {
+    activeLesson =
+      allLessons.find((l) => progressMap[l.id]?.status !== "COMPLETED") ||
+      allLessons[0];
+  }
+
+  let initialMediaData = null;
+  if (activeLesson) {
+    let signedUrl: string | null = null;
+    if (activeLesson.contentType === "VIDEO") {
+      signedUrl = await getMediaUrl(activeLesson, "video", SIGNED_URL_EXPIRY.VIDEO);
+    } else if (activeLesson.contentType === "PDF") {
+      signedUrl = await getMediaUrl(activeLesson, "pdf", SIGNED_URL_EXPIRY.PDF);
+    }
+
+    const isBunny =
+      activeLesson.mediaProvider === "BUNNY" ||
+      Boolean(activeLesson.bunnyVideoId) ||
+      Boolean(activeLesson.bunnyCdnUrl);
+    const detectedProvider = isBunny ? "BUNNY" : (activeLesson.mediaProvider || "R2");
+
+    const activeProgress = progressMap[activeLesson.id];
+
+    let finalDurationSec = activeLesson.durationSec || 0;
+    if (
+      activeLesson.contentType === "VIDEO" &&
+      (!finalDurationSec || finalDurationSec <= 120) &&
+      activeLesson.bunnyVideoId
+    ) {
+      try {
+        const asset = await prisma.mediaAsset.findFirst({
+          where: { bunnyVideoId: activeLesson.bunnyVideoId },
+          select: { duration: true },
+        });
+        if (asset?.duration && asset.duration > 0) {
+          finalDurationSec = asset.duration;
+        }
+      } catch {}
+    }
+
+    initialMediaData = {
+      lessonId: activeLesson.id,
+      title: activeLesson.title,
+      contentType: activeLesson.contentType,
+      textContent: activeLesson.textContent,
+      signedUrl,
+      durationSec: finalDurationSec,
+      provider: detectedProvider,
+      bunnyVideoId: activeLesson.bunnyVideoId,
+      lastPositionSeconds: activeProgress?.lastPositionSeconds || 0,
+      watchTimeSeconds: activeProgress?.watchTimeSeconds || 0,
+      status: activeProgress?.status || "NOT_STARTED",
+    };
+  }
 
   return {
     course,
@@ -198,6 +274,8 @@ export async function getEnrolledCourseContentAction(courseSlug: string) {
       completedLessons,
       progressPercentage,
     },
+    activeLessonId: activeLesson ? activeLesson.id : null,
+    initialMediaData,
   };
 }
 
@@ -442,60 +520,11 @@ export async function updateLessonProgressAction({
 // ==========================================
 
 export async function getUserEnrolledCoursesAction() {
-  await ensureDatabaseSchemaSync();
   const user = await requireAuth();
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
   try {
-    // 1. Auto-heal: Ensure any PAID orders for this user have active enrollments
-    try {
-      const paidOrders = await prisma.order.findMany({
-        where: {
-          userId: user.id,
-          status: "PAID",
-        },
-        include: { items: true },
-      });
-
-      const upsertPromises: Promise<any>[] = [];
-      for (const po of (paidOrders as any[])) {
-        for (const item of (po.items || [])) {
-          if (item.courseId) {
-            upsertPromises.push(
-              prisma.courseEnrollment.upsert({
-                where: {
-                  userId_courseId: {
-                    userId: user.id,
-                    courseId: item.courseId,
-                  },
-                },
-                update: {
-                  status: "ACTIVE",
-                  orderId: po.id,
-                  isTestData: false,
-                },
-                create: {
-                  userId: user.id,
-                  courseId: item.courseId,
-                  orderId: po.id,
-                  status: "ACTIVE",
-                  progressPercentage: 0.0,
-                  isTestData: false,
-                },
-              })
-            );
-          }
-        }
-      }
-      await Promise.all(upsertPromises);
-    } catch (autoHealError) {
-      console.error("[Enrollment] Auto-heal check failed for user orders:", {
-        userId: user.id,
-        error: autoHealError instanceof Error ? autoHealError.message : String(autoHealError),
-      });
-    }
-
-    // 2. Query all active or completed enrollments for this user
+    // 1. Fast read: Query active or completed enrollments for this user
     let enrollments = await prisma.courseEnrollment.findMany({
       where: {
         userId: user.id,
@@ -508,10 +537,13 @@ export async function getUserEnrolledCoursesAction() {
           include: {
             modules: {
               where: { isPublished: true },
+              orderBy: { position: "asc" },
               select: {
                 id: true,
+                position: true,
                 lessons: {
                   where: { isPublished: true },
+                  orderBy: { position: "asc" },
                   select: { id: true },
                 },
               },
@@ -521,7 +553,84 @@ export async function getUserEnrolledCoursesAction() {
       },
     });
 
-    // 3. If Admin/Super Admin has no enrollments, automatically enroll them in all published courses
+    // 2. Only auto-heal if user has NO enrollments found
+    if (!enrollments || enrollments.length === 0) {
+      try {
+        const paidOrders = await prisma.order.findMany({
+          where: {
+            userId: user.id,
+            status: "PAID",
+          },
+          include: { items: true },
+        });
+
+        if (paidOrders.length > 0) {
+          const upsertPromises: Promise<any>[] = [];
+          for (const po of (paidOrders as any[])) {
+            for (const item of (po.items || [])) {
+              if (item.courseId) {
+                upsertPromises.push(
+                  prisma.courseEnrollment.upsert({
+                    where: {
+                      userId_courseId: {
+                        userId: user.id,
+                        courseId: item.courseId,
+                      },
+                    },
+                    update: {
+                      status: "ACTIVE",
+                      orderId: po.id,
+                      isTestData: false,
+                    },
+                    create: {
+                      userId: user.id,
+                      courseId: item.courseId,
+                      orderId: po.id,
+                      status: "ACTIVE",
+                      progressPercentage: 0.0,
+                      isTestData: false,
+                    },
+                  })
+                );
+              }
+            }
+          }
+          await Promise.all(upsertPromises);
+
+          enrollments = await prisma.courseEnrollment.findMany({
+            where: {
+              userId: user.id,
+              status: { in: ["ACTIVE", "COMPLETED"] },
+              course: { deletedAt: null },
+            },
+            orderBy: { enrolledAt: "desc" },
+            include: {
+              course: {
+                include: {
+                  modules: {
+                    where: { isPublished: true },
+                    orderBy: { position: "asc" },
+                    select: {
+                      id: true,
+                      position: true,
+                      lessons: {
+                        where: { isPublished: true },
+                        orderBy: { position: "asc" },
+                        select: { id: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          });
+        }
+      } catch (autoHealError) {
+        console.error("[Enrollment] Auto-heal check failed for user orders:", autoHealError);
+      }
+    }
+
+    // 3. If Admin/Super Admin has no enrollments, auto-enroll in all published courses
     if ((!enrollments || enrollments.length === 0) && isAdmin) {
       try {
         const publishedCourses = await prisma.course.findMany({
@@ -555,7 +664,6 @@ export async function getUserEnrolledCoursesAction() {
         }
         await Promise.all(adminUpsertPromises);
 
-        // Re-fetch after admin auto-enrollment
         enrollments = await prisma.courseEnrollment.findMany({
           where: {
             userId: user.id,
@@ -568,10 +676,13 @@ export async function getUserEnrolledCoursesAction() {
               include: {
                 modules: {
                   where: { isPublished: true },
+                  orderBy: { position: "asc" },
                   select: {
                     id: true,
+                    position: true,
                     lessons: {
                       where: { isPublished: true },
+                      orderBy: { position: "asc" },
                       select: { id: true },
                     },
                   },
@@ -585,11 +696,26 @@ export async function getUserEnrolledCoursesAction() {
       }
     }
 
+    // 4. Batch fetch user's completed lesson progress to resolve nextLessonId instantly
+    const userCompletedProgress = await prisma.lessonProgress.findMany({
+      where: {
+        userId: user.id,
+        status: "COMPLETED",
+      },
+      select: { lessonId: true },
+    });
+    const completedLessonIds = new Set(userCompletedProgress.map((p) => p.lessonId));
+
     return (enrollments || []).map((enr) => {
-      const totalLessons = (enr.course?.modules || []).reduce(
-        (sum, m) => sum + (m.lessons?.length || 0),
-        0
-      );
+      const allLessons: string[] = [];
+      for (const m of enr.course?.modules || []) {
+        for (const l of m.lessons || []) {
+          allLessons.push(l.id);
+        }
+      }
+      const totalLessons = allLessons.length;
+      const firstIncomplete = allLessons.find((id) => !completedLessonIds.has(id));
+      const nextLessonId = firstIncomplete || allLessons[0] || null;
 
       return {
         enrollmentId: enr.id,
@@ -600,6 +726,7 @@ export async function getUserEnrolledCoursesAction() {
         difficulty: enr.course?.difficulty || "BEGINNER",
         progressPercentage: Number(enr.progressPercentage || 0),
         totalLessons,
+        nextLessonId,
         enrolledAt: enr.enrolledAt,
         completedAt: enr.completedAt,
       };

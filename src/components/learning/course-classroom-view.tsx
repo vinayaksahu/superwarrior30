@@ -45,6 +45,20 @@ interface ModuleInfo {
   lessons: LessonInfo[];
 }
 
+export interface MediaData {
+  lessonId: string;
+  title: string;
+  contentType: string;
+  textContent: string | null;
+  signedUrl: string | null;
+  durationSec: number;
+  provider?: string;
+  bunnyVideoId?: string | null;
+  lastPositionSeconds?: number;
+  watchTimeSeconds?: number;
+  status?: string;
+}
+
 interface CourseClassroomViewProps {
   courseSlug: string;
   courseTitle: string;
@@ -54,6 +68,7 @@ interface CourseClassroomViewProps {
   initialProgressPercentage: number;
   prevLessonId?: string;
   nextLessonId?: string;
+  initialMediaData?: MediaData | null;
 }
 
 export function CourseClassroomView({
@@ -65,27 +80,38 @@ export function CourseClassroomView({
   initialProgressPercentage,
   prevLessonId,
   nextLessonId,
+  initialMediaData,
 }: CourseClassroomViewProps) {
   const router = useRouter();
+
+  // In-memory media cache for instantaneous (0ms) lesson switching
+  const mediaCacheRef = useRef<Map<string, MediaData>>(new Map());
+  if (initialMediaData && !mediaCacheRef.current.has(initialMediaData.lessonId)) {
+    mediaCacheRef.current.set(initialMediaData.lessonId, initialMediaData);
+  }
+
   const [currentLessonId, setCurrentLessonId] = useState(activeLessonId);
   const [progressMap, setProgressMap] = useState(initialProgressMap);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [mediaData, setMediaData] = useState<{
-    lessonId: string;
-    title: string;
-    contentType: string;
-    textContent: string | null;
-    signedUrl: string | null;
-    durationSec: number;
-    provider?: string;
-    bunnyVideoId?: string | null;
-    lastPositionSeconds?: number;
-    watchTimeSeconds?: number;
-  } | null>(null);
+  const [mediaData, setMediaData] = useState<MediaData | null>(
+    initialMediaData?.lessonId === activeLessonId ? initialMediaData : null
+  );
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(
+    !(initialMediaData?.lessonId === activeLessonId)
+  );
   const [isSaving, setIsSaving] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // If opened directly from /learn/[courseSlug], silently update browser URL to active lesson
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const pathname = window.location.pathname;
+      if (pathname === `/learn/${courseSlug}` && currentLessonId) {
+        window.history.replaceState(null, "", `/learn/${courseSlug}/${currentLessonId}`);
+      }
+    }
+  }, [courseSlug, currentLessonId]);
 
   // Sync state whenever server revalidates or sends fresh props
   useEffect(() => {
@@ -175,9 +201,25 @@ export function CourseClassroomView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch real active lesson media details securely
+  // Fetch real active lesson media details securely (cache-first for 0ms transitions)
   useEffect(() => {
     let isMounted = true;
+
+    // 1. If currently displaying this lesson, no need to refetch
+    if (mediaData?.lessonId === currentLessonId) {
+      setLoading(false);
+      return;
+    }
+
+    // 2. Instant cache hit
+    const cached = mediaCacheRef.current.get(currentLessonId);
+    if (cached) {
+      setMediaData(cached);
+      setLoading(false);
+      return;
+    }
+
+    // 3. Cache miss: fetch from server action
     setLoading(true);
 
     async function fetchMedia() {
@@ -187,6 +229,7 @@ export function CourseClassroomView({
           lessonId: currentLessonId,
         });
         if (isMounted) {
+          mediaCacheRef.current.set(currentLessonId, res);
           setMediaData(res);
           setLoading(false);
         }
@@ -205,7 +248,30 @@ export function CourseClassroomView({
     return () => {
       isMounted = false;
     };
-  }, [currentLessonId, courseSlug]);
+  }, [currentLessonId, courseSlug, mediaData?.lessonId]);
+
+  // Background prefetch for next lesson media (0ms next-lesson transition)
+  useEffect(() => {
+    if (!computedNextLessonId || mediaCacheRef.current.has(computedNextLessonId)) {
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await getEnrolledLessonMediaUrlAction({
+          courseSlug,
+          lessonId: computedNextLessonId,
+        });
+        if (res) {
+          mediaCacheRef.current.set(computedNextLessonId, res);
+        }
+      } catch {
+        // Silent catch for background prefetch
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [computedNextLessonId, courseSlug]);
 
   // Real-time persistent toggle completion
   const handleToggleComplete = async () => {

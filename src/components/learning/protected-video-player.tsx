@@ -191,6 +191,9 @@ export function ProtectedVideoPlayer({
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
+        startFragPrefetch: true,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 120,
       });
 
       hlsRef.current = hls;
