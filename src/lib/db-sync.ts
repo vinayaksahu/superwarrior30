@@ -58,7 +58,7 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
         "reviewedById" TEXT,
         "approvedAt" TIMESTAMP(3),
         "courseId" TEXT,
-        "isTestData" BOOLEAN NOT NULL DEFAULT true,
+        "isTestData" BOOLEAN NOT NULL DEFAULT false,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
@@ -70,7 +70,7 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
         "type" TEXT NOT NULL DEFAULT 'SCREENSHOT',
         "caption" TEXT,
         "sortOrder" INTEGER NOT NULL DEFAULT 0,
-        "isTestData" BOOLEAN NOT NULL DEFAULT true,
+        "isTestData" BOOLEAN NOT NULL DEFAULT false,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -156,7 +156,7 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
 
     // testimonials columns
-    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT false;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "userId" TEXT;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "status" "TestimonialStatus" DEFAULT 'PENDING';`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "isFeatured" BOOLEAN DEFAULT false;`,
@@ -172,7 +172,7 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "reviewedAt" TIMESTAMP(3);`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "reviewedById" TEXT;`,
     `ALTER TABLE "testimonials" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);`,
-    `ALTER TABLE "testimonial_media" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "testimonial_media" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT false;`,
     `ALTER TABLE "live_sessions" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "broker_offer_claims" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "referral_relationships" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
@@ -187,22 +187,26 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     `UPDATE "users" SET "isTestData" = false WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
     `UPDATE "wallets" SET "isTestData" = false WHERE "userId" IN (SELECT "id" FROM "users" WHERE "role" IN ('ADMIN', 'SUPER_ADMIN') OR "email" IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com'));`,
 
-    // 2. Restore all test student accounts and their associated test records to isTestData = true
-    `UPDATE "users" SET "isTestData" = true WHERE "role" = 'STUDENT' AND "email" NOT IN ('vinayaksahu3@gmail.com', 'admin@superwarrior30.com');`,
-    `UPDATE "orders" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    // 2. Mark ONLY synthetic mock test accounts as isTestData = true (do NOT corrupt real students)
+    `UPDATE "users" SET "isTestData" = true WHERE "email" LIKE '%@sw30.test';`,
+    `UPDATE "orders" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
     `UPDATE "order_items" SET "isTestData" = true WHERE "orderId" IN (SELECT "id" FROM "orders" WHERE "isTestData" = true);`,
-    `UPDATE "course_enrollments" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
-    `UPDATE "wallets" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
-    `UPDATE "wallet_transactions" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
-    `UPDATE "referral_commission_records" SET "isTestData" = true WHERE "recipientId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true) OR "buyerId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
-    `UPDATE "referral_relationships" SET "isTestData" = true WHERE "isTestData" IS NULL OR "referrerId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true) OR "referredId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "course_enrollments" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
+    `UPDATE "wallets" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
+    `UPDATE "wallet_transactions" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
+    `UPDATE "referral_commission_records" SET "isTestData" = true WHERE "recipientId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test') OR "buyerId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
+    `UPDATE "referral_relationships" SET "isTestData" = true WHERE "isTestData" IS NULL OR "referrerId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test') OR "referredId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
     `UPDATE "referral_closures" SET "isTestData" = true WHERE "isTestData" IS NULL OR "leadId" IN (SELECT "id" FROM "leads" WHERE "isTestData" = true);`,
-    `UPDATE "broker_offer_claims" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "broker_offer_claims" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
     `UPDATE "leads" SET "isTestData" = true WHERE "isTestData" IS NULL;`,
-    `UPDATE "withdrawals" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
-    `UPDATE "testimonials" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "isTestData" = true);`,
+    `UPDATE "withdrawals" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
+    `UPDATE "testimonials" SET "isTestData" = true WHERE "userId" IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
 
-    // 3. Shared catalog & platform configuration assets (accessible in both LIVE & TEST modes)
+    // 3. Ensure approved testimonials in production are always isTestData = false
+    `UPDATE "testimonials" SET "isTestData" = false WHERE "status" = 'APPROVED' AND "isApproved" = true AND "userId" NOT IN (SELECT "id" FROM "users" WHERE "email" LIKE '%@sw30.test');`,
+    `UPDATE "testimonial_media" SET "isTestData" = false WHERE "testimonialId" IN (SELECT "id" FROM "testimonials" WHERE "isTestData" = false);`,
+
+    // 4. Shared catalog & platform configuration assets (accessible in both LIVE & TEST modes)
     `UPDATE "courses" SET "isTestData" = false WHERE "deletedAt" IS NULL;`,
     `ALTER TABLE "courses" ALTER COLUMN "isTestData" SET DEFAULT false;`,
     `UPDATE "coupons" SET "isTestData" = false;`,
@@ -213,6 +217,8 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     `ALTER TABLE "order_items" ALTER COLUMN "isTestData" SET DEFAULT false;`,
     `ALTER TABLE "course_enrollments" ALTER COLUMN "isTestData" SET DEFAULT false;`,
     `ALTER TABLE "users" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+    `ALTER TABLE "testimonials" ALTER COLUMN "isTestData" SET DEFAULT false;`,
+    `ALTER TABLE "testimonial_media" ALTER COLUMN "isTestData" SET DEFAULT false;`,
 
     // targeted super admin email update
     `UPDATE "users" SET "email" = 'vinayaksahu3@gmail.com' WHERE "email" = 'admin@superwarrior30.com' AND "role" = 'SUPER_ADMIN';`,

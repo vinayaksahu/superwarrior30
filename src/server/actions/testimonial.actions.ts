@@ -135,18 +135,22 @@ export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDIN
     const currentEnv = await resolveCurrentEnvironment();
     const isTesting = currentEnv === "TEST";
 
-    const where: any = {
+    const baseWhere: any = {
       status: "APPROVED",
       isApproved: true,
       isVisible: true,
-      isTestData: isTesting,
     };
 
     if (placement === "HOME") {
-      where.showOnHome = true;
+      baseWhere.showOnHome = true;
     } else if (placement === "LANDING") {
-      where.showOnLanding = true;
+      baseWhere.showOnLanding = true;
     }
+
+    const where: any = {
+      ...baseWhere,
+      isTestData: isTesting,
+    };
 
     const testimonials = await prisma.testimonial.findMany({
       where,
@@ -188,6 +192,29 @@ export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDIN
       });
     }
 
+    // In LIVE production: if 0 results were found with strict isTestData: false,
+    // verify if any admin-approved testimonials exist in this live production database
+    if (resultList.length === 0 && !isTesting) {
+      const liveApproved = await prisma.testimonial.findMany({
+        where: baseWhere,
+        include: {
+          media: {
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+        orderBy: [
+          { isFeatured: "desc" },
+          { displayOrder: "asc" },
+          { createdAt: "desc" },
+        ],
+        take: 18,
+      });
+
+      if (liveApproved.length > 0) {
+        resultList = liveApproved;
+      }
+    }
+
     if (resultList.length === 0) {
       if (isTesting) {
         return STARTER_FALLBACK_TESTIMONIALS.map((t) => ({
@@ -222,7 +249,7 @@ export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDIN
       accountType: t.accountType,
       tradingResult: t.tradingResult,
       experienceDuration: t.experienceDuration,
-      isTestData: t.isTestData,
+      isTestData: isTesting ? true : false,
       createdAt: t.createdAt.toISOString(),
       screenshots: t.media.map((m) => ({
         id: m.id,
@@ -357,6 +384,10 @@ export async function submitStudentTestimonialAction(input: StudentTestimonialIn
     }
 
     // 5. Create Testimonial record (Always strictly PENDING)
+    const currentEnv = await resolveCurrentEnvironment();
+    const isTesting = currentEnv === "TEST";
+    const isTestData = isTesting;
+
     const testimonial = await prisma.testimonial.create({
       data: {
         userId: user.id,
@@ -374,14 +405,14 @@ export async function submitStudentTestimonialAction(input: StudentTestimonialIn
         tradingResult: input.tradingResult?.trim() || null,
         experienceDuration: input.experienceDuration?.trim() || null,
         consentGiven: true,
-        isTestData: user.isTestData,
+        isTestData,
         media: screenshots.length > 0 ? {
           create: screenshots.map((s, idx) => ({
             url: s.url,
             caption: s.caption?.trim() || null,
             type: "SCREENSHOT",
             sortOrder: idx,
-            isTestData: user.isTestData,
+            isTestData,
           })),
         } : undefined,
       },
@@ -403,10 +434,9 @@ export async function submitStudentTestimonialAction(input: StudentTestimonialIn
           newValues: {
             studentName,
             rating,
-            screenshotsCount: screenshots.length,
-            environment: user.isTestData ? "TEST" : "LIVE",
+            contentLength: content.length,
           },
-          isTestData: user.isTestData,
+          isTestData,
         },
       });
     } catch {
@@ -505,6 +535,10 @@ export async function resubmitStudentTestimonialAction(
 
     const rating = input.rating ? Math.min(5, Math.max(1, Math.round(Number(input.rating)))) : existing.rating;
 
+    const currentEnv = await resolveCurrentEnvironment();
+    const isTesting = currentEnv === "TEST";
+    const isTestData = isTesting;
+
     // Delete existing media and re-insert if screenshots list was provided
     if (input.screenshots) {
       await prisma.testimonialMedia.deleteMany({
@@ -519,7 +553,7 @@ export async function resubmitStudentTestimonialAction(
             caption: s.caption?.trim() || null,
             type: "SCREENSHOT",
             sortOrder: idx,
-            isTestData: existing.isTestData,
+            isTestData,
           })),
         });
       }
@@ -537,6 +571,7 @@ export async function resubmitStudentTestimonialAction(
         experienceDuration: input.experienceDuration !== undefined ? input.experienceDuration?.trim() || null : existing.experienceDuration,
         status: "PENDING",
         isApproved: false,
+        isTestData,
         rejectionReason: null, // Clear past rejection reason on resubmission
         updatedAt: new Date(),
       },
@@ -554,7 +589,7 @@ export async function resubmitStudentTestimonialAction(
           entityId: id,
           oldValues: { status: existing.status, rejectionReason: existing.rejectionReason },
           newValues: { status: "PENDING", contentLength: content.length },
-          isTestData: user.isTestData,
+          isTestData,
         },
       });
     } catch {
@@ -691,6 +726,8 @@ export async function getAdminTestimonialsAction(filter?: AdminTestimonialFilter
 export async function approveTestimonialAction(id: string) {
   try {
     const admin = await requirePermission("testimonials.approve");
+    const currentEnv = await resolveCurrentEnvironment();
+    const isTesting = currentEnv === "TEST";
 
     const existing = await prisma.testimonial.findUnique({ where: { id } });
     if (!existing) {
@@ -705,12 +742,27 @@ export async function approveTestimonialAction(id: string) {
         isVisible: true,
         showOnHome: true,
         showOnLanding: true,
+        isTestData: isTesting,
         approvedAt: new Date(),
         reviewedAt: new Date(),
         reviewedById: admin.id,
         rejectionReason: null,
       },
     });
+
+    // Normalize associated media isTestData to match
+    await prisma.testimonialMedia.updateMany({
+      where: { testimonialId: id },
+      data: { isTestData: isTesting },
+    });
+
+    // If approved in LIVE production, normalize author's user test flag if present
+    if (!isTesting && existing.userId) {
+      await prisma.user.update({
+        where: { id: existing.userId },
+        data: { isTestData: false },
+      }).catch(() => {});
+    }
 
     // Audit Log
     try {
@@ -723,8 +775,8 @@ export async function approveTestimonialAction(id: string) {
           entityType: "Testimonial",
           entityId: id,
           oldValues: { status: existing.status, isApproved: existing.isApproved },
-          newValues: { status: "APPROVED", isApproved: true },
-          isTestData: existing.isTestData,
+          newValues: { status: "APPROVED", isApproved: true, isTestData: isTesting },
+          isTestData: isTesting,
         },
       });
     } catch {
@@ -1039,7 +1091,13 @@ export async function updateTestimonialAction(
       return { success: false, error: "Testimonial not found." };
     }
 
+    const currentEnv = await resolveCurrentEnvironment();
+    const isTesting = currentEnv === "TEST";
+
     const updateData: any = { ...data };
+    if (!isTesting && (data.isApproved || existing.isApproved)) {
+      updateData.isTestData = false;
+    }
     if (data.isApproved !== undefined) {
       updateData.status = data.isApproved ? "APPROVED" : "PENDING";
       if (data.isApproved && !existing.approvedAt) {
@@ -1053,6 +1111,13 @@ export async function updateTestimonialAction(
       where: { id },
       data: updateData,
     });
+
+    if (!isTesting && (data.isApproved || existing.isApproved)) {
+      await prisma.testimonialMedia.updateMany({
+        where: { testimonialId: id },
+        data: { isTestData: false },
+      });
+    }
 
     // Audit Log
     try {

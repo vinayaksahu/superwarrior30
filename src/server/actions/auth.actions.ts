@@ -775,8 +775,9 @@ async function finalizeUserRegistration({
   const cleanEmail = email.toLowerCase().trim();
 
   // Validate referral code if provided and resolve authoritative environment
+  const currentEnv = await resolveCurrentEnvironment();
   let referrer = null;
-  let finalIsTestData = isTestData === true;
+  let finalIsTestData = currentEnv === "TEST" && isTestData === true;
 
   if (referralCode && referralCode.trim()) {
     referrer = await prisma.user.findUnique({
@@ -784,8 +785,8 @@ async function finalizeUserRegistration({
       select: { id: true, isTestData: true, role: true, email: true },
     });
     if (referrer) {
-      // Authoritative referral inheritance
-      finalIsTestData = referrer.isTestData === true;
+      // Authoritative referral inheritance: only inherit TEST if active environment is TEST
+      finalIsTestData = currentEnv === "TEST" && referrer.isTestData === true;
     }
   }
 

@@ -38,7 +38,7 @@ model User {
   status            UserStatus @default(ACTIVE)
   referralCode      String     @unique
   tokenVersion      Int        @default(1)
-  isTestData        Boolean    @default(true)
+  isTestData        Boolean    @default(false)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -840,7 +840,7 @@ model Testimonial {
   reviewedById       String?
   approvedAt         DateTime?
   courseId           String?
-  isTestData         Boolean           @default(true)
+  isTestData         Boolean           @default(false)
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -863,7 +863,7 @@ model TestimonialMedia {
   type          String      @default("SCREENSHOT") // "SCREENSHOT" | "PROFILE_PHOTO" | "RESULT_PROOF"
   caption       String?
   sortOrder     Int         @default(0)
-  isTestData    Boolean     @default(true)
+  isTestData    Boolean     @default(false)
   createdAt     DateTime    @default(now())
 
   testimonial   Testimonial @relation(fields: [testimonialId], references: [id], onDelete: Cascade)

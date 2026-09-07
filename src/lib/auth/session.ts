@@ -60,7 +60,7 @@ export async function decrypt(
       userId: payload.userId as string,
       email: payload.email as string,
       role: payload.role as UserRole,
-      tokenVersion: (payload.tokenVersion as number) || 1,
+      tokenVersion: typeof payload.tokenVersion === "number" ? payload.tokenVersion : 1,
       deviceId: payload.deviceId as string | undefined,
       isTestData: Boolean(payload.isTestData),
       expiresAt: new Date(payload.expiresAt as string),
