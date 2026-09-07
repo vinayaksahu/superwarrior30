@@ -89,19 +89,23 @@ export function FunnelClient({
               Trading 10 अलग-अलग Indicators का खेल नहीं है — यह <span className="text-foreground font-bold">80% Mindset, Emotion Control & Money Management</span> और केवल <span className="text-foreground font-bold">20% Clean Price Action</span> है। Super Warrior 30 में सीखें कि कैसे FOMO और Revenge Trading को जड़ से खत्म करें, 1:2+ Risk:Reward से Capital Protect करें, और एक Disciplined Profitable Trader बनें।
             </p>
 
-            {/* 3 Pillars Highlight Badges */}
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/80 px-3.5 py-2 text-xs font-semibold text-foreground shadow-sm">
-                <span className="text-base">🧠</span>
-                <span>80% Emotional Control & Discipline</span>
+            {/* 4 Pillars Highlight Badges */}
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+              <div className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary shadow-sm">
+                <span>🎯</span>
+                <span>15-20-30 Pts Minor SL</span>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/80 px-3.5 py-2 text-xs font-semibold text-foreground shadow-sm">
-                <span className="text-base">🛡️</span>
-                <span>Strict Money & Risk Management</span>
+              <div className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-500 shadow-sm">
+                <span>🚀</span>
+                <span>1:3 to 1:40+ Sky-High R:R</span>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/80 px-3.5 py-2 text-xs font-semibold text-foreground shadow-sm">
-                <span className="text-base">🎯</span>
-                <span>20% High-Probability Price Action</span>
+              <div className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-500 shadow-sm">
+                <span>⚡</span>
+                <span>60% - 90% Accuracy (Scalp • Day • Swing)</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-bold text-sky-400 shadow-sm">
+                <span>📓</span>
+                <span>Admin-Tracked Trading Journal</span>
               </div>
             </div>
 
@@ -124,7 +128,7 @@ export function FunnelClient({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Zero Indicators • Capital Protection First • 1:2 to 1:3+ Risk-to-Reward Ratio
+              Minor 15-30 Pts SL • 1:2 to 1:40+ Sky High R:R • 60-90% Win-Rate • In-App Journaling Tracked by Mentor
             </p>
           </div>
         </div>

@@ -11,6 +11,13 @@ import {
   UserCheck,
   Sparkles,
   ArrowRight,
+  Target,
+  Zap,
+  Rocket,
+  Flame,
+  Scale,
+  Crosshair,
+  Lock,
 } from "lucide-react";
 
 export function MentorAssurance({ courseId }: { courseId?: string }) {
@@ -40,22 +47,22 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
       num: "04",
       icon: TrendingUp,
       title: "Systematic Capital Growth Blueprint",
-      desc: "छोटे कैपिटल (₹5,000 - ₹20,000) को बिना जुआ खेले 1:2+ Risk:Reward और Position Sizing के साथ धीरे-धीरे कंपाउंड करने का गणित।",
+      desc: "छोटे कैपिटल को बिना जुआ खेले 15-30 pts SL और 1:3 से 1:10+ R:R के साथ सेफली कंपाउंड करने का स्ट्रक्चर्ड फॉर्मूला।",
       badge: "Capital Protection",
     },
     {
       num: "05",
       icon: BookMarked,
       title: "In-App Student Trading Journal",
-      desc: "आपके हर ट्रेड का डिजिटल रिकॉर्ड (Entry, Exit, R:R, Screenshot, Emotions और Mistakes)। कोई एक्सेल शीट का झंझट नहीं, सीधे LMS में।",
-      badge: "Trade Recording",
+      desc: "आपके हर ट्रेड का डिजिटल रिकॉर्ड (Entry, Exit, SL, TP, R:R, Emotions और Mistakes)। कोई एक्सेल का झंझट नहीं, सीधे आपके पोर्टल में।",
+      badge: "In-App Recording",
     },
     {
       num: "06",
       icon: UserCheck,
-      title: "Mentor Direct Trade Review & Tracking",
-      desc: "एडमिन पैनल में मेंटर आपके ट्रेड्स और जर्नल को पर्सनली रिव्यू करेंगे ताकि आप अपनी गलतियों को पकड़ सकें और उन्हें दोहराना बंद करें।",
-      badge: "Direct Guidance",
+      title: "Mentor & Admin Direct Trade Tracking",
+      desc: "एडमिन पैनल में मेंटर आपके हर जर्नल एंट्री को पर्सनली रिव्यू और ट्रैक करेंगे ताकि आपकी इमोशनल गलतियाँ तुरंत पकड़ी जा सकें।",
+      badge: "Tracked by Admin",
     },
   ];
 
@@ -89,21 +96,103 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
           </div>
 
           <blockquote className="text-base sm:text-lg md:text-xl font-medium text-foreground leading-relaxed italic">
-            "जब आप हमारे Super Warrior 30 Mentorship Program से जुड़ते हैं, तो आपको Strategy और Trade ढूँढने की कोई टेंशन नहीं लेनी है। मेरा मक़सद आपको सिर्फ वीडियोज बेचकर छोड़ देना नहीं है — आपको एक ऐसा संपूर्ण सिस्टम देना है जहाँ आपके हर ट्रेड का रिकॉर्ड रखा जाएगा, आपकी गलतियाँ पकड़ी जाएंगी, और आपको उस लॉस व ओवरट्रेडिंग के चक्रव्यूह से हमेशा के लिए बाहर निकाला जाएगा!"
+            "जब आप हमारे Super Warrior 30 Mentorship Program से जुड़ते हैं, तो आपको Strategy और Trade ढूँढने की <strong>कोई टेंशन नहीं लेनी है</strong>। यहाँ आपको सिर्फ <strong>15-20-30 (Max) Points के Minor Stop-Loss</strong> के साथ <strong>1:2, 1:3 (Min)</strong> से लेकर <strong>1:5, 1:6 ... 1:10, 1:20, 1:30, 1:40... 'Sky High is the Limit'</strong> का असाधारण Risk-Reward ट्रेड मिलता है — वो भी <strong>60% से 90% की Average Accuracy</strong> के साथ! चाहे Scalping हो, Intraday हो या Swing Trading। असली चुनौती ट्रेड नहीं, बल्कि <strong>Psychology का Trap</strong> है — और उस ट्रैप से बाहर निकालना ही हम सिखाते हैं, वो भी प्रॉपर <strong>In-App Trading Journal System</strong> के साथ जो सीधे <strong>Mentor/Admin द्वारा ट्रैक</strong> किया जाता है!"
           </blockquote>
+
+          {/* 4 Core Pillars of Asymmetric Trading */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3.5 text-center space-y-1">
+              <div className="flex items-center justify-center gap-1.5 text-primary">
+                <Crosshair className="h-4 w-4" />
+                <span className="text-[11px] font-extrabold uppercase tracking-wider">Minor SL</span>
+              </div>
+              <p className="text-base sm:text-lg font-black text-foreground">15 - 20 - 30 Pts</p>
+              <p className="text-[10px] text-muted-foreground">Maximum चोक-प्रूफ छोटा SL</p>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 text-center space-y-1">
+              <div className="flex items-center justify-center gap-1.5 text-emerald-500">
+                <Rocket className="h-4 w-4" />
+                <span className="text-[11px] font-extrabold uppercase tracking-wider">Risk : Reward</span>
+              </div>
+              <p className="text-base sm:text-lg font-black text-emerald-500">1:2 to 1:40+</p>
+              <p className="text-[10px] text-muted-foreground">Sky High Is The Limit!</p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3.5 text-center space-y-1">
+              <div className="flex items-center justify-center gap-1.5 text-amber-500">
+                <Target className="h-4 w-4" />
+                <span className="text-[11px] font-extrabold uppercase tracking-wider">Win-Rate</span>
+              </div>
+              <p className="text-base sm:text-lg font-black text-amber-500">60% - 90% Avg</p>
+              <p className="text-[10px] text-muted-foreground">High-Probability Setups</p>
+            </div>
+
+            <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-3.5 text-center space-y-1">
+              <div className="flex items-center justify-center gap-1.5 text-sky-400">
+                <Zap className="h-4 w-4" />
+                <span className="text-[11px] font-extrabold uppercase tracking-wider">All Styles</span>
+              </div>
+              <p className="text-xs sm:text-sm font-black text-foreground pt-1">Scalping • Day • Swing</p>
+              <p className="text-[10px] text-muted-foreground">तीनों स्टाइल्स के लिए रेडी</p>
+            </div>
+          </div>
 
           <div className="grid sm:grid-cols-3 gap-3 pt-2 text-xs font-semibold">
             <div className="flex items-center gap-2 text-foreground">
               <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-              <span>Zero Strategy Confusion</span>
+              <span>Zero Strategy & Trade Tension</span>
             </div>
             <div className="flex items-center gap-2 text-foreground">
               <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-              <span>Every Trade Recorded & Tracked</span>
+              <span>Psychology Trap Solution</span>
             </div>
             <div className="flex items-center gap-2 text-foreground">
               <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-              <span>End-to-End Handholding System</span>
+              <span>In-App Journal Tracked by Admin</span>
+            </div>
+          </div>
+        </div>
+
+        {/* The Big Reality Box: Trade Tension Zero vs Psychology Trap */}
+        <div className="rounded-3xl border border-border bg-gradient-to-br from-card via-card/80 to-background p-6 sm:p-8 space-y-6 shadow-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-4">
+            <div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-400">
+                <Flame className="h-3.5 w-3.5" />
+                The Honest Truth About Trading
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-foreground mt-1">
+                ट्रेड का टेंशन 0% है — असली ट्रैप केवल आपकी "Psychology" है!
+              </h3>
+            </div>
+            <div className="shrink-0">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-xs font-bold text-primary">
+                <BookMarked className="h-3.5 w-3.5" />
+                Live Journaling System
+              </span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-5 space-y-3">
+              <div className="flex items-center gap-2 text-sky-400 font-bold text-sm">
+                <ShieldCheck className="h-5 w-5" />
+                <span>1. Strategy & Trade Setup (हमारा काम):</span>
+              </div>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                मार्केट में ट्रेड कहाँ लेना है, कब लेना है और स्टॉप लॉस कहाँ रखना है — इसके लिए आपको कोई सिरदर्द नहीं लेना। हमारे प्रूवन इंस्टीट्यूशनल फॉर्मूले में सिर्फ <strong>15 से 30 पॉइंट्स (Max)</strong> का छोटा रिस्क होता है, और टारगेट <strong>1:3, 1:5 से लेकर 1:20, 1:40+ तक</strong> राइड किया जाता है। Scalping, Intraday और Swing तीनों में 60% से 90% की एवरेज एक्यूरेसी रहती है।
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 space-y-3">
+              <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                <Scale className="h-5 w-5" />
+                <span>2. The Psychology Trap & Training (आपका विकास):</span>
+              </div>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                ट्रेडर स्ट्रेटेजी की वजह से नहीं, बल्कि <strong>डर, लालच, इम्पेशेंस, FOMO और रिवेंज ट्रेडिंग</strong> की वजह से हारता है। इस प्रोग्राम में आपको उस साइकोलॉजिकल चक्रव्यूह से बाहर निकालने की सख्त ट्रेनिंग दी जाती है। आपके हर ट्रेड को हमारे <strong>In-App Trading Journal</strong> में दर्ज किया जाता है और <strong>Admin/Mentor द्वारा पर्सनली ट्रैक</strong> किया जाता है ताकि आप कभी अनुशासन न तोड़ें!
+              </p>
             </div>
           </div>
         </div>
@@ -181,7 +270,7 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
                 ✅ Super Warrior 30 लूप (मेंटरशिप के साथ):
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Clean Setup समझा → 1-2% Risk कैलकुलेट किया → ट्रेड लिया → <strong>Trading Journal में रिकॉर्ड किया</strong> → मेंटर का फीडबैक मिला → गलतियाँ सुधरीं → <strong>Disciplined Capital Growth!</strong>
+                15-30 Pts Minor SL और 1:3 से 1:20+ R:R Setup → <strong>In-App Trading Journal में रिकॉर्ड</strong> → <strong>Admin/Mentor द्वारा Live Tracking & Feedback</strong> → Psychology Trap ब्रेक → <strong>Disciplined Capital Growth!</strong>
               </p>
             </div>
           </div>
@@ -200,3 +289,4 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
     </section>
   );
 }
+

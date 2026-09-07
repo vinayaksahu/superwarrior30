@@ -302,10 +302,10 @@ export default async function SuperWarrior30FunnelPage({
                 {[
                   "आप Revenge Trading और Overtrading को हमेशा के लिए खत्म करना चाहते हैं",
                   "आप Profit में जल्दी भागने और Loss में बैठे रहने की आदत तोड़ना चाहते हैं",
-                  "आप 1:2 से 1:3+ Risk-to-Reward के साथ Capital Protect करना चाहते हैं",
-                  "आप 100% Indicator-Free क्लीन चार्ट्स पर भरोसा करना चाहते हैं",
+                  "आप 15-30 Pts Minor SL और 1:3 से 1:40+ Sky High Risk:Reward के साथ Capital Compound करना चाहते हैं",
+                  "आप Scalping, Intraday और Swing तीनों में 60% से 90% Win-Rate Accuracy पाना चाहते हैं",
+                  "आप In-App Trading Journal के ज़रिए Admin/Mentor की निगरानी में अपनी Psychology को मास्टर करना चाहते हैं",
                   "आप Telegram Signals छोड़कर खुद एक Independent Trader बनना चाहते हैं",
-                  "आप चाहे Forex, Crypto या Gold ट्रेड करें — एक सख्त अनुशासन चाहते हैं",
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />

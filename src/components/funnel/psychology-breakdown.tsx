@@ -161,33 +161,38 @@ export function PsychologyBreakdown() {
           </div>
         </div>
 
-        {/* The 50% Win Rate Math Callout */}
-        <div className="rounded-2xl border border-primary/30 bg-card p-6 sm:p-8 space-y-4 text-center">
-          <span className="text-2xl">📊</span>
-          <h3 className="text-lg sm:text-xl font-black text-foreground">
-            Risk Management का जादुई गणित: 50% Win Rate पर भी प्रॉफिट!
+        {/* The 60-90% Win Rate & Asymmetric R:R Math Callout */}
+        <div className="rounded-2xl border-2 border-primary/40 bg-gradient-to-br from-card via-primary/5 to-card p-6 sm:p-8 space-y-5 text-center">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-xs font-black text-primary uppercase">
+            ⚡ Asymmetric Risk-Reward Math
+          </div>
+          <h3 className="text-lg sm:text-2xl font-black text-foreground">
+            15-30 Pts Minor SL और 1:3 से 1:40+ Sky High R:R का जादुई गणित!
           </h3>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl mx-auto">
-            मान लीजिए आप 10 ट्रेड्स लेते हैं और आपका <strong>Risk:Reward 1:2</strong> है (Loss = ₹500, Target = ₹1,000):
+            Super Warrior 30 में आपको <strong>60% से 90% की Average Accuracy</strong> वाले Institutional Setups मिलते हैं। जब आपका SL सिर्फ 15 से 30 पॉइंट्स का होता है, तो आपका नुकसान न के बराबर होता है और एक अकेला 1:10 या 1:20 ट्रेड दर्जनों छोटे नुकसानों को एक झटके में कवर कर देता है:
           </p>
 
-          <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto py-2">
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3">
-              <p className="text-[10px] text-muted-foreground font-bold uppercase">5 Lost Trades</p>
-              <p className="text-sm sm:text-base font-black text-red-500">- ₹2,500</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto py-2">
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 space-y-0.5">
+              <p className="text-[10px] text-muted-foreground font-bold uppercase">Minor SL Loss (3 Trades)</p>
+              <p className="text-sm sm:text-base font-black text-red-500">- ₹1,500</p>
+              <p className="text-[10px] text-red-400">सिर्फ ₹500/trade का छोटा रिस्क</p>
             </div>
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-              <p className="text-[10px] text-muted-foreground font-bold uppercase">5 Won Trades</p>
-              <p className="text-sm sm:text-base font-black text-emerald-500">+ ₹5,000</p>
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-0.5">
+              <p className="text-[10px] text-muted-foreground font-bold uppercase">7 Won Trades (1:5 to 1:20 Avg)</p>
+              <p className="text-sm sm:text-base font-black text-emerald-500">+ ₹21,000</p>
+              <p className="text-[10px] text-emerald-400">Sky High R:R Targets</p>
             </div>
-            <div className="rounded-xl border border-primary/40 bg-primary/10 p-3">
+            <div className="rounded-xl border border-primary/40 bg-primary/10 p-3 space-y-0.5">
               <p className="text-[10px] text-muted-foreground font-bold uppercase">Net Result</p>
-              <p className="text-sm sm:text-base font-black text-primary">+ ₹2,500 PROFIT</p>
+              <p className="text-sm sm:text-base font-black text-primary">+ ₹19,500 PROFIT</p>
+              <p className="text-[10px] text-primary">70% Win-Rate पर Massive Profit!</p>
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground font-medium">
-            यानी 10 में से 5 बार गलत होकर भी आप प्रॉफिट में हैं! यही ताक़त है <span className="text-foreground font-bold">Strict Money Management</span> की, जो Super Warrior 30 में सिखाई जाती है।
+          <p className="text-xs text-muted-foreground font-medium max-w-2xl mx-auto">
+            इसलिए ट्रेड और सेटअप की कोई टेंशन नहीं है। आपका असली काम <strong>अपनी Psychology और अनुशासन को काबू में रखना</strong> है — और यही आपको हमारे <span className="text-foreground font-bold">In-App Trading Journal</span> के साथ सिखाया जाता है, जिसे सीधे <span className="text-primary font-bold">Admin/Mentor द्वारा ट्रैक</span> किया जाता है!
           </p>
         </div>
       </div>
