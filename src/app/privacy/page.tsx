@@ -111,7 +111,7 @@ export default function PrivacyPage() {
               <p><strong>Grievance & Data Privacy Desk</strong></p>
               <p>Rahul Trade Warrior Academy</p>
               <p>Email: <a href="mailto:support@superwarrior30.com" className="text-primary hover:underline">support@superwarrior30.com</a></p>
-              <p>Address: VIP Road, Near Magneto The Mall, Raipur, Chhattisgarh - 492001, India.</p>
+              <p>Address: Civil Lines, MG Marg, Prayagraj, Uttar Pradesh - 211001, India.</p>
             </div>
           </section>
         </div>

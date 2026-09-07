@@ -108,7 +108,7 @@ export default function TermsPage() {
               <h2 className="text-foreground font-bold">6. Governing Law & Jurisdiction</h2>
             </div>
             <p>
-              These Terms and any disputes arising out of or in connection with your use of the platform shall be governed by and construed in accordance with the <strong>laws of the Republic of India</strong>, subject to the exclusive jurisdiction of the competent courts in <strong>Raipur, Chhattisgarh, India</strong>.
+              These Terms and any disputes arising out of or in connection with your use of the platform shall be governed by and construed in accordance with the <strong>laws of the Republic of India</strong>, subject to the exclusive jurisdiction of the competent courts in <strong>Prayagraj (Allahabad), Uttar Pradesh, India</strong>.
             </p>
           </section>
 
@@ -124,7 +124,7 @@ export default function TermsPage() {
             <div className="bg-background rounded-xl p-4 border border-border text-[11px] space-y-1">
               <p><strong>Rahul Trade Warrior Academy</strong></p>
               <p>Email: <a href="mailto:support@superwarrior30.com" className="text-primary hover:underline">support@superwarrior30.com</a></p>
-              <p>Address: VIP Road, Near Magneto The Mall, Raipur, Chhattisgarh - 492001, India.</p>
+              <p>Address: Civil Lines, MG Marg, Prayagraj, Uttar Pradesh - 211001, India.</p>
             </div>
           </section>
         </div>

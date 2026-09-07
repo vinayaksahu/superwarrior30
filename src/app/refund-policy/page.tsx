@@ -120,7 +120,7 @@ export default function RefundPolicyPage() {
               <p>Rahul Trade Warrior Academy</p>
               <p>Email: <a href="mailto:support@superwarrior30.com" className="text-primary hover:underline">support@superwarrior30.com</a></p>
               <p>Support Portal: <Link href="/contact" className="text-primary hover:underline">https://superwarrior30.com/contact</Link></p>
-              <p>Address: VIP Road, Near Magneto The Mall, Raipur, Chhattisgarh - 492001, India.</p>
+              <p>Address: Civil Lines, MG Marg, Prayagraj, Uttar Pradesh - 211001, India.</p>
             </div>
           </section>
         </div>

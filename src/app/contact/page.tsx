@@ -73,8 +73,8 @@ export default function ContactPage() {
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 <strong>Rahul Trade Warrior Academy</strong><br />
-                VIP Road, Near Magneto The Mall,<br />
-                Raipur, Chhattisgarh - 492001, India.
+                Civil Lines, MG Marg,<br />
+                Prayagraj, Uttar Pradesh - 211001, India.
               </p>
             </div>
           </div>
