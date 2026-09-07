@@ -13,9 +13,13 @@ import {
   Check,
   Loader2,
   BadgeAlert,
+  Gift,
+  Copy,
+  Tag,
 } from "lucide-react";
+import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
-import { claimCashbackAction } from "@/server/actions/broker.actions";
+import { claimCashbackAction, claimReferralCodeAction } from "@/server/actions/broker.actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -45,16 +49,27 @@ interface ClaimItem {
   };
 }
 
+export interface ReferralRewardItem {
+  hasReferrer: boolean;
+  referrerCode?: string;
+  referrerName?: string;
+  discountPercentage: number;
+  isReferralDiscountEnabled: boolean;
+  hasPurchased: boolean;
+}
+
 interface StudentCashbacksClientProps {
   claims: ClaimItem[];
   userEmail: string;
   userName: string | null;
+  referralReward?: ReferralRewardItem;
 }
 
 export function StudentCashbacksClient({
   claims,
   userEmail,
   userName,
+  referralReward,
 }: StudentCashbacksClientProps) {
   const router = useRouter();
   const [selectedClaim, setSelectedClaim] = useState<ClaimItem | null>(null);
@@ -65,6 +80,9 @@ export function StudentCashbacksClient({
   const [ifsc, setIfsc] = useState("");
   const [bankName, setBankName] = useState("");
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
+  const [copiedCoupon, setCopiedCoupon] = useState(false);
+  const [enteredReferralCode, setEnteredReferralCode] = useState("");
+  const [isClaimingReferral, setIsClaimingReferral] = useState(false);
 
   // Aggregate stats
   const availableAmount = claims
@@ -187,6 +205,143 @@ export function StudentCashbacksClient({
           <p className="text-[11px] text-muted-foreground">Transferred to account</p>
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* REFERRAL WELCOME COUPON SECTION */}
+      {/* ======================================================== */}
+      {referralReward && referralReward.hasReferrer && (
+        <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/10 via-card to-card p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary border border-primary/30 shadow-inner">
+                <Gift className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-extrabold text-foreground">
+                    Referral Welcome Bonus Coupon
+                  </h2>
+                  <span className="rounded-full bg-primary/20 border border-primary/40 px-2.5 py-0.5 text-[10px] font-black text-primary uppercase tracking-wider">
+                    {referralReward.discountPercentage}% OFF
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Unlocked by registering with mentor <strong className="text-foreground">{referralReward.referrerName}</strong>&apos;s referral code
+                </p>
+              </div>
+            </div>
+
+            <div>
+              {!referralReward.hasPurchased ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Available for Course Purchase
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 border border-primary/30 px-3 py-1 text-xs font-bold text-primary">
+                  <Check className="h-3.5 w-3.5" />
+                  Applied on Enrollment
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-medium">Your Referral Coupon Code:</p>
+              <div className="flex items-center gap-2.5">
+                <div className="inline-flex items-center rounded-xl border border-dashed border-primary/60 bg-background/90 px-4 py-2 text-base font-mono font-black uppercase tracking-widest text-primary shadow-sm">
+                  {referralReward.referrerCode}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (referralReward.referrerCode) {
+                      navigator.clipboard.writeText(referralReward.referrerCode);
+                      setCopiedCoupon(true);
+                      toast.success(`Referral coupon "${referralReward.referrerCode}" copied to clipboard!`);
+                      setTimeout(() => setCopiedCoupon(false), 2500);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
+                >
+                  {copiedCoupon ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+                  {copiedCoupon ? "Copied" : "Copy Code"}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground pt-1.5 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                This referral coupon will automatically be displayed during course checkout so you can apply it with 1 click!
+              </p>
+            </div>
+
+            {!referralReward.hasPurchased && (
+              <div className="sm:self-end">
+                <Link
+                  href="/courses"
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
+                >
+                  Browse Courses & Apply <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {referralReward && !referralReward.hasReferrer && !referralReward.hasPurchased && (
+        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Gift className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Have a Mentor&apos;s Referral Code?</h3>
+              <p className="text-xs text-muted-foreground">
+                Link a referral code below to claim your {referralReward.discountPercentage}% Instant Discount coupon before purchasing your course.
+              </p>
+            </div>
+          </div>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!enteredReferralCode.trim()) return;
+              setIsClaimingReferral(true);
+              try {
+                const res = await claimReferralCodeAction(enteredReferralCode.trim());
+                if (res.success) {
+                  toast.success(res.message);
+                  router.refresh();
+                } else {
+                  toast.error(res.message || "Failed to claim referral code");
+                }
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : "Error claiming code");
+              } finally {
+                setIsClaimingReferral(false);
+              }
+            }}
+            className="flex flex-col sm:flex-row gap-2 max-w-md pt-1"
+          >
+            <input
+              type="text"
+              placeholder="ENTER REFERRAL CODE (E.G. ABC12345)"
+              value={enteredReferralCode}
+              onChange={(e) => setEnteredReferralCode(e.target.value.toUpperCase())}
+              className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-xs font-mono font-bold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={isClaimingReferral || !enteredReferralCode.trim()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {isClaimingReferral ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Tag className="h-3.5 w-3.5" />}
+              {isClaimingReferral ? "Claiming..." : "Unlock Coupon"}
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Claims List */}
       <div className="space-y-4">

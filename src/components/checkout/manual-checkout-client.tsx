@@ -33,6 +33,21 @@ import type { PublicBrokerConfig } from "@/server/actions/broker.actions";
 import { toast } from "sonner";
 import { ExternalLink, ShieldAlert } from "lucide-react";
 
+export interface AvailablePromoCoupon {
+  id: string;
+  code: string;
+  discountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscountAmount: number | null;
+}
+
+export interface UserReferralCoupon {
+  code: string;
+  referrerName: string;
+  discountPercentage: number;
+}
+
 interface ManualCheckoutClientProps {
   course: {
     id: string;
@@ -46,6 +61,8 @@ interface ManualCheckoutClientProps {
   userEmail?: string;
   userName?: string | null;
   isGuest?: boolean;
+  availableCoupons?: AvailablePromoCoupon[];
+  userReferralCoupon?: UserReferralCoupon | null;
 }
 
 declare global {
@@ -61,6 +78,8 @@ export function ManualCheckoutClient({
   userEmail = "",
   userName = null,
   isGuest = false,
+  availableCoupons = [],
+  userReferralCoupon = null,
 }: ManualCheckoutClientProps) {
   const router = useRouter();
   const activeMethods = paymentMethods.filter((m) => m.isActive);
@@ -240,9 +259,10 @@ export function ManualCheckoutClient({
   // ----------------------------------------------------
   // 1. APPLY PROMO COUPON
   // ----------------------------------------------------
-  const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!couponInput.trim()) return;
+  const applyCouponCode = async (codeToApply?: string) => {
+    const targetCode = (codeToApply ?? couponInput).trim().toUpperCase();
+    if (!targetCode) return;
+    setCouponInput(targetCode);
 
     if (appliedBrokerId && appliedReferral && !allowAllStacking) {
       toast.error(
@@ -277,7 +297,7 @@ export function ManualCheckoutClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: couponInput.trim().toUpperCase(),
+          code: targetCode,
           courseId: course.id,
           currentBalance: balanceBeforeCoupon,
         }),
@@ -286,7 +306,7 @@ export function ManualCheckoutClient({
       const data = await res.json();
       if (res.ok && data.valid) {
         setAppliedCoupon({
-          code: data.code || couponInput.trim().toUpperCase(),
+          code: data.code || targetCode,
           discountAmount: data.discountAmount,
           finalPrice: data.finalPrice,
           discountType: data.discountType,
@@ -295,40 +315,43 @@ export function ManualCheckoutClient({
         });
         toast.success(data.message || `Coupon applied! Saved ₹${data.discountAmount}`);
       } else {
-        const clean = couponInput.trim().toUpperCase();
-        if (clean === "SW30" || clean === "SUPER30") {
+        if (targetCode === "SW30" || targetCode === "SUPER30") {
           const discount = Math.round(balanceBeforeCoupon * 0.3);
           setAppliedCoupon({
-            code: clean,
+            code: targetCode,
             discountAmount: discount,
             finalPrice: Math.max(0, balanceBeforeCoupon - discount),
             discountType: "PERCENTAGE",
             discountValue: 30,
           });
-          toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
+          toast.success(`Coupon ${targetCode} applied! You saved ₹${discount}`);
         } else {
           setCouponError(data.message || "Invalid or expired promo coupon.");
         }
       }
     } catch {
-      const clean = couponInput.trim().toUpperCase();
-      if (clean === "SW30" || clean === "SUPER30") {
+      if (targetCode === "SW30" || targetCode === "SUPER30") {
         const balanceBeforeCoupon = Math.max(0, course.price - brokerDiscount - referralDiscount);
         const discount = Math.round(balanceBeforeCoupon * 0.3);
         setAppliedCoupon({
-          code: clean,
+          code: targetCode,
           discountAmount: discount,
           finalPrice: Math.max(0, balanceBeforeCoupon - discount),
           discountType: "PERCENTAGE",
           discountValue: 30,
         });
-        toast.success(`Coupon ${clean} applied! You saved ₹${discount}`);
+        toast.success(`Coupon ${targetCode} applied! You saved ₹${discount}`);
       } else {
         setCouponError("Invalid or expired promo coupon.");
       }
     } finally {
       setIsCheckingCoupon(false);
     }
+  };
+
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await applyCouponCode();
   };
 
   const handleRemoveCoupon = () => {
@@ -340,9 +363,10 @@ export function ManualCheckoutClient({
   // ----------------------------------------------------
   // 2. APPLY AFFILIATE REFERRAL CODE
   // ----------------------------------------------------
-  const handleApplyReferral = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!referralInput.trim()) return;
+  const applyReferralCode = async (codeToApply?: string) => {
+    const targetCode = (codeToApply ?? referralInput).trim().toUpperCase();
+    if (!targetCode) return;
+    setReferralInput(targetCode);
 
     if (appliedBrokerId && appliedCoupon && !allowAllStacking) {
       toast.error(
@@ -377,7 +401,7 @@ export function ManualCheckoutClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: referralInput.trim().toUpperCase(),
+          code: targetCode,
           courseId: course.id,
           currentBalance: balanceBeforeReferral,
         }),
@@ -400,6 +424,11 @@ export function ManualCheckoutClient({
     } finally {
       setIsCheckingReferral(false);
     }
+  };
+
+  const handleApplyReferral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await applyReferralCode();
   };
 
   const handleRemoveReferral = () => {
@@ -1193,22 +1222,54 @@ export function ManualCheckoutClient({
                       </button>
                     </div>
                   ) : (
-                    <form onSubmit={handleApplyReferral} className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="ENTER REFERRAL CODE (E.G. ABC12345)"
-                        value={referralInput}
-                        onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
-                        className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isCheckingReferral || !referralInput.trim()}
-                        className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
-                      >
-                        {isCheckingReferral ? "..." : "Apply"}
-                      </button>
-                    </form>
+                    <div className="space-y-2">
+                      {userReferralCoupon && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-primary/40 bg-primary/10 p-3 shadow-sm">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                              <Sparkles className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-extrabold text-foreground">
+                                Your Referral Coupon:{" "}
+                                <span className="font-mono text-primary font-black uppercase tracking-wider">
+                                  {userReferralCoupon.code}
+                                </span>
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {userReferralCoupon.discountPercentage}% Instant Discount (From {userReferralCoupon.referrerName})
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => applyReferralCode(userReferralCoupon.code)}
+                            disabled={isCheckingReferral}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
+                          >
+                            {isCheckingReferral ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                            Apply Coupon
+                          </button>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleApplyReferral} className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="ENTER REFERRAL CODE (E.G. ABC12345)"
+                          value={referralInput}
+                          onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
+                          className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isCheckingReferral || !referralInput.trim()}
+                          className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
+                        >
+                          {isCheckingReferral ? "..." : "Apply"}
+                        </button>
+                      </form>
+                    </div>
                   )}
 
                   {referralError && (
@@ -1244,22 +1305,64 @@ export function ManualCheckoutClient({
                       </button>
                     </div>
                   ) : (
-                    <form onSubmit={handleApplyCoupon} className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="ENTER PROMO COUPON (E.G. SW30)"
-                        value={couponInput}
-                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                        className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isCheckingCoupon || !couponInput.trim()}
-                        className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
-                      >
-                        {isCheckingCoupon ? "..." : "Apply"}
-                      </button>
-                    </form>
+                    <div className="space-y-3">
+                      {availableCoupons.length > 0 && (
+                        <div className="space-y-2 rounded-xl border border-border/70 bg-card/60 p-3">
+                          <p className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-primary" />
+                            Available Coupons (Click to apply):
+                          </p>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {availableCoupons.map((c) => (
+                              <div
+                                key={c.id}
+                                onClick={() => applyCouponCode(c.code)}
+                                className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-primary/30 bg-background/90 p-2.5 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Tag className="h-3.5 w-3.5 text-primary group-hover:scale-110 transition-transform shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="font-mono text-xs font-black uppercase text-foreground truncate">
+                                      {c.code}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {c.minOrderAmount > 0 ? `Min ₹${c.minOrderAmount}` : "No minimum"}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                    {c.discountType === "PERCENTAGE"
+                                      ? `${c.discountValue}% OFF`
+                                      : `₹${c.discountValue} OFF`}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-primary underline group-hover:text-primary-foreground group-hover:bg-primary group-hover:no-underline group-hover:px-2 group-hover:py-0.5 group-hover:rounded transition-all">
+                                    Apply
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="ENTER PROMO COUPON (E.G. SW30)"
+                          value={couponInput}
+                          onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                          className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isCheckingCoupon || !couponInput.trim()}
+                          className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors cursor-pointer"
+                        >
+                          {isCheckingCoupon ? "..." : "Apply"}
+                        </button>
+                      </form>
+                    </div>
                   )}
 
                   {couponError && (

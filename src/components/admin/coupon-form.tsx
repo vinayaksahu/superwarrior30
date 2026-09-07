@@ -25,6 +25,7 @@ interface CouponFormProps {
     usageLimit: number | null;
     perUserLimit: number;
     isActive: boolean;
+    showInCheckout?: boolean;
     courses?: Array<{ courseId: string }>;
   };
   courses: CourseOption[];
@@ -267,19 +268,35 @@ export function CouponForm({ coupon, courses, isEdit = false }: CouponFormProps)
           </div>
         </div>
 
-        <div className="pt-2">
-          <label className="flex items-center gap-3 cursor-pointer">
+        <div className="pt-2 grid gap-3 sm:grid-cols-2">
+          <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-border p-3.5 hover:bg-muted/20 transition-colors">
             <input
               type="checkbox"
               name="isActive"
               value="true"
               defaultChecked={coupon?.isActive !== false}
-              className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+              className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-primary"
             />
             <div>
               <p className="text-xs font-semibold text-foreground">Active Coupon</p>
               <p className="text-[11px] text-muted-foreground">
                 When enabled, students can apply this code during checkout.
+              </p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-border p-3.5 hover:bg-muted/20 transition-colors">
+            <input
+              type="checkbox"
+              name="showInCheckout"
+              value="true"
+              defaultChecked={coupon?.showInCheckout !== false}
+              className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-primary"
+            />
+            <div>
+              <p className="text-xs font-semibold text-foreground">Show on Checkout Page</p>
+              <p className="text-[11px] text-muted-foreground">
+                Display this coupon to users during course checkout so they can apply it with a single click.
               </p>
             </div>
           </label>

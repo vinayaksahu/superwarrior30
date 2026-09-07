@@ -33,6 +33,7 @@ export const couponSchema = z.object({
     .min(1, "Per user limit must be at least 1")
     .default(1),
   isActive: z.coerce.boolean().default(true),
+  showInCheckout: z.coerce.boolean().default(true),
   courseIds: z.array(z.string()).default([]),
 }).refine(
   (data) => {

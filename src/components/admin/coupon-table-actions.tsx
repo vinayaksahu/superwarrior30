@@ -2,14 +2,15 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { toggleCouponStatusAction, deleteCouponAction } from "@/server/actions/coupon.actions";
-import { Edit, Trash2, Loader2, Power } from "lucide-react";
+import { toggleCouponStatusAction, toggleCouponCheckoutVisibilityAction, deleteCouponAction } from "@/server/actions/coupon.actions";
+import { Edit, Trash2, Loader2, Power, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface CouponTableActionsProps {
   couponId: string;
   code: string;
   isActive: boolean;
+  showInCheckout?: boolean;
   redemptionsCount: number;
 }
 
@@ -17,6 +18,7 @@ export function CouponTableActions({
   couponId,
   code,
   isActive,
+  showInCheckout = true,
   redemptionsCount,
 }: CouponTableActionsProps) {
   const [isPending, startTransition] = useTransition();
@@ -29,6 +31,22 @@ export function CouponTableActions({
           toast.success(res.message);
         } else {
           toast.error(res.message || "Failed to update status");
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Error";
+        toast.error(msg);
+      }
+    });
+  };
+
+  const handleToggleCheckoutVisibility = () => {
+    startTransition(async () => {
+      try {
+        const res = await toggleCouponCheckoutVisibilityAction(couponId, !showInCheckout);
+        if (res.success) {
+          toast.success(res.message);
+        } else {
+          toast.error(res.message || "Failed to update checkout visibility");
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Error";
@@ -73,6 +91,22 @@ export function CouponTableActions({
       >
         <Power className="h-3 w-3" />
         {isActive ? "Active" : "Disabled"}
+      </button>
+
+      {/* Toggle Checkout Visibility Button */}
+      <button
+        type="button"
+        onClick={handleToggleCheckoutVisibility}
+        disabled={isPending}
+        className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition-colors ${
+          showInCheckout
+            ? "bg-primary/10 text-primary hover:bg-primary/20"
+            : "bg-muted text-muted-foreground hover:bg-accent"
+        }`}
+        title={showInCheckout ? "Hide from Course Checkout" : "Show on Course Checkout"}
+      >
+        {showInCheckout ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+        {showInCheckout ? "In Checkout" : "Hidden"}
       </button>
 
       {/* Edit Link */}

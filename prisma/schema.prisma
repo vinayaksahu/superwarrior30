@@ -459,6 +459,7 @@ model Coupon {
   perUserLimit      Int          @default(1)
   usageCount        Int          @default(0)
   isActive          Boolean      @default(true)
+  showInCheckout    Boolean      @default(true)
   isTestData        Boolean      @default(true)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt

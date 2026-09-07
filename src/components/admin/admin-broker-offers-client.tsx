@@ -103,6 +103,7 @@ interface CouponItem {
   usageCount: number;
   usageLimit: number | null;
   isActive: boolean;
+  showInCheckout?: boolean;
   isExpired: boolean;
   applicableCoursesCount: number;
   redemptionsCount: number;
@@ -1029,6 +1030,7 @@ export function AdminBrokerOffersClient({
                       <th className="px-4 py-3 font-medium">Validity</th>
                       <th className="px-4 py-3 font-medium">Usage Count</th>
                       <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Checkout Display</th>
                       <th className="px-4 py-3 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
@@ -1075,11 +1077,23 @@ export function AdminBrokerOffersClient({
                             {c.isExpired ? "Expired" : c.isActive ? "Active" : "Disabled"}
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                              c.showInCheckout !== false
+                                ? "bg-primary/10 text-primary border-primary/20"
+                                : "bg-muted text-muted-foreground border-border"
+                            }`}
+                          >
+                            {c.showInCheckout !== false ? "Visible" : "Hidden"}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <CouponTableActions
                             couponId={c.id}
                             code={c.code}
                             isActive={c.isActive}
+                            showInCheckout={c.showInCheckout}
                             redemptionsCount={c.redemptionsCount || 0}
                           />
                         </td>

@@ -258,6 +258,7 @@ export async function getAdminCouponsAction({
       perUserLimit: c.perUserLimit,
       usageCount: c.usageCount,
       isActive: c.isActive,
+      showInCheckout: c.showInCheckout,
       isExpired: c.endDate < now,
       redemptionsCount: c._count.redemptions,
       applicableCoursesCount: c._count.courses,
@@ -324,6 +325,7 @@ export async function createCouponAction(
     usageLimit: formData.get("usageLimit") ? Number(formData.get("usageLimit")) : null,
     perUserLimit: Number(formData.get("perUserLimit") || 1),
     isActive: formData.get("isActive") === "true",
+    showInCheckout: formData.get("showInCheckout") === "true",
     courseIds: rawCourseIds,
   };
 
@@ -363,6 +365,7 @@ export async function createCouponAction(
         usageLimit: data.usageLimit,
         perUserLimit: data.perUserLimit,
         isActive: data.isActive,
+        showInCheckout: data.showInCheckout,
         isTestData: false,
       },
     });
@@ -415,6 +418,7 @@ export async function updateCouponAction(
     usageLimit: formData.get("usageLimit") ? Number(formData.get("usageLimit")) : null,
     perUserLimit: Number(formData.get("perUserLimit") || 1),
     isActive: formData.get("isActive") === "true",
+    showInCheckout: formData.get("showInCheckout") === "true",
     courseIds: rawCourseIds,
   };
 
@@ -457,6 +461,7 @@ export async function updateCouponAction(
         usageLimit: data.usageLimit,
         perUserLimit: data.perUserLimit,
         isActive: data.isActive,
+        showInCheckout: data.showInCheckout,
       },
     });
 
@@ -516,6 +521,38 @@ export async function toggleCouponStatusAction(
   revalidatePath("/admin/coupons");
   revalidatePath("/admin/broker-offers");
   return { success: true, message: `Coupon is now ${isActive ? "active" : "inactive"}.` };
+}
+
+export async function toggleCouponCheckoutVisibilityAction(
+  couponId: string,
+  showInCheckout: boolean
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+
+  await prisma.coupon.update({
+    where: { id: couponId },
+    data: { showInCheckout },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: admin.id,
+      actorEmail: admin.email,
+      actorRole: admin.role,
+      action: "COUPON_CHECKOUT_VISIBILITY_TOGGLED",
+      entityType: "Coupon",
+      entityId: couponId,
+      newValues: { showInCheckout },
+    },
+  });
+
+  revalidatePath("/admin/coupons");
+  revalidatePath("/admin/broker-offers");
+  revalidatePath("/checkout");
+  return {
+    success: true,
+    message: `Coupon is now ${showInCheckout ? "visible on" : "hidden from"} course checkout.`,
+  };
 }
 
 export async function deleteCouponAction(couponId: string): Promise<ActionState> {

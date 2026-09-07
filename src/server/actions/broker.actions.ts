@@ -1,7 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, requireAdmin, requireAdminWrite } from "@/server/dal/auth";
+import { getCurrentUser, requireAuth, requireAdmin, requireAdminWrite } from "@/server/dal/auth";
+import type { ActionState } from "@/types";
 import {
   getBrokerSettings,
   saveBrokerSettings,
@@ -509,4 +510,87 @@ export async function getStudentCashbacksAction() {
     offerPercentage: Number(c.offerPercentage),
     calculatedAmount: Number(c.calculatedAmount),
   }));
+}
+
+export async function claimReferralCodeAction(code: string): Promise<ActionState> {
+  const user = await requireAuth();
+  const cleanCode = (code || "").trim().toUpperCase();
+
+  if (!cleanCode) {
+    return { success: false, message: "Please enter a valid referral code." };
+  }
+
+  // Check if user already has a referrer
+  const existingRel = await prisma.referralRelationship.findUnique({
+    where: { referredId: user.id },
+  });
+  if (existingRel) {
+    return { success: false, message: "You already have a referral coupon linked to your account." };
+  }
+
+  // Check if user already enrolled in courses
+  const enrollmentCount = await prisma.courseEnrollment.count({
+    where: { userId: user.id, status: "ACTIVE" },
+  });
+  if (enrollmentCount > 0) {
+    return { success: false, message: "Referral coupons can only be claimed before your first course purchase." };
+  }
+
+  const referrer = await prisma.user.findUnique({
+    where: { referralCode: cleanCode },
+    select: { id: true, name: true, referralCode: true, status: true, isTestData: true },
+  });
+
+  if (!referrer || referrer.status !== "ACTIVE") {
+    return { success: false, message: "Invalid or inactive referral code." };
+  }
+
+  if (referrer.id === user.id) {
+    return { success: false, message: "You cannot use your own referral code." };
+  }
+
+  const { resolveCurrentEnvironment } = await import("@/lib/env-context");
+  const currentEnv = await resolveCurrentEnvironment();
+  const isTestData = currentEnv === "TEST";
+
+  await prisma.$transaction(async (tx) => {
+    await tx.referralRelationship.create({
+      data: {
+        referrerId: referrer.id,
+        referredId: user.id,
+        isTestData,
+      },
+    });
+
+    await tx.referralClosure.create({
+      data: {
+        ancestorId: referrer.id,
+        descendantId: user.id,
+        depth: 1,
+        isTestData,
+      },
+    });
+
+    const uplineAncestors = await tx.referralClosure.findMany({
+      where: { descendantId: referrer.id },
+    });
+
+    if (uplineAncestors.length > 0) {
+      await tx.referralClosure.createMany({
+        data: uplineAncestors.map((anc) => ({
+          ancestorId: anc.ancestorId,
+          descendantId: user.id,
+          depth: anc.depth + 1,
+          isTestData,
+        })),
+      });
+    }
+  });
+
+  revalidatePath("/dashboard/cashbacks");
+  revalidatePath("/checkout");
+  return {
+    success: true,
+    message: `Referral code "${referrer.referralCode}" linked! Your referral discount coupon is unlocked.`,
+  };
 }

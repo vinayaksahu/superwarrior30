@@ -76,12 +76,79 @@ export default async function CheckoutPage({
     }
   }
 
-  const [paymentMethods, brokerConfig] = await withEnvironmentContext(pageEnv, async () => {
-    return await Promise.all([
-      getPublicPaymentMethodsAction(),
-      getBrokerPublicConfigAction(),
-    ]);
-  });
+  const [paymentMethods, brokerConfig, availableCoupons, userReferralCoupon] =
+    await withEnvironmentContext(pageEnv, async () => {
+      const now = new Date();
+
+      const [methods, config, rawCoupons, referralRel] = await Promise.all([
+        getPublicPaymentMethodsAction(),
+        getBrokerPublicConfigAction(),
+        prisma.coupon.findMany({
+          where: {
+            isActive: true,
+            showInCheckout: true,
+            startDate: { lte: now },
+            endDate: { gte: now },
+            OR: [
+              { courses: { none: {} } },
+              { courses: { some: { courseId: course.id } } },
+            ],
+          },
+          select: {
+            id: true,
+            code: true,
+            discountType: true,
+            discountValue: true,
+            minOrderAmount: true,
+            maxDiscountAmount: true,
+            usageLimit: true,
+            usageCount: true,
+          },
+          orderBy: { discountValue: "desc" },
+        }),
+        user
+          ? prisma.referralRelationship.findUnique({
+              where: { referredId: user.id },
+              include: {
+                referrer: {
+                  select: { id: true, name: true, referralCode: true, status: true },
+                },
+              },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const validCoupons = rawCoupons
+        .filter((c) => c.usageLimit === null || c.usageCount < c.usageLimit)
+        .map((c) => ({
+          id: c.id,
+          code: c.code,
+          discountType: c.discountType as "PERCENTAGE" | "FIXED_AMOUNT",
+          discountValue: Number(c.discountValue),
+          minOrderAmount: Number(c.minOrderAmount),
+          maxDiscountAmount: c.maxDiscountAmount ? Number(c.maxDiscountAmount) : null,
+        }));
+
+      let refCoupon: {
+        code: string;
+        referrerName: string;
+        discountPercentage: number;
+      } | null = null;
+
+      if (
+        referralRel &&
+        referralRel.referrer &&
+        referralRel.referrer.status === "ACTIVE"
+      ) {
+        refCoupon = {
+          code: referralRel.referrer.referralCode,
+          referrerName: referralRel.referrer.name || "Mentor / Friend",
+          discountPercentage: Number(config?.referralDiscountPercentage) || 10,
+        };
+      }
+
+      return [methods, config, validCoupons, refCoupon] as const;
+    });
 
   return (
     <ManualCheckoutClient
@@ -97,6 +164,8 @@ export default async function CheckoutPage({
       userEmail={user?.email || ""}
       userName={user?.name || null}
       isGuest={!user}
+      availableCoupons={availableCoupons}
+      userReferralCoupon={userReferralCoupon}
     />
   );
 }

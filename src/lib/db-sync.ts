@@ -181,6 +181,7 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     `ALTER TABLE "course_enrollments" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "lesson_progress" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
+    `ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "showInCheckout" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "referral_commission_records" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "wallet_transactions" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
     `ALTER TABLE "withdrawals" ADD COLUMN IF NOT EXISTS "isTestData" BOOLEAN DEFAULT true;`,
