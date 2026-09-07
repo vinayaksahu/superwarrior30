@@ -73,6 +73,37 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
         "isTestData" BOOLEAN NOT NULL DEFAULT false,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS "trade_journals" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "instrument" TEXT NOT NULL,
+        "market" TEXT NOT NULL DEFAULT 'FOREX',
+        "direction" TEXT NOT NULL,
+        "entryPrice" DOUBLE PRECISION NOT NULL,
+        "exitPrice" DOUBLE PRECISION,
+        "stopLoss" DOUBLE PRECISION NOT NULL,
+        "takeProfit" DOUBLE PRECISION NOT NULL,
+        "lotSize" DOUBLE PRECISION,
+        "riskAmount" DOUBLE PRECISION,
+        "pnl" DOUBLE PRECISION,
+        "status" TEXT NOT NULL DEFAULT 'OPEN',
+        "outcome" TEXT NOT NULL DEFAULT 'PENDING',
+        "riskRewardRatio" TEXT,
+        "setupReason" TEXT,
+        "emotions" TEXT,
+        "mistakes" TEXT,
+        "notes" TEXT,
+        "screenshotUrl" TEXT,
+        "mentorFeedback" TEXT,
+        "reviewedById" TEXT,
+        "reviewedAt" TIMESTAMP(3),
+        "tradedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "trade_journals_userId_idx" ON "trade_journals"("userId");
+      CREATE INDEX IF NOT EXISTS "trade_journals_tradedAt_idx" ON "trade_journals"("tradedAt");
     `);
   } catch {
     // ignore

@@ -7,6 +7,7 @@ import { PublicNavbar } from "@/components/shared/public-navbar";
 import { FunnelClient } from "@/components/funnel/funnel-client";
 import { PainPoints } from "@/components/funnel/pain-points";
 import { PsychologyBreakdown } from "@/components/funnel/psychology-breakdown";
+import { MentorAssurance } from "@/components/funnel/mentor-assurance";
 import { CurriculumAccordion } from "@/components/funnel/curriculum-accordion";
 import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 import { CourseOffer } from "@/components/funnel/course-offer";
@@ -276,7 +277,10 @@ export default async function SuperWarrior30FunnelPage({
         </div>
       </section>
 
-      {/* SECTION 7 — Course Curriculum */}
+      {/* SECTION 7 — Mentor's Personal Commitment & Complete Ecosystem */}
+      <MentorAssurance courseId={courseId} />
+
+      {/* SECTION 8 — Course Curriculum */}
       <CurriculumAccordion modules={course?.modules} />
 
       {/* SECTION 8 — Who Is This For */}

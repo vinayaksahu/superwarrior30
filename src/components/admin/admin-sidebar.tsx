@@ -32,6 +32,7 @@ import {
   Film,
   Award,
   HelpCircle,
+  BookMarked,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,12 @@ export const allSidebarLinks: SidebarLink[] = [
     href: "/admin/students",
     label: "Students",
     icon: Users,
+    requiredPermission: "students.view",
+  },
+  {
+    href: "/admin/journal",
+    label: "Trading Journals",
+    icon: BookMarked,
     requiredPermission: "students.view",
   },
   {

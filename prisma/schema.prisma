@@ -98,6 +98,9 @@ model User {
   testimonials           Testimonial[]
   reviewedTestimonials   Testimonial[] @relation("TestimonialsReviewed")
 
+  // Trading Journal
+  tradeJournals          TradeJournal[]
+
   @@index([role])
   @@index([status])
   @@index([referralCode])
@@ -1470,5 +1473,45 @@ model HomeworkSubmissionHistory {
   @@index([submissionId, attemptNumber])
   @@map("homework_submission_history")
 }
+
+// ==========================================
+// TRADING JOURNAL & MENTORSHIP TRACKING
+// ==========================================
+
+model TradeJournal {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrument      String    // e.g. XAUUSD, EURUSD, BTCUSDT
+  market          String    @default("FOREX") // FOREX, CRYPTO, GOLD, STOCKS
+  direction       String    // BUY, SELL
+  entryPrice      Float
+  exitPrice       Float?
+  stopLoss        Float
+  takeProfit      Float
+  lotSize         Float?
+  riskAmount      Float?    // Dollar or Rupee amount risked
+  pnl             Float?    // Profit/Loss
+  status          String    @default("OPEN") // OPEN, CLOSED, CANCELLED
+  outcome         String    @default("PENDING") // WIN, LOSS, BREAKEVEN, PENDING
+  riskRewardRatio String?   // e.g. 1:2.5
+  setupReason     String?   @db.Text
+  emotions        String?   // CALM, FOMO, GREED, ANXIOUS, REVENGE, DISCIPLINED
+  mistakes        String?   // NONE, EARLY_EXIT, MOVED_SL, OVERTRADING, WRONG_LOT
+  notes           String?   @db.Text
+  screenshotUrl   String?
+  mentorFeedback  String?   @db.Text
+  reviewedById    String?
+  reviewedAt      DateTime?
+  tradedAt        DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([tradedAt])
+  @@index([status])
+  @@map("trade_journals")
+}
+
 
 
