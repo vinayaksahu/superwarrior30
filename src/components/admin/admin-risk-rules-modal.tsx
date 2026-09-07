@@ -11,11 +11,11 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { AcademyRiskRules } from "@/types/risk-manager";
 import {
-  saveAcademyRiskRulesAction,
+  type AcademyRiskRules,
   DEFAULT_ACADEMY_RISK_RULES,
-} from "@/server/actions/risk-manager.actions";
+} from "@/types/risk-manager";
+import { saveAcademyRiskRulesAction } from "@/server/actions/risk-manager.actions";
 
 interface AdminRiskRulesModalProps {
   initialRules: AcademyRiskRules;
