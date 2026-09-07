@@ -7,6 +7,7 @@ import { PublicNavbar } from "@/components/shared/public-navbar";
 import { FunnelClient } from "@/components/funnel/funnel-client";
 import { PainPoints } from "@/components/funnel/pain-points";
 import { PsychologyBreakdown } from "@/components/funnel/psychology-breakdown";
+import { DualIncomeOpportunity } from "@/components/funnel/dual-income-opportunity";
 import { MentorAssurance } from "@/components/funnel/mentor-assurance";
 import { CurriculumAccordion } from "@/components/funnel/curriculum-accordion";
 import { VerifiedTradesShowcase } from "@/components/funnel/verified-trades-showcase";
@@ -213,6 +214,9 @@ export default async function SuperWarrior30FunnelPage({
 
       {/* SECTION 3 — The 80/20 Law of Trading (Deep Psychology Breakdown) */}
       <PsychologyBreakdown />
+
+      {/* SECTION 4 — The Psychology Secret: Why 2nd Source of Income is Essential + Free Affiliate Opportunity */}
+      <DualIncomeOpportunity courseId={courseId} />
 
       {/* SECTION 5 — Why Super Warrior 30 */}
       <section id="why-sw30" className="py-16 md:py-24 border-b border-border/40 bg-muted/20">

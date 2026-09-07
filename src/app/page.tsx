@@ -24,6 +24,7 @@ import { getApprovedTestimonialsAction } from "@/server/actions/testimonial.acti
 import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 import { getFeaturedTradesAction } from "@/server/actions/journal.actions";
 import { VerifiedTradesShowcase } from "@/components/funnel/verified-trades-showcase";
+import { DualIncomeOpportunity } from "@/components/funnel/dual-income-opportunity";
 
 export const dynamic = "force-dynamic";
 
@@ -334,61 +335,8 @@ export default async function HomePage() {
         }))}
       />
 
-      {/* 6. Referral Affiliate Section */}
-      <section className="py-20 border-b border-border/40">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="rounded-3xl border border-primary/30 bg-gradient-to-br from-card via-card to-primary/10 p-8 sm:p-12 shadow-xl">
-            <div className="grid gap-8 lg:grid-cols-2 items-center">
-              <div className="space-y-4">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary">
-                  <GitBranch className="h-3.5 w-3.5" />
-                  <span>Affiliate Partnership Program</span>
-                </div>
-                <h2 className="text-3xl font-extrabold text-foreground sm:text-4xl">
-                  Learn with Us. Share with Peers. <br />
-                  <span className="text-primary">Earn Multi-Tier Commissions.</span>
-                </h2>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Every enrolled student receives a unique referral code. Earn automated commission payouts
-                  directly to your wallet whenever peers join through your invitation.
-                </p>
-                <div className="pt-2">
-                  <Link
-                    href="/register"
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-primary-foreground shadow-lg hover:bg-primary/90 transition-all"
-                  >
-                    Join Referral Program
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
-                  <p className="text-2xl font-extrabold text-primary">Tier 1</p>
-                  <p className="text-xs font-semibold text-foreground">Direct Referrals</p>
-                  <p className="text-[11px] text-muted-foreground">Highest payout rate</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
-                  <p className="text-2xl font-extrabold text-emerald-500">Multi-Tier</p>
-                  <p className="text-xs font-semibold text-foreground">Network Depth</p>
-                  <p className="text-[11px] text-muted-foreground">Earnings down the tree</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
-                  <p className="text-2xl font-extrabold text-amber-500">₹ INR</p>
-                  <p className="text-xs font-semibold text-foreground">Direct Bank Payouts</p>
-                  <p className="text-[11px] text-muted-foreground">Fast UPI & IMPS transfers</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-background/80 p-5 space-y-1">
-                  <p className="text-2xl font-extrabold text-sky-500">100%</p>
-                  <p className="text-xs font-semibold text-foreground">Transparent Ledger</p>
-                  <p className="text-[11px] text-muted-foreground">Real-time audit tracking</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* 6. The Psychology Secret: Why 2nd Source of Income is Essential + Free Affiliate Opportunity */}
+      <DualIncomeOpportunity isHomePage={true} />
 
       {/* 7. FAQ Accordion Section */}
       <section id="faq" className="py-20 border-b border-border/40 scroll-mt-16">
