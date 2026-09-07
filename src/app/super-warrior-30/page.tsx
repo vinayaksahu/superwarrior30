@@ -6,6 +6,7 @@ import { getApprovedTestimonialsAction } from "@/server/actions/testimonial.acti
 import { PublicNavbar } from "@/components/shared/public-navbar";
 import { FunnelClient } from "@/components/funnel/funnel-client";
 import { PainPoints } from "@/components/funnel/pain-points";
+import { PsychologyBreakdown } from "@/components/funnel/psychology-breakdown";
 import { CurriculumAccordion } from "@/components/funnel/curriculum-accordion";
 import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 import { CourseOffer } from "@/components/funnel/course-offer";
@@ -20,6 +21,8 @@ import {
   CheckCircle2,
   XCircle,
   ArrowRight,
+  Brain,
+  Scale,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -172,18 +175,18 @@ export default async function SuperWarrior30FunnelPage({
   const coursePrice = course?.price || 0;
   const courseComparePrice = course?.compareAtPrice || null;
 
-  // Methodology cards
+  // Methodology cards focused on 80% Psychology & Risk Management + 20% Technicals
   const methodologyCards = [
-    { num: "01", title: "Trading Foundation", icon: BookOpen, desc: "बिल्कुल basics से शुरुआत — market structure, candlestick patterns, timeframes" },
-    { num: "02", title: "Market Trend", icon: TrendingUp, desc: "Trend कैसे identify करें, bullish vs bearish structure को कैसे पहचानें" },
-    { num: "03", title: "Support & Resistance", icon: BarChart3, desc: "Key levels find करना, zones mark करना, breakout vs fakeout" },
-    { num: "04", title: "Liquidity", icon: Target, desc: "Smart money कहाँ liquidity लेता है — और आप इसे कैसे use कर सकते हैं" },
-    { num: "05", title: "Candlestick Confirmation", icon: Eye, desc: "Entry से पहले confirmation candle कैसे देखें" },
-    { num: "06", title: "Entry & Exit Strategy", icon: Target, desc: "कब enter करें, कहाँ stop loss रखें, कब profit book करें" },
-    { num: "07", title: "Risk Management", icon: ShieldCheck, desc: "Position sizing, risk:reward ratio, capital protection" },
-    { num: "08", title: "Live Market Practice", icon: BarChart3, desc: "Real charts पर practice, live market analysis" },
-    { num: "09", title: "Forex, Crypto & Gold", icon: TrendingUp, desc: "तीनों markets में same methodology कैसे apply करें" },
-    { num: "10", title: "Trading Psychology", icon: ShieldCheck, desc: "Emotions control, discipline, patience — long-term success के लिए" },
+    { num: "01", title: "Trading Psychology", icon: Brain, desc: "Fear, Greed और FOMO को खत्म करना — 80% जीत यहीं से शुरू होती है" },
+    { num: "02", title: "Anti-Revenge Protocol", icon: ShieldCheck, desc: "1 Loss के बाद बड़ा ट्रेड न लेना — स्क्रीन बंद करने का सख्त अनुशासन" },
+    { num: "03", title: "Risk & Money Management", icon: Scale, desc: "हर ट्रेड में सिर्फ 1-2% रिस्क लेना — Exact Position Sizing का गणित" },
+    { num: "04", title: "1:2+ Risk:Reward Formula", icon: Target, desc: "50% Win Rate पर भी नेट प्रॉफिटेबल रहने का प्रूवन सिस्टम" },
+    { num: "05", title: "Capital Compounding", icon: BarChart3, desc: "छोटे अकाउंट को बिना जुआ खेले सिस्टमैटिकली ग्रो करना" },
+    { num: "06", title: "20% Clean Price Action", icon: BookOpen, desc: "Zero Indicators — बिना RSI/MACD के साफ़ सुथरे चार्ट्स पर ट्रेड" },
+    { num: "07", title: "Market Trend & Structure", icon: TrendingUp, desc: "Higher Highs / Lower Lows और ब्रेकआउट vs फेकआउट की पहचान" },
+    { num: "08", title: "Smart Money Liquidity", icon: Eye, desc: "मार्केट कहाँ रिटेलर्स का Stop Loss हंट करता है — ट्रैप से बचना" },
+    { num: "09", title: "Entry & Exit Confirmation", icon: Target, desc: "रूल-बेस्ड एंट्री ट्रिगर, फिक्स्ड स्टॉप लॉस और प्रॉफिट बुकिंग" },
+    { num: "10", title: "Forex, Crypto & Gold", icon: TrendingUp, desc: "तीनों मार्केट्स में एक ही 80/20 साइकोलॉजी फॉर्मूला लागू करना" },
   ];
 
   return (
@@ -199,18 +202,21 @@ export default async function SuperWarrior30FunnelPage({
         utmContent={utmContent}
       />
 
-      {/* SECTION 2 — Pain Points */}
+      {/* SECTION 2 — Pain Points (Psychology & Risk Focus) */}
       <PainPoints />
+
+      {/* SECTION 3 — The 80/20 Law of Trading (Deep Psychology Breakdown) */}
+      <PsychologyBreakdown />
 
       {/* SECTION 5 — Why Super Warrior 30 */}
       <section id="why-sw30" className="py-16 md:py-24 border-b border-border/40 bg-muted/20">
         <div className="container mx-auto px-4 sm:px-6 max-w-5xl space-y-12">
           <div className="text-center space-y-3">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-foreground">
-              Random Trading नहीं — <span className="text-primary">Structured Learning</span>
+              Random Trading नहीं — <span className="text-primary">80/20 Structured Discipline</span>
             </h2>
             <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-              Super Warrior 30 में हर topic को systematic order में सिखाया जाता है — ताकि आप step-by-step बेहतर trader बन सकें
+              Super Warrior 30 में पहले आपकी Psychology और Money Management को बुलेटप्रूफ बनाया जाता है, फिर Clean 20% Price Action सिखाया जाता है
             </p>
           </div>
 
@@ -218,10 +224,10 @@ export default async function SuperWarrior30FunnelPage({
             {methodologyCards.map((card) => (
               <div
                 key={card.num}
-                className="group rounded-xl border border-border bg-card p-5 space-y-3 transition-all hover:border-primary/40 hover:shadow-md"
+                className="group rounded-2xl border border-border bg-card p-5 space-y-3 transition-all hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl font-black text-primary/20 font-mono">
+                  <span className="text-2xl font-black text-primary/25 font-mono">
                     {card.num}
                   </span>
                   <card.icon className="h-4 w-4 text-primary" />
@@ -245,14 +251,14 @@ export default async function SuperWarrior30FunnelPage({
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { step: "1", title: "Learn", emoji: "📖", desc: "पहले concept को अच्छे से समझें" },
-              { step: "2", title: "Understand", emoji: "💡", desc: "फिर chart पर देखें कि ये कैसे काम करता है" },
-              { step: "3", title: "Practice", emoji: "📊", desc: "फिर practice करें — demo या real charts पर" },
-              { step: "4", title: "Execute", emoji: "🎯", desc: "फिर disciplined execution सीखें" },
+              { step: "1", title: "Mindset Reset", emoji: "🧠", desc: "पहले FOMO और Revenge Trading की मानसिकता को खत्म करें" },
+              { step: "2", title: "Risk Blueprint", emoji: "🛡️", desc: "फिर 1:2+ R:R और Position Sizing का कड़ा नियम बनाएं" },
+              { step: "3", title: "20% Price Action", emoji: "📊", desc: "फिर बिना इंडिकेटर्स के साफ़ चार्ट्स पर एंट्री-एग्जिट सीखें" },
+              { step: "4", title: "Disciplined Execution", emoji: "🎯", desc: "फिर लाइव मार्केट में रोबोटिक अनुशासन के साथ ट्रेड करें" },
             ].map((item) => (
               <div
                 key={item.step}
-                className="relative rounded-xl border border-border bg-card p-6 text-center space-y-3"
+                className="relative rounded-2xl border border-border bg-card p-6 text-center space-y-3 shadow-sm"
               >
                 <span className="text-3xl">{item.emoji}</span>
                 <h3 className="text-base font-bold text-foreground">{item.title}</h3>
@@ -265,7 +271,7 @@ export default async function SuperWarrior30FunnelPage({
           </div>
 
           <p className="text-center text-sm text-muted-foreground">
-            पहले concept समझें → फिर chart पर देखें → फिर practice करें → फिर disciplined execution सीखें
+            Mindset Reset → Risk Blueprint → 20% Price Action → Disciplined Execution
           </p>
         </div>
       </section>
@@ -284,18 +290,18 @@ export default async function SuperWarrior30FunnelPage({
 
           <div className="grid gap-6 sm:grid-cols-2">
             {/* FOR */}
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6 space-y-4">
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 space-y-4">
               <h3 className="text-base font-bold text-emerald-500 flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5" /> ये Program आपके लिए है अगर:
               </h3>
               <div className="space-y-2.5">
                 {[
-                  "आप Beginner हैं और trading सीखना चाहते हैं",
-                  "आपको structured learning की जरूरत है",
-                  "आप Entry & Exit समझना चाहते हैं",
-                  "आप Market movement को समझना चाहते हैं",
-                  "आप Risk Management improve करना चाहते हैं",
-                  "आप practical chart-based learning चाहते हैं",
+                  "आप Revenge Trading और Overtrading को हमेशा के लिए खत्म करना चाहते हैं",
+                  "आप Profit में जल्दी भागने और Loss में बैठे रहने की आदत तोड़ना चाहते हैं",
+                  "आप 1:2 से 1:3+ Risk-to-Reward के साथ Capital Protect करना चाहते हैं",
+                  "आप 100% Indicator-Free क्लीन चार्ट्स पर भरोसा करना चाहते हैं",
+                  "आप Telegram Signals छोड़कर खुद एक Independent Trader बनना चाहते हैं",
+                  "आप चाहे Forex, Crypto या Gold ट्रेड करें — एक सख्त अनुशासन चाहते हैं",
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
@@ -306,16 +312,16 @@ export default async function SuperWarrior30FunnelPage({
             </div>
 
             {/* NOT FOR */}
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 space-y-4">
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 space-y-4">
               <h3 className="text-base font-bold text-destructive flex items-center gap-2">
                 <XCircle className="h-5 w-5" /> ये Program आपके लिए नहीं है अगर:
               </h3>
               <div className="space-y-2.5">
                 {[
-                  "आप guaranteed profits चाहते हैं",
-                  "आप सिर्फ signals/calls service खोज रहे हैं",
-                  "आप overnight success expect करते हैं",
-                  "आप practice करने को तैयार नहीं हैं",
+                  "आप रातों-रात अमीर बनने की 'लॉटरी स्कीम' ढूंढ रहे हैं",
+                  "आप बिना सोचे-समझे जुआ (Gambling) की तरह ट्रेड करना चाहते हैं",
+                  "आप बिना Stop Loss लगाए ट्रेड करते हैं और नियम नहीं मानना चाहते",
+                  "आप सिर्फ पकी-पकाई Calls/Signals चाहते हैं और मेहनत नहीं करना चाहते",
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-2">
                     <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />

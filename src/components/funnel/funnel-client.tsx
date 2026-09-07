@@ -75,19 +75,35 @@ export function FunnelClient({
         <div className="container mx-auto px-4 sm:px-6">
           <div className="mx-auto max-w-4xl text-center space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary">
-              <span>🔥</span>
-              <span>Rahul Trade Warrior Academy</span>
+              <span>🧠</span>
+              <span>Trading Reality: 80% Psychology • 20% Technicals</span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-foreground leading-tight">
-              Trading सीखना चाहते हो,
+              Chart देखना तो कोई भी सीख लेता है,
               <br />
-              <span className="text-primary">लेकिन बार-बार Loss से परेशान हो?</span>
+              <span className="text-primary">लेकिन 90% Traders Loss सिर्फ Psychology और Risk Management न होने से करते हैं!</span>
             </h1>
 
-            <p className="mx-auto max-w-2xl text-base sm:text-lg text-muted-foreground leading-relaxed">
-              Super Warrior 30 एक practical trading training program है जहाँ आपको Trading Basics से लेकर Market Trend, Support & Resistance, Liquidity, Entry & Exit और Risk Management तक <span className="text-foreground font-semibold">step-by-step</span> सिखाया जाता है.
+            <p className="mx-auto max-w-3xl text-base sm:text-lg text-muted-foreground leading-relaxed">
+              Trading 10 अलग-अलग Indicators का खेल नहीं है — यह <span className="text-foreground font-bold">80% Mindset, Emotion Control & Money Management</span> और केवल <span className="text-foreground font-bold">20% Clean Price Action</span> है। Super Warrior 30 में सीखें कि कैसे FOMO और Revenge Trading को जड़ से खत्म करें, 1:2+ Risk:Reward से Capital Protect करें, और एक Disciplined Profitable Trader बनें।
             </p>
+
+            {/* 3 Pillars Highlight Badges */}
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/80 px-3.5 py-2 text-xs font-semibold text-foreground shadow-sm">
+                <span className="text-base">🧠</span>
+                <span>80% Emotional Control & Discipline</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/80 px-3.5 py-2 text-xs font-semibold text-foreground shadow-sm">
+                <span className="text-base">🛡️</span>
+                <span>Strict Money & Risk Management</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/80 px-3.5 py-2 text-xs font-semibold text-foreground shadow-sm">
+                <span className="text-base">🎯</span>
+                <span>20% High-Probability Price Action</span>
+              </div>
+            </div>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
@@ -95,7 +111,7 @@ export function FunnelClient({
                 onClick={scrollToQuiz}
                 className="inline-flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-8 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.02] cursor-pointer"
               >
-                अपना Trading Profile Check करें
+                अपना Trading Psychology Profile Check करें
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
@@ -103,12 +119,12 @@ export function FunnelClient({
                 onClick={scrollToCourse}
                 className="inline-flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-8 text-sm font-bold shadow transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
               >
-                Course के बारे में जानें
+                80/20 Framework समझें
               </button>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Beginner से Professional Level तक structured learning
+              Zero Indicators • Capital Protection First • 1:2 to 1:3+ Risk-to-Reward Ratio
             </p>
           </div>
         </div>

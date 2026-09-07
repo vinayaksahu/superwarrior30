@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight, Brain, ShieldAlert, Scale, Zap } from "lucide-react";
 
 interface QuizResultProps {
   answers: Record<string, string>;
@@ -23,41 +23,55 @@ const MARKET_LABELS: Record<string, string> = {
 };
 
 const CHALLENGE_LABELS: Record<string, string> = {
-  "entry-exit": "Entry & Exit",
-  stoploss: "Stop Loss Management",
+  psychology: "Revenge Trading & Emotions",
+  risk: "Risk & Money Management",
+  "fear-greed": "Fear & Greed (Holding Losers)",
+  "indicator-confusion": "Indicator Paralysis",
+  "entry-exit": "Entry & Exit Timing",
+  dependency: "Telegram Signal Dependency",
+  stoploss: "Stop Loss Hunting",
   trend: "Market Trend Analysis",
-  risk: "Risk Management",
-  psychology: "Trading Psychology",
-  dependency: "Signal Dependency",
 };
 
-function getRecommendation(answers: Record<string, string>): string {
-  const exp = answers.tradingExperience;
-  if (exp === "beginner" || exp === "6months") {
-    return "आपके profile के अनुसार आपको structured foundation + practical trading training की सबसे ज्यादा जरूरत है। Super Warrior 30 में Trading Basics से लेकर Live Practice तक step-by-step सीखाया जाता है।";
+function getRecommendation(answers: Record<string, string>): { diagnosis: string; solution: string } {
+  const challenge = answers.mainChallenge;
+
+  if (challenge === "psychology" || challenge === "fear-greed") {
+    return {
+      diagnosis: "आपकी 80% समस्या Mindset & Emotions की है। आप Loss होने पर खुद पर काबू नहीं रख पाते और Revenge Trade लेकर पूरा Capital गंवा देते हैं।",
+      solution: "Super Warrior 30 का 'Zero-Emotion Trading Protocol' आपको सिखाएगा कि कैसे हर ट्रेड को बिना किसी घबराहट या लालच के सिस्टमैटिकली execute करें।",
+    };
   }
-  if (exp === "6m-1y" || exp === "1-3y") {
-    return "आपको trading experience है लेकिन structured methodology और disciplined execution की जरूरत है। Super Warrior 30 आपकी existing knowledge को systematic approach में convert करेगा।";
+
+  if (challenge === "risk") {
+    return {
+      diagnosis: "आप बिना Position Sizing और Risk:Reward Ratio के ट्रेड कर रहे हैं। मनमर्जी का Lot Size लगाने से सिर्फ 1-2 गलत ट्रेड्स में आपका पूरा अकाउंट खाली हो जाता है।",
+      solution: "Super Warrior 30 में आपको 'Capital Protection Formula' मिलेगा, जिसमें आप कभी भी 1-2% से ज्यादा Risk नहीं लेंगे और 1:2+ R:R से 50% Win Rate पर भी भारी प्रॉफिट में रहेंगे।",
+    };
   }
-  return "आप experienced trader हैं। Super Warrior 30 आपको advanced risk management, liquidity concepts और professional execution framework provide करेगा।";
+
+  return {
+    diagnosis: "आप बहुत सारे Indicators और Telegram Calls के चक्रव्यूह में उलझे हुए हैं, जिससे दिमाग में कन्फ्यूजन और डर पैदा होता है।",
+    solution: "Super Warrior 30 आपको 100% Indicator-Free '20% Clean Price Action & Liquidity' सिखाएगा, जिससे आप किसी गुरु पर निर्भर रहे बिना खुद के दम पर कॉन्फिडेंट ट्रेडर बन सकें।",
+  };
 }
 
 export function QuizResult({ answers, onContinue }: QuizResultProps) {
-  const recommendation = getRecommendation(answers);
+  const { diagnosis, solution } = getRecommendation(answers);
 
   return (
     <div className="space-y-6">
       {/* Success header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500">
-          <CheckCircle2 className="h-6 w-6" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-primary">
+          <Brain className="h-6 w-6" />
         </div>
         <div>
           <h3 className="text-xl font-bold text-foreground">
-            आपका Trading Profile तैयार है
+            आपका Trader Psychology Profile तैयार है
           </h3>
           <p className="text-xs text-muted-foreground">
-            Based on your answers
+            80% Mindset + Risk Management Diagnostic Report
           </p>
         </div>
       </div>
@@ -69,46 +83,56 @@ export function QuizResult({ answers, onContinue }: QuizResultProps) {
             Trading Experience
           </p>
           <p className="text-sm font-bold text-primary">
-            {EXPERIENCE_LABELS[answers.tradingExperience] || answers.tradingExperience}
+            {EXPERIENCE_LABELS[answers.tradingExperience] || answers.tradingExperience || "Trader"}
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Primary Market
+            Target Market
           </p>
           <p className="text-sm font-bold text-primary">
-            {MARKET_LABELS[answers.targetMarket] || answers.targetMarket}
+            {MARKET_LABELS[answers.targetMarket] || answers.targetMarket || "Forex & Crypto"}
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Main Challenge
+            Primary Hurdle
           </p>
-          <p className="text-sm font-bold text-primary">
-            {CHALLENGE_LABELS[answers.mainChallenge] || answers.mainChallenge}
+          <p className="text-sm font-bold text-amber-500">
+            {CHALLENGE_LABELS[answers.mainChallenge] || answers.mainChallenge || "Psychology"}
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4 space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Learning Goal
+            Loss Experience
           </p>
-          <p className="text-sm font-bold text-primary">
-            {answers.learningGoals === "all" ? "Complete Training" : answers.learningGoals}
+          <p className="text-sm font-bold text-red-500">
+            {answers.lossRange === "none" ? "Zero Loss" : answers.lossRange ? `${answers.lossRange}` : "Experienced"}
           </p>
         </div>
       </div>
 
-      {/* Recommendation */}
-      <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 space-y-2">
-        <p className="text-sm font-semibold text-foreground">
-          📊 आपका Analysis:
+      {/* Diagnostic Callout */}
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-3">
+        <div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
+          <ShieldAlert className="h-4 w-4" />
+          <span>🔍 आपका Psychology Diagnosis:</span>
+        </div>
+        <p className="text-xs sm:text-sm text-foreground font-medium leading-relaxed">
+          {diagnosis}
         </p>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {recommendation}
-        </p>
+
+        <div className="border-t border-border/60 pt-2.5 mt-2 space-y-1">
+          <span className="text-[11px] font-bold text-primary flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5" /> Super Warrior 30 Roadmap:
+          </span>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {solution}
+          </p>
+        </div>
       </div>
 
       {/* CTA */}
@@ -117,7 +141,7 @@ export function QuizResult({ answers, onContinue }: QuizResultProps) {
         onClick={onContinue}
         className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-lg hover:bg-primary/90 transition-all cursor-pointer"
       >
-        देखें Super Warrior 30 आपके लिए कैसे काम करेगा
+        Super Warrior 30 का 80/20 सिस्टम देखें
         <ArrowRight className="h-4 w-4" />
       </button>
     </div>
