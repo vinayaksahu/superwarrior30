@@ -27,8 +27,10 @@ import {
   deleteTradeEntryAction,
 } from "@/server/actions/journal.actions";
 import { AdminRiskRulesModal } from "@/components/admin/admin-risk-rules-modal";
-import type { AcademyRiskRules } from "@/types/risk-manager";
-import { DEFAULT_ACADEMY_RISK_RULES } from "@/server/actions/risk-manager.actions";
+import {
+  type AcademyRiskRules,
+  DEFAULT_ACADEMY_RISK_RULES,
+} from "@/types/risk-manager";
 
 interface AdminTrade {
   id: string;
