@@ -74,6 +74,25 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS "psychology_logs" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "date" TEXT NOT NULL,
+        "time" TEXT NOT NULL,
+        "mood" TEXT NOT NULL,
+        "confidence" INTEGER NOT NULL DEFAULT 7,
+        "stress" INTEGER NOT NULL DEFAULT 3,
+        "discipline" INTEGER NOT NULL DEFAULT 8,
+        "notes" TEXT,
+        "checklist" JSONB,
+        "checklistScore" INTEGER NOT NULL DEFAULT 0,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "psychology_logs_userId_idx" ON "psychology_logs"("userId");
+      CREATE INDEX IF NOT EXISTS "psychology_logs_createdAt_idx" ON "psychology_logs"("createdAt" DESC);
+
       CREATE TABLE IF NOT EXISTS "trade_journals" (
         "id" TEXT PRIMARY KEY,
         "userId" TEXT NOT NULL,

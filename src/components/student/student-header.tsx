@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
 import { StudentNotificationBell } from "@/components/student/student-notifications";
 
@@ -106,6 +107,7 @@ export function StudentHeader({ user }: StudentHeaderProps) {
             >
               Browse Courses
             </Link>
+            <LanguageSwitcher variant="header" />
             <ThemeToggle />
             <StudentNotificationBell />
             <div className="text-right hidden sm:flex items-center gap-2">
@@ -219,8 +221,13 @@ export function StudentHeader({ user }: StudentHeaderProps) {
               </div>
             </nav>
 
+            {/* Language & Theme Controls */}
+            <div className="border-t border-border/80 pt-3 mt-3 space-y-2">
+              <LanguageSwitcher variant="mobile" />
+            </div>
+
             {/* Logout Button */}
-            <div className="border-t border-border/80 pt-4 mt-4">
+            <div className="border-t border-border/80 pt-3 mt-3">
               <form action={logoutAction}>
                 <button
                   type="submit"

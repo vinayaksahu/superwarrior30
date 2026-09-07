@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 
 import { EnvironmentSwitcher } from "@/components/admin/environment-switcher";
 import type { AppEnvironment } from "@/lib/env-context";
@@ -152,6 +153,7 @@ export function AdminHeader({
             staffTestingAllowed={staffTestingAllowed}
             initialVisibilityScope={testVisibilityScope}
           />
+          <LanguageSwitcher variant="header" />
           <ThemeToggle />
           <div className="text-right hidden sm:block">
             <p className="text-xs sm:text-sm font-semibold text-foreground">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 
@@ -168,7 +169,8 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
         </nav>
 
         {/* Actions & Theme Toggle */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <LanguageSwitcher variant="header" />
           <ThemeToggle />
 
           <Link
@@ -233,15 +235,18 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
           >
             Contact
           </Link>
-          <div className="border-t border-border pt-3 flex items-center justify-between">
-            <Link
-              href="/login"
-              onClick={() => setMobileOpen(false)}
-              className="text-xs font-bold text-muted-foreground hover:text-foreground"
-            >
-              Sign In
-            </Link>
-            <ThemeToggle showLabel />
+          <div className="border-t border-border pt-3 space-y-3">
+            <LanguageSwitcher variant="mobile" />
+            <div className="flex items-center justify-between">
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="text-xs font-bold text-muted-foreground hover:text-foreground"
+              >
+                Sign In
+              </Link>
+              <ThemeToggle showLabel />
+            </div>
           </div>
         </div>
       )}

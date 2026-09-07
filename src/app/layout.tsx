@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/shared/theme-provider";
+import { LanguageProvider } from "@/components/shared/language-provider";
+import { GlobalFloatingLanguageWidget } from "@/components/shared/global-floating-language-widget";
 import { SessionGuard } from "@/components/auth/session-guard";
 import { MaintenanceGuard } from "@/components/shared/maintenance-guard";
 import "./globals.css";
@@ -56,11 +58,14 @@ export default function RootLayout({
           enableSystem={true}
           disableTransitionOnChange={false}
         >
-          <MaintenanceGuard>
-            {children}
-          </MaintenanceGuard>
-          <SessionGuard />
-          <Toaster richColors position="top-right" />
+          <LanguageProvider>
+            <MaintenanceGuard>
+              {children}
+            </MaintenanceGuard>
+            <SessionGuard />
+            <GlobalFloatingLanguageWidget />
+            <Toaster richColors position="top-right" />
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

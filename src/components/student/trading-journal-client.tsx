@@ -32,6 +32,8 @@ import { toast } from "sonner";
 import { createTradeEntryAction, updateTradeEntryAction } from "@/server/actions/journal.actions";
 import { EconomicNewsView } from "@/components/student/economic-news-view";
 import type { EconomicNewsFeedData } from "@/types/economic-news";
+import { PsychologyLogView } from "@/components/student/psychology-log-view";
+import type { StudentPsychologyData } from "@/types/psychology";
 import { BookMarked } from "lucide-react";
 
 // ==========================================
@@ -162,15 +164,17 @@ interface TradingJournalClientProps {
   initialTrades: Trade[];
   stats: JournalStats | null;
   initialEconomicFeed?: EconomicNewsFeedData;
+  initialPsychologyData?: StudentPsychologyData;
 }
 
 export function TradingJournalClient({
   initialTrades,
   stats,
   initialEconomicFeed,
+  initialPsychologyData,
 }: TradingJournalClientProps) {
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
-  const [activeSection, setActiveSection] = useState<"TRADES" | "NEWS">("TRADES");
+  const [activeSection, setActiveSection] = useState<"TRADES" | "NEWS" | "PSYCHOLOGY">("TRADES");
   const [filter, setFilter] = useState<string>("ALL");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
@@ -739,6 +743,19 @@ export function TradingJournalClient({
             </span>
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection("PSYCHOLOGY")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all cursor-pointer ${
+            activeSection === "PSYCHOLOGY"
+              ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-orange-500/25"
+              : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+        >
+          <span>🧠</span>
+          <span>Psychology Log</span>
+        </button>
       </div>
 
       {activeSection === "NEWS" ? (
@@ -749,6 +766,21 @@ export function TradingJournalClient({
               lastSyncedMs: null,
               syncedBy: null,
               events: [],
+            }
+          }
+        />
+      ) : activeSection === "PSYCHOLOGY" ? (
+        <PsychologyLogView
+          initialData={
+            initialPsychologyData || {
+              entries: [],
+              averages: {
+                avgConfidence: 0,
+                avgStress: 0,
+                avgDiscipline: 0,
+                totalEntries: 0,
+                moodDistribution: { GREAT: 0, NEUTRAL: 0, STRESSED: 0, DOWN: 0 },
+              },
             }
           }
         />
