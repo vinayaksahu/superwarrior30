@@ -15,6 +15,8 @@ import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 import { CourseOffer } from "@/components/funnel/course-offer";
 import { FaqSection } from "@/components/funnel/faq-section";
 import { getFeaturedTradesAction } from "@/server/actions/journal.actions";
+import { getPublicLiveTradesAction } from "@/server/actions/live-trades.actions";
+import { YouTubeLiveTradesShowcase } from "@/components/funnel/youtube-live-trades-showcase";
 import {
   TrendingUp,
   BookOpen,
@@ -177,6 +179,9 @@ export default async function SuperWarrior30FunnelPage({
   // Fetch featured trade journals with screenshots
   const featuredTrades = await getFeaturedTradesAction(9);
 
+  // Fetch YouTube live trades
+  const liveTrades = await getPublicLiveTradesAction({ destination: "LANDING", limit: 6 });
+
   const courseId = course?.id || "";
   const courseTitle = course?.title || "Super Warrior 30";
   const coursePrice = course?.price || 0;
@@ -288,6 +293,9 @@ export default async function SuperWarrior30FunnelPage({
 
       {/* SECTION 7 — Mentor's Personal Commitment & Complete Ecosystem */}
       <MentorAssurance courseId={courseId} />
+
+      {/* SECTION 7.5 — YouTube Live Trading Proofs & Signals */}
+      <YouTubeLiveTradesShowcase trades={liveTrades as any} isLandingPage={true} />
 
       {/* SECTION 8 — Real Verified Student Trade Journals & Screenshots */}
       <VerifiedTradesShowcase trades={featuredTrades as any} />

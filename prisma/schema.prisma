@@ -1515,5 +1515,37 @@ model TradeJournal {
   @@map("trade_journals")
 }
 
+// ==========================================
+// YOUTUBE LIVE TRADE PROOFS & MENTOR SIGNALS
+// ==========================================
 
+model LiveTradeProof {
+  id              String    @id @default(cuid())
+  title           String
+  instrument      String    // e.g. XAUUSD, EURUSD, GBPUSD, BTCUSDT, BANKNIFTY
+  market          String    @default("FOREX")
+  tradeDirection  String    @default("BUY") // BUY, SELL
+  sessionType     String    @default("YouTube Live Session")
+  youtubeUrl      String?
+  screenshotUrl   String
+  slPips          Float     @default(15)
+  gainPips        Float     @default(60)
+  riskRewardRatio String    @default("1:4")
+  status          String    @default("PROFIT_BOOKED") // PROFIT_BOOKED, RUNNING_PROFIT, BREAKEVEN
+  profitAmount    String?   // e.g. "+₹45,000" or "+$1,200" or "+150 Pips"
+  notes           String?   @db.Text
+  showOnHome      Boolean   @default(true)
+  showOnLanding   Boolean   @default(true)
+  showOnDashboard Boolean   @default(true)
+  isFeatured      Boolean   @default(true)
+  displayOrder    Int       @default(0)
+  tradedAt        DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
+  @@index([tradedAt(sort: Desc)])
+  @@index([showOnHome])
+  @@index([showOnLanding])
+  @@index([showOnDashboard])
+  @@map("live_trade_proofs")
+}

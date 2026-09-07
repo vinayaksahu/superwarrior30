@@ -615,6 +615,35 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
       CREATE INDEX IF NOT EXISTS "trade_journals_tradedAt_idx" ON "trade_journals"("tradedAt");
       CREATE INDEX IF NOT EXISTS "trade_journals_status_idx" ON "trade_journals"("status");
       CREATE INDEX IF NOT EXISTS "trade_journals_isFeatured_idx" ON "trade_journals"("isFeatured");
+
+      CREATE TABLE IF NOT EXISTS "live_trade_proofs" (
+        "id" TEXT PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "instrument" TEXT NOT NULL,
+        "market" TEXT NOT NULL DEFAULT 'FOREX',
+        "tradeDirection" TEXT NOT NULL DEFAULT 'BUY',
+        "sessionType" TEXT NOT NULL DEFAULT 'YouTube Live Session',
+        "youtubeUrl" TEXT,
+        "screenshotUrl" TEXT NOT NULL,
+        "slPips" DOUBLE PRECISION NOT NULL DEFAULT 15,
+        "gainPips" DOUBLE PRECISION NOT NULL DEFAULT 60,
+        "riskRewardRatio" TEXT NOT NULL DEFAULT '1:4',
+        "status" TEXT NOT NULL DEFAULT 'PROFIT_BOOKED',
+        "profitAmount" TEXT,
+        "notes" TEXT,
+        "showOnHome" BOOLEAN NOT NULL DEFAULT true,
+        "showOnLanding" BOOLEAN NOT NULL DEFAULT true,
+        "showOnDashboard" BOOLEAN NOT NULL DEFAULT true,
+        "isFeatured" BOOLEAN NOT NULL DEFAULT true,
+        "displayOrder" INTEGER NOT NULL DEFAULT 0,
+        "tradedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "live_trade_proofs_tradedAt_idx" ON "live_trade_proofs"("tradedAt" DESC);
+      CREATE INDEX IF NOT EXISTS "live_trade_proofs_showOnHome_idx" ON "live_trade_proofs"("showOnHome");
+      CREATE INDEX IF NOT EXISTS "live_trade_proofs_showOnLanding_idx" ON "live_trade_proofs"("showOnLanding");
+      CREATE INDEX IF NOT EXISTS "live_trade_proofs_showOnDashboard_idx" ON "live_trade_proofs"("showOnDashboard");
     `);
   } catch {
     // ignore

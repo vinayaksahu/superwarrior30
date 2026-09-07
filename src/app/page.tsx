@@ -25,6 +25,8 @@ import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 import { getFeaturedTradesAction } from "@/server/actions/journal.actions";
 import { VerifiedTradesShowcase } from "@/components/funnel/verified-trades-showcase";
 import { DualIncomeOpportunity } from "@/components/funnel/dual-income-opportunity";
+import { getPublicLiveTradesAction } from "@/server/actions/live-trades.actions";
+import { YouTubeLiveTradesShowcase } from "@/components/funnel/youtube-live-trades-showcase";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +67,7 @@ export default async function HomePage() {
   });
 
   const featuredTrades = await getFeaturedTradesAction(6);
+  const liveTrades = await getPublicLiveTradesAction({ destination: "HOME", limit: 6 });
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
@@ -438,6 +441,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* 8.4. YouTube Live Trading Proofs & Signals */}
+      <YouTubeLiveTradesShowcase trades={liveTrades as any} />
 
       {/* 8.5. Real Verified Student Trade Journals & Screenshots */}
       <VerifiedTradesShowcase trades={featuredTrades as any} />

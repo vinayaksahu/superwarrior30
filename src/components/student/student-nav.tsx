@@ -14,6 +14,7 @@ import {
   LifeBuoy,
   Star,
   BookMarked,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
   { href: "/dashboard/journal", label: "Trading Journal", icon: BookMarked },
+  { href: "/dashboard/live-proofs", label: "YouTube Live Trades", icon: Video },
   { href: "/dashboard/live", label: "Live Classes", icon: Radio },
   { href: "/dashboard/cashbacks", label: "Broker Cashbacks", icon: Sparkles },
   { href: "/dashboard/testimonials", label: "Review", icon: Star },

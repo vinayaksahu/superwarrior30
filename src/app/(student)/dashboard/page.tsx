@@ -16,8 +16,10 @@ import {
   Clock,
   Award,
   RotateCcw,
+  Video,
 } from "lucide-react";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
+import { getPublicLiveTradesAction } from "@/server/actions/live-trades.actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -35,9 +37,10 @@ export default async function StudentDashboardPage() {
   let referralCount = 0;
   let pendingOrders: any[] = [];
   let homeworkList: Awaited<ReturnType<typeof getStudentHomeworkDashboardListAction>> = [];
+  let liveTrades: any[] = [];
 
   try {
-    const [courses, wallet, referrals, pending, homeworks] = await Promise.all([
+    const [courses, wallet, referrals, pending, homeworks, liveProofTrades] = await Promise.all([
       getUserEnrolledCoursesAction().catch((err) => {
         console.error("[Dashboard] Error fetching enrolled courses:", {
           userId: user.id,
@@ -91,6 +94,10 @@ export default async function StudentDashboardPage() {
         console.error("[Dashboard] Error fetching homework list:", err);
         return [];
       }),
+      getPublicLiveTradesAction({ destination: "DASHBOARD", limit: 3 }).catch((err) => {
+        console.error("[Dashboard] Error fetching live trades:", err);
+        return [];
+      }),
     ]);
 
     enrolledCourses = courses || [];
@@ -99,6 +106,7 @@ export default async function StudentDashboardPage() {
     referralCount = referrals || 0;
     pendingOrders = pending || [];
     homeworkList = homeworks || [];
+    liveTrades = liveProofTrades || [];
   } catch (error) {
     console.error("Error loading student dashboard:", error);
   }
@@ -334,6 +342,97 @@ export default async function StudentDashboardPage() {
           </div>
         ) : null}
       </div>
+
+      {/* ========================================================
+          MENTOR YOUTUBE LIVE TRADES & CHART PROOFS SECTION
+      ======================================================== */}
+      {liveTrades.length > 0 && (
+        <div className="rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-500/5 via-card to-card p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-500">
+                  <Video className="h-4 w-4 animate-pulse" />
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight">
+                  Mentor Rahul Sir's YouTube Live Trades
+                </h2>
+                <span className="rounded-full bg-red-500/10 border border-red-500/20 px-2.5 py-0.5 text-[10px] font-black text-red-500 uppercase">
+                  15-30 Pips Minor SL
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                लाइव यूट्यूब स्ट्रीम में 15-30 Pips SL से 1:3 से 1:40+ Sky-High R:R ट्रेड्स का पूरा चार्ट रिकॉर्ड और एनालिसिस
+              </p>
+            </div>
+
+            <Link
+              href="/dashboard/live-proofs"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-red-400 hover:underline shrink-0"
+            >
+              <span>View All Live Trades ({liveTrades.length}+)</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {liveTrades.slice(0, 3).map((trade) => (
+              <Link
+                key={trade.id}
+                href="/dashboard/live-proofs"
+                className="group flex flex-col justify-between rounded-xl border border-border/80 bg-background/60 p-4 space-y-3 hover:border-red-500/40 hover:bg-background transition-all"
+              >
+                <div className="space-y-2.5">
+                  <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-border bg-black/40">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={trade.screenshotUrl}
+                      alt={trade.title}
+                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <span className="absolute top-2 right-2 rounded-md bg-black/85 border border-primary/40 px-2 py-0.5 text-[10px] font-mono font-black text-primary">
+                      {trade.riskRewardRatio} R:R
+                    </span>
+                    <span
+                      className={`absolute top-2 left-2 rounded-md px-2 py-0.5 text-[9px] font-black uppercase text-white ${
+                        trade.status === "PROFIT_BOOKED"
+                          ? "bg-emerald-500"
+                          : trade.status === "RUNNING_PROFIT"
+                          ? "bg-blue-600 animate-pulse"
+                          : "bg-amber-500"
+                      }`}
+                    >
+                      {trade.status.replace(/_/g, " ")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-foreground">{trade.instrument}</span>
+                      <span className="font-mono text-[11px] font-black text-emerald-500">
+                        +{trade.gainPips} Pips
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                      {trade.title}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/40 p-2 text-[10px] font-mono">
+                    <span className="text-red-400 font-semibold">SL: {trade.slPips} Pips</span>
+                    <span className="text-right text-emerald-500 font-semibold">Gain: +{trade.gainPips} Pips</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>View Chart &amp; Notes</span>
+                  <ArrowRight className="h-3 w-3 text-red-500 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================
           HOMEWORK & PRACTICAL ASSIGNMENTS SECTION

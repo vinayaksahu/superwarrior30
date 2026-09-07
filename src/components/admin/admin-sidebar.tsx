@@ -33,6 +33,7 @@ import {
   Award,
   HelpCircle,
   BookMarked,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -102,6 +103,12 @@ export const allSidebarLinks: SidebarLink[] = [
     label: "Trading Journals",
     icon: BookMarked,
     requiredPermission: "students.view",
+  },
+  {
+    href: "/admin/live-trade-proofs",
+    label: "YouTube Live Trades",
+    icon: Video,
+    requiredPermission: "courses.view",
   },
   {
     href: "/admin/referrals",
