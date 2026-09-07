@@ -26,7 +26,7 @@ export interface LiveTradeProofInput {
   tradedAt?: string | Date;
 }
 
-export const DEFAULT_SAMPLE_TRADES = [
+const DEFAULT_SAMPLE_TRADES = [
   {
     id: "sample-yt-1",
     title: "XAUUSD Gold 15 Pips Minor SL to 180 Pips Blast",
