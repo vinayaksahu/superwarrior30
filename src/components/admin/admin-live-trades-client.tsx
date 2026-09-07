@@ -27,8 +27,8 @@ import {
   createLiveTradeProofAction,
   updateLiveTradeProofAction,
   deleteLiveTradeProofAction,
-  type LiveTradeProofInput,
 } from "@/server/actions/live-trades.actions";
+import type { LiveTradeProofInput } from "@/types";
 
 export interface LiveTradeProofRecord {
   id: string;

@@ -4,27 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/server/dal/auth";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import type { LiveTradeProofInput } from "@/types";
 
-export interface LiveTradeProofInput {
-  title: string;
-  instrument: string;
-  market?: string;
-  tradeDirection: "BUY" | "SELL";
-  sessionType?: string;
-  youtubeUrl?: string;
-  screenshotUrl: string;
-  slPips: number;
-  gainPips: number;
-  riskRewardRatio?: string;
-  status?: "PROFIT_BOOKED" | "RUNNING_PROFIT" | "BREAKEVEN";
-  profitAmount?: string;
-  notes?: string;
-  showOnHome?: boolean;
-  showOnLanding?: boolean;
-  showOnDashboard?: boolean;
-  isFeatured?: boolean;
-  tradedAt?: string | Date;
-}
 
 const DEFAULT_SAMPLE_TRADES = [
   {

@@ -4,28 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireAdmin } from "@/server/dal/auth";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import type { CreateTradeInput } from "@/types";
 
-export interface CreateTradeInput {
-  instrument: string;
-  market?: string;
-  direction: "BUY" | "SELL";
-  entryPrice: number;
-  exitPrice?: number;
-  stopLoss: number;
-  takeProfit: number;
-  lotSize?: number;
-  riskAmount?: number;
-  pnl?: number;
-  status?: "OPEN" | "CLOSED" | "CANCELLED";
-  outcome?: "WIN" | "LOSS" | "BREAKEVEN" | "PENDING";
-  riskRewardRatio?: string;
-  setupReason?: string;
-  emotions?: string;
-  mistakes?: string;
-  notes?: string;
-  screenshotUrl?: string;
-  tradedAt?: string;
-}
 
 // ==========================================
 // 1. STUDENT: GET JOURNAL & STATS
