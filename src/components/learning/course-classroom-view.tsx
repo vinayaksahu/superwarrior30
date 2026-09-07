@@ -116,12 +116,14 @@ export function CourseClassroomView({
     setProgressMap(initialProgressMap);
   }, [initialProgressMap]);
 
-  // Sync activeLessonId if prop changes
+  // Sync activeLessonId only when the server prop itself changes
+  const prevActiveLessonIdRef = useRef(activeLessonId);
   useEffect(() => {
-    if (activeLessonId && activeLessonId !== currentLessonId) {
+    if (activeLessonId && activeLessonId !== prevActiveLessonIdRef.current) {
+      prevActiveLessonIdRef.current = activeLessonId;
       setCurrentLessonId(activeLessonId);
     }
-  }, [activeLessonId, currentLessonId]);
+  }, [activeLessonId]);
 
   // Handle browser back/forward buttons
   useEffect(() => {
