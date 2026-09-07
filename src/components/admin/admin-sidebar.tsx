@@ -34,6 +34,7 @@ import {
   HelpCircle,
   BookMarked,
   Video,
+  Calendar,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -102,6 +103,12 @@ export const allSidebarLinks: SidebarLink[] = [
     href: "/admin/journal",
     label: "Trading Journals",
     icon: BookMarked,
+    requiredPermission: "students.view",
+  },
+  {
+    href: "/admin/economic-news",
+    label: "Economic News",
+    icon: Calendar,
     requiredPermission: "students.view",
   },
   {

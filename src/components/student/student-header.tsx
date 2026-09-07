@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
+import { StudentNotificationBell } from "@/components/student/student-notifications";
 
 interface StudentHeaderProps {
   user: {
@@ -106,6 +107,7 @@ export function StudentHeader({ user }: StudentHeaderProps) {
               Browse Courses
             </Link>
             <ThemeToggle />
+            <StudentNotificationBell />
             <div className="text-right hidden sm:flex items-center gap-2">
               <p className="text-xs font-bold text-foreground truncate max-w-[150px]">
                 {user.name || user.email.split("@")[0]}

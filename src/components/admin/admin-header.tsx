@@ -29,6 +29,7 @@ import {
   Trash2,
   BookMarked,
   Video,
+  Calendar,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,7 @@ const mobileNavLinks: MobileNavLink[] = [
   { href: "/admin/live-sessions", label: "Live Sessions", icon: Radio, requiredPermission: "live_sessions.view" },
   { href: "/admin/students", label: "Students", icon: Users, requiredPermission: "students.view" },
   { href: "/admin/journal", label: "Trading Journals", icon: BookMarked, requiredPermission: "students.view" },
+  { href: "/admin/economic-news", label: "Economic News", icon: Calendar, requiredPermission: "students.view" },
   { href: "/admin/live-trade-proofs", label: "YouTube Live Trades", icon: Video, requiredPermission: "courses.view" },
   { href: "/admin/referrals", label: "Affiliate", icon: GitBranch, requiredPermission: "affiliate.view" },
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart, requiredPermission: "orders.view" },

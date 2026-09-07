@@ -30,6 +30,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { createTradeEntryAction, updateTradeEntryAction } from "@/server/actions/journal.actions";
+import { EconomicNewsView } from "@/components/student/economic-news-view";
+import type { EconomicNewsFeedData } from "@/types/economic-news";
+import { BookMarked } from "lucide-react";
 
 // ==========================================
 // INSTRUMENT CONFIGURATIONS & PIP SIZES
@@ -158,13 +161,16 @@ interface JournalStats {
 interface TradingJournalClientProps {
   initialTrades: Trade[];
   stats: JournalStats | null;
+  initialEconomicFeed?: EconomicNewsFeedData;
 }
 
 export function TradingJournalClient({
   initialTrades,
   stats,
+  initialEconomicFeed,
 }: TradingJournalClientProps) {
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
+  const [activeSection, setActiveSection] = useState<"TRADES" | "NEWS">("TRADES");
   const [filter, setFilter] = useState<string>("ALL");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
@@ -662,6 +668,9 @@ export function TradingJournalClient({
     });
   };
 
+  const highImpactCount =
+    initialEconomicFeed?.events.filter((e) => e.impact === "High").length || 0;
+
   const filteredTrades = trades.filter((t) => {
     if (filter === "ALL") return true;
     if (filter === "WINS") return t.outcome === "WIN";
@@ -677,10 +686,10 @@ export function TradingJournalClient({
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Brain className="h-6 w-6 text-primary" />
-            My Trading Journal & Discipline Tracker
+            My Trading Journal &amp; Discipline Tracker
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Record every trade, calculate risk:reward, track emotions, and receive direct mentor reviews.
+            Record every trade, calculate risk:reward, track emotions, and follow real-time economic news.
           </p>
         </div>
 
@@ -694,7 +703,58 @@ export function TradingJournalClient({
         </button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Top Section Navigation: Trade Log vs Economic News */}
+      <div className="flex items-center gap-2 border-b border-border/80 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveSection("TRADES")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all cursor-pointer ${
+            activeSection === "TRADES"
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+              : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+        >
+          <BookMarked className="h-4 w-4" />
+          Trade Log &amp; Analytics
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection("NEWS")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all cursor-pointer ${
+            activeSection === "NEWS"
+              ? "bg-red-500 text-white shadow-md shadow-red-500/20"
+              : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+        >
+          <Calendar className="h-4 w-4" />
+          📅 Economic News &amp; Calendar
+          {highImpactCount > 0 && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                activeSection === "NEWS" ? "bg-white text-red-600" : "bg-red-500 text-white"
+              }`}
+            >
+              {highImpactCount} High
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeSection === "NEWS" ? (
+        <EconomicNewsView
+          feedData={
+            initialEconomicFeed || {
+              lastSyncedAt: null,
+              lastSyncedMs: null,
+              syncedBy: null,
+              events: [],
+            }
+          }
+        />
+      ) : (
+        <>
+          {/* Stats Cards */}
       {stats && (
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-5">
           <div className="rounded-2xl border border-border bg-card p-4 space-y-1">
@@ -944,6 +1004,8 @@ export function TradingJournalClient({
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* Log Trade Modal */}
       {showModal && (() => {
