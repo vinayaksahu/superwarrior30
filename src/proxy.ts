@@ -42,8 +42,49 @@ function isPublicRoute(pathname: string): boolean {
   return false;
 }
 
+const SHORT_LINKS: Record<string, string> = {
+  "/yt": "/super-warrior-30?utm_source=youtube&utm_medium=video&utm_campaign=sw30",
+  "/youtube": "/super-warrior-30?utm_source=youtube&utm_medium=video&utm_campaign=sw30",
+  "/ig": "/super-warrior-30?utm_source=instagram&utm_medium=bio&utm_campaign=sw30",
+  "/instagram": "/super-warrior-30?utm_source=instagram&utm_medium=bio&utm_campaign=sw30",
+  "/bio": "/super-warrior-30?utm_source=instagram&utm_medium=bio&utm_campaign=sw30",
+  "/story": "/super-warrior-30?utm_source=instagram&utm_medium=story&utm_campaign=sw30_daily",
+  "/reel": "/super-warrior-30?utm_source=instagram&utm_medium=reels&utm_campaign=sw30_reels",
+  "/reels": "/super-warrior-30?utm_source=instagram&utm_medium=reels&utm_campaign=sw30_reels",
+  "/tg": "/super-warrior-30?utm_source=telegram&utm_medium=channel&utm_campaign=sw30",
+  "/telegram": "/super-warrior-30?utm_source=telegram&utm_medium=channel&utm_campaign=sw30",
+  "/wa": "/super-warrior-30?utm_source=whatsapp&utm_medium=broadcast&utm_campaign=sw30",
+  "/whatsapp": "/super-warrior-30?utm_source=whatsapp&utm_medium=broadcast&utm_campaign=sw30",
+  "/fb": "/super-warrior-30?utm_source=facebook&utm_medium=post&utm_campaign=sw30",
+  "/facebook": "/super-warrior-30?utm_source=facebook&utm_medium=post&utm_campaign=sw30",
+  "/ads": "/super-warrior-30?utm_source=facebook&utm_medium=paid_ad&utm_campaign=sw30_meta_ads",
+  "/sw30": "/super-warrior-30?utm_source=direct&utm_medium=shortlink&utm_campaign=sw30",
+};
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const lowerPath = pathname.toLowerCase();
+
+  // 0. High-speed Short Link Redirects
+  const shortTarget = SHORT_LINKS[lowerPath];
+  if (shortTarget) {
+    const targetUrl = new URL(shortTarget, request.nextUrl);
+    request.nextUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.set(key, value);
+    });
+    return NextResponse.redirect(targetUrl, 307);
+  }
+
+  if (lowerPath.startsWith("/go/")) {
+    const code = lowerPath.replace(/^\/go\//, "");
+    const preset = SHORT_LINKS[`/${code}`];
+    const target = preset || `/super-warrior-30?utm_source=${encodeURIComponent(code)}&utm_medium=shortlink&utm_campaign=${encodeURIComponent(code)}`;
+    const targetUrl = new URL(target, request.nextUrl);
+    request.nextUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.set(key, value);
+    });
+    return NextResponse.redirect(targetUrl, 307);
+  }
 
   const isPublic = isPublicRoute(pathname);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
