@@ -93,7 +93,7 @@ export function FunnelClient({
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               <div className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary shadow-sm">
                 <span>🎯</span>
-                <span>15-20-30 Pts Minor SL</span>
+                <span>15-20-30 Pips Minor SL</span>
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-500 shadow-sm">
                 <span>🚀</span>
@@ -128,7 +128,7 @@ export function FunnelClient({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Minor 15-30 Pts SL • 1:2 to 1:40+ Sky High R:R • 60-90% Win-Rate • In-App Journaling Tracked by Mentor
+              Minor 15-30 Pips SL • 1:2 to 1:40+ Sky High R:R • 60-90% Win-Rate • In-App Journaling Tracked by Mentor
             </p>
           </div>
         </div>

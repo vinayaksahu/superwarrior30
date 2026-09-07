@@ -47,7 +47,7 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
       num: "04",
       icon: TrendingUp,
       title: "Systematic Capital Growth Blueprint",
-      desc: "छोटे कैपिटल को बिना जुआ खेले 15-30 pts SL और 1:3 से 1:10+ R:R के साथ सेफली कंपाउंड करने का स्ट्रक्चर्ड फॉर्मूला।",
+      desc: "छोटे कैपिटल को बिना जुआ खेले 15-30 Pips SL और 1:3 से 1:10+ R:R के साथ सेफली कंपाउंड करने का स्ट्रक्चर्ड फॉर्मूला।",
       badge: "Capital Protection",
     },
     {
@@ -96,7 +96,7 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
           </div>
 
           <blockquote className="text-base sm:text-lg md:text-xl font-medium text-foreground leading-relaxed italic">
-            "जब आप हमारे Super Warrior 30 Mentorship Program से जुड़ते हैं, तो आपको Strategy और Trade ढूँढने की <strong>कोई टेंशन नहीं लेनी है</strong>। यहाँ आपको सिर्फ <strong>15-20-30 (Max) Points के Minor Stop-Loss</strong> के साथ <strong>1:2, 1:3 (Min)</strong> से लेकर <strong>1:5, 1:6 ... 1:10, 1:20, 1:30, 1:40... 'Sky High is the Limit'</strong> का असाधारण Risk-Reward ट्रेड मिलता है — वो भी <strong>60% से 90% की Average Accuracy</strong> के साथ! चाहे Scalping हो, Intraday हो या Swing Trading। असली चुनौती ट्रेड नहीं, बल्कि <strong>Psychology का Trap</strong> है — और उस ट्रैप से बाहर निकालना ही हम सिखाते हैं, वो भी प्रॉपर <strong>In-App Trading Journal System</strong> के साथ जो सीधे <strong>Mentor/Admin द्वारा ट्रैक</strong> किया जाता है!"
+            "जब आप हमारे Super Warrior 30 Mentorship Program से जुड़ते हैं, तो आपको Strategy और Trade ढूँढने की <strong>कोई टेंशन नहीं लेनी है</strong>। यहाँ आपको सिर्फ <strong>15-20-30 (Max) Pips के Minor Stop-Loss</strong> के साथ <strong>1:2, 1:3 (Min)</strong> से लेकर <strong>1:5, 1:6 ... 1:10, 1:20, 1:30, 1:40... 'Sky High is the Limit'</strong> का असाधारण Risk-Reward ट्रेड मिलता है — वो भी <strong>60% से 90% की Average Accuracy</strong> के साथ! चाहे Scalping हो, Intraday हो या Swing Trading। असली चुनौती ट्रेड नहीं, बल्कि <strong>Psychology का Trap</strong> है — और उस ट्रैप से बाहर निकालना ही हम सिखाते हैं, वो भी प्रॉपर <strong>In-App Trading Journal System</strong> के साथ जो सीधे <strong>Mentor/Admin द्वारा ट्रैक</strong> किया जाता है!"
           </blockquote>
 
           {/* 4 Core Pillars of Asymmetric Trading */}
@@ -106,7 +106,7 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
                 <Crosshair className="h-4 w-4" />
                 <span className="text-[11px] font-extrabold uppercase tracking-wider">Minor SL</span>
               </div>
-              <p className="text-base sm:text-lg font-black text-foreground">15 - 20 - 30 Pts</p>
+              <p className="text-base sm:text-lg font-black text-foreground">15 - 20 - 30 Pips</p>
               <p className="text-[10px] text-muted-foreground">Maximum चोक-प्रूफ छोटा SL</p>
             </div>
 
@@ -181,7 +181,7 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
                 <span>1. Strategy & Trade Setup (हमारा काम):</span>
               </div>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                मार्केट में ट्रेड कहाँ लेना है, कब लेना है और स्टॉप लॉस कहाँ रखना है — इसके लिए आपको कोई सिरदर्द नहीं लेना। हमारे प्रूवन इंस्टीट्यूशनल फॉर्मूले में सिर्फ <strong>15 से 30 पॉइंट्स (Max)</strong> का छोटा रिस्क होता है, और टारगेट <strong>1:3, 1:5 से लेकर 1:20, 1:40+ तक</strong> राइड किया जाता है। Scalping, Intraday और Swing तीनों में 60% से 90% की एवरेज एक्यूरेसी रहती है।
+                मार्केट में ट्रेड कहाँ लेना है, कब लेना है और स्टॉप लॉस कहाँ रखना है — इसके लिए आपको कोई सिरदर्द नहीं लेना। हमारे प्रूवन इंस्टीट्यूशनल फॉर्मूले में सिर्फ <strong>15 से 30 Pips (Max)</strong> का छोटा रिस्क होता है, और टारगेट <strong>1:3, 1:5 से लेकर 1:20, 1:40+ तक</strong> राइड किया जाता है। Scalping, Intraday और Swing तीनों में 60% से 90% की एवरेज एक्यूरेसी रहती है।
               </p>
             </div>
 
@@ -270,7 +270,7 @@ export function MentorAssurance({ courseId }: { courseId?: string }) {
                 ✅ Super Warrior 30 लूप (मेंटरशिप के साथ):
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                15-30 Pts Minor SL और 1:3 से 1:20+ R:R Setup → <strong>In-App Trading Journal में रिकॉर्ड</strong> → <strong>Admin/Mentor द्वारा Live Tracking & Feedback</strong> → Psychology Trap ब्रेक → <strong>Disciplined Capital Growth!</strong>
+                15-30 Pips Minor SL और 1:3 से 1:20+ R:R Setup → <strong>In-App Trading Journal में रिकॉर्ड</strong> → <strong>Admin/Mentor द्वारा Live Tracking & Feedback</strong> → Psychology Trap ब्रेक → <strong>Disciplined Capital Growth!</strong>
               </p>
             </div>
           </div>

@@ -167,10 +167,10 @@ export function PsychologyBreakdown() {
             ⚡ Asymmetric Risk-Reward Math
           </div>
           <h3 className="text-lg sm:text-2xl font-black text-foreground">
-            15-30 Pts Minor SL और 1:3 से 1:40+ Sky High R:R का जादुई गणित!
+            15-30 Pips Minor SL और 1:3 से 1:40+ Sky High R:R का जादुई गणित!
           </h3>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl mx-auto">
-            Super Warrior 30 में आपको <strong>60% से 90% की Average Accuracy</strong> वाले Institutional Setups मिलते हैं। जब आपका SL सिर्फ 15 से 30 पॉइंट्स का होता है, तो आपका नुकसान न के बराबर होता है और एक अकेला 1:10 या 1:20 ट्रेड दर्जनों छोटे नुकसानों को एक झटके में कवर कर देता है:
+            Super Warrior 30 में आपको <strong>60% से 90% की Average Accuracy</strong> वाले Institutional Setups मिलते हैं। जब आपका SL सिर्फ 15 से 30 Pips का होता है, तो आपका नुकसान न के बराबर होता है और एक अकेला 1:10 या 1:20 ट्रेड दर्जनों छोटे नुकसानों को एक झटके में कवर कर देता है:
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto py-2">

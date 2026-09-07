@@ -310,7 +310,7 @@ export default async function SuperWarrior30FunnelPage({
                 {[
                   "आप Revenge Trading और Overtrading को हमेशा के लिए खत्म करना चाहते हैं",
                   "आप Profit में जल्दी भागने और Loss में बैठे रहने की आदत तोड़ना चाहते हैं",
-                  "आप 15-30 Pts Minor SL और 1:3 से 1:40+ Sky High Risk:Reward के साथ Capital Compound करना चाहते हैं",
+                  "आप 15-30 Pips Minor SL और 1:3 से 1:40+ Sky High Risk:Reward के साथ Capital Compound करना चाहते हैं",
                   "आप Scalping, Intraday और Swing तीनों में 60% से 90% Win-Rate Accuracy पाना चाहते हैं",
                   "आप In-App Trading Journal के ज़रिए Admin/Mentor की निगरानी में अपनी Psychology को मास्टर करना चाहते हैं",
                   "आप Telegram Signals छोड़कर खुद एक Independent Trader बनना चाहते हैं",

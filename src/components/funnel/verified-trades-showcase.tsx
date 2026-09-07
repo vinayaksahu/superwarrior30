@@ -45,7 +45,7 @@ interface VerifiedTradesShowcaseProps {
 export function VerifiedTradesShowcase({
   trades = [],
   title = "Real Student Trade Verifications • Live Trading Journal",
-  subtitle = "देखें कैसे मेंटर राहुल की गाइडेंस में स्टूडेंट्स 15-30 Pts SL और 1:3 से 1:20+ R:R के साथ लाइव मार्केट में ट्रेड्स निकाल रहे हैं",
+  subtitle = "देखें कैसे मेंटर राहुल की गाइडेंस में स्टूडेंट्स 15-30 Pips SL और 1:3 से 1:20+ R:R के साथ लाइव मार्केट में ट्रेड्स निकाल रहे हैं",
 }: VerifiedTradesShowcaseProps) {
   const [activeLightbox, setActiveLightbox] = useState<VerifiedTradeItem | null>(null);
 
@@ -68,7 +68,7 @@ export function VerifiedTradesShowcase({
             outcome: "WIN",
             emotions: "CALM",
             screenshotUrl: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&auto=format&fit=crop&q=80",
-            mentorFeedback: "बिल्कुल सही 15m Liquidity sweep पर एंट्री। 4.5 pts का छोटा SL और 1:5.7 R:R का बेहतरीन एग्जीक्यूशन!",
+            mentorFeedback: "बिल्कुल सही 15m Liquidity sweep पर एंट्री। 4.5 Pips का छोटा SL और 1:5.7 R:R का बेहतरीन एग्जीक्यूशन!",
             tradedAt: new Date(),
             user: { name: "Aman Sharma" },
           },
