@@ -60,7 +60,7 @@ export async function GET(
         where: {
           userId: user.id,
           courseId: lesson.module.course.id,
-          status: "ACTIVE",
+          status: { in: ["ACTIVE", "COMPLETED"] as any },
         },
       });
 

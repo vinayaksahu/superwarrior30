@@ -22,12 +22,12 @@ export async function checkUserEnrollment(courseId: string): Promise<boolean> {
       where: {
         userId: user.id,
         courseId,
-        status: "ACTIVE",
+        status: { in: ["ACTIVE", "COMPLETED"] as any },
       },
       select: { status: true },
     });
 
-    if (enrollment?.status === "ACTIVE") return true;
+    if (enrollment) return true;
 
     // Check if user has a PAID order for this course
     const paidOrder = await prisma.order.findFirst({

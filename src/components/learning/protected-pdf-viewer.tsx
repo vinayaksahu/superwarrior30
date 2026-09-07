@@ -29,16 +29,32 @@ function setWorkerSrc(pdfjsLib: any, useCdn = false) {
 
 function injectScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    const win = typeof window !== "undefined" ? (window as any) : null;
+    if (win?.pdfjsLib) {
+      resolve();
+      return;
+    }
     const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
     if (existing) {
+      if ((existing as any).loaded || (existing as any).readyState === "complete" || (existing as any).readyState === "loaded") {
+        resolve();
+        return;
+      }
       existing.addEventListener("load", () => resolve(), { once: true });
       existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), { once: true });
+      // Safety timeout in case load event already fired before listener was attached
+      setTimeout(() => {
+        if (win?.pdfjsLib) resolve();
+      }, 100);
       return;
     }
     const script = document.createElement("script");
     script.src = src;
     script.async = true;
-    script.onload = () => resolve();
+    script.onload = () => {
+      (script as any).loaded = true;
+      resolve();
+    };
     script.onerror = () => {
       script.remove();
       reject(new Error(`Failed to load ${src}`));

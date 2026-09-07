@@ -35,6 +35,7 @@ interface LessonInfo {
   contentType: string;
   durationSec: number;
   isFreePreview?: boolean;
+  textContent?: string | null;
 }
 
 interface ModuleInfo {
@@ -138,23 +139,12 @@ export function CourseClassroomView({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [currentLessonId, modules]);
 
-  // Instant Lesson Switcher — pure client-side, no server roundtrip
-  const handleSelectLesson = useCallback(
-    (lessonId: string) => {
-      if (lessonId === currentLessonId) return;
-      setCurrentLessonId(lessonId);
-      window.history.pushState(null, "", `/learn/${courseSlug}/${lessonId}`);
-      setIsMobileDrawerOpen(false);
-    },
-    [currentLessonId, courseSlug]
-  );
-
   // Flatten all lessons across modules for dynamic next/previous navigation
   const flatLessons = useMemo(() => {
-    const list: { id: string; title: string }[] = [];
+    const list: LessonInfo[] = [];
     for (const mod of modules) {
       for (const lesson of mod.lessons || []) {
-        list.push({ id: lesson.id, title: lesson.title });
+        list.push(lesson);
       }
     }
     return list;
@@ -166,6 +156,50 @@ export function CourseClassroomView({
     currentLessonIndex >= 0 && currentLessonIndex < flatLessons.length - 1
       ? flatLessons[currentLessonIndex + 1].id
       : undefined;
+
+  // Instant Lesson Switcher — pure client-side, instant 0ms transition
+  const handleSelectLesson = useCallback(
+    (lessonId: string) => {
+      if (lessonId === currentLessonId) return;
+      setCurrentLessonId(lessonId);
+      window.history.pushState(null, "", `/learn/${courseSlug}/${lessonId}`);
+      setIsMobileDrawerOpen(false);
+
+      const targetLesson = flatLessons.find((l) => l.id === lessonId);
+      if (targetLesson) {
+        // 1. Instant cache hit
+        const cached = mediaCacheRef.current.get(lessonId);
+        if (cached) {
+          setMediaData(cached);
+          setLoading(false);
+          return;
+        }
+
+        // 2. Instant zero-latency render for PDF, QUIZ, ASSIGNMENT, TEXT (no server action needed)
+        if (targetLesson.contentType !== "VIDEO") {
+          const nonVideoMedia: MediaData = {
+            lessonId: targetLesson.id,
+            title: targetLesson.title,
+            contentType: targetLesson.contentType,
+            textContent: targetLesson.textContent || null,
+            signedUrl: null,
+            durationSec: targetLesson.durationSec || 0,
+            lastPositionSeconds: progressMap[targetLesson.id]?.lastPositionSeconds || 0,
+            watchTimeSeconds: progressMap[targetLesson.id]?.watchTimeSeconds || 0,
+            status: progressMap[targetLesson.id]?.status || "NOT_STARTED",
+          };
+          mediaCacheRef.current.set(lessonId, nonVideoMedia);
+          setMediaData(nonVideoMedia);
+          setLoading(false);
+          return;
+        }
+
+        // 3. For VIDEO without cache, clear old player and show loader
+        setLoading(true);
+      }
+    },
+    [currentLessonId, courseSlug, flatLessons, progressMap]
+  );
 
   // Compute total lessons
   const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
@@ -216,7 +250,27 @@ export function CourseClassroomView({
       return;
     }
 
-    // 3. Cache miss: fetch from server action
+    // 3. Fast-path non-video lessons (PDF, QUIZ, ASSIGNMENT, TEXT)
+    const targetLesson = flatLessons.find((l) => l.id === currentLessonId);
+    if (targetLesson && targetLesson.contentType !== "VIDEO") {
+      const nonVideoMedia: MediaData = {
+        lessonId: targetLesson.id,
+        title: targetLesson.title,
+        contentType: targetLesson.contentType,
+        textContent: targetLesson.textContent || null,
+        signedUrl: null,
+        durationSec: targetLesson.durationSec || 0,
+        lastPositionSeconds: progressMap[targetLesson.id]?.lastPositionSeconds || 0,
+        watchTimeSeconds: progressMap[targetLesson.id]?.watchTimeSeconds || 0,
+        status: progressMap[targetLesson.id]?.status || "NOT_STARTED",
+      };
+      mediaCacheRef.current.set(currentLessonId, nonVideoMedia);
+      setMediaData(nonVideoMedia);
+      setLoading(false);
+      return;
+    }
+
+    // 4. Cache miss for video: fetch signed streaming URL
     setLoading(true);
 
     async function fetchMedia() {
@@ -245,7 +299,7 @@ export function CourseClassroomView({
     return () => {
       isMounted = false;
     };
-  }, [currentLessonId, courseSlug, mediaData?.lessonId]);
+  }, [currentLessonId, courseSlug, flatLessons, progressMap, mediaData?.lessonId]);
 
   // Background prefetch for adjacent lesson media (0ms transitions)
   useEffect(() => {
