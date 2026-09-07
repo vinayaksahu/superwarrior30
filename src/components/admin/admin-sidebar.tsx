@@ -314,7 +314,7 @@ export function AdminSidebar({
                       const ChildIcon = child.icon;
                       const isActive = child.exact
                         ? pathname === child.href
-                        : pathname.startsWith(child.href);
+                        : pathname === child.href || pathname.startsWith(`${child.href}/`);
 
                       return (
                         <Link
@@ -341,7 +341,7 @@ export function AdminSidebar({
           const isActive =
             link.href === "/admin"
               ? pathname === "/admin"
-              : pathname.startsWith(link.href);
+              : pathname === link.href || pathname.startsWith(`${link.href}/`);
 
           return (
             <Link

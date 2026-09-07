@@ -41,7 +41,7 @@ export function StudentNav() {
       {navLinks.map((link) => {
         const isActive =
           pathname === link.href ||
-          (link.href !== "/dashboard" && pathname.startsWith(link.href));
+          (link.href !== "/dashboard" && pathname.startsWith(`${link.href}/`));
         return (
           <Link
             key={link.href}
