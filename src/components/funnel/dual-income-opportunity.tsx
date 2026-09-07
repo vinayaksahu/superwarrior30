@@ -36,8 +36,8 @@ export function DualIncomeOpportunity({
           </div>
 
           <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground leading-tight">
-            शुरुआत में Trading Psychology मजबूत रखने के लिए{" "}
-            <span className="bg-gradient-to-r from-amber-500 via-primary to-emerald-400 bg-clip-text text-transparent">
+            शुरुआत में <span translate="no" className="notranslate">Trading Psychology</span> मजबूत रखने के लिए{" "}
+            <span translate="no" className="notranslate bg-gradient-to-r from-amber-500 via-primary to-emerald-400 bg-clip-text text-transparent">
               2nd Source of Income
             </span>{" "}
             होना अनिवार्य है!
@@ -45,7 +45,7 @@ export function DualIncomeOpportunity({
 
           <p className="text-xs sm:text-base text-muted-foreground leading-relaxed">
             अन्यथा एक छोटी सी गलती या लॉस आपकी पूरी ट्रेडिंग जर्नी को सालों पीछे धकेल सकती है।
-            जानिए कैसे Super Warrior 30 आपको <strong>Active Trading</strong> के साथ <strong>100% Free Affiliate Passive Income</strong> का सुरक्षित बैकअप देता है:
+            जानिए कैसे <span translate="no" className="notranslate font-bold">Super Warrior 30</span> आपको <strong translate="no" className="notranslate">Active Trading</strong> के साथ <strong translate="no" className="notranslate">100% Free Affiliate Passive Income</strong> का सुरक्षित बैकअप देता है:
           </p>
         </div>
 
@@ -117,7 +117,7 @@ export function DualIncomeOpportunity({
               The Warrior Dual Income Engine
             </span>
             <h3 className="text-xl sm:text-3xl font-black text-foreground">
-              Active Income + Passive Income = 100% Stress-Free Trading!
+              <span translate="no" className="notranslate">Active Income + Passive Income</span> = 100% Stress-Free Trading!
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground">
               इस तरह आपके पास एक्टिव और पैसिव दोनों तरह की इनकम चालू हो जाएगी, जिससे ट्रेडिंग में आपका माइंडसेट हमेशा शांत और रोबोटिक रहेगा:
@@ -129,10 +129,10 @@ export function DualIncomeOpportunity({
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 space-y-3">
               <div className="flex items-center gap-2 text-primary font-bold text-sm">
                 <TrendingUp className="h-5 w-5" />
-                <span>1. Active Income (Super Warrior 30 Trading):</span>
+                <span translate="no" className="notranslate">1. Active Income (Super Warrior 30 Trading):</span>
               </div>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                Super Warrior 30 के प्रूवन इंस्टीट्यूशनल फॉर्मूले (15-30 Pips Minor SL और 1:3 से 1:40+ Sky High R:R) से लाइव मार्केट में Scalping, Intraday और Swing ट्रेड्स करके खुद का कैपिटल ग्रो करें।
+                <span translate="no" className="notranslate font-bold">Super Warrior 30</span> के प्रूवन इंस्टीट्यूशनल फॉर्मूले (<span translate="no" className="notranslate">15-30 Pips Minor SL</span> और <span translate="no" className="notranslate">1:3 से 1:40+ Sky High R:R</span>) से लाइव मार्केट में <span translate="no" className="notranslate">Scalping, Intraday</span> और <span translate="no" className="notranslate">Swing ट्रेड्स</span> करके खुद का कैपिटल ग्रो करें।
               </p>
               <div className="flex flex-wrap gap-1.5 pt-1">
                 <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">15-30 Pips Minor SL</span>
