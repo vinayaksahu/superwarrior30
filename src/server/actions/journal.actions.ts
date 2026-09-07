@@ -183,7 +183,7 @@ export async function updateTradeEntryAction(
 ) {
   const user = await getCurrentUser();
   if (!user) {
-    return { success: false, message: "Unauthorized" };
+    return { success: false, message: "Unauthorized. Please log in." };
   }
 
   await ensureDatabaseSchemaSync();
@@ -197,24 +197,51 @@ export async function updateTradeEntryAction(
       return { success: false, message: "Trade record not found." };
     }
 
+    // Recalculate R:R if prices change
+    let calculatedRR = data.riskRewardRatio;
+    const entry = data.entryPrice !== undefined ? Number(data.entryPrice) : existing.entryPrice;
+    const sl = data.stopLoss !== undefined ? Number(data.stopLoss) : existing.stopLoss;
+    const tp = data.takeProfit !== undefined ? Number(data.takeProfit) : existing.takeProfit;
+
+    if (!calculatedRR && entry && sl && tp) {
+      const risk = Math.abs(entry - sl);
+      const reward = Math.abs(tp - entry);
+      if (risk > 0) {
+        calculatedRR = `1:${(reward / risk).toFixed(1)}`;
+      }
+    }
+
+    // When student edits a trade, it resets isFeatured: false so Admin must re-approve it for public showcase
     await prisma.tradeJournal.update({
       where: { id: tradeId },
       data: {
+        ...(data.instrument ? { instrument: data.instrument.toUpperCase().trim() } : {}),
+        ...(data.market ? { market: data.market } : {}),
+        ...(data.direction ? { direction: data.direction } : {}),
+        ...(data.entryPrice !== undefined ? { entryPrice: Number(data.entryPrice) } : {}),
         ...(data.exitPrice !== undefined ? { exitPrice: Number(data.exitPrice) } : {}),
+        ...(data.stopLoss !== undefined ? { stopLoss: Number(data.stopLoss) } : {}),
+        ...(data.takeProfit !== undefined ? { takeProfit: Number(data.takeProfit) } : {}),
+        ...(data.lotSize !== undefined ? { lotSize: Number(data.lotSize) } : {}),
         ...(data.pnl !== undefined ? { pnl: Number(data.pnl) } : {}),
         ...(data.status ? { status: data.status } : {}),
         ...(data.outcome ? { outcome: data.outcome } : {}),
         ...(data.emotions ? { emotions: data.emotions } : {}),
         ...(data.mistakes ? { mistakes: data.mistakes } : {}),
+        ...(data.setupReason !== undefined ? { setupReason: data.setupReason } : {}),
         ...(data.notes !== undefined ? { notes: data.notes } : {}),
         ...(data.screenshotUrl !== undefined ? { screenshotUrl: data.screenshotUrl } : {}),
+        ...(calculatedRR ? { riskRewardRatio: calculatedRR } : {}),
+        isFeatured: false, // Must be re-approved by mentor/admin to showcase
       },
     });
 
     revalidatePath("/dashboard/journal");
     revalidatePath("/admin/journal");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
 
-    return { success: true, message: "Trade updated successfully!" };
+    return { success: true, message: "Trade updated successfully! (Showcase requires mentor approval)" };
   } catch (error) {
     console.error("Error updating trade:", error);
     return { success: false, message: "Failed to update trade." };
@@ -222,25 +249,111 @@ export async function updateTradeEntryAction(
 }
 
 // ==========================================
-// 4. STUDENT: DELETE TRADE
+// 4. ADMIN ONLY: DELETE TRADE
 // ==========================================
 
 export async function deleteTradeEntryAction(tradeId: string) {
   const user = await getCurrentUser();
   if (!user) {
-    return { success: false, message: "Unauthorized" };
+    return { success: false, message: "Unauthorized." };
+  }
+
+  // Strictly enforce: ONLY Admin/SuperAdmin can delete journal trades to protect discipline records
+  if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
+    return {
+      success: false,
+      message: "Trades cannot be deleted by students to maintain discipline and prevent loss erasure. Only Admin can delete trade entries.",
+    };
   }
 
   try {
-    await prisma.tradeJournal.deleteMany({
-      where: { id: tradeId, userId: user.id },
+    await prisma.tradeJournal.delete({
+      where: { id: tradeId },
     });
 
     revalidatePath("/dashboard/journal");
-    return { success: true, message: "Trade removed from journal." };
+    revalidatePath("/admin/journal");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+
+    return { success: true, message: "Trade entry removed by Admin." };
   } catch (error) {
     console.error("Error deleting trade:", error);
     return { success: false, message: "Failed to delete trade." };
+  }
+}
+
+// ==========================================
+// 4B. ADMIN: UPDATE TRADE ENTRY (FULL EDIT)
+// ==========================================
+
+export async function adminUpdateTradeAction(
+  tradeId: string,
+  data: Partial<CreateTradeInput> & { isFeatured?: boolean; mentorFeedback?: string }
+) {
+  await requireAdmin();
+  await ensureDatabaseSchemaSync();
+
+  if (!tradeId) {
+    return { success: false, message: "Invalid trade ID." };
+  }
+
+  try {
+    const existing = await prisma.tradeJournal.findUnique({
+      where: { id: tradeId },
+    });
+
+    if (!existing) {
+      return { success: false, message: "Trade not found." };
+    }
+
+    let calculatedRR = data.riskRewardRatio;
+    const entry = data.entryPrice !== undefined ? Number(data.entryPrice) : existing.entryPrice;
+    const sl = data.stopLoss !== undefined ? Number(data.stopLoss) : existing.stopLoss;
+    const tp = data.takeProfit !== undefined ? Number(data.takeProfit) : existing.takeProfit;
+
+    if (!calculatedRR && entry && sl && tp) {
+      const risk = Math.abs(entry - sl);
+      const reward = Math.abs(tp - entry);
+      if (risk > 0) {
+        calculatedRR = `1:${(reward / risk).toFixed(1)}`;
+      }
+    }
+
+    await prisma.tradeJournal.update({
+      where: { id: tradeId },
+      data: {
+        ...(data.instrument ? { instrument: data.instrument.toUpperCase().trim() } : {}),
+        ...(data.market ? { market: data.market } : {}),
+        ...(data.direction ? { direction: data.direction } : {}),
+        ...(data.entryPrice !== undefined ? { entryPrice: Number(data.entryPrice) } : {}),
+        ...(data.exitPrice !== undefined ? { exitPrice: Number(data.exitPrice) } : {}),
+        ...(data.stopLoss !== undefined ? { stopLoss: Number(data.stopLoss) } : {}),
+        ...(data.takeProfit !== undefined ? { takeProfit: Number(data.takeProfit) } : {}),
+        ...(data.lotSize !== undefined ? { lotSize: Number(data.lotSize) } : {}),
+        ...(data.pnl !== undefined ? { pnl: Number(data.pnl) } : {}),
+        ...(data.status ? { status: data.status } : {}),
+        ...(data.outcome ? { outcome: data.outcome } : {}),
+        ...(data.emotions ? { emotions: data.emotions } : {}),
+        ...(data.mistakes ? { mistakes: data.mistakes } : {}),
+        ...(data.setupReason !== undefined ? { setupReason: data.setupReason } : {}),
+        ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        ...(data.screenshotUrl !== undefined ? { screenshotUrl: data.screenshotUrl } : {}),
+        ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {}),
+        ...(data.mentorFeedback !== undefined ? { mentorFeedback: data.mentorFeedback } : {}),
+        ...(calculatedRR ? { riskRewardRatio: calculatedRR } : {}),
+      },
+    });
+
+    revalidatePath("/admin/journal");
+    revalidatePath("/dashboard/journal");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+
+    return { success: true, message: "Trade updated by Admin successfully!" };
+  } catch (error) {
+    console.error("Error updating trade as admin:", error);
+    return { success: false, message: "Failed to update trade." };
   }
 }
 

@@ -16,9 +16,16 @@ import {
   ZoomIn,
   X,
   Image as ImageIcon,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { addMentorFeedbackAction, toggleTradeFeaturedAction } from "@/server/actions/journal.actions";
+import {
+  addMentorFeedbackAction,
+  toggleTradeFeaturedAction,
+  adminUpdateTradeAction,
+  deleteTradeEntryAction,
+} from "@/server/actions/journal.actions";
 
 interface AdminTrade {
   id: string;
@@ -37,6 +44,7 @@ interface AdminTrade {
   setupReason: string | null;
   emotions: string | null;
   mistakes: string | null;
+  notes?: string | null;
   screenshotUrl?: string | null;
   mentorFeedback: string | null;
   isFeatured?: boolean;
@@ -100,6 +108,115 @@ export function AdminJournalClient({
           )
         );
         setFeedbackTrade(null);
+      } else {
+        toast.error(res.message);
+      }
+    });
+  };
+
+  // Admin Edit Trade State & Handlers
+  const [editingTrade, setEditingTrade] = useState<AdminTrade | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    instrument: "",
+    market: "FOREX",
+    direction: "BUY",
+    entryPrice: "",
+    exitPrice: "",
+    stopLoss: "",
+    takeProfit: "",
+    lotSize: "0.01",
+    pnl: "",
+    status: "CLOSED",
+    outcome: "WIN",
+    emotions: "CALM",
+    mistakes: "NONE",
+    notes: "",
+    screenshotUrl: "",
+    isFeatured: false,
+  });
+
+  const handleOpenEdit = (trade: AdminTrade) => {
+    setEditingTrade(trade);
+    setEditFormData({
+      instrument: trade.instrument,
+      market: trade.market || "FOREX",
+      direction: trade.direction,
+      entryPrice: String(trade.entryPrice),
+      exitPrice: trade.exitPrice !== null ? String(trade.exitPrice) : "",
+      stopLoss: String(trade.stopLoss),
+      takeProfit: String(trade.takeProfit),
+      lotSize: trade.lotSize !== null ? String(trade.lotSize) : "0.01",
+      pnl: trade.pnl !== null ? String(trade.pnl) : "",
+      status: trade.status || "CLOSED",
+      outcome: trade.outcome || "WIN",
+      emotions: trade.emotions || "CALM",
+      mistakes: trade.mistakes || "NONE",
+      notes: trade.notes || "",
+      screenshotUrl: trade.screenshotUrl || "",
+      isFeatured: Boolean(trade.isFeatured),
+    });
+  };
+
+  const handleAdminSaveTrade = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTrade) return;
+
+    startTransition(async () => {
+      const res = await adminUpdateTradeAction(editingTrade.id, {
+        instrument: editFormData.instrument,
+        market: editFormData.market,
+        direction: editFormData.direction as "BUY" | "SELL",
+        entryPrice: Number(editFormData.entryPrice),
+        exitPrice: Number(editFormData.exitPrice) || undefined,
+        stopLoss: Number(editFormData.stopLoss),
+        takeProfit: Number(editFormData.takeProfit),
+        lotSize: Number(editFormData.lotSize) || undefined,
+        pnl: Number(editFormData.pnl) || undefined,
+        status: editFormData.status as any,
+        outcome: editFormData.outcome as any,
+        emotions: editFormData.emotions,
+        mistakes: editFormData.mistakes,
+        notes: editFormData.notes,
+        screenshotUrl: editFormData.screenshotUrl || undefined,
+        isFeatured: editFormData.isFeatured,
+      });
+
+      if (res.success) {
+        toast.success(res.message);
+        setTrades((prev) =>
+          prev.map((t) =>
+            t.id === editingTrade.id
+              ? {
+                  ...t,
+                  ...editFormData,
+                  entryPrice: Number(editFormData.entryPrice),
+                  exitPrice: Number(editFormData.exitPrice) || null,
+                  stopLoss: Number(editFormData.stopLoss),
+                  takeProfit: Number(editFormData.takeProfit),
+                  lotSize: Number(editFormData.lotSize) || null,
+                  pnl: Number(editFormData.pnl) || null,
+                  screenshotUrl: editFormData.screenshotUrl || null,
+                }
+              : t
+          )
+        );
+        setEditingTrade(null);
+      } else {
+        toast.error(res.message);
+      }
+    });
+  };
+
+  const handleAdminDeleteTrade = (trade: AdminTrade) => {
+    if (!confirm(`Are you sure you want to permanently delete trade record for student ${trade.user.name || trade.user.email}?`)) {
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await deleteTradeEntryAction(trade.id);
+      if (res.success) {
+        toast.success("Trade entry deleted successfully by Admin.");
+        setTrades((prev) => prev.filter((t) => t.id !== trade.id));
       } else {
         toast.error(res.message);
       }
@@ -271,14 +388,35 @@ export function AdminJournalClient({
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenFeedback(t)}
-                        className="inline-flex items-center gap-1 rounded-xl bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        <span>{t.mentorFeedback ? "Edit Feedback" : "Review Trade"}</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(t)}
+                          className="inline-flex items-center gap-1 rounded-xl bg-muted border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80 transition-all cursor-pointer"
+                          title="Edit Trade Details"
+                        >
+                          <Edit2 className="h-3.5 w-3.5 text-primary" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFeedback(t)}
+                          className="inline-flex items-center gap-1 rounded-xl bg-primary/10 border border-primary/30 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
+                          title="Give Mentorship Feedback"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          <span>{t.mentorFeedback ? "Feedback" : "Review"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAdminDeleteTrade(t)}
+                          className="inline-flex items-center gap-1 rounded-xl bg-red-500/10 border border-red-500/30 px-2.5 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                          title="Delete Trade Record (Admin Only)"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -287,6 +425,247 @@ export function AdminJournalClient({
           </table>
         </div>
       </div>
+
+      {/* Admin Edit Trade Modal */}
+      {editingTrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-2xl rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <Edit2 className="h-4 w-4 text-primary" /> Edit Student Trade (Admin Master Control)
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Student: {editingTrade.user.name || editingTrade.user.email} • ID: {editingTrade.id.slice(0, 8)}...
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingTrade(null)}
+                className="text-muted-foreground hover:text-foreground text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAdminSaveTrade} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Pair / Instrument</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.instrument}
+                    onChange={(e) => setEditFormData({ ...editFormData, instrument: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none uppercase"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Market</label>
+                  <select
+                    value={editFormData.market}
+                    onChange={(e) => setEditFormData({ ...editFormData, market: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  >
+                    <option value="FOREX">FOREX</option>
+                    <option value="CRYPTO">CRYPTO</option>
+                    <option value="INDIAN_STOCKS">INDIAN STOCKS</option>
+                    <option value="COMMODITIES">COMMODITIES</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Direction</label>
+                  <select
+                    value={editFormData.direction}
+                    onChange={(e) => setEditFormData({ ...editFormData, direction: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  >
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground font-sans">Entry Price</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editFormData.entryPrice}
+                    onChange={(e) => setEditFormData({ ...editFormData, entryPrice: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground font-sans">Stop Loss</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editFormData.stopLoss}
+                    onChange={(e) => setEditFormData({ ...editFormData, stopLoss: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none text-red-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground font-sans">Take Profit</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editFormData.takeProfit}
+                    onChange={(e) => setEditFormData({ ...editFormData, takeProfit: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none text-emerald-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground font-sans">Exit Price</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editFormData.exitPrice}
+                    onChange={(e) => setEditFormData({ ...editFormData, exitPrice: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Lot Size</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editFormData.lotSize}
+                    onChange={(e) => setEditFormData({ ...editFormData, lotSize: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">PnL ($)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editFormData.pnl}
+                    onChange={(e) => setEditFormData({ ...editFormData, pnl: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Trade Status</label>
+                  <select
+                    value={editFormData.status}
+                    onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  >
+                    <option value="OPEN">OPEN</option>
+                    <option value="CLOSED">CLOSED</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Outcome</label>
+                  <select
+                    value={editFormData.outcome}
+                    onChange={(e) => setEditFormData({ ...editFormData, outcome: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  >
+                    <option value="WIN">WIN</option>
+                    <option value="LOSS">LOSS</option>
+                    <option value="BREAKEVEN">BREAKEVEN</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Emotions / Psychology</label>
+                  <select
+                    value={editFormData.emotions}
+                    onChange={(e) => setEditFormData({ ...editFormData, emotions: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  >
+                    <option value="CALM">CALM & DISCIPLINED</option>
+                    <option value="CONFIDENT">CONFIDENT</option>
+                    <option value="FOMO">FOMO (Chased the move)</option>
+                    <option value="GREED">GREED (Held too long)</option>
+                    <option value="FEAR">FEAR (Exited too early)</option>
+                    <option value="REVENGE">REVENGE TRADING</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Mistakes</label>
+                  <select
+                    value={editFormData.mistakes}
+                    onChange={(e) => setEditFormData({ ...editFormData, mistakes: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                  >
+                    <option value="NONE">NONE (Followed Rules 100%)</option>
+                    <option value="OVERTRADING">Overtrading</option>
+                    <option value="OVERSIZED_LOT">Oversized Lot / High Risk</option>
+                    <option value="MOVED_STOP_LOSS">Moved Stop Loss</option>
+                    <option value="CHASED_CANDLE">Chased Green/Red Candle</option>
+                    <option value="NO_SETUP">No Valid Setup / Random Trade</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Trade Notes / Strategy Explanation</label>
+                <textarea
+                  rows={2}
+                  value={editFormData.notes}
+                  onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                  placeholder="Notes from student or notes regarding correction..."
+                  className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Chart Screenshot URL</label>
+                <input
+                  type="url"
+                  value={editFormData.screenshotUrl}
+                  onChange={(e) => setEditFormData({ ...editFormData, screenshotUrl: e.target.value })}
+                  placeholder="https://... image link"
+                  className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-3">
+                <input
+                  type="checkbox"
+                  id="adminFeaturedCheckbox"
+                  checked={editFormData.isFeatured}
+                  onChange={(e) => setEditFormData({ ...editFormData, isFeatured: e.target.checked })}
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                />
+                <label htmlFor="adminFeaturedCheckbox" className="font-semibold text-foreground cursor-pointer">
+                  Approve & Showcase on Public Landing / Home Page
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setEditingTrade(null)}
+                  className="rounded-xl border border-border px-4 py-2 font-semibold text-muted-foreground hover:bg-muted cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 font-bold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
+                >
+                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Mentor Feedback Modal */}
       {feedbackTrade && (

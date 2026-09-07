@@ -19,9 +19,10 @@ import {
   Image as ImageIcon,
   ZoomIn,
   X,
+  Edit2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { createTradeEntryAction, deleteTradeEntryAction } from "@/server/actions/journal.actions";
+import { createTradeEntryAction, updateTradeEntryAction } from "@/server/actions/journal.actions";
 
 interface Trade {
   id: string;
@@ -75,6 +76,27 @@ export function TradingJournalClient({
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  // Student Edit trade state
+  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    instrument: "",
+    market: "GOLD",
+    direction: "BUY" as "BUY" | "SELL",
+    entryPrice: "",
+    exitPrice: "",
+    stopLoss: "",
+    takeProfit: "",
+    lotSize: "0.01",
+    pnl: "",
+    status: "CLOSED" as "OPEN" | "CLOSED",
+    outcome: "WIN" as "WIN" | "LOSS" | "BREAKEVEN" | "PENDING",
+    emotions: "CALM",
+    mistakes: "NONE",
+    setupReason: "",
+    notes: "",
+    screenshotUrl: "",
+  });
+
   // New trade form state
   const [formData, setFormData] = useState({
     instrument: "XAUUSD",
@@ -95,7 +117,10 @@ export function TradingJournalClient({
     screenshotUrl: "",
   });
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isEdit: boolean = false
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -118,7 +143,11 @@ export function TradingJournalClient({
       const json = await res.json();
       if (json.success && (json.url || json.cdnUrl)) {
         const url = json.url || json.cdnUrl;
-        setFormData((prev) => ({ ...prev, screenshotUrl: url }));
+        if (isEdit) {
+          setEditFormData((prev) => ({ ...prev, screenshotUrl: url }));
+        } else {
+          setFormData((prev) => ({ ...prev, screenshotUrl: url }));
+        }
         toast.success("Chart screenshot uploaded successfully!");
       } else {
         toast.error(json.error || "Failed to upload chart screenshot");
@@ -168,13 +197,85 @@ export function TradingJournalClient({
     });
   };
 
-  const handleDelete = (tradeId: string) => {
-    if (!confirm("Are you sure you want to remove this trade record?")) return;
+  const handleOpenEdit = (trade: Trade) => {
+    setEditingTrade(trade);
+    setEditFormData({
+      instrument: trade.instrument,
+      market: trade.market,
+      direction: trade.direction as "BUY" | "SELL",
+      entryPrice: String(trade.entryPrice),
+      exitPrice: trade.exitPrice !== null ? String(trade.exitPrice) : "",
+      stopLoss: String(trade.stopLoss),
+      takeProfit: String(trade.takeProfit),
+      lotSize: trade.lotSize !== null ? String(trade.lotSize) : "0.01",
+      pnl: trade.pnl !== null ? String(trade.pnl) : "",
+      status: (trade.status as "OPEN" | "CLOSED") || "CLOSED",
+      outcome: (trade.outcome as any) || "WIN",
+      emotions: trade.emotions || "CALM",
+      mistakes: trade.mistakes || "NONE",
+      setupReason: trade.setupReason || "",
+      notes: trade.notes || "",
+      screenshotUrl: trade.screenshotUrl || "",
+    });
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTrade) return;
+    if (!editFormData.instrument || !editFormData.entryPrice || !editFormData.stopLoss || !editFormData.takeProfit) {
+      toast.error("Please fill required fields (Pair, Entry, Stop Loss, Target).");
+      return;
+    }
+
     startTransition(async () => {
-      const res = await deleteTradeEntryAction(tradeId);
+      const res = await updateTradeEntryAction(editingTrade.id, {
+        instrument: editFormData.instrument,
+        market: editFormData.market,
+        direction: editFormData.direction,
+        entryPrice: parseFloat(editFormData.entryPrice),
+        exitPrice: editFormData.exitPrice ? parseFloat(editFormData.exitPrice) : undefined,
+        stopLoss: parseFloat(editFormData.stopLoss),
+        takeProfit: parseFloat(editFormData.takeProfit),
+        lotSize: editFormData.lotSize ? parseFloat(editFormData.lotSize) : undefined,
+        pnl: editFormData.pnl ? parseFloat(editFormData.pnl) : undefined,
+        status: editFormData.status,
+        outcome: editFormData.outcome,
+        emotions: editFormData.emotions,
+        mistakes: editFormData.mistakes,
+        setupReason: editFormData.setupReason,
+        notes: editFormData.notes,
+        screenshotUrl: editFormData.screenshotUrl || undefined,
+      });
+
       if (res.success) {
         toast.success(res.message);
-        setTrades((prev) => prev.filter((t) => t.id !== tradeId));
+        setTrades((prev) =>
+          prev.map((t) =>
+            t.id === editingTrade.id
+              ? {
+                  ...t,
+                  instrument: editFormData.instrument.toUpperCase().trim(),
+                  market: editFormData.market,
+                  direction: editFormData.direction,
+                  entryPrice: parseFloat(editFormData.entryPrice),
+                  exitPrice: editFormData.exitPrice ? parseFloat(editFormData.exitPrice) : null,
+                  stopLoss: parseFloat(editFormData.stopLoss),
+                  takeProfit: parseFloat(editFormData.takeProfit),
+                  lotSize: editFormData.lotSize ? parseFloat(editFormData.lotSize) : null,
+                  pnl: editFormData.pnl ? parseFloat(editFormData.pnl) : null,
+                  status: editFormData.status,
+                  outcome: editFormData.outcome,
+                  emotions: editFormData.emotions,
+                  mistakes: editFormData.mistakes,
+                  setupReason: editFormData.setupReason,
+                  notes: editFormData.notes,
+                  screenshotUrl: editFormData.screenshotUrl || null,
+                  isFeatured: false, // Student edit resets featured status until re-approved
+                }
+              : t
+          )
+        );
+        setEditingTrade(null);
       } else {
         toast.error(res.message);
       }
@@ -289,13 +390,14 @@ export function TradingJournalClient({
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Chart</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Mindset / Emotion</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Mentor Feedback</th>
+                <th className="px-4 py-3.5 text-center font-bold text-muted-foreground">Showcase</th>
                 <th className="px-4 py-3.5 text-right font-bold text-muted-foreground">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {filteredTrades.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-16 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-16 text-center text-muted-foreground">
                     <p className="font-semibold text-foreground">No trades found in your journal.</p>
                     <p className="text-xs mt-1">Click "Log New Trade" to record your setup, entry, and emotions.</p>
                   </td>
@@ -402,14 +504,27 @@ export function TradingJournalClient({
                       )}
                     </td>
 
+                    <td className="px-4 py-3 text-center">
+                      {t.isFeatured ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-500">
+                          ★ Featured
+                        </span>
+                      ) : (
+                        <span className="inline-block text-[10px] text-muted-foreground">
+                          Private
+                        </span>
+                      )}
+                    </td>
+
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => handleDelete(t.id)}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                        title="Delete record"
+                        onClick={() => handleOpenEdit(t)}
+                        className="inline-flex items-center gap-1 rounded-xl bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
+                        title="Edit trade details"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Edit2 className="h-3.5 w-3.5" />
+                        <span>Edit</span>
                       </button>
                     </td>
                   </tr>
@@ -699,6 +814,321 @@ export function TradingJournalClient({
                   className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 font-bold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
                 >
                   {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save to Journal"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Student Edit Trade Modal */}
+      {editingTrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Edit2 className="h-4 w-4 text-primary" /> Edit Trade Journal
+                </h3>
+                <p className="text-[11px] text-amber-500 font-medium mt-0.5">
+                  ⚠️ Note: Editing a trade resets Showcase status until re-approved by Mentor.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingTrade(null)}
+                className="text-muted-foreground hover:text-foreground text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Pair / Instrument *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.instrument}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, instrument: e.target.value }))}
+                    placeholder="e.g. XAUUSD, EURUSD"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 uppercase font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Market</label>
+                  <select
+                    value={editFormData.market}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, market: e.target.value }))}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-medium focus:border-primary focus:outline-none"
+                  >
+                    <option value="GOLD">Gold (XAUUSD)</option>
+                    <option value="FOREX">Forex</option>
+                    <option value="CRYPTO">Crypto</option>
+                    <option value="STOCKS">Indices / Stocks</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Direction *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditFormData((p) => ({ ...p, direction: "BUY" }))}
+                      className={`py-2 rounded-xl font-bold cursor-pointer transition-all ${
+                        editFormData.direction === "BUY"
+                          ? "bg-emerald-500 text-white shadow"
+                          : "border border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      BUY / LONG
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditFormData((p) => ({ ...p, direction: "SELL" }))}
+                      className={`py-2 rounded-xl font-bold cursor-pointer transition-all ${
+                        editFormData.direction === "SELL"
+                          ? "bg-red-500 text-white shadow"
+                          : "border border-border bg-background text-muted-foreground"
+                      }`}
+                    >
+                      SELL / SHORT
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Lot Size</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editFormData.lotSize}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, lotSize: e.target.value }))}
+                    placeholder="0.01"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Entry Price *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editFormData.entryPrice}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, entryPrice: e.target.value }))}
+                    placeholder="2650.50"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-red-400">Stop Loss *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editFormData.stopLoss}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, stopLoss: e.target.value }))}
+                    placeholder="2645.00"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-emerald-400">Take Profit *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editFormData.takeProfit}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, takeProfit: e.target.value }))}
+                    placeholder="2662.00"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Exit Price</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editFormData.exitPrice}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, exitPrice: e.target.value }))}
+                    placeholder="Exit Price"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Trade Status</label>
+                  <select
+                    value={editFormData.status}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, status: e.target.value as any }))}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-semibold focus:border-primary focus:outline-none"
+                  >
+                    <option value="CLOSED">CLOSED</option>
+                    <option value="OPEN">OPEN</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Outcome</label>
+                  <select
+                    value={editFormData.outcome}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, outcome: e.target.value as any }))}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-semibold focus:border-primary focus:outline-none"
+                  >
+                    <option value="WIN">WIN (Profit)</option>
+                    <option value="LOSS">LOSS (Stop Loss)</option>
+                    <option value="BREAKEVEN">BREAKEVEN (Cost)</option>
+                    <option value="PENDING">PENDING</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">P&L Amount ($ or ₹)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editFormData.pnl}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, pnl: e.target.value }))}
+                    placeholder="+25.00 or -10.00"
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-foreground">Emotions During Trade</label>
+                  <select
+                    value={editFormData.emotions}
+                    onChange={(e) => setEditFormData((p) => ({ ...p, emotions: e.target.value }))}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 font-semibold focus:border-primary focus:outline-none"
+                  >
+                    <option value="CALM">Calm & Disciplined ✓</option>
+                    <option value="FOMO">FOMO (Chased the candle)</option>
+                    <option value="REVENGE">Revenge Trade (Anger)</option>
+                    <option value="ANXIOUS">Anxious / Scared</option>
+                    <option value="GREED">Greedy (Wanted more)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Mistake Tag</label>
+                <select
+                  value={editFormData.mistakes}
+                  onChange={(e) => setEditFormData((p) => ({ ...p, mistakes: e.target.value }))}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 font-semibold focus:border-primary focus:outline-none"
+                >
+                  <option value="NONE">No Mistake (Followed Rules) ✓</option>
+                  <option value="EARLY_EXIT">Exited Too Early in Profit</option>
+                  <option value="MOVED_SL">Moved Stop Loss / Held Loser</option>
+                  <option value="OVERTRADING">Overtrading</option>
+                  <option value="OVER_LEVERAGED">Too Big Lot Size</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Technical Setup Reason & Notes</label>
+                <textarea
+                  rows={2}
+                  value={editFormData.setupReason}
+                  onChange={(e) => setEditFormData((p) => ({ ...p, setupReason: e.target.value }))}
+                  placeholder="e.g. Liquidity sweep on 15m SNR with rejection candle confirmation"
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* Trade / Chart Screenshot Upload */}
+              <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/20 p-3.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-foreground flex items-center gap-1.5 text-xs">
+                    <ImageIcon className="h-4 w-4 text-primary" />
+                    <span>Chart Screenshot (PNG, JPG, WEBP)</span>
+                  </label>
+                  {editFormData.screenshotUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditFormData((p) => ({ ...p, screenshotUrl: "" }))}
+                      className="text-[10px] text-destructive hover:underline cursor-pointer font-bold"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {editFormData.screenshotUrl ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border bg-black/40 group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={editFormData.screenshotUrl}
+                      alt="Trade preview"
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] text-emerald-400 font-bold flex items-center gap-1 backdrop-blur-xs">
+                      <CheckCircle2 className="h-3 w-3" /> Screenshot Attached
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl p-4 cursor-pointer hover:border-primary/50 hover:bg-muted/40 transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingScreenshot}
+                        onChange={(e) => handleFileUpload(e, true)}
+                      />
+                      {uploadingScreenshot ? (
+                        <div className="flex items-center gap-2 text-primary text-xs font-semibold py-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Uploading screenshot to CDN...</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-center py-1">
+                          <Upload className="h-6 w-6 text-muted-foreground" />
+                          <span className="text-xs font-bold text-foreground">Click to upload chart screenshot</span>
+                          <span className="text-[10px] text-muted-foreground">PNG, JPG, JPEG, WEBP up to 15MB</span>
+                        </div>
+                      )}
+                    </label>
+
+                    <input
+                      type="url"
+                      value={editFormData.screenshotUrl}
+                      onChange={(e) => setEditFormData((p) => ({ ...p, screenshotUrl: e.target.value }))}
+                      placeholder="Or paste screenshot URL (TradingView, Lightshot, etc.)"
+                      className="w-full rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-mono focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setEditingTrade(null)}
+                  className="rounded-xl border border-border px-4 py-2 font-semibold text-muted-foreground hover:bg-muted cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending || uploadingScreenshot}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 font-bold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
+                >
+                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
                 </button>
               </div>
             </form>
