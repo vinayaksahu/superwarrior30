@@ -4,30 +4,15 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireAdminWrite } from "@/server/dal/auth";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
-import type {
-  AcademyRiskRules,
-  CalculatedRiskState,
-  StudentRiskData,
-  StudentRiskProfile,
+import {
+  type AcademyRiskRules,
+  type CalculatedRiskState,
+  type StudentRiskData,
+  type StudentRiskProfile,
+  DEFAULT_ACADEMY_RISK_RULES,
 } from "@/types/risk-manager";
 
 const SETTING_KEY_RULES = "academy_risk_rules";
-
-export const DEFAULT_ACADEMY_RISK_RULES: AcademyRiskRules = {
-  maxConsecutiveLosses: 2,
-  maxTradesPerDay: 3,
-  minRiskRewardRatio: 3,
-  defaultRiskPercent: 4,
-  defaultMaxDailyLoss: 6,
-  defaultMaxWeeklyLoss: 15,
-  revengeBreakMinutes: 15,
-  llRuleTitle: "LL Rule",
-  llRuleText: "2 consecutive losses → stop trading for the day. No exceptions.",
-  noRevengeTitle: "No Revenge",
-  noRevengeText: "15 min mandatory break after a loss. Trade only when neutral.",
-  maxRiskTitle: "Max Risk",
-  maxRiskText: "Max risk per trade (4%). Min 1:3 RRR.",
-};
 
 const DEFAULT_STUDENT_PROFILE: StudentRiskProfile = {
   accountBalance: 70,
