@@ -158,7 +158,15 @@ body {
 }
 
 #google_translate_element {
-  display: none !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0.01 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  z-index: -9999 !important;
 }
 
 .skiptranslate > iframe {

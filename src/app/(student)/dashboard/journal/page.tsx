@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function StudentJournalPage() {
   const [journalData, economicNewsRes, psychologyRes, riskRes] = await Promise.all([
-    getStudentJournalAction({ pageSize: 50 }),
+    getStudentJournalAction({ pageSize: 250 }),
     getEconomicNewsAction(),
     getStudentPsychologyLogsAction(),
     getStudentRiskDataAction(),

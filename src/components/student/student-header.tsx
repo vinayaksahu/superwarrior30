@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
+import { useLanguage } from "@/components/shared/language-provider";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
 import { StudentNotificationBell } from "@/components/student/student-notifications";
 
@@ -54,6 +55,7 @@ const navLinks = [
 export function StudentHeader({ user }: StudentHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!isMobileMenuOpen) return;
@@ -105,7 +107,7 @@ export function StudentHeader({ user }: StudentHeaderProps) {
               href="/courses"
               className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground hidden sm:inline-block"
             >
-              Browse Courses
+              {t("nav_browse_catalog", "Browse Courses")}
             </Link>
             <LanguageSwitcher variant="header" />
             <ThemeToggle />
@@ -216,7 +218,7 @@ export function StudentHeader({ user }: StudentHeaderProps) {
                   className="flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
                 >
                   <BookOpen className="h-5 w-5 shrink-0 text-muted-foreground" />
-                  <span>Browse Catalog</span>
+                  <span>{t("nav_browse_catalog", "Browse Catalog")}</span>
                 </Link>
               </div>
             </nav>
@@ -234,7 +236,7 @@ export function StudentHeader({ user }: StudentHeaderProps) {
                   className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-destructive/10 px-4 py-3 text-xs font-extrabold text-destructive hover:bg-destructive/20 active:scale-[0.98] transition-all cursor-pointer border border-destructive/20"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
+                  <span>{t("nav_sign_out", "Sign Out")}</span>
                 </button>
               </form>
             </div>

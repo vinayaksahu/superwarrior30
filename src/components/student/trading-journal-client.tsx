@@ -41,6 +41,7 @@ import { PsychologyLogView } from "@/components/student/psychology-log-view";
 import type { StudentPsychologyData } from "@/types/psychology";
 import { RiskManagerView } from "@/components/student/risk-manager-view";
 import type { StudentRiskData } from "@/types/risk-manager";
+import { TradingCalendarView } from "@/components/student/trading-calendar-view";
 import { BookMarked } from "lucide-react";
 
 // ==========================================
@@ -131,7 +132,7 @@ function formatCleanNumber(val: number): string {
   return parseFloat(val.toFixed(5)).toString();
 }
 
-interface Trade {
+export interface Trade {
   id: string;
   instrument: string;
   market: string;
@@ -183,7 +184,7 @@ export function TradingJournalClient({
   initialRiskData,
 }: TradingJournalClientProps) {
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
-  const [activeSection, setActiveSection] = useState<"TRADES" | "NEWS" | "PSYCHOLOGY" | "RISK">("TRADES");
+  const [activeSection, setActiveSection] = useState<"TRADES" | "CALENDAR" | "NEWS" | "PSYCHOLOGY" | "RISK">("TRADES");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
@@ -576,7 +577,7 @@ export function TradingJournalClient({
     });
   };
 
-  const handleOpenEdit = (trade: Trade) => {
+  const handleOpenEdit = (trade: any) => {
     setEditingTrade(trade);
     const dObj = new Date(trade.tradedAt);
     const y = dObj.getFullYear();
@@ -806,6 +807,19 @@ export function TradingJournalClient({
 
         <button
           type="button"
+          onClick={() => setActiveSection("CALENDAR")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all cursor-pointer ${
+            activeSection === "CALENDAR"
+              ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-md shadow-amber-500/25 font-black"
+              : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+        >
+          <Calendar className="h-4 w-4" />
+          <span>🗓️ Trading Calendar</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveSection("NEWS")}
           className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all cursor-pointer ${
             activeSection === "NEWS"
@@ -925,6 +939,22 @@ export function TradingJournalClient({
             }
           }
         />
+      ) : activeSection === "CALENDAR" ? (
+        <TradingCalendarView
+          trades={trades}
+          onOpenLogTrade={(dateStr) => {
+            if (dateStr) {
+              setFormData((p) => ({
+                ...p,
+                tradeDate: dateStr,
+                session: p.autoSession ? detectSessionFromTime(p.tradeTime) : p.session,
+              }));
+            }
+            setShowModal(true);
+          }}
+          onOpenEditTrade={(trade) => handleOpenEdit(trade)}
+          onViewScreenshot={(url) => setSelectedImage(url)}
+        />
       ) : (
         <>
           {/* Stats Cards */}
@@ -967,14 +997,24 @@ export function TradingJournalClient({
       )}
 
       {/* Trade Log Section Title */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h3 className="text-base sm:text-lg font-black tracking-tight text-foreground flex items-center gap-2">
           <span>📋</span>
           <span>Trade Log</span>
         </h3>
-        <span className="text-xs text-muted-foreground font-semibold">
-          {filteredTrades.length} of {trades.length} recorded trades
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setActiveSection("CALENDAR")}
+            className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 px-3 py-1.5 text-xs font-bold cursor-pointer transition-all active:scale-95"
+          >
+            <span>🗓️</span>
+            <span>Switch to Calendar View</span>
+          </button>
+          <span className="text-xs text-muted-foreground font-semibold">
+            {filteredTrades.length} of {trades.length} recorded trades
+          </span>
+        </div>
       </div>
 
       {/* Filter Bar matching screenshot */}

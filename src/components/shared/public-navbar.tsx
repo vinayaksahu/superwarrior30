@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
+import { useLanguage } from "@/components/shared/language-provider";
 import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 
@@ -16,6 +17,7 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLanguage();
 
   const scrollToSection = useCallback((sectionId: string, smooth = true) => {
     let attempts = 0;
@@ -136,35 +138,35 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
             onClick={(e) => handleSectionClick(e, "courses")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
-            Courses
+            {t("nav_courses", "Courses")}
           </Link>
           <Link
             href="/#testimonials"
             onClick={(e) => handleSectionClick(e, "testimonials")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
-            Testimonials
+            {t("nav_testimonials", "Testimonials")}
           </Link>
           <Link
             href="/#about"
             onClick={(e) => handleSectionClick(e, "about")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
-            About
+            {t("nav_about", "About")}
           </Link>
           <Link
             href="/#faq"
             onClick={(e) => handleSectionClick(e, "faq")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
-            FAQ
+            {t("nav_faq", "FAQ")}
           </Link>
           <Link
             href="/#contact"
             onClick={(e) => handleSectionClick(e, "contact")}
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
           >
-            Contact
+            {t("nav_contact", "Contact")}
           </Link>
         </nav>
 
@@ -177,13 +179,13 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
             href="/login"
             className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground px-2.5 py-1.5 hidden sm:inline-block"
           >
-            Sign In
+            {t("nav_signin", "Sign In")}
           </Link>
           <Link
             href="/register"
             className="inline-flex h-8 sm:h-9 items-center justify-center rounded-xl bg-primary px-2.5 sm:px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 shrink-0"
           >
-            Get Started
+            {t("nav_getstarted", "Get Started")}
           </Link>
 
           <button
@@ -205,35 +207,35 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
             onClick={(e) => handleSectionClick(e, "courses")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
-            Courses
+            {t("nav_courses", "Courses")}
           </Link>
           <Link
             href="/#testimonials"
             onClick={(e) => handleSectionClick(e, "testimonials")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
-            Testimonials & Reviews
+            {t("nav_testimonials", "Testimonials & Reviews")}
           </Link>
           <Link
             href="/#about"
             onClick={(e) => handleSectionClick(e, "about")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
-            About Methodology
+            {t("nav_about", "About Methodology")}
           </Link>
           <Link
             href="/#faq"
             onClick={(e) => handleSectionClick(e, "faq")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
-            FAQ
+            {t("nav_faq", "FAQ")}
           </Link>
           <Link
             href="/#contact"
             onClick={(e) => handleSectionClick(e, "contact")}
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
-            Contact
+            {t("nav_contact", "Contact")}
           </Link>
           <div className="border-t border-border pt-3 space-y-3">
             <LanguageSwitcher variant="mobile" />
@@ -243,7 +245,7 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
                 onClick={() => setMobileOpen(false)}
                 className="text-xs font-bold text-muted-foreground hover:text-foreground"
               >
-                Sign In
+                {t("nav_signin", "Sign In")}
               </Link>
               <ThemeToggle showLabel />
             </div>
