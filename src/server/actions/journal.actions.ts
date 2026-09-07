@@ -238,15 +238,20 @@ export async function deleteTradeEntryAction(tradeId: string) {
     return { success: false, message: "Unauthorized." };
   }
 
-  // Strictly enforce: ONLY Admin/SuperAdmin can delete journal trades to protect discipline records
-  if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
-    return {
-      success: false,
-      message: "Trades cannot be deleted by students to maintain discipline and prevent loss erasure. Only Admin can delete trade entries.",
-    };
-  }
-
   try {
+    const existing = await prisma.tradeJournal.findUnique({
+      where: { id: tradeId },
+      select: { userId: true },
+    });
+
+    if (!existing) {
+      return { success: false, message: "Trade not found." };
+    }
+
+    if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN" && existing.userId !== user.id) {
+      return { success: false, message: "Unauthorized to delete this trade." };
+    }
+
     await prisma.tradeJournal.delete({
       where: { id: tradeId },
     });

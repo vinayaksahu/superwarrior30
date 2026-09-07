@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, Fragment } from "react";
 import {
   Plus,
   TrendingUp,
@@ -27,9 +27,14 @@ import {
   ArrowDownRight,
   Shield,
   Check,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
-import { createTradeEntryAction, updateTradeEntryAction } from "@/server/actions/journal.actions";
+import {
+  createTradeEntryAction,
+  updateTradeEntryAction,
+  deleteTradeEntryAction,
+} from "@/server/actions/journal.actions";
 import { EconomicNewsView } from "@/components/student/economic-news-view";
 import type { EconomicNewsFeedData } from "@/types/economic-news";
 import { PsychologyLogView } from "@/components/student/psychology-log-view";
@@ -179,11 +184,35 @@ export function TradingJournalClient({
 }: TradingJournalClientProps) {
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
   const [activeSection, setActiveSection] = useState<"TRADES" | "NEWS" | "PSYCHOLOGY" | "RISK">("TRADES");
-  const [filter, setFilter] = useState<string>("ALL");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Filter Bar States matching screenshot
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [resultFilter, setResultFilter] = useState<string>("ALL");
+  const [sessionFilter, setSessionFilter] = useState<string>("ALL");
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleExpandRow = (id: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setDateFrom("");
+    setDateTo("");
+    setResultFilter("ALL");
+    setSessionFilter("ALL");
+  };
 
   // Quick Instrument Pills State
   const [pairList, setPairList] = useState<string[]>([
@@ -679,11 +708,60 @@ export function TradingJournalClient({
   const highImpactCount =
     initialEconomicFeed?.events.filter((e) => e.impact === "High").length || 0;
 
+  const handleDeleteTrade = (tradeId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this trade from your journal?")) return;
+    startTransition(async () => {
+      try {
+        const res = await deleteTradeEntryAction(tradeId);
+        if (res.success) {
+          toast.success("Trade entry deleted successfully.");
+          setTrades((prev) => prev.filter((t) => t.id !== tradeId));
+        } else {
+          toast.error(res.message);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error deleting trade");
+      }
+    });
+  };
+
   const filteredTrades = trades.filter((t) => {
-    if (filter === "ALL") return true;
-    if (filter === "WINS") return t.outcome === "WIN";
-    if (filter === "LOSSES") return t.outcome === "LOSS";
-    if (filter === "OPEN") return t.status === "OPEN";
+    // 1. Search Query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchPair = (t.instrument || "").toLowerCase().includes(q);
+      const matchSetup = (t.setupReason || "").toLowerCase().includes(q);
+      const matchNotes = (t.notes || "").toLowerCase().includes(q);
+      const matchMistake = (t.mistakes || "").toLowerCase().includes(q);
+      const matchEmotion = (t.emotions || "").toLowerCase().includes(q);
+      if (!matchPair && !matchSetup && !matchNotes && !matchMistake && !matchEmotion) {
+        return false;
+      }
+    }
+
+    // 2. Date Range
+    const tradeDateStr = new Date(t.tradedAt).toISOString().split("T")[0];
+    if (dateFrom && tradeDateStr < dateFrom) return false;
+    if (dateTo && tradeDateStr > dateTo) return false;
+
+    // 3. Result Filter
+    if (resultFilter === "WIN" && t.outcome !== "WIN") return false;
+    if (resultFilter === "LOSS" && t.outcome !== "LOSS") return false;
+    if (resultFilter === "BREAKEVEN" && t.outcome !== "BREAKEVEN") return false;
+    if (resultFilter === "OPEN" && t.status !== "OPEN") return false;
+
+    // 4. Session Filter
+    if (sessionFilter !== "ALL") {
+      let sess = "London";
+      if (t.notes && t.notes.includes("[Session:")) {
+        const match = t.notes.match(/\[Session:\s*([^\]]+)\]/);
+        if (match && match[1]) sess = match[1].trim();
+      } else {
+        sess = detectSessionFromTime(new Date(t.tradedAt).toTimeString());
+      }
+      if (sess.toLowerCase() !== sessionFilter.toLowerCase()) return false;
+    }
+
     return true;
   });
 
@@ -888,212 +966,394 @@ export function TradingJournalClient({
         </div>
       )}
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-3">
-        {[
-          { label: "All Trades", value: "ALL" },
-          { label: "Winning Trades (W)", value: "WINS" },
-          { label: "Losing Trades (L)", value: "LOSSES" },
-          { label: "Open Positions", value: "OPEN" },
-        ].map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            onClick={() => setFilter(tab.value)}
-            className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-              filter === tab.value
-                ? "bg-primary text-primary-foreground shadow"
-                : "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Trade Log Section Title */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-base sm:text-lg font-black tracking-tight text-foreground flex items-center gap-2">
+          <span>📋</span>
+          <span>Trade Log</span>
+        </h3>
+        <span className="text-xs text-muted-foreground font-semibold">
+          {filteredTrades.length} of {trades.length} recorded trades
+        </span>
       </div>
 
-      {/* Trades Table */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+      {/* Filter Bar matching screenshot */}
+      <div className="rounded-2xl border border-border bg-card/70 p-3 sm:p-3.5 shadow-sm flex flex-wrap items-center gap-2.5 sm:gap-3">
+        {/* Search */}
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search trades..."
+            className="w-full rounded-xl border border-border bg-muted/40 pl-9 pr-3 py-2 text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        </div>
+
+        {/* Date From */}
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="rounded-xl border border-border bg-muted/40 px-2.5 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        </div>
+
+        {/* Date To */}
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-xl border border-border bg-muted/40 px-2.5 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        </div>
+
+        {/* All Results Dropdown */}
+        <select
+          value={resultFilter}
+          onChange={(e) => setResultFilter(e.target.value)}
+          className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
+        >
+          <option value="ALL">All Results</option>
+          <option value="WIN">Win</option>
+          <option value="LOSS">Loss</option>
+          <option value="BREAKEVEN">Breakeven</option>
+          <option value="OPEN">Open Positions</option>
+        </select>
+
+        {/* All Sessions Dropdown */}
+        <select
+          value={sessionFilter}
+          onChange={(e) => setSessionFilter(e.target.value)}
+          className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
+        >
+          <option value="ALL">All Sessions</option>
+          <option value="London">London</option>
+          <option value="New York">New York</option>
+          <option value="Asia">Asia</option>
+          <option value="Ldn-NY">Ldn-NY</option>
+        </select>
+
+        {/* Clear Button */}
+        <button
+          type="button"
+          onClick={handleClearFilters}
+          className="rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Trades Table matching screenshot */}
+      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Pair / Market</th>
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Direction</th>
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Entry / SL / TP</th>
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">R:R Ratio</th>
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Outcome & PnL</th>
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Chart</th>
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Mindset / Emotion</th>
-                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Mentor Feedback</th>
-                <th className="px-4 py-3.5 text-center font-bold text-muted-foreground">Showcase</th>
-                <th className="px-4 py-3.5 text-right font-bold text-muted-foreground">Action</th>
+              <tr className="border-b border-border bg-muted/40 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                <th className="py-3 px-3 w-10 text-center">#</th>
+                <th className="py-3 px-3">DATE</th>
+                <th className="py-3 px-3">HOLDING</th>
+                <th className="py-3 px-3">PAIR</th>
+                <th className="py-3 px-3">SESSION</th>
+                <th className="py-3 px-3">SETUP</th>
+                <th className="py-3 px-3">DIR</th>
+                <th className="py-3 px-3">RRR</th>
+                <th className="py-3 px-3 text-center">GRADE</th>
+                <th className="py-3 px-3">RESULT</th>
+                <th className="py-3 px-3">PNL $</th>
+                <th className="py-3 px-3">MISTAKE</th>
+                <th className="py-3 px-3 text-center">CHART</th>
+                <th className="py-3 px-3 text-right">ACTIONS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/50">
+            <tbody className="divide-y divide-border/60">
               {filteredTrades.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-16 text-center text-muted-foreground">
-                    <p className="font-semibold text-foreground">No trades found in your journal.</p>
-                    <p className="text-xs mt-1">Click "Log New Trade" to record your setup, entry, and emotions.</p>
+                  <td colSpan={14} className="py-16 text-center text-muted-foreground">
+                    <p className="font-semibold text-foreground text-sm">No trades found matching your filters.</p>
+                    <p className="text-xs mt-1">Try clearing filters or click &quot;Log New Trade&quot; above.</p>
                   </td>
                 </tr>
               ) : (
-                filteredTrades.map((t) => (
-                  <tr key={t.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 font-bold text-foreground">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span>{t.instrument}</span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground uppercase">
-                            {t.market}
+                filteredTrades.map((t, idx) => {
+                  const isExpanded = expandedRows.has(t.id);
+
+                  // Extract holding
+                  let holding = "15m";
+                  if (t.notes && t.notes.includes("[Holding:")) {
+                    const match = t.notes.match(/\[Holding:\s*([^\]]+)\]/);
+                    if (match && match[1]) holding = match[1].trim();
+                  }
+
+                  // Extract session
+                  let sessName = "London";
+                  if (t.notes && t.notes.includes("[Session:")) {
+                    const match = t.notes.match(/\[Session:\s*([^\]]+)\]/);
+                    if (match && match[1]) sessName = match[1].trim();
+                  } else {
+                    sessName = detectSessionFromTime(new Date(t.tradedAt).toTimeString());
+                  }
+
+                  // Setup abbreviation
+                  const setupName = t.setupReason
+                    ? t.setupReason.trim().split(/[\s,]+/)[0].slice(0, 14)
+                    : "Liquidity";
+
+                  // Grade computation
+                  const isWin = t.outcome === "WIN";
+                  const hasMistake = t.mistakes && t.mistakes !== "NONE";
+                  const grade = isWin && !hasMistake ? "A" : isWin || t.outcome === "BREAKEVEN" ? "B" : "C";
+                  const gradeColor =
+                    grade === "A"
+                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                      : grade === "B"
+                      ? "bg-sky-500/15 text-sky-400 border-sky-500/30"
+                      : "bg-amber-500/15 text-amber-400 border-amber-500/30";
+
+                  // Formatted date string (YYYY-MM-DD HH:mm)
+                  const d = new Date(t.tradedAt);
+                  const yr = d.getFullYear();
+                  const mo = String(d.getMonth() + 1).padStart(2, "0");
+                  const da = String(d.getDate()).padStart(2, "0");
+                  const hr = String(d.getHours()).padStart(2, "0");
+                  const mi = String(d.getMinutes()).padStart(2, "0");
+                  const dateDisplay = `${yr}-${mo}-${da} ${hr}:${mi}`;
+
+                  return (
+                    <Fragment key={t.id}>
+                      <tr className={`hover:bg-muted/20 transition-colors group ${isExpanded ? "bg-muted/15" : ""}`}>
+                        {/* # Expand Arrow */}
+                        <td className="py-3.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandRow(t.id)}
+                            className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            title="Click to toggle details"
+                          >
+                            <span className="text-[10px] text-muted-foreground/80">{isExpanded ? "▼" : "▶"}</span>
+                            <span>{idx + 1}</span>
+                          </button>
+                        </td>
+
+                        {/* DATE */}
+                        <td className="py-3.5 px-3 whitespace-nowrap font-mono text-[11px] text-foreground font-semibold">
+                          {dateDisplay}
+                        </td>
+
+                        {/* HOLDING */}
+                        <td className="py-3.5 px-3 whitespace-nowrap font-mono text-xs text-foreground font-bold">
+                          {holding}
+                        </td>
+
+                        {/* PAIR */}
+                        <td className="py-3.5 px-3 whitespace-nowrap font-black text-foreground text-xs">
+                          {t.instrument}
+                        </td>
+
+                        {/* SESSION */}
+                        <td className="py-3.5 px-3 whitespace-nowrap">
+                          <span className="inline-block rounded-lg bg-muted/40 border border-border px-2.5 py-1 text-[11px] font-bold text-foreground">
+                            {sessName}
                           </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium">
-                          {(() => {
-                            let sessName = "London";
-                            if (t.notes && t.notes.includes("[Session:")) {
-                              const match = t.notes.match(/\[Session:\s*([^\]]+)\]/);
-                              if (match && match[1]) sessName = match[1].trim();
-                            } else {
-                              sessName = detectSessionFromTime(new Date(t.tradedAt).toTimeString());
-                            }
-                            const badge = getSessionBadge(sessName);
-                            return (
-                              <span
-                                className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold border ${badge.bg} ${badge.text} ${badge.border}`}
-                              >
-                                <span>{badge.icon}</span>
-                                <span>{badge.label}</span>
-                              </span>
-                            );
-                          })()}
-                          <span className="font-mono text-[9px]">
-                            {new Date(t.tradedAt).toLocaleTimeString("en-IN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                        </td>
+
+                        {/* SETUP */}
+                        <td className="py-3.5 px-3 whitespace-nowrap">
+                          <span className="inline-block rounded-lg bg-muted/40 border border-border px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
+                            {setupName}
                           </span>
-                        </div>
-                      </div>
-                    </td>
+                        </td>
 
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                          t.direction === "BUY"
-                            ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
-                            : "bg-red-500/15 text-red-500 border border-red-500/30"
-                        }`}
-                      >
-                        {t.direction}
-                      </span>
-                    </td>
+                        {/* DIR */}
+                        <td className="py-3.5 px-3 whitespace-nowrap font-bold text-xs">
+                          <span className={t.direction === "BUY" ? "text-emerald-400 font-black" : "text-rose-400 font-black"}>
+                            {t.direction === "BUY" ? "Long" : "Short"}
+                          </span>
+                        </td>
 
-                    <td className="px-4 py-3 font-mono">
-                      <div>
-                        <span className="text-foreground">E: {t.entryPrice}</span>
-                        <div className="text-[10px] text-muted-foreground flex gap-2">
-                          <span className="text-red-400">SL: {t.stopLoss}</span>
-                          <span className="text-emerald-400">TP: {t.takeProfit}</span>
-                        </div>
-                      </div>
-                    </td>
+                        {/* RRR */}
+                        <td className="py-3.5 px-3 whitespace-nowrap font-mono font-black text-xs text-amber-400">
+                          {t.riskRewardRatio || (t.outcome === "WIN" ? "1:1.00" : "1:-1.00")}
+                        </td>
 
-                    <td className="px-4 py-3 font-mono font-bold text-primary">
-                      {t.riskRewardRatio || "—"}
-                    </td>
+                        {/* GRADE */}
+                        <td className="py-3.5 px-3 whitespace-nowrap text-center">
+                          <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-black border ${gradeColor}`}>
+                            {grade}
+                          </span>
+                        </td>
 
-                    <td className="px-4 py-3">
-                      <div className="space-y-0.5">
-                        <span
-                          className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            t.outcome === "WIN"
-                              ? "bg-emerald-500/15 text-emerald-500"
-                              : t.outcome === "LOSS"
-                              ? "bg-red-500/15 text-red-500"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {t.outcome}
-                        </span>
-                        {t.pnl !== null && (
-                          <p className={`font-mono text-xs font-bold ${t.pnl >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                            {t.pnl >= 0 ? `+${t.pnl}` : t.pnl}
-                          </p>
-                        )}
-                      </div>
-                    </td>
+                        {/* RESULT */}
+                        <td className="py-3.5 px-3 whitespace-nowrap">
+                          {t.outcome === "WIN" ? (
+                            <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-xs font-bold text-emerald-400">
+                              <Check className="h-3 w-3 stroke-[3]" /> Win
+                            </span>
+                          ) : t.outcome === "LOSS" ? (
+                            <span className="inline-flex items-center gap-1 rounded-xl bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 text-xs font-bold text-rose-400">
+                              <X className="h-3 w-3 stroke-[3]" /> Loss
+                            </span>
+                          ) : t.outcome === "BREAKEVEN" ? (
+                            <span className="inline-flex items-center gap-1 rounded-xl bg-muted/40 border border-border px-2.5 py-1 text-xs font-bold text-muted-foreground">
+                              ➖ BE
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-xl bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-xs font-bold text-amber-400">
+                              ⏳ Open
+                            </span>
+                          )}
+                        </td>
 
-                    <td className="px-4 py-3">
-                      {t.screenshotUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedImage(t.screenshotUrl)}
-                          className="relative h-11 w-16 rounded-lg overflow-hidden border border-border bg-black/40 group cursor-pointer hover:border-primary transition-all shadow-sm block text-left"
-                          title="Click to view chart screenshot"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={t.screenshotUrl}
-                            alt="Chart"
-                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
-                            <ZoomIn className="h-3.5 w-3.5" />
+                        {/* PNL $ */}
+                        <td className="py-3.5 px-3 whitespace-nowrap font-mono font-black text-xs">
+                          {t.pnl !== null ? (
+                            <span className={t.pnl > 0 ? "text-emerald-400" : t.pnl < 0 ? "text-rose-400" : "text-muted-foreground"}>
+                              {t.pnl > 0 ? `+$${t.pnl.toFixed(2)}` : t.pnl < 0 ? `-$${Math.abs(t.pnl).toFixed(2)}` : "$0.00"}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+
+                        {/* MISTAKE */}
+                        <td className="py-3.5 px-3 whitespace-nowrap text-xs">
+                          {t.mistakes && t.mistakes !== "NONE" ? (
+                            <span className="text-rose-400 font-bold">{t.mistakes}</span>
+                          ) : (
+                            <span className="text-muted-foreground/60">None</span>
+                          )}
+                        </td>
+
+                        {/* CHART */}
+                        <td className="py-3.5 px-3 whitespace-nowrap text-center">
+                          {t.screenshotUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedImage(t.screenshotUrl)}
+                              className="h-7 w-7 rounded-lg bg-muted/40 border border-border hover:border-primary flex items-center justify-center text-muted-foreground hover:text-foreground transition-all cursor-pointer mx-auto"
+                              title="View chart screenshot"
+                            >
+                              <ImageIcon className="h-3.5 w-3.5" />
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground/30 text-xs">—</span>
+                          )}
+                        </td>
+
+                        {/* ACTIONS */}
+                        <td className="py-3.5 px-3 whitespace-nowrap text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(t)}
+                              className="p-1.5 text-sky-400 hover:text-white bg-sky-500/10 hover:bg-sky-500 border border-sky-500/20 rounded-lg transition-all cursor-pointer"
+                              title="Edit trade details"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTrade(t.id)}
+                              className="p-1.5 text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg transition-all cursor-pointer"
+                              title="Delete trade entry"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                        </button>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground italic">No image</span>
+                        </td>
+                      </tr>
+
+                      {/* Expanded Details Row */}
+                      {isExpanded && (
+                        <tr className="bg-muted/15 border-b border-border/60">
+                          <td colSpan={14} className="p-3 md:p-4">
+                            <div className="rounded-xl border border-border/80 bg-card/90 p-4 space-y-3 shadow-inner">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-xs">
+                                <div className="bg-background/60 p-2.5 rounded-lg border border-border/40">
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Entry Price</span>
+                                  <span className="font-mono font-bold text-foreground">{t.entryPrice}</span>
+                                </div>
+                                <div className="bg-background/60 p-2.5 rounded-lg border border-border/40">
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Stop Loss</span>
+                                  <span className="font-mono font-bold text-rose-400">{t.stopLoss}</span>
+                                </div>
+                                <div className="bg-background/60 p-2.5 rounded-lg border border-border/40">
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Take Profit</span>
+                                  <span className="font-mono font-bold text-emerald-400">{t.takeProfit}</span>
+                                </div>
+                                <div className="bg-background/60 p-2.5 rounded-lg border border-border/40">
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Exit Price</span>
+                                  <span className="font-mono font-bold text-foreground">{t.exitPrice ?? "—"}</span>
+                                </div>
+                                <div className="bg-background/60 p-2.5 rounded-lg border border-border/40">
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Lot Size</span>
+                                  <span className="font-mono font-bold text-foreground">{t.lotSize ?? "—"}</span>
+                                </div>
+                                <div className="bg-background/60 p-2.5 rounded-lg border border-border/40">
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Market</span>
+                                  <span className="font-bold text-foreground uppercase">{t.market}</span>
+                                </div>
+                              </div>
+
+                              {(t.setupReason || t.notes) && (
+                                <div className="text-xs border-t border-border/40 pt-2.5 space-y-1.5">
+                                  {t.setupReason && (
+                                    <div>
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Setup & Confluence: </span>
+                                      <span className="text-foreground font-medium">{t.setupReason}</span>
+                                    </div>
+                                  )}
+                                  {t.notes && (
+                                    <div>
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Notes: </span>
+                                      <span className="text-muted-foreground">{t.notes}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="flex flex-wrap items-center gap-4 text-xs border-t border-border/40 pt-2.5">
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Mindset / Emotions: </span>
+                                  <span className="font-semibold text-foreground">{t.emotions || "CALM"}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Mistake: </span>
+                                  <span className={t.mistakes && t.mistakes !== "NONE" ? "text-rose-400 font-bold" : "text-emerald-400 font-semibold"}>
+                                    {t.mistakes || "NONE"}
+                                  </span>
+                                </div>
+                                {t.screenshotUrl && (
+                                  <div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedImage(t.screenshotUrl)}
+                                      className="inline-flex items-center gap-1 text-primary hover:underline font-semibold text-xs cursor-pointer"
+                                    >
+                                      <ImageIcon className="h-3.5 w-3.5" /> View Chart Snapshot
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {t.mentorFeedback && (
+                                <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs space-y-1">
+                                  <div className="flex items-center gap-1 text-[11px] font-bold text-primary">
+                                    <Sparkles className="h-3.5 w-3.5" /> Mentor Feedback:
+                                  </div>
+                                  <p className="text-foreground leading-relaxed">{t.mentorFeedback}</p>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <div className="space-y-0.5">
-                        <span className="text-[11px] font-medium text-foreground">{t.emotions || "Calm"}</span>
-                        {t.mistakes && t.mistakes !== "NONE" && (
-                          <span className="block text-[10px] text-amber-500 font-semibold">⚠️ {t.mistakes}</span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3 max-w-xs">
-                      {t.mentorFeedback ? (
-                        <div className="rounded-lg border border-primary/30 bg-primary/10 p-2 text-xs space-y-1">
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
-                            <Sparkles className="h-3 w-3" /> Rahul Sir:
-                          </div>
-                          <p className="text-[11px] text-foreground leading-snug">{t.mentorFeedback}</p>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-[11px] italic">Pending mentor review</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3 text-center">
-                      {t.isFeatured ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-500">
-                          ★ Featured
-                        </span>
-                      ) : (
-                        <span className="inline-block text-[10px] text-muted-foreground">
-                          Private
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(t)}
-                        className="inline-flex items-center gap-1 rounded-xl bg-primary/10 border border-primary/30 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
-                        title="Edit trade details"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                        <span>Edit</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
