@@ -21,8 +21,8 @@ export function PsychologyBreakdown() {
         </div>
 
         {/* 80/20 Visual Bar */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-sm space-y-5 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div>
               <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                 <Brain className="h-5 w-5 text-primary" />
@@ -32,31 +32,50 @@ export function PsychologyBreakdown() {
                 80% फोकस Mindset और Capital Protection पर • 20% फोकस High-Probability Price Action पर
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-primary/15 text-primary border border-primary/30 px-3 py-1 text-xs font-bold">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="rounded-full bg-primary/15 text-primary border border-primary/30 px-3 py-1 text-xs font-bold whitespace-nowrap">
                 80% Psychology & Risk
               </span>
-              <span className="rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 px-3 py-1 text-xs font-bold">
+              <span className="rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 px-3 py-1 text-xs font-bold whitespace-nowrap">
                 20% Technicals
               </span>
             </div>
           </div>
 
           {/* Visual Percentage Bar */}
-          <div className="space-y-2">
-            <div className="h-8 w-full rounded-xl overflow-hidden flex shadow-inner border border-border">
+          <div className="space-y-2.5">
+            <div className="h-10 sm:h-11 w-full rounded-2xl overflow-hidden flex shadow-inner border border-border/80 bg-muted/30 p-1">
               <div
-                className="bg-gradient-to-r from-primary via-amber-500 to-primary/80 flex items-center justify-center text-primary-foreground font-black text-xs tracking-wider transition-all"
+                className="bg-gradient-to-r from-amber-500 via-primary to-amber-400 rounded-xl flex items-center justify-center text-black font-black px-2 transition-all shadow-sm select-none"
                 style={{ width: "80%" }}
               >
-                80% PSYCHOLOGY & MONEY MANAGEMENT
+                <span className="hidden sm:inline text-xs font-black tracking-wider uppercase whitespace-nowrap">
+                  80% PSYCHOLOGY & MONEY MANAGEMENT
+                </span>
+                <span className="sm:hidden text-[11px] font-black tracking-tight uppercase whitespace-nowrap">
+                  80% PSYCHOLOGY & RISK
+                </span>
               </div>
               <div
-                className="bg-gradient-to-r from-sky-600 to-sky-500 flex items-center justify-center text-white font-black text-xs tracking-wider transition-all"
+                className="bg-gradient-to-r from-sky-600 to-sky-500 rounded-xl flex items-center justify-center text-white font-black px-1.5 transition-all shadow-sm ml-1 select-none"
                 style={{ width: "20%" }}
               >
-                20% TECH
+                <span className="text-[10px] sm:text-xs font-black tracking-tight sm:tracking-wider uppercase whitespace-nowrap">
+                  20% TECH
+                </span>
               </div>
+            </div>
+
+            {/* Clear Sub-Labels on mobile & desktop */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[11px] sm:text-xs font-semibold px-0.5">
+              <span className="text-amber-500 dark:text-amber-400 flex items-center gap-1.5 font-bold">
+                <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                80% Mindset, Discipline & Risk Management
+              </span>
+              <span className="text-sky-500 dark:text-sky-400 flex items-center gap-1.5 font-bold">
+                <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
+                20% High-Probability Setups
+              </span>
             </div>
           </div>
 
