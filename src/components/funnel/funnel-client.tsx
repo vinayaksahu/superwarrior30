@@ -113,17 +113,17 @@ export function FunnelClient({
               <button
                 type="button"
                 onClick={scrollToQuiz}
-                className="inline-flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-8 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.02] cursor-pointer"
+                className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-4 sm:px-8 py-3 text-xs sm:text-sm font-bold text-primary-foreground text-center shadow-xl shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.02] cursor-pointer"
               >
-                अपना Trading Psychology Profile Check करें
-                <ArrowRight className="h-4 w-4" />
+                <span>अपना Trading Psychology Profile Check करें</span>
+                <ArrowRight className="h-4 w-4 shrink-0" />
               </button>
               <button
                 type="button"
                 onClick={scrollToCourse}
-                className="inline-flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-8 text-sm font-bold shadow transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 sm:px-8 py-3 text-xs sm:text-sm font-bold text-center shadow transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
               >
-                80/20 Framework समझें
+                <span>80/20 Framework समझें</span>
               </button>
             </div>
 

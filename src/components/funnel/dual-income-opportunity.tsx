@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   Coins,
   TrendingUp,
@@ -169,26 +169,26 @@ export function DualIncomeOpportunity({
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
             <Link
               href="/register"
-              className="inline-flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-500 px-8 text-sm font-black text-white shadow-xl shadow-emerald-500/25 transition-all hover:bg-emerald-600 hover:scale-[1.02] cursor-pointer"
+              className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 sm:px-8 py-3 text-xs sm:text-sm font-black text-white text-center shadow-xl shadow-emerald-500/25 transition-all hover:bg-emerald-600 hover:scale-[1.02] cursor-pointer"
             >
-              <Wallet className="h-4 w-4" />
-              <span>Free Affiliate Program में Join करें (Zero Investment)</span>
-              <ArrowRight className="h-4 w-4" />
+              <Wallet className="h-4 w-4 shrink-0" />
+              <span className="leading-snug">Free Affiliate Program में Join करें (Zero Investment)</span>
+              <ArrowRight className="h-4 w-4 shrink-0" />
             </Link>
 
             {isHomePage ? (
               <Link
                 href="/super-warrior-30"
-                className="inline-flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-8 text-sm font-bold shadow transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 sm:px-8 py-3 text-xs sm:text-sm font-bold text-center shadow transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
               >
-                Super Warrior 30 Mentorship देखें
+                <span>Super Warrior 30 Mentorship देखें</span>
               </Link>
             ) : (
               <a
                 href="#offer"
-                className="inline-flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-8 text-sm font-bold shadow transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 sm:px-8 py-3 text-xs sm:text-sm font-bold text-center shadow transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
               >
-                Super Warrior 30 Mentorship जॉइन करें
+                <span>Super Warrior 30 Mentorship जॉइन करें</span>
               </a>
             )}
           </div>
