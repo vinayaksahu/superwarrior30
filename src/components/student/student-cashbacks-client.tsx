@@ -101,6 +101,10 @@ export function StudentCashbacksClient({
     .filter((c) => c.cashbackStatus === "PAID")
     .reduce((sum, c) => sum + c.calculatedAmount, 0);
 
+  const totalInstantSaved = claims
+    .filter((c) => c.mode === "INSTANT_DISCOUNT" && c.verificationStatus !== "REJECTED")
+    .reduce((sum, c) => sum + c.calculatedAmount, 0);
+
   const handleSubmitClaim = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClaim) return;
@@ -162,6 +166,32 @@ export function StudentCashbacksClient({
           Track your broker cashbacks, unlock discount coupons, claim trading rewards, and view payout receipts.
         </p>
       </div>
+
+      {/* Instant Discount Summary Banner if applicable */}
+      {totalInstantSaved > 0 && (
+        <div className="rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-card to-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary font-black text-lg">
+              ⚡
+            </span>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-foreground">
+                Total Instant Discount Saved:{" "}
+                <span className="text-primary font-black text-sm sm:text-base">
+                  {formatCurrency(totalInstantSaved)}
+                </span>
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                This discount was deducted directly from your course price during checkout. No cashback claim is required!
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[11px] font-bold text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Applied at Checkout
+          </span>
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">

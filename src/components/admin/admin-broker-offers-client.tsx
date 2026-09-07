@@ -411,7 +411,7 @@ export function AdminBrokerOffersClient({
           }`}
         >
           <ListFilter className="h-3.5 w-3.5" />
-          Broker Claims Ledger ({totalClaimsCount})
+          Broker Verifications &amp; Records ({totalClaimsCount})
         </button>
       </div>
 
@@ -1173,96 +1173,130 @@ export function AdminBrokerOffersClient({
                       <th className="px-4 py-3 font-medium">Student / User</th>
                       <th className="px-4 py-3 font-medium">Broker &amp; Member ID</th>
                       <th className="px-4 py-3 font-medium">Order &amp; Course</th>
-                      <th className="px-4 py-3 font-medium">Mode &amp; Amount</th>
-                      <th className="px-4 py-3 font-medium">Verification Status</th>
-                      <th className="px-4 py-3 font-medium">Cashback Status</th>
+                      <th className="px-4 py-3 font-medium">Benefit Mode &amp; Amount</th>
+                      <th className="px-4 py-3 font-medium">Broker ID Verification</th>
+                      <th className="px-4 py-3 font-medium">Benefit / Payout Status</th>
                       <th className="px-4 py-3 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {filteredClaims.map((claim) => (
-                      <tr key={claim.id} className="hover:bg-muted/10">
-                        <td className="px-4 py-3">
-                          <p className="font-bold text-foreground">{claim.user?.name || "Student"}</p>
-                          <p className="text-[11px] text-muted-foreground">{claim.user?.email || "N/A"}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-mono font-bold text-foreground">{claim.brokerMemberId}</p>
-                          <p className="text-[11px] text-muted-foreground">{claim.brokerName}</p>
-                          {claim.proofUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setProofModalUrl(claim.proofUrl!)}
-                              className="text-[10px] text-primary hover:underline flex items-center gap-0.5 mt-0.5"
-                            >
-                              <ImageIcon className="h-3 w-3" /> View Proof
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-mono font-bold text-foreground">{claim.order?.orderNumber || "N/A"}</p>
-                          <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">
-                            {claim.order?.items?.[0]?.itemTitle || "Course"}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="font-bold text-amber-400">
-                            {formatCurrency(claim.calculatedAmount)}
-                          </span>
-                          <p className="text-[10px] text-muted-foreground">
-                            ({claim.offerPercentage}% of {formatCurrency(claim.coursePrice)})
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              claim.verificationStatus === "VERIFIED"
-                                ? "bg-emerald-500/10 text-emerald-500"
-                                : claim.verificationStatus === "REJECTED"
-                                ? "bg-destructive/10 text-destructive"
-                                : "bg-amber-500/10 text-amber-500"
-                            }`}
-                          >
-                            {claim.verificationStatus}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              claim.cashbackStatus === "PAID"
-                                ? "bg-emerald-500/10 text-emerald-500"
-                                : claim.cashbackStatus === "CLAIM_REQUESTED"
-                                ? "bg-primary/10 text-primary"
-                                : claim.cashbackStatus === "AVAILABLE"
-                                ? "bg-amber-500/10 text-amber-500"
-                                : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {claim.cashbackStatus}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {claim.verificationStatus === "PENDING" && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleApproveMemberId(claim)}
-                                  disabled={isUpdatingClaim}
-                                  className="rounded bg-emerald-500/10 px-2 py-1 text-[11px] font-bold text-emerald-500 hover:bg-emerald-500/20"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setRejectModalClaim(claim)}
-                                  disabled={isUpdatingClaim}
-                                  className="rounded bg-destructive/10 px-2 py-1 text-[11px] font-bold text-destructive hover:bg-destructive/20"
-                                >
-                                  Reject
-                                </button>
-                              </>
+                    {filteredClaims.map((claim) => {
+                      const isInstant = claim.mode === "INSTANT_DISCOUNT";
+                      return (
+                        <tr key={claim.id} className="hover:bg-muted/10">
+                          <td className="px-4 py-3">
+                            <p className="font-bold text-foreground">{claim.user?.name || "Student"}</p>
+                            <p className="text-[11px] text-muted-foreground">{claim.user?.email || "N/A"}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-mono font-bold text-foreground">{claim.brokerMemberId}</p>
+                            <p className="text-[11px] text-muted-foreground">{claim.brokerName}</p>
+                            {claim.proofUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setProofModalUrl(claim.proofUrl!)}
+                                className="text-[10px] text-primary hover:underline flex items-center gap-0.5 mt-0.5"
+                              >
+                                <ImageIcon className="h-3 w-3" /> View Proof
+                              </button>
                             )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-mono font-bold text-foreground">{claim.order?.orderNumber || "N/A"}</p>
+                            <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">
+                              {claim.order?.items?.[0]?.itemTitle || "Course"}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="space-y-1">
+                              {isInstant ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                                  ⚡ Instant Discount
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                                  💰 Cashback Mode
+                                </span>
+                              )}
+                              <p className="font-bold text-foreground text-sm">
+                                {formatCurrency(claim.calculatedAmount)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                ({claim.offerPercentage}% of {formatCurrency(claim.coursePrice)})
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                claim.verificationStatus === "VERIFIED"
+                                  ? "bg-emerald-500/10 text-emerald-500"
+                                  : claim.verificationStatus === "REJECTED"
+                                  ? "bg-destructive/10 text-destructive"
+                                  : "bg-amber-500/10 text-amber-500"
+                              }`}
+                            >
+                              {claim.verificationStatus === "VERIFIED"
+                                ? "✓ ID Verified"
+                                : claim.verificationStatus === "REJECTED"
+                                ? "✕ ID Rejected"
+                                : "● Pending Review"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {isInstant ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                                  ✓ Deducted at Checkout
+                                </span>
+                                <p className="text-[10px] text-muted-foreground">No cashback needed</p>
+                              </div>
+                            ) : (
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                  claim.cashbackStatus === "PAID"
+                                    ? "bg-emerald-500/10 text-emerald-500"
+                                    : claim.cashbackStatus === "CLAIM_REQUESTED"
+                                    ? "bg-primary/10 text-primary"
+                                    : claim.cashbackStatus === "AVAILABLE"
+                                    ? "bg-amber-500/10 text-amber-500"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {claim.cashbackStatus === "AVAILABLE"
+                                  ? "Ready for Claim"
+                                  : claim.cashbackStatus === "CLAIM_REQUESTED"
+                                  ? "Payout Requested"
+                                  : claim.cashbackStatus === "PAID"
+                                  ? "Paid Out"
+                                  : claim.cashbackStatus}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {claim.verificationStatus === "PENDING" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveMemberId(claim)}
+                                    disabled={isUpdatingClaim}
+                                    className="rounded bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+                                    title="Verify student's broker account"
+                                  >
+                                    Approve ID
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRejectModalClaim(claim)}
+                                    disabled={isUpdatingClaim}
+                                    className="rounded bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive hover:bg-destructive/20 transition-colors"
+                                    title="Reject if ID is fake or invalid"
+                                  >
+                                    Reject ID
+                                  </button>
+                                </>
+                              )}
 
                             {claim.cashbackStatus === "CLAIM_REQUESTED" && (
                               <button
@@ -1277,7 +1311,8 @@ export function AdminBrokerOffersClient({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
