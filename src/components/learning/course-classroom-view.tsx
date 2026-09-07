@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
 import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
 import { StudentQuizView } from "@/components/learning/student-quiz-view";
@@ -82,8 +81,6 @@ export function CourseClassroomView({
   nextLessonId,
   initialMediaData,
 }: CourseClassroomViewProps) {
-  const router = useRouter();
-
   // In-memory media cache for instantaneous (0ms) lesson switching
   const mediaCacheRef = useRef<Map<string, MediaData>>(new Map());
   if (initialMediaData && !mediaCacheRef.current.has(initialMediaData.lessonId)) {
@@ -141,15 +138,15 @@ export function CourseClassroomView({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [currentLessonId, modules]);
 
-  // Instant Lesson Switcher
+  // Instant Lesson Switcher — pure client-side, no server roundtrip
   const handleSelectLesson = useCallback(
     (lessonId: string) => {
       if (lessonId === currentLessonId) return;
       setCurrentLessonId(lessonId);
       window.history.pushState(null, "", `/learn/${courseSlug}/${lessonId}`);
-      router.push(`/learn/${courseSlug}/${lessonId}`, { scroll: false });
+      setIsMobileDrawerOpen(false);
     },
-    [currentLessonId, courseSlug, router]
+    [currentLessonId, courseSlug]
   );
 
   // Flatten all lessons across modules for dynamic next/previous navigation
@@ -250,28 +247,25 @@ export function CourseClassroomView({
     };
   }, [currentLessonId, courseSlug, mediaData?.lessonId]);
 
-  // Background prefetch for next lesson media (0ms next-lesson transition)
+  // Background prefetch for adjacent lesson media (0ms transitions)
   useEffect(() => {
-    if (!computedNextLessonId || mediaCacheRef.current.has(computedNextLessonId)) {
-      return;
-    }
+    const toPrefetch = [computedNextLessonId, computedPrevLessonId].filter(
+      (id): id is string => !!id && !mediaCacheRef.current.has(id)
+    );
+    if (toPrefetch.length === 0) return;
 
-    const timer = setTimeout(async () => {
-      try {
-        const res = await getEnrolledLessonMediaUrlAction({
-          courseSlug,
-          lessonId: computedNextLessonId,
-        });
-        if (res) {
-          mediaCacheRef.current.set(computedNextLessonId, res);
-        }
-      } catch {
-        // Silent catch for background prefetch
+    const timer = setTimeout(() => {
+      for (const id of toPrefetch) {
+        getEnrolledLessonMediaUrlAction({ courseSlug, lessonId: id })
+          .then((res) => {
+            if (res) mediaCacheRef.current.set(id, res);
+          })
+          .catch(() => {}); // Silent prefetch
       }
-    }, 1500);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [computedNextLessonId, courseSlug]);
+  }, [computedNextLessonId, computedPrevLessonId, courseSlug]);
 
   // Real-time persistent toggle completion
   const handleToggleComplete = async () => {
@@ -319,9 +313,6 @@ export function CourseClassroomView({
       } else {
         toast.info("Lesson marked incomplete.");
       }
-
-      // Invalidate Next.js App Router client cache and re-fetch server state
-      router.refresh();
     } catch (err: unknown) {
       console.error("Progress save error:", err);
       const msg = err instanceof Error ? err.message : "Error saving progress";

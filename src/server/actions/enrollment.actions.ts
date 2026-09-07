@@ -293,23 +293,38 @@ export async function getEnrolledLessonMediaUrlAction({
   const user = await requireAuth();
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
-  // Step 1: Fetch lesson and verify parent course hierarchy (IDOR check)
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-    include: {
-      module: {
-        include: {
-          course: { select: { id: true, slug: true, deletedAt: true } },
+  // Parallel: Fetch lesson + user progress in one roundtrip
+  const [lesson, userProgress] = await Promise.all([
+    prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        module: {
+          include: {
+            course: { select: { id: true, slug: true, deletedAt: true } },
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.lessonProgress.findUnique({
+      where: {
+        userId_lessonId: {
+          userId: user.id,
+          lessonId,
+        },
+      },
+      select: {
+        status: true,
+        watchTimeSeconds: true,
+        lastPositionSeconds: true,
+      },
+    }),
+  ]);
 
   if (!lesson || lesson.module.course.slug !== courseSlug || lesson.module.course.deletedAt !== null) {
     throw new Error("Invalid lesson or course not available.");
   }
 
-  // Step 2: Verify Enrollment or Free Preview
+  // Verify Enrollment or Free Preview
   if (!isAdmin && !lesson.isFreePreview) {
     const isEnrolled = await checkUserEnrollment(lesson.module.course.id);
     if (!isEnrolled) {
@@ -317,12 +332,29 @@ export async function getEnrolledLessonMediaUrlAction({
     }
   }
 
-  // Step 3: Generate temporary signed/CDN URLs (R2 or Bunny)
+  // Generate temporary signed/CDN URLs + fetch duration in parallel
   let signedUrl: string | null = null;
-  if (lesson.contentType === "VIDEO") {
-    signedUrl = await getMediaUrl(lesson, "video", SIGNED_URL_EXPIRY.VIDEO);
-  } else if (lesson.contentType === "PDF") {
-    signedUrl = await getMediaUrl(lesson, "pdf", SIGNED_URL_EXPIRY.PDF);
+  let finalDurationSec = lesson.durationSec;
+
+  const needsMediaUrl = lesson.contentType === "VIDEO" || lesson.contentType === "PDF";
+  const needsDuration = lesson.contentType === "VIDEO" && (!finalDurationSec || finalDurationSec <= 120) && lesson.bunnyVideoId;
+
+  const [mediaUrl, durationAsset] = await Promise.all([
+    needsMediaUrl
+      ? getMediaUrl(lesson, lesson.contentType === "VIDEO" ? "video" : "pdf",
+          lesson.contentType === "VIDEO" ? SIGNED_URL_EXPIRY.VIDEO : SIGNED_URL_EXPIRY.PDF)
+      : Promise.resolve(null),
+    needsDuration
+      ? prisma.mediaAsset.findFirst({
+          where: { bunnyVideoId: lesson.bunnyVideoId! },
+          select: { duration: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  signedUrl = mediaUrl;
+  if (durationAsset?.duration && durationAsset.duration > 0) {
+    finalDurationSec = durationAsset.duration;
   }
 
   const isBunny =
@@ -331,33 +363,6 @@ export async function getEnrolledLessonMediaUrlAction({
     Boolean(lesson.bunnyCdnUrl);
 
   const detectedProvider = isBunny ? "BUNNY" : (lesson.mediaProvider || "R2");
-
-  // Safe server-side diagnostic logging (no secret tokens)
-  // Step 4: Fetch user's existing progress for resume
-  const userProgress = await prisma.lessonProgress.findUnique({
-    where: {
-      userId_lessonId: {
-        userId: user.id,
-        lessonId: lesson.id,
-      },
-    },
-    select: {
-      status: true,
-      watchTimeSeconds: true,
-      lastPositionSeconds: true,
-    },
-  });
-
-  let finalDurationSec = lesson.durationSec;
-  if (lesson.contentType === "VIDEO" && (!finalDurationSec || finalDurationSec <= 120) && lesson.bunnyVideoId) {
-    const asset = await prisma.mediaAsset.findFirst({
-      where: { bunnyVideoId: lesson.bunnyVideoId },
-      select: { duration: true },
-    });
-    if (asset?.duration && asset.duration > 0) {
-      finalDurationSec = asset.duration;
-    }
-  }
 
   return {
     lessonId: lesson.id,
