@@ -15,6 +15,7 @@ import {
   Star,
   BookMarked,
   Video,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,7 @@ const navLinks = [
   { href: "/dashboard/journal", label: "Trading Journal", icon: BookMarked },
   { href: "/dashboard/live-proofs", label: "YouTube Live Trades", icon: Video },
   { href: "/dashboard/live", label: "Live Classes", icon: Radio },
-  { href: "/dashboard/cashbacks", label: "Broker Cashbacks", icon: Sparkles },
+  { href: "/dashboard/cashbacks", label: "Cashback, Coupons & Prizes", icon: Gift },
   { href: "/dashboard/testimonials", label: "Review", icon: Star },
   { href: "/referrals", label: "Affiliate", icon: GitBranch },
   { href: "/wallet", label: "Wallet", icon: Wallet },
@@ -37,7 +38,7 @@ export function StudentNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="hidden lg:block lg:w-56 lg:shrink-0 space-y-1">
+    <nav className="hidden lg:block lg:w-60 lg:shrink-0 space-y-1">
       {navLinks.map((link) => {
         const isActive =
           pathname === link.href ||
