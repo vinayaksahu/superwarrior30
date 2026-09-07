@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, use, useState, useEffect, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   registerAction,
@@ -38,6 +39,7 @@ export function RegisterForm({
   const [refCode, setRefCode] = useState(initialRef || "");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // OTP Verification Step State
   const [step, setStep] = useState<"DETAILS" | "OTP">("DETAILS");
@@ -411,13 +413,63 @@ export function RegisterForm({
             )}
           </div>
         </div>
+ 
+        {/* Terms of Service, Privacy Policy & Refund Policy Checkbox */}
+        <div className="flex items-start gap-2.5 pt-3">
+          <input
+            id="acceptTerms"
+            name="acceptTerms"
+            type="checkbox"
+            required
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+            className="h-4 w-4 mt-0.5 rounded border-border text-primary focus:ring-primary focus:ring-offset-background cursor-pointer shrink-0"
+          />
+          <label
+            htmlFor="acceptTerms"
+            className="text-xs text-muted-foreground leading-normal cursor-pointer select-none"
+          >
+            I agree to the{" "}
+            <Link
+              href="/terms"
+              target="_blank"
+              className="text-primary font-semibold hover:underline"
+            >
+              Terms of Service
+            </Link>
+            ,{" "}
+            <Link
+              href="/privacy"
+              target="_blank"
+              className="text-primary font-semibold hover:underline"
+            >
+              Privacy Policy
+            </Link>
+            , and{" "}
+            <Link
+              href="/refund-policy"
+              target="_blank"
+              className="text-primary font-semibold hover:underline"
+            >
+              Refund Policy
+            </Link>
+            .
+          </label>
+        </div>
 
         <button
           type="submit"
-          disabled={isPending}
-          className="mt-6 inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+          disabled={isPending || !acceptedTerms}
+          className="mt-6 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
         >
-          {isPending ? "Creating account..." : "Create Account"}
+          {isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Creating account...
+            </>
+          ) : (
+            "Create Account"
+          )}
         </button>
       </div>
     </form>

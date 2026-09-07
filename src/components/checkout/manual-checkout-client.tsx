@@ -82,6 +82,7 @@ export function ManualCheckoutClient({
   const [guestPhone, setGuestPhone] = useState<string>("");
   const [guestPassword, setGuestPassword] = useState<string>("");
   const [showGuestPassword, setShowGuestPassword] = useState<boolean>(false);
+  const [acceptedPolicies, setAcceptedPolicies] = useState<boolean>(false);
 
   // ----------------------------------------------------
   // 1. PROMO COUPON STATE
@@ -544,6 +545,11 @@ export function ManualCheckoutClient({
     e.preventDefault();
     setErrorMessage(null);
 
+    if (!acceptedPolicies) {
+      toast.error("Please accept the Terms of Service, Privacy Policy, and Refund Policy to proceed.");
+      return;
+    }
+
     if (isGuest) {
       if (!guestName.trim()) {
         toast.error("Please enter your Full Name.");
@@ -677,6 +683,11 @@ export function ManualCheckoutClient({
   const handleManualSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (!acceptedPolicies) {
+      toast.error("Please accept the Terms of Service, Privacy Policy, and Refund Policy to proceed.");
+      return;
+    }
 
     if (!selectedMethod) {
       toast.error("Please select a payment method.");
@@ -1448,11 +1459,53 @@ export function ManualCheckoutClient({
                   </>
                 )}
 
+                {/* Terms of Service, Privacy Policy & Refund Policy Acceptance Checkbox */}
+                <div className="flex items-start gap-2.5 rounded-xl border border-border/80 bg-muted/20 p-3">
+                  <input
+                    id="checkoutAcceptPolicies"
+                    type="checkbox"
+                    required
+                    checked={acceptedPolicies}
+                    onChange={(e) => setAcceptedPolicies(e.target.checked)}
+                    className="h-4 w-4 mt-0.5 rounded border-border text-primary focus:ring-primary focus:ring-offset-background cursor-pointer shrink-0"
+                  />
+                  <label
+                    htmlFor="checkoutAcceptPolicies"
+                    className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none"
+                  >
+                    I have read and agree to the{" "}
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      className="text-primary font-semibold hover:underline"
+                    >
+                      Terms of Service
+                    </Link>
+                    ,{" "}
+                    <Link
+                      href="/privacy"
+                      target="_blank"
+                      className="text-primary font-semibold hover:underline"
+                    >
+                      Privacy Policy
+                    </Link>
+                    , and{" "}
+                    <Link
+                      href="/refund-policy"
+                      target="_blank"
+                      className="text-primary font-semibold hover:underline"
+                    >
+                      Refund &amp; Cancellation Policy
+                    </Link>
+                    . (Digital Product: All Sales Final, No Refunds).
+                  </label>
+                </div>
+
                 {/* Submit / Pay Button */}
                 {isGatewaySelected ? (
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !acceptedPolicies}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
                   >
                     {isSubmitting ? (
@@ -1470,7 +1523,7 @@ export function ManualCheckoutClient({
                 ) : (
                   <button
                     type="submit"
-                    disabled={isSubmitting || !utrInput.trim()}
+                    disabled={isSubmitting || !utrInput.trim() || !acceptedPolicies}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 transition-all cursor-pointer"
                   >
                     {isSubmitting ? (
