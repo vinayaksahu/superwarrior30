@@ -9,9 +9,11 @@ import { PainPoints } from "@/components/funnel/pain-points";
 import { PsychologyBreakdown } from "@/components/funnel/psychology-breakdown";
 import { MentorAssurance } from "@/components/funnel/mentor-assurance";
 import { CurriculumAccordion } from "@/components/funnel/curriculum-accordion";
+import { VerifiedTradesShowcase } from "@/components/funnel/verified-trades-showcase";
 import { TestimonialsSection } from "@/components/funnel/testimonials-section";
 import { CourseOffer } from "@/components/funnel/course-offer";
 import { FaqSection } from "@/components/funnel/faq-section";
+import { getFeaturedTradesAction } from "@/server/actions/journal.actions";
 import {
   TrendingUp,
   BookOpen,
@@ -171,6 +173,9 @@ export default async function SuperWarrior30FunnelPage({
   // Fetch testimonials
   const testimonials = await getApprovedTestimonialsAction("LANDING");
 
+  // Fetch featured trade journals with screenshots
+  const featuredTrades = await getFeaturedTradesAction(9);
+
   const courseId = course?.id || "";
   const courseTitle = course?.title || "Super Warrior 30";
   const coursePrice = course?.price || 0;
@@ -280,7 +285,10 @@ export default async function SuperWarrior30FunnelPage({
       {/* SECTION 7 — Mentor's Personal Commitment & Complete Ecosystem */}
       <MentorAssurance courseId={courseId} />
 
-      {/* SECTION 8 — Course Curriculum */}
+      {/* SECTION 8 — Real Verified Student Trade Journals & Screenshots */}
+      <VerifiedTradesShowcase trades={featuredTrades as any} />
+
+      {/* SECTION 9 — Course Curriculum */}
       <CurriculumAccordion modules={course?.modules} />
 
       {/* SECTION 8 — Who Is This For */}

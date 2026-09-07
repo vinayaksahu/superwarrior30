@@ -15,6 +15,10 @@ import {
   Loader2,
   MessageSquare,
   Sparkles,
+  Upload,
+  Image as ImageIcon,
+  ZoomIn,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createTradeEntryAction, deleteTradeEntryAction } from "@/server/actions/journal.actions";
@@ -38,7 +42,9 @@ interface Trade {
   emotions: string | null;
   mistakes: string | null;
   notes: string | null;
+  screenshotUrl: string | null;
   mentorFeedback: string | null;
+  isFeatured?: boolean;
   tradedAt: Date;
 }
 
@@ -66,6 +72,8 @@ export function TradingJournalClient({
   const [filter, setFilter] = useState<string>("ALL");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // New trade form state
   const [formData, setFormData] = useState({
@@ -84,7 +92,44 @@ export function TradingJournalClient({
     mistakes: "NONE",
     setupReason: "",
     notes: "",
+    screenshotUrl: "",
   });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Screenshot size must be under 15MB");
+      return;
+    }
+
+    setUploadingScreenshot(true);
+    try {
+      const data = new FormData();
+      data.append("file", file);
+      data.append("category", "journal");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: data,
+      });
+
+      const json = await res.json();
+      if (json.success && (json.url || json.cdnUrl)) {
+        const url = json.url || json.cdnUrl;
+        setFormData((prev) => ({ ...prev, screenshotUrl: url }));
+        toast.success("Chart screenshot uploaded successfully!");
+      } else {
+        toast.error(json.error || "Failed to upload chart screenshot");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      toast.error("Network error while uploading screenshot");
+    } finally {
+      setUploadingScreenshot(false);
+    }
+  };
 
   const handleCreateTrade = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +155,7 @@ export function TradingJournalClient({
         mistakes: formData.mistakes,
         setupReason: formData.setupReason,
         notes: formData.notes,
+        screenshotUrl: formData.screenshotUrl || undefined,
       });
 
       if (res.success) {
@@ -240,6 +286,7 @@ export function TradingJournalClient({
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Entry / SL / TP</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">R:R Ratio</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Outcome & PnL</th>
+                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Chart</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Mindset / Emotion</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Mentor Feedback</th>
                 <th className="px-4 py-3.5 text-right font-bold text-muted-foreground">Action</th>
@@ -248,7 +295,7 @@ export function TradingJournalClient({
             <tbody className="divide-y divide-border/50">
               {filteredTrades.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-16 text-center text-muted-foreground">
                     <p className="font-semibold text-foreground">No trades found in your journal.</p>
                     <p className="text-xs mt-1">Click "Log New Trade" to record your setup, entry, and emotions.</p>
                   </td>
@@ -308,6 +355,29 @@ export function TradingJournalClient({
                           </p>
                         )}
                       </div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {t.screenshotUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedImage(t.screenshotUrl)}
+                          className="relative h-11 w-16 rounded-lg overflow-hidden border border-border bg-black/40 group cursor-pointer hover:border-primary transition-all shadow-sm block text-left"
+                          title="Click to view chart screenshot"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={t.screenshotUrl}
+                            alt="Chart"
+                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                            <ZoomIn className="h-3.5 w-3.5" />
+                          </div>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">No image</span>
+                      )}
                     </td>
 
                     <td className="px-4 py-3">
@@ -550,6 +620,71 @@ export function TradingJournalClient({
                 />
               </div>
 
+              {/* Trade / Chart Screenshot Upload */}
+              <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/20 p-3.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-foreground flex items-center gap-1.5 text-xs">
+                    <ImageIcon className="h-4 w-4 text-primary" />
+                    <span>Chart Screenshot (PNG, JPG, WEBP)</span>
+                  </label>
+                  {formData.screenshotUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData((p) => ({ ...p, screenshotUrl: "" }))}
+                      className="text-[10px] text-destructive hover:underline cursor-pointer font-bold"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {formData.screenshotUrl ? (
+                  <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border bg-black/40 group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={formData.screenshotUrl}
+                      alt="Trade preview"
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] text-emerald-400 font-bold flex items-center gap-1 backdrop-blur-xs">
+                      <CheckCircle2 className="h-3 w-3" /> Screenshot Attached
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl p-4 cursor-pointer hover:border-primary/50 hover:bg-muted/40 transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingScreenshot}
+                        onChange={handleFileUpload}
+                      />
+                      {uploadingScreenshot ? (
+                        <div className="flex items-center gap-2 text-primary text-xs font-semibold py-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Uploading screenshot to CDN...</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-center py-1">
+                          <Upload className="h-6 w-6 text-muted-foreground" />
+                          <span className="text-xs font-bold text-foreground">Click to upload chart screenshot</span>
+                          <span className="text-[10px] text-muted-foreground">PNG, JPG, JPEG, WEBP up to 15MB</span>
+                        </div>
+                      )}
+                    </label>
+
+                    <input
+                      type="url"
+                      value={formData.screenshotUrl}
+                      onChange={(e) => setFormData((p) => ({ ...p, screenshotUrl: e.target.value }))}
+                      placeholder="Or paste screenshot URL (TradingView, Lightshot, etc.)"
+                      className="w-full rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-mono focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                 <button
                   type="button"
@@ -560,13 +695,40 @@ export function TradingJournalClient({
                 </button>
                 <button
                   type="submit"
-                  disabled={isPending}
+                  disabled={isPending || uploadingScreenshot}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 font-bold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
                 >
                   {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save to Journal"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* High-Res Lightbox Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-card rounded-2xl border border-border overflow-hidden p-2 flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 z-10 rounded-full bg-black/70 p-2 text-white hover:bg-black cursor-pointer shadow-lg"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={selectedImage}
+              alt="Trade chart screenshot"
+              className="max-h-[80vh] w-auto object-contain rounded-xl"
+            />
           </div>
         </div>
       )}

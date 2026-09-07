@@ -1503,6 +1503,7 @@ model TradeJournal {
   mentorFeedback  String?   @db.Text
   reviewedById    String?
   reviewedAt      DateTime?
+  isFeatured      Boolean   @default(false)
   tradedAt        DateTime  @default(now())
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -1510,6 +1511,7 @@ model TradeJournal {
   @@index([userId])
   @@index([tradedAt])
   @@index([status])
+  @@index([isFeatured])
   @@map("trade_journals")
 }
 

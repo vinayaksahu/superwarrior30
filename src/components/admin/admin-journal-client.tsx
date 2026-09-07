@@ -12,9 +12,13 @@ import {
   Loader2,
   AlertTriangle,
   User,
+  Star,
+  ZoomIn,
+  X,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { addMentorFeedbackAction } from "@/server/actions/journal.actions";
+import { addMentorFeedbackAction, toggleTradeFeaturedAction } from "@/server/actions/journal.actions";
 
 interface AdminTrade {
   id: string;
@@ -33,7 +37,9 @@ interface AdminTrade {
   setupReason: string | null;
   emotions: string | null;
   mistakes: string | null;
+  screenshotUrl?: string | null;
   mentorFeedback: string | null;
+  isFeatured?: boolean;
   tradedAt: Date;
   user: {
     id: string;
@@ -55,7 +61,25 @@ export function AdminJournalClient({
   const [trades, setTrades] = useState<AdminTrade[]>(initialTrades);
   const [feedbackTrade, setFeedbackTrade] = useState<AdminTrade | null>(null);
   const [feedbackText, setFeedbackText] = useState<string>("");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const handleToggleFeatured = async (trade: AdminTrade) => {
+    const newFeatured = !trade.isFeatured;
+    try {
+      const res = await toggleTradeFeaturedAction(trade.id, newFeatured);
+      if (res.success) {
+        toast.success(res.message);
+        setTrades((prev) =>
+          prev.map((t) => (t.id === trade.id ? { ...t, isFeatured: newFeatured } : t))
+        );
+      } else {
+        toast.error(res.message);
+      }
+    } catch {
+      toast.error("Failed to update featured status");
+    }
+  };
 
   const handleOpenFeedback = (trade: AdminTrade) => {
     setFeedbackTrade(trade);
@@ -111,15 +135,17 @@ export function AdminJournalClient({
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Pair & Type</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Entry / SL / TP</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">R:R & PnL</th>
+                <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Chart</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Emotion & Mistakes</th>
                 <th className="px-4 py-3.5 text-left font-bold text-muted-foreground">Mentor Feedback</th>
+                <th className="px-4 py-3.5 text-center font-bold text-muted-foreground">Showcase</th>
                 <th className="px-4 py-3.5 text-right font-bold text-muted-foreground">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {trades.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-16 text-center text-muted-foreground">
                     <p className="font-semibold text-foreground">No student trade journals found yet.</p>
                     <p className="text-xs mt-1">When students log their trades in their dashboard, they will appear here for your review.</p>
                   </td>
@@ -173,6 +199,29 @@ export function AdminJournalClient({
                     </td>
 
                     <td className="px-4 py-3">
+                      {t.screenshotUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedImage(t.screenshotUrl || null)}
+                          className="relative h-11 w-16 rounded-lg overflow-hidden border border-border bg-black/40 group cursor-pointer hover:border-primary transition-all shadow-sm block text-left"
+                          title="Click to view chart screenshot"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={t.screenshotUrl}
+                            alt="Chart"
+                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                            <ZoomIn className="h-3.5 w-3.5" />
+                          </div>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">No image</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
                       <div className="space-y-1">
                         <span
                           className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold ${
@@ -203,6 +252,22 @@ export function AdminJournalClient({
                       ) : (
                         <span className="text-muted-foreground text-[11px] italic">Not reviewed yet</span>
                       )}
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFeatured(t)}
+                        className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer ${
+                          t.isFeatured
+                            ? "bg-amber-500/20 text-amber-500 border border-amber-500/40 shadow-sm"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border"
+                        }`}
+                        title={t.isFeatured ? "Currently featured on Home & Landing Page" : "Click to feature on Home & Landing Page"}
+                      >
+                        <Star className={`h-3 w-3 ${t.isFeatured ? "fill-amber-500 text-amber-500" : ""}`} />
+                        <span>{t.isFeatured ? "Featured" : "Feature"}</span>
+                      </button>
                     </td>
 
                     <td className="px-4 py-3 text-right">
@@ -275,6 +340,33 @@ export function AdminJournalClient({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* High-Res Lightbox Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-card rounded-2xl border border-border overflow-hidden p-2 flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 z-10 rounded-full bg-black/70 p-2 text-white hover:bg-black cursor-pointer shadow-lg"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={selectedImage}
+              alt="Trade chart screenshot"
+              className="max-h-[80vh] w-auto object-contain rounded-xl"
+            />
           </div>
         </div>
       )}

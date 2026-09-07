@@ -29,7 +29,9 @@ export async function POST(req: NextRequest) {
     const isStudentUpload =
       category === "homework" ||
       category === "submission" ||
-      category === "student";
+      category === "student" ||
+      category === "journal" ||
+      category === "screenshot";
 
     if (!isStudentUpload && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
       return NextResponse.json(
@@ -124,7 +126,9 @@ export async function POST(req: NextRequest) {
     const uniqueId = crypto.randomUUID();
 
     let storagePath: string;
-    if (isStudentUpload) {
+    if (category === "journal" || category === "screenshot") {
+      storagePath = `journal/${user.id}/${uniqueId}.${ext}`;
+    } else if (isStudentUpload) {
       storagePath = `homework/${user.id}/${uniqueId}.${ext}`;
     } else if (category === "thumbnail") {
       storagePath = `courses/${courseId || "general"}/thumbnail-${uniqueId}.${ext}`;
@@ -176,6 +180,32 @@ export async function POST(req: NextRequest) {
         category,
         message: `${filename} uploaded to R2 Storage!`,
       });
+    }
+
+    // Fallback: Local filesystem storage under public/uploads
+    try {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const uploadsDir = path.join(process.cwd(), "public", "uploads", category);
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const localFilename = `${uniqueId}.${ext}`;
+      const localFilePath = path.join(uploadsDir, localFilename);
+      await fs.writeFile(localFilePath, buffer);
+      const publicUrl = `/uploads/${category}/${localFilename}`;
+
+      return NextResponse.json({
+        success: true,
+        key: `uploads/${category}/${localFilename}`,
+        url: publicUrl,
+        cdnUrl: publicUrl,
+        bunnyVideoId: null,
+        provider: "LOCAL",
+        filename,
+        category,
+        message: `${filename} uploaded successfully!`,
+      });
+    } catch (fsErr) {
+      console.warn("Local file upload fallback notice:", fsErr);
     }
 
     return NextResponse.json(

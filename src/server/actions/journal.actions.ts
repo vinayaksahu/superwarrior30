@@ -207,6 +207,7 @@ export async function updateTradeEntryAction(
         ...(data.emotions ? { emotions: data.emotions } : {}),
         ...(data.mistakes ? { mistakes: data.mistakes } : {}),
         ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        ...(data.screenshotUrl !== undefined ? { screenshotUrl: data.screenshotUrl } : {}),
       },
     });
 
@@ -337,6 +338,8 @@ export async function addMentorFeedbackAction(tradeId: string, feedback: string)
 
     revalidatePath("/admin/journal");
     revalidatePath("/dashboard/journal");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
 
     return { success: true, message: "Mentor feedback saved and sent to student!" };
   } catch (error) {
@@ -344,3 +347,71 @@ export async function addMentorFeedbackAction(tradeId: string, feedback: string)
     return { success: false, message: "Failed to save mentor feedback." };
   }
 }
+
+// ==========================================
+// 7. ADMIN: TOGGLE FEATURED ON LANDING / HOME
+// ==========================================
+
+export async function toggleTradeFeaturedAction(tradeId: string, isFeatured: boolean) {
+  await requireAdmin();
+  await ensureDatabaseSchemaSync();
+
+  if (!tradeId) {
+    return { success: false, message: "Invalid trade ID." };
+  }
+
+  try {
+    const updated = await prisma.tradeJournal.update({
+      where: { id: tradeId },
+      data: { isFeatured },
+    });
+
+    revalidatePath("/admin/journal");
+    revalidatePath("/super-warrior-30");
+    revalidatePath("/");
+
+    return {
+      success: true,
+      message: isFeatured
+        ? "Trade marked as Featured on Landing & Home page!"
+        : "Trade removed from Featured showcase.",
+      isFeatured: updated.isFeatured,
+    };
+  } catch (error) {
+    console.error("Error toggling featured trade:", error);
+    return { success: false, message: "Failed to update featured status." };
+  }
+}
+
+// ==========================================
+// 8. PUBLIC: GET FEATURED TRADES FOR HOME / LANDING
+// ==========================================
+
+export async function getFeaturedTradesAction(limit = 8) {
+  await ensureDatabaseSchemaSync();
+
+  try {
+    const trades = await prisma.tradeJournal.findMany({
+      where: {
+        isFeatured: true,
+        screenshotUrl: { not: null },
+      },
+      orderBy: { tradedAt: "desc" },
+      take: limit,
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return trades;
+  } catch (error) {
+    console.error("Error fetching featured trades:", error);
+    return [];
+  }
+}
+

@@ -22,6 +22,8 @@ import {
 import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { getApprovedTestimonialsAction } from "@/server/actions/testimonial.actions";
 import { TestimonialsSection } from "@/components/funnel/testimonials-section";
+import { getFeaturedTradesAction } from "@/server/actions/journal.actions";
+import { VerifiedTradesShowcase } from "@/components/funnel/verified-trades-showcase";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,8 @@ export default async function HomePage() {
   const testimonials = await withEnvironmentContext(homepageEnv, async () => {
     return await getApprovedTestimonialsAction("HOME");
   });
+
+  const featuredTrades = await getFeaturedTradesAction(6);
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
@@ -486,6 +490,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* 8.5. Real Verified Student Trade Journals & Screenshots */}
+      <VerifiedTradesShowcase trades={featuredTrades as any} />
 
       {/* 9. Conversion CTA */}
       <section className="py-20 border-b border-border/40 bg-gradient-to-b from-background to-muted/20">
