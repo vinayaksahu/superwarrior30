@@ -81,12 +81,12 @@ export default function TermsPage() {
 
           {/* Section 4 */}
           <section className="space-y-2 rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div className="flex items-center gap-2 text-blue-500 font-bold text-sm">
+            <div className="flex items-center gap-2 text-destructive font-bold text-sm">
               <RefreshCw className="h-4 w-4 shrink-0" />
-              <h2 className="text-foreground font-bold">4. Refund & Cancellation Policy</h2>
+              <h2 className="text-foreground font-bold">4. Strict No-Refund & Cancellation Policy (Digital Products)</h2>
             </div>
             <p>
-              Refunds and cancellations are strictly governed by our standalone <Link href="/refund-policy" className="text-primary underline font-semibold">Refund & Cancellation Policy</Link>. In brief, because digital goods and video streams are consumed immediately upon purchase, requests for refund must be submitted within our designated review window with valid transaction proofs. Verified duplicate billing errors will be refunded to the original payment source within 5 to 7 business days.
+              Refunds and cancellations are strictly governed by our standalone <Link href="/refund-policy" className="text-primary underline font-semibold">Refund & Cancellation Policy</Link>. Because all courses, mentorship programs, recorded video masterclasses, and trading journal tools are <strong>instant-access digital products</strong> delivered immediately upon payment, <strong>all purchases are strictly non-refundable and final</strong>. No refunds, partial refunds, or cancellations are offered under any circumstances, with the sole exception of verified technical duplicate billing reported within 48 hours.
             </p>
           </section>
 
