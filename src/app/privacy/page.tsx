@@ -110,7 +110,7 @@ export default function PrivacyPage() {
             <div className="bg-background rounded-xl p-4 border border-border text-[11px] space-y-1">
               <p><strong>Grievance & Data Privacy Desk</strong></p>
               <p>Rahul Trade Warrior Academy</p>
-              <p>Email: <a href="mailto:privacy@superwarrior30.com" className="text-primary hover:underline">privacy@superwarrior30.com</a> / <a href="mailto:support@superwarrior30.com" className="text-primary hover:underline">support@superwarrior30.com</a></p>
+              <p>Email: <a href="mailto:support@superwarrior30.com" className="text-primary hover:underline">support@superwarrior30.com</a></p>
               <p>Address: VIP Road, Near Magneto The Mall, Raipur, Chhattisgarh - 492001, India.</p>
             </div>
           </section>

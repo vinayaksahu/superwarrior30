@@ -124,7 +124,6 @@ export default function TermsPage() {
             <div className="bg-background rounded-xl p-4 border border-border text-[11px] space-y-1">
               <p><strong>Rahul Trade Warrior Academy</strong></p>
               <p>Email: <a href="mailto:support@superwarrior30.com" className="text-primary hover:underline">support@superwarrior30.com</a></p>
-              <p>Grievance Officer: <a href="mailto:grievance@superwarrior30.com" className="text-primary hover:underline">grievance@superwarrior30.com</a></p>
               <p>Address: VIP Road, Near Magneto The Mall, Raipur, Chhattisgarh - 492001, India.</p>
             </div>
           </section>
