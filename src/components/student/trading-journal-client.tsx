@@ -34,6 +34,8 @@ import { EconomicNewsView } from "@/components/student/economic-news-view";
 import type { EconomicNewsFeedData } from "@/types/economic-news";
 import { PsychologyLogView } from "@/components/student/psychology-log-view";
 import type { StudentPsychologyData } from "@/types/psychology";
+import { RiskManagerView } from "@/components/student/risk-manager-view";
+import type { StudentRiskData } from "@/types/risk-manager";
 import { BookMarked } from "lucide-react";
 
 // ==========================================
@@ -165,6 +167,7 @@ interface TradingJournalClientProps {
   stats: JournalStats | null;
   initialEconomicFeed?: EconomicNewsFeedData;
   initialPsychologyData?: StudentPsychologyData;
+  initialRiskData?: StudentRiskData;
 }
 
 export function TradingJournalClient({
@@ -172,9 +175,10 @@ export function TradingJournalClient({
   stats,
   initialEconomicFeed,
   initialPsychologyData,
+  initialRiskData,
 }: TradingJournalClientProps) {
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
-  const [activeSection, setActiveSection] = useState<"TRADES" | "NEWS" | "PSYCHOLOGY">("TRADES");
+  const [activeSection, setActiveSection] = useState<"TRADES" | "NEWS" | "PSYCHOLOGY" | "RISK">("TRADES");
   const [filter, setFilter] = useState<string>("ALL");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
@@ -756,6 +760,24 @@ export function TradingJournalClient({
           <span>🧠</span>
           <span>Psychology Log</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection("RISK")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-all cursor-pointer ${
+            activeSection === "RISK"
+              ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/25"
+              : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+          }`}
+        >
+          <span>🛡️</span>
+          <span>Risk Manager</span>
+          {initialRiskData?.calculated.status === "BREACHED" && (
+            <span className="rounded-full bg-rose-500 text-white px-2 py-0.5 text-[10px] font-black animate-pulse">
+              Limit
+            </span>
+          )}
+        </button>
       </div>
 
       {activeSection === "NEWS" ? (
@@ -780,6 +802,47 @@ export function TradingJournalClient({
                 avgDiscipline: 0,
                 totalEntries: 0,
                 moodDistribution: { GREAT: 0, NEUTRAL: 0, STRESSED: 0, DOWN: 0 },
+              },
+            }
+          }
+        />
+      ) : activeSection === "RISK" ? (
+        <RiskManagerView
+          initialData={
+            initialRiskData || {
+              rules: {
+                maxConsecutiveLosses: 2,
+                maxTradesPerDay: 3,
+                minRiskRewardRatio: 3,
+                defaultRiskPercent: 4,
+                defaultMaxDailyLoss: 6,
+                defaultMaxWeeklyLoss: 15,
+                revengeBreakMinutes: 15,
+                llRuleTitle: "LL Rule",
+                llRuleText: "2 consecutive losses → stop trading for the day. No exceptions.",
+                noRevengeTitle: "No Revenge",
+                noRevengeText: "15 min mandatory break after a loss. Trade only when neutral.",
+                maxRiskTitle: "Max Risk",
+                maxRiskText: "Max risk per trade (4%). Min 1:3 RRR.",
+              },
+              profile: {
+                accountBalance: 70,
+                riskPerTradePercent: 4,
+                maxDailyLoss: 6,
+                maxWeeklyLoss: 15,
+              },
+              calculated: {
+                riskPerTradeDollars: 2.8,
+                maxTradesPerDay: 2,
+                dailyBuffer: 3.2,
+                usedToday: 0,
+                remainingRisk: 6,
+                tradesTakenToday: 0,
+                consecutiveLossesToday: 0,
+                isLLRuleBreached: false,
+                isMaxTradesBreached: false,
+                status: "SAFE",
+                statusMessage: "SAFE — Risk within limits.",
               },
             }
           }
@@ -1065,6 +1128,33 @@ export function TradingJournalClient({
                   <X className="h-4 w-4" />
                 </button>
               </div>
+
+              {/* Live Academy Risk & LL Rule Breach Alerts */}
+              {initialRiskData?.calculated.isLLRuleBreached && (
+                <div className="rounded-2xl border border-rose-500/50 bg-rose-500/15 p-3.5 text-xs font-bold text-rose-400 flex items-start gap-3 shadow-md shadow-rose-500/10">
+                  <span className="text-xl leading-none">🛑</span>
+                  <div>
+                    <p className="font-black text-rose-300">
+                      LL Rule Triggered ({initialRiskData.calculated.consecutiveLossesToday} Consecutive Losses Today)
+                    </p>
+                    <p className="text-[11px] text-rose-400/90 font-medium mt-0.5 leading-relaxed">
+                      Academy discipline rule says: Stop trading for the day to prevent revenge trading and protect your capital.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {initialRiskData?.calculated.isMaxTradesBreached && (
+                <div className="rounded-2xl border border-amber-500/50 bg-amber-500/15 p-3.5 text-xs font-bold text-amber-400 flex items-start gap-3 shadow-md shadow-amber-500/10">
+                  <span className="text-xl leading-none">⚠️</span>
+                  <div>
+                    <p className="font-black text-amber-300">Daily Trade Cap Reached</p>
+                    <p className="text-[11px] text-amber-400/90 font-medium mt-0.5 leading-relaxed">
+                      You have already taken {initialRiskData.calculated.tradesTakenToday} / {initialRiskData.calculated.maxTradesPerDay} trades today. Day is complete!
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleCreateTrade} className="space-y-4 text-xs">
                 {/* 1. Date, Time & Session Bar with Auto Button */}

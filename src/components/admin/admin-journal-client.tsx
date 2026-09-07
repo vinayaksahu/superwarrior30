@@ -26,6 +26,9 @@ import {
   adminUpdateTradeAction,
   deleteTradeEntryAction,
 } from "@/server/actions/journal.actions";
+import { AdminRiskRulesModal } from "@/components/admin/admin-risk-rules-modal";
+import type { AcademyRiskRules } from "@/types/risk-manager";
+import { DEFAULT_ACADEMY_RISK_RULES } from "@/server/actions/risk-manager.actions";
 
 interface AdminTrade {
   id: string;
@@ -60,13 +63,19 @@ interface AdminTrade {
 interface AdminJournalClientProps {
   initialTrades: AdminTrade[];
   total: number;
+  initialRiskRules?: AcademyRiskRules;
 }
 
 export function AdminJournalClient({
   initialTrades,
   total,
+  initialRiskRules,
 }: AdminJournalClientProps) {
   const [trades, setTrades] = useState<AdminTrade[]>(initialTrades);
+  const [showRiskRulesModal, setShowRiskRulesModal] = useState(false);
+  const [riskRules, setRiskRules] = useState<AcademyRiskRules>(
+    initialRiskRules || DEFAULT_ACADEMY_RISK_RULES
+  );
   const [feedbackTrade, setFeedbackTrade] = useState<AdminTrade | null>(null);
   const [feedbackText, setFeedbackText] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -237,9 +246,19 @@ export function AdminJournalClient({
           </p>
         </div>
 
-        <span className="rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary">
-          {total} Total Recorded Trades
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowRiskRulesModal(true)}
+            className="rounded-xl border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500 hover:text-white px-3.5 py-1.5 text-xs font-black text-orange-400 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-orange-500/10"
+          >
+            <span>🛡️</span>
+            <span>Configure Risk Rules</span>
+          </button>
+          <span className="rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary">
+            {total} Total Recorded Trades
+          </span>
+        </div>
       </div>
 
       {/* Table */}
@@ -749,6 +768,14 @@ export function AdminJournalClient({
           </div>
         </div>
       )}
+
+      {/* Admin Risk Rules Configuration Modal */}
+      <AdminRiskRulesModal
+        initialRules={riskRules}
+        isOpen={showRiskRulesModal}
+        onClose={() => setShowRiskRulesModal(false)}
+        onSaved={(newRules) => setRiskRules(newRules)}
+      />
     </div>
   );
 }
