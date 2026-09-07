@@ -40,7 +40,7 @@ const navLinks = [
   { href: "/dashboard/journal", label: "Trading Journal", icon: BookMarked },
   { href: "/dashboard/live-proofs", label: "YouTube Live Trades", icon: Video },
   { href: "/dashboard/live", label: "Live Classes", icon: Radio },
-  { href: "/dashboard/cashbacks", label: "Cashback, Coupons & Prizes", icon: Gift },
+  { href: "/dashboard/cashbacks", label: "Rewards & Offers", icon: Gift },
   { href: "/dashboard/testimonials", label: "Review", icon: Star },
   { href: "/referrals", label: "Affiliate", icon: GitBranch },
   { href: "/wallet", label: "Wallet", icon: Wallet },

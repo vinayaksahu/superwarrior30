@@ -9,7 +9,7 @@ import { getBrokerSettings } from "@/lib/broker/config";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Cashback, Coupons & Prizes | Super Warrior 30",
+  title: "Rewards & Offers | Super Warrior 30",
 };
 
 export default async function StudentCashbacksPage() {

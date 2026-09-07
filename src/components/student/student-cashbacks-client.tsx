@@ -155,11 +155,11 @@ export function StudentCashbacksClient({
             <Gift className="h-5 w-5" />
           </span>
           <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-            Cashback, Coupons & Prizes
+            Rewards & Offers
           </h1>
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1.5">
-          Track your Broker Member ID cashbacks, claim verified rewards, unlock bonus coupons, and view payout receipts.
+          Track your broker cashbacks, unlock discount coupons, claim trading rewards, and view payout receipts.
         </p>
       </div>
 
