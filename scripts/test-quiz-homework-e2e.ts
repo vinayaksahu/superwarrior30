@@ -45,7 +45,7 @@ async function runE2eTests() {
     },
   });
 
-  const module = await prisma.module.upsert({
+  const courseModule = await prisma.module.upsert({
     where: {
       courseId_position: {
         courseId: course.id,
@@ -84,13 +84,13 @@ async function runE2eTests() {
   const quizLesson = await prisma.lesson.upsert({
     where: {
       moduleId_slug: {
-        moduleId: module.id,
+        moduleId: courseModule.id,
         slug: "e2e-liquidity-quiz",
       },
     },
     update: { contentType: "QUIZ" },
     create: {
-      moduleId: module.id,
+      moduleId: courseModule.id,
       title: "Quiz: Liquidity Sweeps & FVG Assessment",
       slug: "e2e-liquidity-quiz",
       position: 1,
@@ -235,13 +235,13 @@ async function runE2eTests() {
   const homeworkLesson = await prisma.lesson.upsert({
     where: {
       moduleId_slug: {
-        moduleId: module.id,
+        moduleId: courseModule.id,
         slug: "e2e-homework-chart-analysis",
       },
     },
     update: { contentType: "ASSIGNMENT" },
     create: {
-      moduleId: module.id,
+      moduleId: courseModule.id,
       title: "Homework: 15-Minute NIFTY Order Flow Chart Submission",
       slug: "e2e-homework-chart-analysis",
       position: 2,

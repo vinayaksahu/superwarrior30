@@ -6,6 +6,8 @@ import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { SupportInquiryStatus } from "@/generated/prisma";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { headers } from "next/headers";
 
 // ==========================================
 // 1. PUBLIC CONTACT SUBMISSION (GUEST)
@@ -22,6 +24,23 @@ const publicContactSchema = z.object({
 export type SubmitPublicContactInput = z.infer<typeof publicContactSchema>;
 
 export async function submitPublicContactAction(input: SubmitPublicContactInput) {
+  const headerList = await headers();
+  const forwardedFor = headerList.get("x-forwarded-for");
+  const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+
+  const rateLimit = await checkRateLimit({
+    key: `public_contact:${ip}`,
+    limit: 5,
+    windowSeconds: 600,
+  });
+
+  if (!rateLimit.success) {
+    return {
+      success: false,
+      error: "Too many messages sent. Please wait a few minutes before submitting again.",
+    };
+  }
+
   await ensureDatabaseSchemaSync();
 
   try {

@@ -46,6 +46,26 @@ export async function POST(
 
     const courseId = lesson.module.course.id;
     const courseSlug = lesson.module.course.slug;
+
+    // Check course enrollment or admin privileges
+    const isStaff = user.role === "ADMIN" || user.role === "SUPER_ADMIN" || user.role === "SUPPORT";
+    if (!isStaff) {
+      const enrollment = await prisma.courseEnrollment.findFirst({
+        where: {
+          userId: user.id,
+          courseId,
+          status: "ACTIVE",
+        },
+      });
+
+      if (!enrollment) {
+        return NextResponse.json(
+          { success: false, error: "Access denied. You are not enrolled in this course." },
+          { status: 403 }
+        );
+      }
+    }
+
     const completedAt = status === "COMPLETED" ? new Date() : null;
 
     // 1. Persist lesson progress (idempotent upsert)

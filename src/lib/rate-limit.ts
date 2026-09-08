@@ -1,4 +1,7 @@
-import "server-only";
+// Server-side rate limiter
+if (typeof window !== "undefined") {
+  throw new Error("Rate limiter cannot be imported on the client side.");
+}
 
 interface RateLimitOptions {
   key: string;
@@ -14,6 +17,35 @@ interface RateLimitResult {
 
 // In-memory fallback map for environments where Redis is not configured
 const inMemoryStore = new Map<string, { count: number; resetAt: number }>();
+let hasWarnedMissingRedisInProd = false;
+
+/**
+ * Detects whether a rate-limit key protects a high-risk security vector.
+ */
+export function isSecurityCriticalRateLimitKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return (
+    normalized.startsWith("login") ||
+    normalized.startsWith("signup") ||
+    normalized.startsWith("password_reset") ||
+    normalized.startsWith("otp") ||
+    normalized.startsWith("mfa") ||
+    normalized.startsWith("gw_order_init") ||
+    normalized.startsWith("manual_order_init") ||
+    normalized.startsWith("withdrawal") ||
+    normalized.startsWith("admin")
+  );
+}
+
+/**
+ * Returns current operational rate limiter posture.
+ */
+export function getRateLimiterStatus(): "DISTRIBUTED" | "CONDITIONAL" | "LOCAL ONLY" {
+  const hasRedis = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  if (hasRedis) return "DISTRIBUTED";
+  if (process.env.NODE_ENV === "production") return "CONDITIONAL";
+  return "LOCAL ONLY";
+}
 
 /**
  * Serverless-compatible rate limiter.
@@ -27,8 +59,9 @@ export async function checkRateLimit({
 }: RateLimitOptions): Promise<RateLimitResult> {
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const isProd = process.env.NODE_ENV === "production";
 
-  // 1. Upstash Redis REST API implementation
+  // 1. Upstash Redis REST API implementation (True Distributed Rate Limiting)
   if (redisUrl && redisToken) {
     try {
       const now = Math.floor(Date.now() / 1000);
@@ -61,11 +94,31 @@ export async function checkRateLimit({
         };
       }
     } catch (err) {
-      console.warn("Upstash rate limit fetch failed, using fallback:", err);
+      console.warn("[RATE LIMITER] Upstash Redis call failed, falling back to local memory store:", err);
     }
   }
 
-  // 2. In-Memory fallback implementation (for local dev or fallback)
+  // 2. Production Security Guard: Check if fail-closed is strictly enforced
+  if (isProd && (!redisUrl || !redisToken)) {
+    if (!hasWarnedMissingRedisInProd) {
+      console.warn(
+        "[SECURITY NOTICE] Production environment running without UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN. " +
+        "Rate limiting is active in per-container memory fallback mode. Configure Upstash Redis for distributed protection across serverless lambdas."
+      );
+      hasWarnedMissingRedisInProd = true;
+    }
+
+    if (process.env.FAIL_CLOSED_WITHOUT_REDIS === "true" && isSecurityCriticalRateLimitKey(key)) {
+      console.error(`[SECURITY FAIL-CLOSED] Blocked critical request for key '${key}' because distributed Redis is required.`);
+      return {
+        success: false,
+        remaining: 0,
+        reset: Math.floor(Date.now() / 1000) + windowSeconds,
+      };
+    }
+  }
+
+  // 3. In-Memory fallback implementation (for local dev or fallback)
   const now = Date.now();
   const entry = inMemoryStore.get(key);
 

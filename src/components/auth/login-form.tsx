@@ -7,6 +7,7 @@ import {
   loginAction,
   verifyLoginOtpAction,
   resendLoginOtpAction,
+  verifyMfaLoginAction,
 } from "@/server/actions/auth.actions";
 import type { ActionState } from "@/types";
 import {
@@ -19,6 +20,7 @@ import {
   Loader2,
   RefreshCw,
   CheckCircle2,
+  Key,
 } from "lucide-react";
 
 interface LoginFormProps {
@@ -35,8 +37,8 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
   const [urlNotice, setUrlNotice] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // OTP Verification Step State
-  const [step, setStep] = useState<"CREDENTIALS" | "OTP">("CREDENTIALS");
+  // Authentication Flow Step State
+  const [step, setStep] = useState<"CREDENTIALS" | "OTP" | "MFA">("CREDENTIALS");
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [emailMasked, setEmailMasked] = useState<string>("");
   const [otpValue, setOtpValue] = useState("");
@@ -45,6 +47,13 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
   const [isVerifyingOtp, startVerifyTransition] = useTransition();
   const [isResending, startResendTransition] = useTransition();
   const [cooldownSeconds, setCooldownSeconds] = useState(60);
+
+  // TOTP MFA Step State
+  const [mfaChallengeToken, setMfaChallengeToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [isUsingRecoveryCode, setIsUsingRecoveryCode] = useState(false);
+  const [isVerifyingMfa, startVerifyMfaTransition] = useTransition();
 
   // Handle URL notifications (displaced session, etc.)
   useEffect(() => {
@@ -67,7 +76,7 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
     }
   }, []);
 
-  // When loginAction succeeds with requiresOtp, transition to OTP step
+  // When loginAction succeeds with requiresMfa or requiresOtp, transition step
   useEffect(() => {
     if (state?.success && state?.data && typeof state.data === "object") {
       const data = state.data as {
@@ -75,9 +84,15 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
         pendingToken?: string;
         emailMasked?: string;
         cooldownSeconds?: number;
+        requiresMfa?: boolean;
+        challengeToken?: string;
       };
 
-      if (data.requiresOtp && data.pendingToken) {
+      if (data.requiresMfa && data.challengeToken) {
+        setMfaChallengeToken(data.challengeToken);
+        setMfaError(null);
+        setStep("MFA");
+      } else if (data.requiresOtp && data.pendingToken) {
         setPendingToken(data.pendingToken);
         setEmailMasked(data.emailMasked || "");
         setCooldownSeconds(data.cooldownSeconds || 60);
@@ -113,10 +128,38 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
     setOtpError(null);
     startVerifyTransition(async () => {
       const result = await verifyLoginOtpAction(pendingToken, cleanOtp);
+      if (result.success) {
+        if (result.data?.requiresMfa && result.data?.challengeToken) {
+          setMfaChallengeToken(result.data.challengeToken);
+          setMfaError(null);
+          setStep("MFA");
+        } else if (result.data?.destination) {
+          router.push(result.data.destination);
+        }
+      } else {
+        setOtpError(result.message || "Invalid verification code. Please try again.");
+      }
+    });
+  };
+
+  // Handle MFA Verification Submission
+  const handleVerifyMfa = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!mfaChallengeToken) return;
+
+    const cleanCode = mfaCode.trim();
+    if (!cleanCode) {
+      setMfaError("Please enter your verification code or recovery code.");
+      return;
+    }
+
+    setMfaError(null);
+    startVerifyMfaTransition(async () => {
+      const result = await verifyMfaLoginAction(mfaChallengeToken, cleanCode);
       if (result.success && result.data?.destination) {
         router.push(result.data.destination);
       } else {
-        setOtpError(result.message || "Invalid verification code. Please try again.");
+        setMfaError(result.message || "Invalid two-factor authentication code.");
       }
     });
   };
@@ -266,6 +309,141 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
               setStep("CREDENTIALS");
               setOtpValue("");
               setOtpError(null);
+            }}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // VIEW: STEP 3 - TOTP MFA / RECOVERY CODE VERIFICATION
+  // ----------------------------------------------------
+  if (step === "MFA") {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+        <div className="flex items-center gap-2 text-primary">
+          <ShieldCheck className="h-5 w-5" />
+          <h2 className="text-base font-bold text-foreground">Two-Factor Authentication</h2>
+        </div>
+
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 flex items-start gap-3">
+          <Key className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="text-xs space-y-0.5">
+            <p className="font-semibold text-foreground">
+              {isUsingRecoveryCode ? "Emergency Recovery Code" : "Authenticator App Required"}
+            </p>
+            <p className="text-muted-foreground">
+              {isUsingRecoveryCode
+                ? "Enter one of your single-use recovery codes (e.g. ABCDE-12345)."
+                : "Enter the 6-digit security code generated by your authenticator app (Google Authenticator, Microsoft Authenticator, 1Password)."}
+            </p>
+          </div>
+        </div>
+
+        {mfaError && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs font-semibold text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{mfaError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleVerifyMfa} className="space-y-4">
+          <div className="space-y-2 text-center">
+            <label
+              htmlFor="mfaCode"
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              {isUsingRecoveryCode ? "Recovery Code" : "Enter 6-Digit Code"}
+            </label>
+            <input
+              id="mfaCode"
+              type="text"
+              autoComplete="one-time-code"
+              maxLength={isUsingRecoveryCode ? 16 : 6}
+              autoFocus
+              value={mfaCode}
+              onChange={(e) => {
+                const val = isUsingRecoveryCode
+                  ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "")
+                  : e.target.value.replace(/\D/g, "").slice(0, 6);
+                setMfaCode(val);
+                if (!isUsingRecoveryCode && val.length === 6) {
+                  // Auto-submit when 6 digits are reached
+                  setTimeout(() => {
+                    if (mfaChallengeToken) {
+                      setMfaError(null);
+                      startVerifyMfaTransition(async () => {
+                        const res = await verifyMfaLoginAction(mfaChallengeToken, val);
+                        if (res.success && res.data?.destination) {
+                          router.push(res.data.destination);
+                        } else {
+                          setMfaError(res.message || "Invalid two-factor code.");
+                        }
+                      });
+                    }
+                  }, 100);
+                }
+              }}
+              placeholder={isUsingRecoveryCode ? "XXXXX-XXXXX" : "••••••"}
+              className={`flex h-14 w-full rounded-xl border-2 border-primary/40 bg-background text-center ${
+                isUsingRecoveryCode
+                  ? "text-lg font-mono tracking-widest"
+                  : "text-2xl font-bold tracking-[10px] font-mono"
+              } text-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30`}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {isUsingRecoveryCode
+                ? "Recovery codes are single-use and will be consumed immediately."
+                : "Codes refresh every 30 seconds."}
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={
+              isVerifyingMfa ||
+              (isUsingRecoveryCode ? mfaCode.trim().length < 8 : mfaCode.length !== 6)
+            }
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+          >
+            {isVerifyingMfa ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Verifying...
+              </>
+            ) : (
+              "Verify & Sign In"
+            )}
+          </button>
+        </form>
+
+        {/* Toggle between TOTP & Recovery Code + Back Button */}
+        <div className="pt-2 border-t border-border flex flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setIsUsingRecoveryCode(!isUsingRecoveryCode);
+              setMfaCode("");
+              setMfaError(null);
+            }}
+            className="text-xs text-primary hover:underline font-semibold cursor-pointer"
+          >
+            {isUsingRecoveryCode
+              ? "Use 6-digit authenticator code instead"
+              : "Lost authenticator access? Use emergency recovery code"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep("CREDENTIALS");
+              setMfaCode("");
+              setMfaError(null);
+              setMfaChallengeToken(null);
+              setIsUsingRecoveryCode(false);
             }}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
           >

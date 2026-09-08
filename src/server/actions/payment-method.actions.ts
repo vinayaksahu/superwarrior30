@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSuperAdmin } from "@/server/dal/auth";
+import { requireAdmin, requireSuperAdmin, requirePermission } from "@/server/dal/auth";
 import type { ActionState } from "@/types";
 
 export interface PaymentMethodItem {
@@ -254,7 +254,7 @@ export async function createPaymentMethodAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payment_methods.manage");
   await ensureSystemPaymentTable();
 
   const type = formData.get("type")?.toString() as "UPI" | "BANK" | "CRYPTO" | "GATEWAY";
@@ -392,7 +392,7 @@ export async function updatePaymentMethodAction(
   id: string,
   formData: FormData
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payment_methods.manage");
   await ensureSystemPaymentTable();
 
   const title = formData.get("title")?.toString().trim();
@@ -498,7 +498,7 @@ export async function updatePaymentMethodAction(
 }
 
 export async function togglePaymentMethodStatusAction(id: string): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payment_methods.manage");
   await ensureSystemPaymentTable();
 
   try {
@@ -537,7 +537,7 @@ export async function togglePaymentMethodStatusAction(id: string): Promise<Actio
 }
 
 export async function deletePaymentMethodAction(id: string): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payment_methods.manage");
   await ensureSystemPaymentTable();
 
   try {
@@ -566,7 +566,7 @@ export async function deletePaymentMethodAction(id: string): Promise<ActionState
 export async function reorderPaymentMethodsAction(
   orderedIds: string[]
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payment_methods.manage");
   await ensureSystemPaymentTable();
 
   try {

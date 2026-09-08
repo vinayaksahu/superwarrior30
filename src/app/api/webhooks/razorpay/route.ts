@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyRazorpayWebhookSignature } from "@/lib/payment/razorpay";
+import { verifyRazorpayWebhookSignature, getRazorpayConfig } from "@/lib/payment/razorpay";
 import { fulfillOrderPayment } from "@/server/actions/order.actions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +32,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Fail closed: Webhook secret MUST be configured on server
+    const config = await getRazorpayConfig();
+    if (!config.webhookSecret) {
+      console.error(
+        "[FATAL SECURITY CONFIGURATION] Webhook received but RAZORPAY_WEBHOOK_SECRET is not configured. Failing closed."
+      );
+      return NextResponse.json(
+        { error: "Webhook verification unconfigured on server" },
+        { status: 500 }
+      );
+    }
+
     const rawBody = await req.text();
     const signature = req.headers.get("x-razorpay-signature");
 
@@ -56,6 +68,18 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = JSON.parse(rawBody);
+
+    // 2. Replay & Stale Event Protection (reject events older than 30 minutes)
+    if (payload.created_at) {
+      const ageSeconds = Math.floor(Date.now() / 1000) - Number(payload.created_at);
+      if (ageSeconds > 1800) {
+        return NextResponse.json(
+          { error: "Webhook event is stale or replayed" },
+          { status: 400 }
+        );
+      }
+    }
+
     const event = payload.event;
 
     // Handle payment.captured or order.paid
@@ -92,6 +116,35 @@ export async function POST(req: NextRequest) {
           { message: "Order already processed and fulfilled" },
           { status: 200 }
         );
+      }
+
+      // Reconciliation check: verify captured amount matches order total in paise
+      if (paymentEntity?.amount !== undefined && paymentEntity?.amount !== null) {
+        const expectedPaise = Math.round(Number(order.totalAmount) * 100);
+        const actualPaise = Number(paymentEntity.amount);
+        if (actualPaise < expectedPaise) {
+          console.error(
+            `[SECURITY ALERT] Webhook amount mismatch for order ${order.id}: expected ${expectedPaise} paise, received ${actualPaise} paise`
+          );
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              status: "FAILED",
+              metadata: {
+                ...((order.metadata as object) || {}),
+                reconciliationFailure: {
+                  expectedPaise,
+                  actualPaise,
+                  reason: "Amount paid was less than order total",
+                },
+              },
+            },
+          });
+          return NextResponse.json(
+            { error: "Payment amount does not match order amount" },
+            { status: 400 }
+          );
+        }
       }
 
       // Fulfill payment and create course enrollment
@@ -134,9 +187,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : "Webhook handler error";
+    console.error("Razorpay webhook handler error:", error);
     return NextResponse.json(
-      { error: errorMsg },
+      { error: "Internal webhook processing error" },
       { status: 500 }
     );
   }

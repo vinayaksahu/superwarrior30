@@ -34,7 +34,7 @@ async function main() {
   const actualStoragePassword = storageZone?.password || storagePassword;
 
   // 4. Find or Create Pull Zone for sw30-production-storage
-  let pullZone = resources.pullZones.find(
+  const pullZone = resources.pullZones.find(
     (p) =>
       p.storageZoneId === Number(storageZoneId) ||
       p.name.toLowerCase() === `${targetStorageZoneName}-cdn`.toLowerCase() ||

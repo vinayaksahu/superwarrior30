@@ -23,6 +23,11 @@ import {
   verifyRegistrationOtp,
   verifyPendingOtpToken,
 } from "@/lib/otp/service";
+import {
+  getUserMfaConfig,
+  createMfaLoginChallenge,
+  verifyMfaLoginChallenge,
+} from "@/lib/auth/totp";
 import { resolveCurrentEnvironment } from "@/lib/env-context";
 import { z } from "zod";
 import type { ActionState } from "@/types";
@@ -45,8 +50,22 @@ export async function loginAction(
 
     const { email, password } = validated.data;
     const cleanEmail = email.toLowerCase().trim();
+    const deviceMeta = await getClientDeviceMetadata();
 
-    // Rate limit: 5 login attempts per minute per email
+    // Rate limit: 5 login attempts per minute per email AND per IP
+    const ipRateLimit = await checkRateLimit({
+      key: `login_ip:${deviceMeta.ipAddress}`,
+      limit: 20,
+      windowSeconds: 60,
+    });
+
+    if (!ipRateLimit.success) {
+      return {
+        success: false,
+        message: "Too many login attempts from this network. Please wait 1 minute before trying again.",
+      };
+    }
+
     const rateLimit = await checkRateLimit({
       key: `login:${cleanEmail}`,
       limit: 5,
@@ -191,7 +210,6 @@ export async function loginAction(
     }
 
     // 3. Device detection and verification
-    const deviceMeta = await getClientDeviceMetadata();
     await setDeviceCookie(deviceMeta.deviceToken);
 
     const isStaffOrAdmin =
@@ -410,22 +428,26 @@ export async function loginAction(
     activeDeviceId = deviceCheckResult.deviceId;
 
     // ----------------------------------------------------
-    // STEP 4: EMAIL OTP AUTHENTICATION CHECK
+    // STEP 4: 2FA & MFA AUTHENTICATION ENFORCEMENT
     // ----------------------------------------------------
-    // NOTE: Root Super Admin NEVER requires OTP (Instant Direct Access for Root Authority)
+    const mfaConfig = await getUserMfaConfig(user.id);
+    const hasTotpMfa = Boolean(mfaConfig?.enabled && mfaConfig?.secret);
+
+    // NOTE: Root Super Admin NEVER requires Email OTP (Instant Direct Access for Root Authority)
     const isRootSuper = isSuper || isSuperAdminUser(user);
-    let requiresOtp = false;
+    let requiresEmailOtp = false;
 
     if (!isRootSuper) {
       const isStaff = user.role === "ADMIN" || user.role === "SUPPORT" || Boolean(user.adminRole);
       if (isStaff) {
-        requiresOtp = await isStaffLoginOtpEnabled();
+        requiresEmailOtp = await isStaffLoginOtpEnabled();
       } else {
-        requiresOtp = await isStudentLoginOtpEnabled();
+        requiresEmailOtp = await isStudentLoginOtpEnabled();
       }
     }
 
-    if (requiresOtp) {
+    // 4A. If Email OTP is required, dispatch Email OTP challenge
+    if (requiresEmailOtp) {
       const otpDispatch = await createAndSendLoginOtp({
         userId: user.id,
         email: user.email,
@@ -452,13 +474,31 @@ export async function loginAction(
           pendingToken: otpDispatch.pendingToken,
           emailMasked: otpDispatch.emailMasked,
           cooldownSeconds: otpDispatch.cooldownSeconds,
+          hasTotpMfa,
         },
       };
     }
 
-    // Increment tokenVersion on every login to immediately invalidate ALL previous JWT sessions.
-    // This enforces the "1 active device at a time" rule at the JWT level — any other device's
-    // old JWT will have a stale tokenVersion and will be rejected by getCurrentUser().
+    // 4B. If TOTP MFA is enabled on the account, issue a short-lived MFA challenge.
+    // CRITICAL SECURITY ENFORCEMENT: DO NOT create an authenticated session cookie until TOTP verification!
+    if (hasTotpMfa) {
+      const challengeToken = await createMfaLoginChallenge(
+        user.id,
+        user.email,
+        activeDeviceId
+      );
+
+      return {
+        success: true,
+        message: "Two-Factor Authentication required. Enter the code from your authenticator app.",
+        data: {
+          requiresMfa: true,
+          challengeToken,
+        },
+      };
+    }
+
+    // 4C. Neither Email OTP nor TOTP MFA enabled -> Issue final authenticated session
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { tokenVersion: { increment: 1 } },
@@ -496,7 +536,7 @@ export async function loginAction(
 export async function verifyLoginOtpAction(
   pendingToken: string,
   otp: string
-): Promise<ActionState<{ destination?: string; remainingAttempts?: number }>> {
+): Promise<ActionState<{ destination?: string; remainingAttempts?: number; requiresMfa?: boolean; challengeToken?: string }>> {
   const deviceMeta = await getClientDeviceMetadata();
   const verifyResult = await verifyLoginOtp({
     pendingToken,
@@ -547,6 +587,25 @@ export async function verifyLoginOtpAction(
     };
   }
 
+  // If user ALSO has TOTP MFA enabled, DO NOT create a session yet! Issue MFA challenge.
+  const mfaConfig = await getUserMfaConfig(user.id);
+  if (mfaConfig && mfaConfig.enabled && mfaConfig.secret) {
+    const challengeToken = await createMfaLoginChallenge(
+      user.id,
+      user.email,
+      verifyResult.deviceId
+    );
+
+    return {
+      success: true,
+      message: "Email verification successful. Please complete Two-Factor Authentication.",
+      data: {
+        requiresMfa: true,
+        challengeToken,
+      },
+    };
+  }
+
   // Increment tokenVersion on successful OTP login
   const updatedUser = await prisma.user.update({
     where: { id: user.id },
@@ -591,9 +650,134 @@ export async function verifyLoginOtpAction(
 
   return {
     success: true,
-    message: "Login verified successfully.",
+    message: "Verification successful.",
     data: { destination },
   };
+}
+
+/**
+ * Verifies a TOTP MFA challenge token and code/recovery-code during the login sequence.
+ * Enforces single-use challenge, rate-limiting, brute-force limits, and session creation ONLY on success.
+ */
+export async function verifyMfaLoginAction(
+  challengeToken: string,
+  code: string
+): Promise<ActionState<{ destination?: string; remainingAttempts?: number }>> {
+  try {
+    const deviceMeta = await getClientDeviceMetadata();
+
+    // 1. IP rate limiting (20 attempts per minute per IP)
+    const ipRateLimit = await checkRateLimit({
+      key: `mfa_verify_ip:${deviceMeta.ipAddress}`,
+      limit: 20,
+      windowSeconds: 60,
+    });
+
+    if (!ipRateLimit.success) {
+      return {
+        success: false,
+        message: "Too many verification attempts from this network. Please wait 1 minute.",
+      };
+    }
+
+    // 2. Validate MFA challenge token and code (TOTP or emergency recovery code)
+    const verifyResult = await verifyMfaLoginChallenge(challengeToken, code);
+
+    if (!verifyResult.success || !verifyResult.userId) {
+      if (verifyResult.userId) {
+        await prisma.auditLog
+          .create({
+            data: {
+              actorId: verifyResult.userId,
+              actorEmail: verifyResult.email,
+              action: "LOGIN_MFA_FAILED",
+              entityType: "User",
+              entityId: verifyResult.userId,
+              ipAddress: deviceMeta.ipAddress,
+              userAgent: deviceMeta.userAgent,
+              newValues: {
+                remainingAttempts: verifyResult.remainingAttempts,
+              },
+            },
+          })
+          .catch(() => {});
+      }
+
+      return {
+        success: false,
+        message: verifyResult.message || "Invalid two-factor code.",
+        data: {
+          remainingAttempts: verifyResult.remainingAttempts,
+        },
+      };
+    }
+
+    // 3. Confirm user exists and is active
+    const user = await prisma.user.findUnique({
+      where: { id: verifyResult.userId },
+    });
+
+    if (!user || user.status !== "ACTIVE") {
+      return {
+        success: false,
+        message: "Your account is not active. Please contact support.",
+      };
+    }
+
+    // 4. Invalidate all previous sessions by incrementing tokenVersion
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { tokenVersion: { increment: 1 } },
+    });
+
+    // 5. Create final authenticated session cookie ONLY after successful MFA verification
+    await createSession(
+      user.id,
+      user.email,
+      user.role,
+      updatedUser.tokenVersion,
+      verifyResult.deviceId
+    );
+
+    // 6. Record successful MFA login audit log
+    await prisma.auditLog
+      .create({
+        data: {
+          actorId: user.id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: "LOGIN_MFA_SUCCESS",
+          entityType: "User",
+          entityId: user.id,
+          ipAddress: deviceMeta.ipAddress,
+          userAgent: deviceMeta.userAgent,
+          newValues: {
+            deviceId: verifyResult.deviceId,
+          },
+        },
+      })
+      .catch(() => {});
+
+    const isStaffOrAdminDest =
+      user.role === "ADMIN" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "SUPPORT" ||
+      Boolean(user.adminRole);
+
+    const destination = isStaffOrAdminDest ? "/admin" : "/dashboard";
+
+    return {
+      success: true,
+      message: "Two-Factor Authentication successful.",
+      data: { destination },
+    };
+  } catch (error: any) {
+    console.error("[VERIFY_MFA_LOGIN_ERROR]", error);
+    return {
+      success: false,
+      message: error?.message || "An unexpected error occurred during two-factor verification.",
+    };
+  }
 }
 
 export async function resendLoginOtpAction(
@@ -661,8 +845,23 @@ export async function registerAction(
 
   const { name, email, password, referralCode } = validated.data;
   const cleanEmail = email.toLowerCase().trim();
+  const deviceMeta = await getClientDeviceMetadata();
 
-  // Rate limit: 5 registration attempts per 10 minutes per email/IP
+  // Rate limit: 10 registration attempts per 10 minutes per IP
+  const ipRateLimit = await checkRateLimit({
+    key: `register_ip:${deviceMeta.ipAddress}`,
+    limit: 10,
+    windowSeconds: 600,
+  });
+
+  if (!ipRateLimit.success) {
+    return {
+      success: false,
+      message: "Too many registration attempts from this network. Please try again later.",
+    };
+  }
+
+  // Rate limit: 5 registration attempts per 10 minutes per email
   const rateLimit = await checkRateLimit({
     key: `register:${cleanEmail}`,
     limit: 5,
@@ -1023,6 +1222,21 @@ export async function forgotPasswordAction(
   }
 
   const cleanEmail = validated.data.email.toLowerCase().trim();
+  const deviceMeta = await getClientDeviceMetadata();
+
+  // Rate limit: 10 requests per 15 minutes per IP
+  const ipRateLimit = await checkRateLimit({
+    key: `forgot-pw-ip:${deviceMeta.ipAddress}`,
+    limit: 10,
+    windowSeconds: 900,
+  });
+
+  if (!ipRateLimit.success) {
+    return {
+      success: false,
+      message: "Too many password reset requests from this network. Please wait a few minutes before trying again.",
+    };
+  }
 
   // Rate limit: 3 requests per 15 minutes per email
   const rateLimit = await checkRateLimit({
@@ -1038,28 +1252,31 @@ export async function forgotPasswordAction(
     };
   }
 
+  const genericSuccessMessage =
+    "If an active account exists with that email address, password reset instructions have been sent. Please check your inbox and spam folder.";
+
   const user = await prisma.user.findUnique({
     where: { email: cleanEmail },
   });
 
-  if (!user) {
+  // Account enumeration defense: do not disclose non-existent or inactive accounts
+  if (!user || user.status !== "ACTIVE") {
     return {
-      success: false,
-      message: "Account does not exist with this email address. Please check your email or sign up.",
+      success: true,
+      message: genericSuccessMessage,
     };
   }
 
-  if (user.status !== "ACTIVE") {
-    return {
-      success: false,
-      message: "This account is not active. Please contact administrator support.",
-    };
-  }
+  // Invalidate any existing unused reset tokens for this user
+  await prisma.passwordResetToken.updateMany({
+    where: { userId: user.id, usedAt: null },
+    data: { usedAt: new Date() },
+  }).catch(() => {});
 
   // Generate secure 32-byte hex token
   const rawToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes (industry standard)
 
   // Save token hash to database
   await prisma.passwordResetToken.create({
@@ -1086,7 +1303,7 @@ export async function forgotPasswordAction(
 
   return {
     success: true,
-    message: `Password reset instructions have been sent to ${user.email}. Please check your inbox.`,
+    message: genericSuccessMessage,
   };
 }
 
@@ -1117,6 +1334,22 @@ export async function resetPasswordAction(
   }
 
   const { token, password } = validated.data;
+  const deviceMeta = await getClientDeviceMetadata();
+
+  // Rate limit: 10 attempts per 15 minutes per IP
+  const resetAttemptLimit = await checkRateLimit({
+    key: `reset-pw-attempt:${deviceMeta.ipAddress}`,
+    limit: 10,
+    windowSeconds: 900,
+  });
+
+  if (!resetAttemptLimit.success) {
+    return {
+      success: false,
+      message: "Too many password reset attempts. Please wait 15 minutes before trying again.",
+    };
+  }
+
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
   const resetTokenRecord = await prisma.passwordResetToken.findUnique({

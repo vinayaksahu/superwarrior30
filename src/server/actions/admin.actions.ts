@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/server/dal/auth";
+import { requireAdmin, requirePermission, requireSuperAdminAction } from "@/server/dal/auth";
 import { PAGINATION } from "@/lib/constants";
 import { Prisma } from "@/generated/prisma";
 import type { ActionState } from "@/types";
@@ -303,7 +303,7 @@ export async function saveAdminSettingsAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("settings.general.manage");
   const { isSuperAdminUser } = await import("@/server/dal/auth-check");
   const { setCachedTestVisibilityScope } = await import("@/lib/env-context");
 
@@ -393,7 +393,7 @@ export async function getAdminProfileAction() {
 }
 
 export async function triggerDatabaseSyncAction() {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdminAction();
 
   try {
     const { ensureDatabaseSchemaSync } = await import("@/lib/db-sync");
@@ -417,7 +417,7 @@ export async function triggerDatabaseSyncAction() {
 }
 
 export async function getDatabaseBackupDataAction() {
-  await requireAdmin();
+  await requirePermission("settings.backups.manage");
 
   try {
     const [

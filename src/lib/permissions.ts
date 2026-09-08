@@ -420,11 +420,11 @@ export function getEffectivePermissions(user: {
   const role = String(user.role || "").toUpperCase().trim();
   const adminRole = String(user.adminRole || "").toUpperCase().trim();
 
-  // Root Super Admin check (strictly for genuine root accounts)
+  // Root Super Admin check: strictly for genuine root accounts that also carry administrative roles in DB
+  const isAdminRole = role === "SUPER_ADMIN" || role === "ADMIN" || adminRole === "SUPER_ADMIN";
   if (
-    email === "vinayaksahu3@gmail.com" ||
-    email === "admin@superwarrior30.com" ||
-    adminRole === "SUPER_ADMIN"
+    adminRole === "SUPER_ADMIN" ||
+    (isAdminRole && (email === "vinayaksahu3@gmail.com" || email === "admin@superwarrior30.com"))
   ) {
     return new Set(ALL_PERMISSION_KEYS);
   }
@@ -519,11 +519,11 @@ export function getRolePresentation(
   const normRole = String(role || "").toUpperCase().trim();
   const normAdminRole = String(adminRole || "").toUpperCase().trim();
 
-  // Root Super Admin check ONLY for genuine root account
+  // Root Super Admin check ONLY for genuine root account with administrative role
+  const isAdminRole = normRole === "SUPER_ADMIN" || normRole === "ADMIN" || normAdminRole === "SUPER_ADMIN";
   if (
-    normEmail === "vinayaksahu3@gmail.com" ||
-    normEmail === "admin@superwarrior30.com" ||
-    normAdminRole === "SUPER_ADMIN"
+    normAdminRole === "SUPER_ADMIN" ||
+    (isAdminRole && (normEmail === "vinayaksahu3@gmail.com" || normEmail === "admin@superwarrior30.com"))
   ) {
     return {
       displayName: "Super Admin",

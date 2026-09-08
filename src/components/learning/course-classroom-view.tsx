@@ -83,10 +83,15 @@ export function CourseClassroomView({
   initialMediaData,
 }: CourseClassroomViewProps) {
   // In-memory media cache for instantaneous (0ms) lesson switching
-  const mediaCacheRef = useRef<Map<string, MediaData>>(new Map());
-  if (initialMediaData && !mediaCacheRef.current.has(initialMediaData.lessonId)) {
-    mediaCacheRef.current.set(initialMediaData.lessonId, initialMediaData);
-  }
+  const mediaCacheRef = useRef<Map<string, MediaData>>(
+    new Map(initialMediaData ? [[initialMediaData.lessonId, initialMediaData]] : [])
+  );
+
+  useEffect(() => {
+    if (initialMediaData) {
+      mediaCacheRef.current.set(initialMediaData.lessonId, initialMediaData);
+    }
+  }, [initialMediaData]);
 
   const [currentLessonId, setCurrentLessonId] = useState(activeLessonId);
   const [progressMap, setProgressMap] = useState(initialProgressMap);

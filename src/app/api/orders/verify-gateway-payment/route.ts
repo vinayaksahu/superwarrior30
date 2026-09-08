@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (order.userId !== user.id && user.role !== "ADMIN") {
+    if (order.userId !== user.id && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
       return NextResponse.json(
         { success: false, message: "Access denied." },
         { status: 403 }
@@ -70,8 +70,15 @@ export async function POST(req: Request) {
       });
     }
 
-    // Handle mock payment ONLY when order was server-created as MOCK (no client override)
+    // Handle mock payment ONLY when order was server-created as MOCK and NOT in production
     if (order.paymentProvider === "MOCK") {
+      if (process.env.NODE_ENV === "production" && !order.isTestData) {
+        return NextResponse.json(
+          { success: false, message: "Mock payments are disabled in production for live orders." },
+          { status: 403 }
+        );
+      }
+
       await fulfillOrderPayment({
         orderId: order.id,
         provider: "MOCK_GATEWAY",

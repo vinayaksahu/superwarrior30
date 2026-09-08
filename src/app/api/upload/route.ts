@@ -22,7 +22,15 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const category = ((formData.get("category") as string) || "pdf").toLowerCase();
+    const rawCategory = ((formData.get("category") as string) || "pdf").toLowerCase().trim();
+    // Path traversal defense: sanitize category to alphanumeric only and enforce strict whitelist
+    const safeCategory = rawCategory.replace(/[^a-z0-9_-]/g, "") || "general";
+    const allowedCategories = new Set([
+      "pdf", "homework", "submission", "student", "journal", "screenshot",
+      "thumbnail", "thumbnails", "course", "courses", "general", "documents", "materials"
+    ]);
+    const category = allowedCategories.has(safeCategory) ? safeCategory : "general";
+
     const courseId = formData.get("courseId") as string;
     const lessonId = formData.get("lessonId") as string | null;
 

@@ -32,22 +32,31 @@ export async function GET() {
       "Created At",
     ];
 
+    function sanitizeCsvCell(val: string | null | undefined): string {
+      let str = (val || "").replace(/"/g, '""');
+      // CSV Formula Injection mitigation: prefix dangerous leading characters with a single quote
+      if (/^[\=\+\-\@\t\r]/.test(str)) {
+        str = `'${str}`;
+      }
+      return `"${str}"`;
+    }
+
     const rows = leads.map((l) => [
-      `"${(l.name || "").replace(/"/g, '""')}"`,
-      `"${(l.email || "").replace(/"/g, '""')}"`,
-      `"${(l.phone || "").replace(/"/g, '""')}"`,
-      `"${(l.whatsapp || "").replace(/"/g, '""')}"`,
-      `"${(l.tradingExperience || "").replace(/"/g, '""')}"`,
-      `"${(l.targetMarket || "").replace(/"/g, '""')}"`,
-      `"${(l.mainChallenge || "").replace(/"/g, '""')}"`,
-      `"${(l.lossRange || "").replace(/"/g, '""')}"`,
-      `"${(l.learningGoals || "").replace(/"/g, '""')}"`,
-      `"${(l.readyForTraining || "").replace(/"/g, '""')}"`,
-      `"${l.stage}"`,
-      `"${l.utmSource || ""}"`,
-      `"${l.utmMedium || ""}"`,
-      `"${l.utmCampaign || ""}"`,
-      `"${new Date(l.createdAt).toISOString()}"`,
+      sanitizeCsvCell(l.name),
+      sanitizeCsvCell(l.email),
+      sanitizeCsvCell(l.phone),
+      sanitizeCsvCell(l.whatsapp),
+      sanitizeCsvCell(l.tradingExperience),
+      sanitizeCsvCell(l.targetMarket),
+      sanitizeCsvCell(l.mainChallenge),
+      sanitizeCsvCell(l.lossRange),
+      sanitizeCsvCell(l.learningGoals),
+      sanitizeCsvCell(l.readyForTraining),
+      sanitizeCsvCell(l.stage),
+      sanitizeCsvCell(l.utmSource),
+      sanitizeCsvCell(l.utmMedium),
+      sanitizeCsvCell(l.utmCampaign),
+      sanitizeCsvCell(new Date(l.createdAt).toISOString()),
     ]);
 
     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

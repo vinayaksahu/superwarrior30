@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSuperAdmin, requireSuperAdminAction, getCurrentUser } from "@/server/dal/auth";
+import { requireAdmin, requireSuperAdmin, requireSuperAdminAction, requirePermission, getCurrentUser } from "@/server/dal/auth";
 import { courseSchema, moduleSchema, lessonSchema } from "@/lib/validations/course.schema";
 import { slugify } from "@/lib/utils";
 import { deleteR2Object, createPresignedDownloadUrl, getMediaUrl, getThumbnailUrl, deleteMediaAssets, deleteThumbnailAssets, deleteLessonMediaAsset } from "@/lib/storage";
@@ -296,7 +296,7 @@ export async function createCourseAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("courses.create");
 
   const raw = Object.fromEntries(formData.entries());
   const validated = courseSchema.safeParse(raw);
@@ -357,7 +357,7 @@ export async function updateCourseAction(
   _prevState: ActionState | null,
   formData: FormData
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("courses.edit");
 
   const raw = Object.fromEntries(formData.entries());
   const validated = courseSchema.safeParse(raw);
@@ -373,10 +373,14 @@ export async function updateCourseAction(
   const { title, slug, shortDescription, fullDescription, price, compareAtPrice, status, difficulty, isFeatured, isReferralEligible } = validated.data;
 
   // Check slug uniqueness (excluding current course)
-  const existingSlug = await prisma.course.findFirst({
-    where: { slug, id: { not: courseId } },
+  const existing = await prisma.course.findFirst({
+    where: {
+      slug,
+      NOT: { id: courseId },
+    },
   });
-  if (existingSlug) {
+
+  if (existing) {
     return {
       success: false,
       message: "A course with this slug already exists.",
@@ -384,7 +388,11 @@ export async function updateCourseAction(
     };
   }
 
-  const oldCourse = await prisma.course.findUnique({ where: { id: courseId } });
+  // Fetch current state for audit logging
+  const oldCourse = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { price: true, status: true },
+  });
 
   await prisma.course.update({
     where: { id: courseId },
@@ -402,10 +410,10 @@ export async function updateCourseAction(
     },
   });
 
-  // Audit log for price or status changes
+  // Audit log for critical changes (price or status)
   if (
     oldCourse &&
-    (oldCourse.price.toString() !== price || oldCourse.status !== status)
+    (oldCourse.price.toNumber() !== parseFloat(price) || oldCourse.status !== status)
   ) {
     await prisma.auditLog.create({
       data: {
@@ -436,7 +444,7 @@ export async function updateCourseThumbnailAction(
   cdnUrl?: string | null,
   provider?: string | null
 ): Promise<ActionState> {
-  await requireAdmin();
+  await requirePermission("courses.edit");
 
   // Delete old thumbnail if exists (both R2 and Bunny)
   const course = await prisma.course.findUnique({

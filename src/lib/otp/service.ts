@@ -10,8 +10,38 @@ import {
 import { getSmtpPassword } from "@/lib/email/transporter";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-const OTP_SECRET = process.env.JWT_SECRET_KEY || "trade_warrior_otp_salt_default_key_64_characters_min_length";
-const encodedOtpSecret = new TextEncoder().encode(OTP_SECRET);
+function getOtpSecretKey(): Uint8Array {
+  const secret = process.env.JWT_SECRET_KEY;
+  if (!secret || secret.trim().length === 0) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[FATAL SECURITY CONFIGURATION] JWT_SECRET_KEY is missing in production. OTP subsystem failed closed."
+      );
+    }
+    return new TextEncoder().encode("trade_warrior_otp_salt_default_key_64_characters_min_length");
+  }
+
+  if (process.env.NODE_ENV === "production" && secret.length < 32) {
+    throw new Error(
+      "[FATAL SECURITY CONFIGURATION] JWT_SECRET_KEY must be at least 32 characters long for cryptographic security."
+    );
+  }
+
+  return new TextEncoder().encode(secret);
+}
+
+function getOtpSecretString(): string {
+  const secret = process.env.JWT_SECRET_KEY;
+  if (!secret || secret.trim().length === 0) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[FATAL SECURITY CONFIGURATION] JWT_SECRET_KEY is missing in production. OTP subsystem failed closed."
+      );
+    }
+    return "trade_warrior_otp_salt_default_key_64_characters_min_length";
+  }
+  return secret;
+}
 
 export interface PendingOtpPayload {
   userId?: string;
@@ -32,7 +62,7 @@ export function generateSecureOtp(): string {
 
 export function hashOtp(otp: string, email: string): string {
   return crypto
-    .createHmac("sha256", OTP_SECRET)
+    .createHmac("sha256", getOtpSecretString())
     .update(`${otp.trim()}:${email.toLowerCase().trim()}`)
     .digest("hex");
 }
@@ -52,12 +82,12 @@ export async function createPendingOtpToken(payload: PendingOtpPayload): Promise
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("15m")
-    .sign(encodedOtpSecret);
+    .sign(getOtpSecretKey());
 }
 
 export async function verifyPendingOtpToken(token: string): Promise<PendingOtpPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, encodedOtpSecret, {
+    const { payload } = await jwtVerify(token, getOtpSecretKey(), {
       algorithms: ["HS256"],
     });
     if (!payload.email || !payload.purpose || !payload.requiresOtp) {

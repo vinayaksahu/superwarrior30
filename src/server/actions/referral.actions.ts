@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireAdmin, requireSuperAdmin, requireSuperAdminAction } from "@/server/dal/auth";
+import { requireAuth, requireAdmin, requireSuperAdmin, requireSuperAdminAction, requirePermission } from "@/server/dal/auth";
 import { referralSettingsSchema, type ReferralSettingsInput } from "@/lib/validations/referral.schema";
 import { PAGINATION, APP_URL } from "@/lib/constants";
 import type { ActionState } from "@/types";
@@ -63,7 +63,7 @@ export async function getReferralSettingsAction() {
 export async function saveReferralSettingsAction(
   data: ReferralSettingsInput
 ): Promise<ActionState> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("affiliate.manage");
   await ensureDatabaseSchemaSync();
 
   const validated = referralSettingsSchema.safeParse(data);

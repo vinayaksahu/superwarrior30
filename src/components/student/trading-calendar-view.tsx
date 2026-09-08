@@ -108,7 +108,7 @@ export function TradingCalendarView({
     // First day of current view month
     const firstDay = new Date(viewYear, viewMonth, 1);
     // Sunday is 0, Monday is 1 ... Sunday is 7 in Monday-first
-    let startDayOfWeek = firstDay.getDay(); // 0 is Sun, 1 is Mon...
+    const startDayOfWeek = firstDay.getDay(); // 0 is Sun, 1 is Mon...
     const mondayBasedOffset = (startDayOfWeek + 6) % 7; // Mon: 0, Tue: 1 ... Sun: 6
 
     // Total days in current month

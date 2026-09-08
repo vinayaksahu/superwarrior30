@@ -3,11 +3,30 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/server/dal/auth";
 import { getBrokerSettings } from "@/lib/broker/config";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
+    const headerList = await headers();
+    const forwardedFor = headerList.get("x-forwarded-for");
+    const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+
+    const rateLimit = await checkRateLimit({
+      key: `coupon_val:${ip}`,
+      limit: 20,
+      windowSeconds: 60,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { valid: false, message: "Too many coupon validation requests. Please wait a minute." },
+        { status: 429 }
+      );
+    }
+
     await ensureDatabaseSchemaSync();
     const currentUser = await getCurrentUser();
 

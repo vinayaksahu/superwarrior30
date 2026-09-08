@@ -550,15 +550,34 @@ export async function GET(req: Request) {
     const adminPassword = await hashPassword("Admin@123");
     const adminId = "usr_admin_001";
     
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "users" ("id", "email", "name", "passwordHash", "role", "status", "referralCode", "tokenVersion", "createdAt", "updatedAt")
-      VALUES ('${adminId}', 'vinayaksahu3@gmail.com', 'Super Admin', '${adminPassword}', 'SUPER_ADMIN', 'ACTIVE', 'ADMIN001', 1, NOW(), NOW())
-      ON CONFLICT ("email") DO UPDATE SET "role" = 'SUPER_ADMIN';
+    await prisma.user.upsert({
+      where: { email: "vinayaksahu3@gmail.com" },
+      update: { role: "SUPER_ADMIN", adminRole: "SUPER_ADMIN" },
+      create: {
+        id: adminId,
+        email: "vinayaksahu3@gmail.com",
+        name: "Super Admin",
+        passwordHash: adminPassword,
+        role: "SUPER_ADMIN",
+        adminRole: "SUPER_ADMIN",
+        status: "ACTIVE",
+        referralCode: "ADMIN001",
+        tokenVersion: 1,
+      },
+    });
 
-      INSERT INTO "wallets" ("id", "userId", "availableBalance", "pendingBalance", "totalEarned", "totalWithdrawn", "version", "createdAt", "updatedAt")
-      VALUES ('wlt_admin_001', '${adminId}', 0.00, 0.00, 0.00, 0.00, 1, NOW(), NOW())
-      ON CONFLICT ("userId") DO NOTHING;
-    `);
+    await prisma.wallet.upsert({
+      where: { userId: adminId },
+      update: {},
+      create: {
+        id: "wlt_admin_001",
+        userId: adminId,
+        availableBalance: 0.00,
+        pendingBalance: 0.00,
+        totalEarned: 0.00,
+        totalWithdrawn: 0.00,
+      },
+    }).catch(() => {});
 
     // Step 3: Create Sample Referral Levels
     await prisma.$executeRawUnsafe(`

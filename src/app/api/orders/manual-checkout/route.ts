@@ -33,6 +33,20 @@ export async function POST(req: Request) {
       guestPhone,
     } = body;
 
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
+    const { checkRateLimit } = await import("@/lib/rate-limit");
+    const ipRateLimit = await checkRateLimit({
+      key: `manual_order_init:${ip}`,
+      limit: 15,
+      windowSeconds: 60,
+    });
+    if (!ipRateLimit.success) {
+      return NextResponse.json(
+        { success: false, message: "Too many checkout requests from this network. Please wait a minute before trying again." },
+        { status: 429 }
+      );
+    }
+
     // Handle guest account creation/login if user is not already authenticated
     if (!user) {
       if (!guestEmail || typeof guestEmail !== "string" || !guestEmail.includes("@")) {
@@ -50,18 +64,41 @@ export async function POST(req: Request) {
       });
 
       if (existingUser) {
-        // If password was provided, verify it
-        if (guestPassword) {
-          const isValid = await verifyPassword(guestPassword, existingUser.passwordHash);
-          if (!isValid) {
-            return NextResponse.json(
-              {
-                success: false,
-                message: "An account with this email already exists. Please enter your correct password or log in.",
-              },
-              { status: 400 }
-            );
-          }
+        // Prevent administrative account takeover via guest checkout
+        if (
+          existingUser.role === "ADMIN" ||
+          existingUser.role === "SUPER_ADMIN" ||
+          existingUser.role === "SUPPORT" ||
+          Boolean(existingUser.adminRole)
+        ) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Administrative accounts cannot check out as guest. Please sign in via your designated login portal.",
+            },
+            { status: 403 }
+          );
+        }
+
+        if (!guestPassword) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "An account with this email already exists. Please enter your password or log in.",
+            },
+            { status: 401 }
+          );
+        }
+
+        const isValid = await verifyPassword(guestPassword, existingUser.passwordHash);
+        if (!isValid) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Incorrect password for existing account. Please enter your correct password or log in.",
+            },
+            { status: 401 }
+          );
         }
         user = existingUser;
       } else {

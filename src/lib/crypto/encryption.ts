@@ -10,9 +10,24 @@ const TAG_LENGTH = 16; // 16 bytes auth tag
 function getDerivedKey(): Buffer {
   const secret =
     process.env.ENCRYPTION_SECRET ||
+    process.env.JWT_SECRET_KEY ||
     process.env.NEXTAUTH_SECRET ||
-    process.env.JWT_SECRET ||
-    "superwarrior30-default-secure-salt-2026";
+    process.env.JWT_SECRET;
+
+  if (!secret || secret.trim().length === 0) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[FATAL SECURITY CONFIGURATION] ENCRYPTION_SECRET (or JWT_SECRET_KEY) is missing in production. Encryption subsystem failed closed."
+      );
+    }
+    return crypto.createHash("sha256").update("superwarrior30-dev-only-secure-salt-2026").digest();
+  }
+
+  if (process.env.NODE_ENV === "production" && secret.length < 32) {
+    throw new Error(
+      "[FATAL SECURITY CONFIGURATION] ENCRYPTION_SECRET (or JWT_SECRET_KEY) must be at least 32 characters long for AES-256-GCM."
+    );
+  }
 
   return crypto.createHash("sha256").update(secret).digest();
 }
