@@ -135,6 +135,10 @@ export default async function CheckoutPage({
         discountPercentage: number;
       } | null = null;
 
+      const defaultReferralCode = "7G8IQAQA";
+      const defaultReferrerName = "Vinayak Sahu";
+      const referralPct = Number(config?.referralDiscountPercentage) || 25;
+
       if (
         referralRel &&
         referralRel.referrer &&
@@ -143,8 +147,18 @@ export default async function CheckoutPage({
         refCoupon = {
           code: referralRel.referrer.referralCode,
           referrerName: referralRel.referrer.name || "Mentor / Friend",
-          discountPercentage: Number(config?.referralDiscountPercentage) || 10,
+          discountPercentage: referralPct,
         };
+      } else if (config?.isReferralDiscountEnabled !== false) {
+        // Direct / New student without a referrer gets default Welcome Coupon "7G8IQAQA"
+        const isSelf = user?.referralCode === defaultReferralCode;
+        if (!isSelf) {
+          refCoupon = {
+            code: defaultReferralCode,
+            referrerName: defaultReferrerName,
+            discountPercentage: referralPct,
+          };
+        }
       }
 
       return [methods, config, validCoupons, refCoupon] as const;

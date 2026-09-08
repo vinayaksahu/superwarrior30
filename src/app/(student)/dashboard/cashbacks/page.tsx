@@ -31,22 +31,38 @@ export default async function StudentCashbacksPage() {
     getBrokerSettings(),
   ]);
 
-  const referralDiscountPercentage = Number(brokerSettings.referralDiscountPercentage) || 10;
+  const referralDiscountPercentage = Number(brokerSettings.referralDiscountPercentage) || 25;
   const isReferralDiscountEnabled = brokerSettings.isReferralDiscountEnabled !== false;
 
-  const referralReward = referralRel && referralRel.referrer ? {
-    hasReferrer: true,
-    referrerCode: referralRel.referrer.referralCode,
-    referrerName: referralRel.referrer.name || "Mentor / Friend",
-    discountPercentage: referralDiscountPercentage,
-    isReferralDiscountEnabled,
-    hasPurchased: activeEnrollmentCount > 0,
-  } : {
-    hasReferrer: false,
-    discountPercentage: referralDiscountPercentage,
-    isReferralDiscountEnabled,
-    hasPurchased: activeEnrollmentCount > 0,
-  };
+  const defaultReferralCode = "7G8IQAQA";
+  const defaultReferrerName = "Vinayak Sahu";
+  const isSelf = user.referralCode === defaultReferralCode;
+
+  const referralReward =
+    referralRel && referralRel.referrer
+      ? {
+          hasReferrer: true,
+          referrerCode: referralRel.referrer.referralCode,
+          referrerName: referralRel.referrer.name || "Mentor / Friend",
+          discountPercentage: referralDiscountPercentage,
+          isReferralDiscountEnabled,
+          hasPurchased: activeEnrollmentCount > 0,
+        }
+      : !isSelf
+      ? {
+          hasReferrer: true,
+          referrerCode: defaultReferralCode,
+          referrerName: defaultReferrerName,
+          discountPercentage: referralDiscountPercentage,
+          isReferralDiscountEnabled,
+          hasPurchased: activeEnrollmentCount > 0,
+        }
+      : {
+          hasReferrer: false,
+          discountPercentage: referralDiscountPercentage,
+          isReferralDiscountEnabled,
+          hasPurchased: activeEnrollmentCount > 0,
+        };
 
   return (
     <StudentCashbacksClient
