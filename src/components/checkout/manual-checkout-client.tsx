@@ -172,7 +172,7 @@ export function ManualCheckoutClient({
           brokerConfig?.brokerPartnerUrl ||
           "https://web.mygtc.app/login/register?ref=FtHnmAFV",
         offerPercentage: Number(brokerConfig?.offerPercentage) || 25,
-        couponCode: "GTC25",
+        couponCode: "",
         description:
           brokerConfig?.description ||
           "Open your broker account using our partner link and unlock a special course benefit.",
