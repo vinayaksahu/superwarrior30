@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -30,6 +30,7 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import type { PaymentMethodItem } from "@/server/actions/payment-method.actions";
 import type { PublicBrokerConfig } from "@/server/actions/broker.actions";
+import type { BrokerItem } from "@/lib/broker/config";
 import { toast } from "sonner";
 import { ExternalLink, ShieldAlert } from "lucide-react";
 
@@ -157,16 +158,49 @@ export function ManualCheckoutClient({
     isMinAmountMet &&
     isDateValid;
 
-  const brokerMode = brokerConfig?.mode || "CASHBACK";
-  const brokerOfferPct = Number(brokerConfig?.offerPercentage) || 40;
+  // Active brokers list from brokerConfig
+  const availableBrokers: BrokerItem[] = useMemo(() => {
+    if (Array.isArray(brokerConfig?.brokers) && brokerConfig.brokers.length > 0) {
+      const active = brokerConfig.brokers.filter((b) => b.isActive !== false);
+      if (active.length > 0) return active;
+    }
+    return [
+      {
+        id: "default-broker",
+        name: brokerConfig?.brokerName || "GTC FX",
+        partnerUrl:
+          brokerConfig?.brokerPartnerUrl ||
+          "https://web.mygtc.app/login/register?ref=FtHnmAFV",
+        offerPercentage: Number(brokerConfig?.offerPercentage) || 25,
+        couponCode: "GTC25",
+        description:
+          brokerConfig?.description ||
+          "Open your broker account using our partner link and unlock a special course benefit.",
+        isActive: true,
+        requiresMemberId: brokerConfig?.requireMemberId !== false,
+        requiresProof: Boolean(brokerConfig?.requireProof),
+      },
+    ];
+  }, [brokerConfig]);
+
+  const [selectedBrokerId, setSelectedBrokerId] = useState<string>(
+    availableBrokers[0]?.id || "default-broker"
+  );
+
+  const selectedBroker =
+    availableBrokers.find((b) => b.id === selectedBrokerId) || availableBrokers[0];
+
+  const brokerMode = brokerConfig?.mode || "INSTANT_DISCOUNT";
   const isAutoVerifyActive = Boolean(brokerConfig?.isAutoVerificationActive);
-  const brokerName = brokerConfig?.brokerName || "GTC FX";
+  const brokerName = selectedBroker?.name || brokerConfig?.brokerName || "GTC FX";
   const brokerPartnerUrl =
+    selectedBroker?.partnerUrl ||
     brokerConfig?.brokerPartnerUrl ||
     "https://web.mygtc.app/login/register?ref=FtHnmAFV";
-
-  const requireMemberId = brokerConfig?.requireMemberId !== false;
-  const requireProof = Boolean(brokerConfig?.requireProof);
+  const brokerOfferPct = Number(selectedBroker?.offerPercentage) || Number(brokerConfig?.offerPercentage) || 25;
+  const brokerCouponCode = selectedBroker?.couponCode || "";
+  const requireMemberId = selectedBroker?.requiresMemberId !== false && selectedBroker?.requireMemberId !== false;
+  const requireProof = Boolean(selectedBroker?.requiresProof || selectedBroker?.requireProof);
 
   // Stacking Rule Toggles
   const allowAllStacking = Boolean(brokerConfig?.allowAllStacking || brokerConfig?.allowReferralStacking);
@@ -182,12 +216,15 @@ export function ManualCheckoutClient({
   const [brokerStatusMessage, setBrokerStatusMessage] = useState<string | null>(null);
   const [brokerVerified, setBrokerVerified] = useState<boolean>(false);
   const [appliedBrokerId, setAppliedBrokerId] = useState<string | null>(null);
+  const [appliedBrokerName, setAppliedBrokerName] = useState<string | null>(null);
+  const [appliedBrokerOfferPct, setAppliedBrokerOfferPct] = useState<number | null>(null);
 
   // ----------------------------------------------------
   // SEQUENTIAL DISCOUNT CALCULATIONS (Stage 1 -> Stage 2 -> Stage 3)
   // ----------------------------------------------------
   // 1. Broker Benefit calculation (Stage 1: on Course Base Price)
-  let rawBenefit = Math.round((course.price * brokerOfferPct) / 100);
+  const currentBrokerPct = appliedBrokerOfferPct ?? brokerOfferPct;
+  let rawBenefit = Math.round((course.price * currentBrokerPct) / 100);
   if (brokerConfig?.maximumBenefitAmount && brokerConfig.maximumBenefitAmount > 0) {
     rawBenefit = Math.min(rawBenefit, brokerConfig.maximumBenefitAmount);
   }
@@ -526,11 +563,13 @@ export function ManualCheckoutClient({
           if (data.isVerified) {
             setBrokerVerified(true);
             setAppliedBrokerId(idToApply);
+            setAppliedBrokerName(brokerName);
+            setAppliedBrokerOfferPct(brokerOfferPct);
             setBrokerStatusMessage(
               `Verified! Instant ${brokerOfferPct}% discount (-₹${rawBenefit}) applied.`
             );
             toast.success(
-              `Broker Member ID verified! ${brokerOfferPct}% discount applied.`
+              `${brokerName} Member ID verified! ${brokerOfferPct}% discount applied.`
             );
           } else {
             setBrokerStatusMessage(data.message || "Could not verify Member ID.");
@@ -539,18 +578,22 @@ export function ManualCheckoutClient({
         } else {
           setBrokerVerified(true);
           setAppliedBrokerId(idToApply);
+          setAppliedBrokerName(brokerName);
+          setAppliedBrokerOfferPct(brokerOfferPct);
           setBrokerStatusMessage(
-            `Broker Partner discount applied (-₹${rawBenefit}). Subject to review.`
+            `${brokerName} Partner discount applied (-₹${rawBenefit}). Subject to review.`
           );
-          toast.success(`Broker Partner ${brokerOfferPct}% discount applied!`);
+          toast.success(`${brokerName} Partner ${brokerOfferPct}% discount applied!`);
         }
       } else {
         setAppliedBrokerId(idToApply);
+        setAppliedBrokerName(brokerName);
+        setAppliedBrokerOfferPct(brokerOfferPct);
         setBrokerVerified(true);
         setBrokerStatusMessage(
           `Member ID saved. You will receive ₹${potentialCashback} Cashback after admin approval.`
         );
-        toast.success("Broker Partner account recorded for Cashback!");
+        toast.success(`${brokerName} Partner account recorded for Cashback!`);
       }
     } catch {
       setBrokerStatusMessage("Failed to apply broker offer.");
@@ -559,8 +602,56 @@ export function ManualCheckoutClient({
     }
   };
 
+  const handleApplyBrokerCoupon = (codeToApply?: string) => {
+    const code = (codeToApply || brokerCouponCode || "").trim().toUpperCase();
+    if (!code) return;
+
+    if (appliedCoupon && appliedReferral && !allowAllStacking) {
+      toast.error(
+        "Stacking all three discounts simultaneously is not allowed by policy. Please remove an offer first."
+      );
+      setBrokerStatusMessage(
+        "Stacking all three discounts simultaneously is not allowed by policy. Please remove an offer first."
+      );
+      return;
+    }
+
+    if (appliedCoupon && !allowCouponWithBroker) {
+      toast.error(
+        "Promo coupon and Broker Offer cannot be combined. Please remove the coupon first."
+      );
+      setBrokerStatusMessage(
+        "Promo coupon and Broker Offer cannot be combined. Please remove the coupon first."
+      );
+      return;
+    }
+
+    if (appliedReferral && !allowReferralWithBroker) {
+      toast.error(
+        "Referral discount and Broker Offer cannot be combined. Please remove the referral code first."
+      );
+      setBrokerStatusMessage(
+        "Referral discount and Broker Offer cannot be combined. Please remove the referral code first."
+      );
+      return;
+    }
+
+    setHasBrokerAccount(true);
+    setAppliedBrokerId(code);
+    setAppliedBrokerName(brokerName);
+    setAppliedBrokerOfferPct(brokerOfferPct);
+    setBrokerVerified(true);
+    const benefit = Math.round((course.price * brokerOfferPct) / 100);
+    setBrokerStatusMessage(
+      `${brokerName} partner offer applied (${brokerOfferPct}% instant discount: -₹${benefit})`
+    );
+    toast.success(`${brokerName} coupon applied! Saved ₹${benefit}`);
+  };
+
   const handleRemoveBrokerOffer = () => {
     setAppliedBrokerId(null);
+    setAppliedBrokerName(null);
+    setAppliedBrokerOfferPct(null);
     setBrokerMemberInput("");
     setBrokerProofUrl(null);
     setBrokerVerified(false);
@@ -604,6 +695,8 @@ export function ManualCheckoutClient({
           courseId: course.id,
           couponCode: appliedCoupon?.code,
           referralCode: appliedReferral?.code,
+          brokerName: appliedBrokerName || (hasBrokerAccount ? brokerName : undefined),
+          brokerId: selectedBrokerId,
           brokerMemberId: appliedBrokerId || (brokerMemberInput.trim() || undefined),
           brokerProofUrl: brokerProofUrl || undefined,
           hasBrokerAccount: hasBrokerAccount || Boolean(appliedBrokerId),
@@ -753,6 +846,8 @@ export function ManualCheckoutClient({
           courseId: course.id,
           couponCode: appliedCoupon?.code,
           referralCode: appliedReferral?.code,
+          brokerName: appliedBrokerName || (hasBrokerAccount ? brokerName : undefined),
+          brokerId: selectedBrokerId,
           brokerMemberId: appliedBrokerId || (brokerMemberInput.trim() || undefined),
           brokerProofUrl: brokerProofUrl || undefined,
           hasBrokerAccount: hasBrokerAccount || Boolean(appliedBrokerId),
@@ -1100,18 +1195,77 @@ export function ManualCheckoutClient({
                   </div>
 
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    {brokerConfig?.description ||
+                    {selectedBroker?.description ||
+                      brokerConfig?.description ||
                       "Open your broker account using our partner link and unlock a special course benefit."}
                   </p>
 
-                  <a
-                    href={brokerPartnerUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 w-full rounded-lg bg-amber-500 text-black py-2 text-xs font-bold shadow hover:bg-amber-400 transition-all"
-                  >
-                    Open {brokerName} Account <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                  {/* Multi-Broker Selection Tabs */}
+                  {availableBrokers.length > 1 && (
+                    <div className="space-y-1.5 pt-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Select Partner Broker:
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                        {availableBrokers.map((b) => {
+                          const isSelected = selectedBrokerId === b.id;
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => {
+                                if (appliedBrokerId && selectedBrokerId !== b.id) {
+                                  handleRemoveBrokerOffer();
+                                }
+                                setSelectedBrokerId(b.id);
+                              }}
+                              className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? "border-amber-500 bg-amber-500/20 text-amber-300 font-bold shadow-sm ring-1 ring-amber-500"
+                                  : "border-border/60 bg-background/50 text-muted-foreground hover:text-foreground hover:border-border"
+                              }`}
+                            >
+                              <p className="text-xs font-bold truncate">{b.name}</p>
+                              <p className="text-[10px] text-amber-400 font-semibold">{b.offerPercentage}% OFF</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Broker Registration Link */}
+                  {brokerPartnerUrl && (
+                    <a
+                      href={brokerPartnerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 w-full rounded-lg bg-amber-500 text-black py-2 text-xs font-bold shadow hover:bg-amber-400 transition-all cursor-pointer"
+                    >
+                      Open {brokerName} Account <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+
+                  {/* Broker Partner Coupon One-Click Box */}
+                  {brokerCouponCode && !appliedBrokerId && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 flex items-center justify-between gap-2">
+                      <div className="space-y-0.5 min-w-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300/80 block">
+                          {brokerName} Partner Coupon:
+                        </span>
+                        <span className="font-mono text-xs font-black text-amber-300">
+                          {brokerCouponCode} ({brokerOfferPct}% Discount)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyBrokerCoupon(brokerCouponCode)}
+                        className="rounded-md bg-amber-500 text-black px-3 py-1.5 text-xs font-bold shadow hover:bg-amber-400 transition-all shrink-0 cursor-pointer"
+                      >
+                        Apply Coupon
+                      </button>
+                    </div>
+                  )}
 
                   {/* Broker Claim Checkbox / Form */}
                   <div className="pt-1">
@@ -1137,23 +1291,39 @@ export function ManualCheckoutClient({
                             <div className="flex items-center gap-1.5">
                               <Check className="h-3.5 w-3.5" />
                               <span>
-                                {brokerName} ID: <strong>{appliedBrokerId}</strong>
+                                {appliedBrokerName || brokerName} Applied: <strong>{appliedBrokerId}</strong> (-₹{brokerDiscount})
                               </span>
                             </div>
                             <button
                               type="button"
                               onClick={handleRemoveBrokerOffer}
-                              className="text-muted-foreground hover:text-destructive p-1"
+                              className="text-muted-foreground hover:text-destructive p-1 cursor-pointer"
+                              title="Remove Offer"
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         ) : (
                           <form onSubmit={handleVerifyBrokerMember} className="space-y-2.5">
+                            {brokerCouponCode && (
+                              <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5">
+                                <span className="text-[11px] text-muted-foreground">
+                                  Use Partner Coupon: <strong className="font-mono text-amber-300">{brokerCouponCode}</strong>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplyBrokerCoupon(brokerCouponCode)}
+                                  className="text-[11px] font-bold text-amber-400 hover:underline cursor-pointer"
+                                >
+                                  Apply Now
+                                </button>
+                              </div>
+                            )}
+
                             {requireMemberId && (
                               <div>
                                 <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
-                                  Broker Member ID / User ID <span className="text-amber-400">*</span>
+                                  {brokerName} Member ID / User ID <span className="text-amber-400">*</span>
                                 </label>
                                 <input
                                   type="text"
@@ -1193,7 +1363,7 @@ export function ManualCheckoutClient({
                               type="submit"
                               disabled={
                                 isCheckingBroker ||
-                                (requireMemberId && !brokerMemberInput.trim()) ||
+                                (requireMemberId && !brokerMemberInput.trim() && !brokerCouponCode) ||
                                 (requireProof && !brokerProofUrl)
                               }
                               className="w-full rounded-lg bg-amber-500 text-black py-2 text-xs font-bold shadow hover:bg-amber-400 disabled:opacity-50 transition-all cursor-pointer"
@@ -1201,8 +1371,8 @@ export function ManualCheckoutClient({
                               {isCheckingBroker
                                 ? "Verifying..."
                                 : brokerMode === "INSTANT_DISCOUNT"
-                                ? "Verify & Apply Broker Discount"
-                                : "Save Broker Member ID"}
+                                ? `Verify & Apply ${brokerName} Discount`
+                                : `Save ${brokerName} Member ID`}
                             </button>
                           </form>
                         )}

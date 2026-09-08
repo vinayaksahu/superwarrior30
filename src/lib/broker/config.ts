@@ -3,6 +3,20 @@ import { prisma } from "@/lib/prisma";
 export type BrokerOfferMode = "CASHBACK" | "INSTANT_DISCOUNT";
 export type EligibleCourseScope = "ALL_COURSES" | "SELECTED_COURSES";
 
+export interface BrokerItem {
+  id: string;
+  name: string;
+  partnerUrl: string;
+  offerPercentage: number;
+  couponCode?: string;
+  description?: string;
+  isActive: boolean;
+  requiresMemberId?: boolean;
+  requiresProof?: boolean;
+  requireMemberId?: boolean;
+  requireProof?: boolean;
+}
+
 export interface BrokerOfferSettings {
   // 1. Independent Module Toggles
   isEnabled: boolean; // Broker Offer module toggle
@@ -24,7 +38,7 @@ export interface BrokerOfferSettings {
   mode: BrokerOfferMode;
   brokerName: string;
   brokerPartnerUrl: string;
-  offerPercentage: number; // e.g. 40 for 40%
+  offerPercentage: number; // e.g. 25 for 25%
   minimumOrderAmount: number;
   maximumBenefitAmount: number | null;
   startDate: string | null;
@@ -38,6 +52,9 @@ export interface BrokerOfferSettings {
   autoVerificationProvider: "INTERNAL_ADAPTER" | "API_WEBHOOK" | "CUSTOM";
   autoVerificationApiKey?: string;
   autoVerificationEndpoint?: string;
+
+  // 4. Multi-Broker Support
+  brokers: BrokerItem[];
 }
 
 export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
@@ -51,10 +68,10 @@ export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
   allowReferralWithBroker: false,
   allowAllStacking: false,
 
-  mode: "CASHBACK",
+  mode: "INSTANT_DISCOUNT",
   brokerName: "GTC FX",
   brokerPartnerUrl: "https://web.mygtc.app/login/register?ref=FtHnmAFV",
-  offerPercentage: 40,
+  offerPercentage: 25,
   minimumOrderAmount: 0,
   maximumBenefitAmount: null,
   startDate: null,
@@ -66,6 +83,20 @@ export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
   description: "Open your broker account using our partner link and unlock a special course benefit.",
   isAutoVerificationActive: false,
   autoVerificationProvider: "INTERNAL_ADAPTER",
+
+  brokers: [
+    {
+      id: "gtc-fx",
+      name: "GTC FX",
+      partnerUrl: "https://web.mygtc.app/login/register?ref=FtHnmAFV",
+      offerPercentage: 25,
+      couponCode: "GTC25",
+      description: "Open your broker account using our partner link and unlock a special course benefit.",
+      isActive: true,
+      requiresMemberId: true,
+      requiresProof: false,
+    },
+  ],
 };
 
 const SITE_SETTING_KEY = "BROKER_OFFER_SETTINGS";
@@ -82,6 +113,38 @@ export async function getBrokerSettings(): Promise<BrokerOfferSettings> {
 
     const parsed = JSON.parse(setting.value);
     const allowAll = Boolean(parsed.allowAllStacking || parsed.allowReferralStacking);
+
+    // Normalize brokers array with backward compatibility
+    let brokers: BrokerItem[] = [];
+    if (Array.isArray(parsed.brokers) && parsed.brokers.length > 0) {
+      brokers = parsed.brokers.map((b: any, idx: number) => ({
+        id: b.id || `broker-${idx + 1}`,
+        name: b.name || "Partner Broker",
+        partnerUrl: b.partnerUrl || "",
+        offerPercentage: Number(b.offerPercentage) || Number(parsed.offerPercentage) || 25,
+        couponCode: b.couponCode || "",
+        description: b.description || parsed.description || "",
+        isActive: b.isActive !== false,
+        requiresMemberId: b.requiresMemberId !== false,
+        requiresProof: Boolean(b.requiresProof),
+      }));
+    } else {
+      brokers = [
+        {
+          id: "gtc-fx",
+          name: parsed.brokerName || DEFAULT_BROKER_SETTINGS.brokerName,
+          partnerUrl: parsed.brokerPartnerUrl || DEFAULT_BROKER_SETTINGS.brokerPartnerUrl,
+          offerPercentage: Number(parsed.offerPercentage) || 25,
+          couponCode: parsed.couponCode || "GTC25",
+          description: parsed.description || DEFAULT_BROKER_SETTINGS.description,
+          isActive: true,
+          requiresMemberId: parsed.requireMemberId !== false,
+          requiresProof: Boolean(parsed.requireProof),
+        },
+      ];
+    }
+
+    const primaryBroker = brokers.find((b) => b.isActive) || brokers[0];
 
     return {
       ...DEFAULT_BROKER_SETTINGS,
@@ -102,6 +165,10 @@ export async function getBrokerSettings(): Promise<BrokerOfferSettings> {
       allowAllStacking: allowAll,
       allowCouponStacking: Boolean(parsed.allowCouponStacking || parsed.allowCouponWithBroker || allowAll),
       allowReferralStacking: allowAll,
+      brokers,
+      brokerName: primaryBroker?.name || parsed.brokerName || DEFAULT_BROKER_SETTINGS.brokerName,
+      brokerPartnerUrl: primaryBroker?.partnerUrl || parsed.brokerPartnerUrl || DEFAULT_BROKER_SETTINGS.brokerPartnerUrl,
+      offerPercentage: primaryBroker?.offerPercentage ?? (Number(parsed.offerPercentage) || 25),
     };
   } catch (error) {
     console.error("Failed to load broker settings:", error);
@@ -117,6 +184,16 @@ export async function saveBrokerSettings(
     ...current,
     ...settings,
   };
+
+  // Keep primary single-broker fields synced with first active broker for legacy readers
+  if (Array.isArray(updated.brokers) && updated.brokers.length > 0) {
+    const primary = updated.brokers.find((b) => b.isActive) || updated.brokers[0];
+    if (primary) {
+      if (!settings.brokerName) updated.brokerName = primary.name;
+      if (!settings.brokerPartnerUrl) updated.brokerPartnerUrl = primary.partnerUrl;
+      if (settings.offerPercentage === undefined) updated.offerPercentage = primary.offerPercentage;
+    }
+  }
 
   await prisma.siteSetting.upsert({
     where: { key: SITE_SETTING_KEY },

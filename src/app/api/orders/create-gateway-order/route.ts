@@ -198,8 +198,12 @@ export async function POST(req: Request) {
       (body.brokerMemberId || body.memberId || "").trim();
     const requestedProofUrl =
       (body.brokerProofUrl || body.proofUrl || "").trim() || null;
+    const requestedBrokerName =
+      (body.brokerName || "").trim();
+    const requestedBrokerId =
+      (body.brokerId || "").trim();
     const isBrokerRequested =
-      Boolean(body.hasBrokerAccount || requestedBrokerMemberId || requestedProofUrl);
+      Boolean(body.hasBrokerAccount || requestedBrokerMemberId || requestedProofUrl || requestedBrokerName);
 
     if (isBrokerRequested && brokerSettings.isEnabled) {
       const now = new Date();
@@ -248,29 +252,44 @@ export async function POST(req: Request) {
         );
       }
 
-      // 4. Require Member ID check
-      if (brokerSettings.requireMemberId && !requestedBrokerMemberId) {
+      // Match broker from configured brokers
+      const matchedBroker = Array.isArray(brokerSettings.brokers)
+        ? brokerSettings.brokers.find(
+            (b) =>
+              (requestedBrokerId && b.id === requestedBrokerId) ||
+              (requestedBrokerName && b.name.toLowerCase() === requestedBrokerName.toLowerCase()) ||
+              (requestedBrokerMemberId && b.couponCode && b.couponCode.toUpperCase() === requestedBrokerMemberId.toUpperCase())
+          ) || brokerSettings.brokers.find((b) => b.isActive)
+        : null;
+
+      const targetBrokerName = matchedBroker?.name || requestedBrokerName || brokerSettings.brokerName || "Partner Broker";
+      const offerPct = matchedBroker ? Number(matchedBroker.offerPercentage) : (Number(brokerSettings.offerPercentage) || 25);
+      const isBrokerCoupon = Boolean(matchedBroker?.couponCode && requestedBrokerMemberId.toUpperCase() === matchedBroker.couponCode.toUpperCase());
+      const requireMemberId = matchedBroker ? matchedBroker.requiresMemberId !== false : brokerSettings.requireMemberId !== false;
+      const requireProof = matchedBroker ? Boolean(matchedBroker.requiresProof) : Boolean(brokerSettings.requireProof);
+
+      // 4. Require Member ID check (skip if applied via broker coupon code)
+      if (requireMemberId && !isBrokerCoupon && !requestedBrokerMemberId) {
         return NextResponse.json(
           {
             success: false,
-            message: "Please enter your Broker Member ID / User ID.",
+            message: `Please enter your ${targetBrokerName} Member ID / User ID.`,
           },
           { status: 400 }
         );
       }
 
       // 5. Require Proof check
-      if (brokerSettings.requireProof && !requestedProofUrl) {
+      if (requireProof && !requestedProofUrl) {
         return NextResponse.json(
           {
             success: false,
-            message: "Please upload your Broker account screenshot / proof.",
+            message: `Please upload your ${targetBrokerName} account screenshot / proof.`,
           },
           { status: 400 }
         );
       }
 
-      const offerPct = Number(brokerSettings.offerPercentage) || 40;
       let calculatedBrokerValue = (coursePrice * offerPct) / 100;
 
       // Cap at maximum benefit amount if configured
@@ -296,7 +315,7 @@ export async function POST(req: Request) {
       }
 
       brokerClaimData = {
-        brokerName: brokerSettings.brokerName,
+        brokerName: targetBrokerName,
         brokerMemberId: cleanMemberId,
         proofUrl: requestedProofUrl,
         mode: brokerSettings.mode,

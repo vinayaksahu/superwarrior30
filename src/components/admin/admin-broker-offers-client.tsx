@@ -31,9 +31,12 @@ import {
   ArrowRight,
   Sliders,
   DollarSign,
+  Edit2,
+  Trash2,
+  Globe,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import type { BrokerOfferSettings } from "@/lib/broker/config";
+import type { BrokerOfferSettings, BrokerItem } from "@/lib/broker/config";
 import {
   updateBrokerAdminSettingsAction,
   adminVerifyMemberIdAction,
@@ -169,6 +172,100 @@ export function AdminBrokerOffersClient({
   // Coupon Search & Filter State
   const [couponSearch, setCouponSearch] = useState<string>("");
   const [couponStatusFilter, setCouponStatusFilter] = useState<string>("all");
+
+  // Multi-Broker Management State
+  const [editingBroker, setEditingBroker] = useState<BrokerItem | null>(null);
+  const [isBrokerModalOpen, setIsBrokerModalOpen] = useState(false);
+
+  const handleOpenAddBroker = () => {
+    setEditingBroker({
+      id: `broker-${Date.now()}`,
+      name: "",
+      partnerUrl: "",
+      offerPercentage: 25,
+      couponCode: "",
+      description: "Open your broker account using our partner link and unlock a special course benefit.",
+      isActive: true,
+      requiresMemberId: true,
+      requiresProof: false,
+    });
+    setIsBrokerModalOpen(true);
+  };
+
+  const handleOpenEditBroker = (broker: BrokerItem) => {
+    setEditingBroker({ ...broker });
+    setIsBrokerModalOpen(true);
+  };
+
+  const handleSaveBrokerItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBroker) return;
+
+    if (!editingBroker.name.trim()) {
+      toast.error("Please enter a Broker Name.");
+      return;
+    }
+    if (!editingBroker.partnerUrl.trim()) {
+      toast.error("Please enter a Partner Registration URL.");
+      return;
+    }
+
+    const currentBrokers = settings.brokers || [];
+    const exists = currentBrokers.some((b) => b.id === editingBroker.id);
+    const updatedBrokers = exists
+      ? currentBrokers.map((b) => (b.id === editingBroker.id ? editingBroker : b))
+      : [...currentBrokers, editingBroker];
+
+    const primary = updatedBrokers.find((b) => b.isActive) || updatedBrokers[0];
+    setSettings({
+      ...settings,
+      brokers: updatedBrokers,
+      brokerName: primary?.name || settings.brokerName,
+      brokerPartnerUrl: primary?.partnerUrl || settings.brokerPartnerUrl,
+      offerPercentage: primary?.offerPercentage ?? settings.offerPercentage,
+    });
+
+    setIsBrokerModalOpen(false);
+    setEditingBroker(null);
+    toast.success(`Broker "${editingBroker.name}" updated! Click "Save Broker Settings" to persist.`);
+  };
+
+  const handleDeleteBrokerItem = (brokerId: string) => {
+    const currentBrokers = settings.brokers || [];
+    if (currentBrokers.length <= 1) {
+      toast.error("You must keep at least one broker configured.");
+      return;
+    }
+    const brokerToDelete = currentBrokers.find((b) => b.id === brokerId);
+    if (!confirm(`Are you sure you want to remove ${brokerToDelete?.name || "this broker"}?`)) {
+      return;
+    }
+    const updatedBrokers = currentBrokers.filter((b) => b.id !== brokerId);
+    const primary = updatedBrokers.find((b) => b.isActive) || updatedBrokers[0];
+    setSettings({
+      ...settings,
+      brokers: updatedBrokers,
+      brokerName: primary?.name || settings.brokerName,
+      brokerPartnerUrl: primary?.partnerUrl || settings.brokerPartnerUrl,
+      offerPercentage: primary?.offerPercentage ?? settings.offerPercentage,
+    });
+    toast.success("Broker removed from list.");
+  };
+
+  const handleToggleBrokerActive = (brokerId: string) => {
+    const currentBrokers = settings.brokers || [];
+    const updatedBrokers = currentBrokers.map((b) =>
+      b.id === brokerId ? { ...b, isActive: !b.isActive } : b
+    );
+    const primary = updatedBrokers.find((b) => b.isActive) || updatedBrokers[0];
+    setSettings({
+      ...settings,
+      brokers: updatedBrokers,
+      brokerName: primary?.name || settings.brokerName,
+      brokerPartnerUrl: primary?.partnerUrl || settings.brokerPartnerUrl,
+      offerPercentage: primary?.offerPercentage ?? settings.offerPercentage,
+    });
+  };
 
   const handleSaveSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -491,9 +588,18 @@ export function AdminBrokerOffersClient({
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Broker:</span>
-                    <span className="font-semibold text-foreground">{settings.brokerName || "GTC FX"}</span>
+                    <span className="text-muted-foreground">Brokers:</span>
+                    <span className="font-semibold text-foreground">
+                      {(settings.brokers || []).filter((b) => b.isActive).length} Active ({(settings.brokers || []).length} Configured)
+                    </span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("BROKER")}
+                    className="text-[11px] font-bold text-amber-400 hover:underline flex items-center gap-1 pt-0.5"
+                  >
+                    Manage Multiple Brokers <ArrowRight className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
 
@@ -726,15 +832,149 @@ export function AdminBrokerOffersClient({
       )}
 
       {/* ======================================================== */}
-      {/* TAB 2: PARTNER BROKER CONFIGURATION */}
+      {/* TAB 2: PARTNER BROKERS & OFFER CONFIGURATION */}
       {/* ======================================================== */}
       {activeTab === "BROKER" && (
         <form onSubmit={handleSaveSettings} className="space-y-6 max-w-4xl">
+          {/* SECTION 1: PARTNER BROKERS MANAGER */}
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+              <div>
+                <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-amber-400" />
+                  Partner Brokers ({(settings.brokers || []).length})
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Configure multiple broker partners. Students can select any one broker on checkout and apply its discount / coupon code.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenAddBroker}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 text-black px-3.5 py-2 text-xs font-bold shadow hover:bg-amber-400 transition-all cursor-pointer"
+              >
+                <Plus className="h-4 w-4" /> Add Partner Broker
+              </button>
+            </div>
+
+            {/* List of Brokers */}
+            <div className="space-y-3">
+              {(settings.brokers || []).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
+                  No partner brokers configured yet. Click &quot;Add Partner Broker&quot; to configure one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {(settings.brokers || []).map((broker, idx) => (
+                    <div
+                      key={broker.id || idx}
+                      className={`rounded-xl border p-4 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                        broker.isActive
+                          ? "border-amber-500/40 bg-amber-500/5 shadow-sm"
+                          : "border-border/60 bg-muted/20 opacity-60"
+                      }`}
+                    >
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-foreground truncate">
+                            {broker.name}
+                          </span>
+                          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                            {broker.offerPercentage}% OFF
+                          </span>
+                          {broker.couponCode ? (
+                            <span className="rounded bg-primary/20 px-2 py-0.5 text-[10px] font-mono font-bold text-primary">
+                              Coupon: {broker.couponCode}
+                            </span>
+                          ) : (
+                            <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
+                              No Coupon
+                            </span>
+                          )}
+                          <span
+                            className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                              broker.isActive
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {broker.isActive ? "Active on Checkout" : "Disabled"}
+                          </span>
+                        </div>
+
+                        {broker.description && (
+                          <p className="text-[11px] text-muted-foreground line-clamp-1">
+                            {broker.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-4 text-[11px] text-muted-foreground flex-wrap pt-0.5">
+                          {broker.partnerUrl ? (
+                            <a
+                              href={broker.partnerUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-amber-400 hover:underline inline-flex items-center gap-1 font-mono text-[10px] truncate max-w-xs"
+                            >
+                              <Globe className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{broker.partnerUrl}</span>
+                              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                            </a>
+                          ) : (
+                            <span className="text-destructive">No partner URL set</span>
+                          )}
+                          <span>
+                            {broker.requiresMemberId !== false ? "✓ Requires Member ID" : "No Member ID required"}
+                          </span>
+                          {broker.requiresProof && <span>✓ Requires Screenshot Proof</span>}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBrokerActive(broker.id)}
+                          className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border transition-colors cursor-pointer ${
+                            broker.isActive
+                              ? "border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+                              : "border-border text-muted-foreground hover:bg-accent"
+                          }`}
+                        >
+                          {broker.isActive ? "Disable" : "Enable"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditBroker(broker)}
+                          className="rounded-lg border border-input p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+                          title="Edit Broker"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBrokerItem(broker.id)}
+                          disabled={(settings.brokers || []).length <= 1}
+                          className="rounded-lg border border-input p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30 cursor-pointer"
+                          title="Delete Broker"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SECTION 2: GLOBAL BROKER OFFER RULES */}
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
             <div className="border-b border-border pb-3">
-              <h2 className="text-base font-bold text-foreground">Partner Broker Details &amp; Rules</h2>
+              <h2 className="text-base font-bold text-foreground">Global Broker Offer Rules</h2>
               <p className="text-xs text-muted-foreground">
-                Set partner links, modes (Instant Discount vs Cashback), minimum orders, caps, and verification criteria.
+                Configure benefit mode, minimum orders, caps, and course eligibility across all partner brokers.
               </p>
             </div>
 
@@ -742,6 +982,31 @@ export function AdminBrokerOffersClient({
             <div className="space-y-3">
               <label className="text-xs font-bold text-foreground block">Broker Benefit Mode</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label
+                  className={`flex flex-col p-4 rounded-xl border cursor-pointer transition-all ${
+                    settings.mode === "INSTANT_DISCOUNT"
+                      ? "border-primary bg-primary/10 shadow-sm"
+                      : "border-border hover:border-border/80 bg-background/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Percent className="h-4 w-4 text-primary" />
+                      Instant Discount Mode (At Checkout)
+                    </span>
+                    <input
+                      type="radio"
+                      name="brokerMode"
+                      checked={settings.mode === "INSTANT_DISCOUNT"}
+                      onChange={() => setSettings({ ...settings, mode: "INSTANT_DISCOUNT" })}
+                      className="text-primary focus:ring-primary cursor-pointer"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Directly discounts the total payable at checkout upon entering/applying partner broker coupon or Member ID.
+                  </p>
+                </label>
+
                 <label
                   className={`flex flex-col p-4 rounded-xl border cursor-pointer transition-all ${
                     settings.mode === "CASHBACK"
@@ -766,78 +1031,11 @@ export function AdminBrokerOffersClient({
                     Student pays standard amount at checkout. Benefit amount is verified by admin and released to wallet post-purchase.
                   </p>
                 </label>
-
-                <label
-                  className={`flex flex-col p-4 rounded-xl border cursor-pointer transition-all ${
-                    settings.mode === "INSTANT_DISCOUNT"
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "border-border hover:border-border/80 bg-background/50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <Percent className="h-4 w-4 text-primary" />
-                      Instant Discount Mode (At Checkout)
-                    </span>
-                    <input
-                      type="radio"
-                      name="brokerMode"
-                      checked={settings.mode === "INSTANT_DISCOUNT"}
-                      onChange={() => setSettings({ ...settings, mode: "INSTANT_DISCOUNT" })}
-                      className="text-primary focus:ring-primary cursor-pointer"
-                    />
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Directly discounts the total payable at checkout upon entering Broker Member ID.
-                  </p>
-                </label>
               </div>
             </div>
 
-            {/* Broker Name & Referral Link */}
+            {/* Caps */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-foreground block mb-1">Partner Broker Name</label>
-                <input
-                  type="text"
-                  value={settings.brokerName || ""}
-                  onChange={(e) => setSettings({ ...settings, brokerName: e.target.value })}
-                  placeholder="e.g. GTC FX"
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-foreground block mb-1">Partner Registration URL</label>
-                <input
-                  type="url"
-                  value={settings.brokerPartnerUrl || ""}
-                  onChange={(e) => setSettings({ ...settings, brokerPartnerUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Offer % and Caps */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-foreground block mb-1">Offer Percentage (%)</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={settings.offerPercentage || 40}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      offerPercentage: Math.max(1, Math.min(100, Number(e.target.value) || 0)),
-                    })
-                  }
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-bold text-foreground focus:border-primary focus:outline-none"
-                />
-              </div>
-
               <div>
                 <label className="text-xs font-semibold text-foreground block mb-1">Minimum Order Amount (₹)</label>
                 <input
@@ -867,39 +1065,6 @@ export function AdminBrokerOffersClient({
                   className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
                 />
               </div>
-            </div>
-
-            {/* Verification Requirements */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <label className="flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.requireMemberId}
-                  onChange={(e) => setSettings({ ...settings, requireMemberId: e.target.checked })}
-                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-foreground">Require Broker Member ID</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Students must enter their Broker User ID at checkout.
-                  </p>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 rounded-xl bg-background/60 p-3.5 border border-border cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.requireProof}
-                  onChange={(e) => setSettings({ ...settings, requireProof: e.target.checked })}
-                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-foreground">Require Screenshot Proof</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Students must upload a screenshot of their broker profile.
-                  </p>
-                </div>
-              </label>
             </div>
 
             {/* Course Scope Selection */}
@@ -1421,6 +1586,182 @@ export function AdminBrokerOffersClient({
               alt="Broker Proof"
               className="max-h-[70vh] w-full object-contain rounded-lg border"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Broker Add/Edit Modal */}
+      {isBrokerModalOpen && editingBroker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
+          <div className="relative max-w-lg w-full rounded-2xl bg-card border border-border p-6 shadow-2xl space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-amber-400" />
+                {editingBroker.id.startsWith("broker-") && !(settings.brokers || []).some((b) => b.id === editingBroker.id)
+                  ? "Add New Partner Broker"
+                  : `Edit Broker: ${editingBroker.name}`}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBrokerModalOpen(false);
+                  setEditingBroker(null);
+                }}
+                className="text-muted-foreground hover:text-foreground p-1 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBrokerItem} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    Broker Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. GTC FX, Exness, XM"
+                    value={editingBroker.name}
+                    onChange={(e) => setEditingBroker({ ...editingBroker, name: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    Offer Discount (%) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={100}
+                      value={editingBroker.offerPercentage}
+                      onChange={(e) =>
+                        setEditingBroker({
+                          ...editingBroker,
+                          offerPercentage: Math.max(1, Math.min(100, Number(e.target.value) || 0)),
+                        })
+                      }
+                      className="w-full rounded-xl border border-input bg-background px-3 py-2 pr-7 text-xs font-bold text-amber-400 focus:border-amber-400 focus:outline-none"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Partner Registration URL *
+                </label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://..."
+                  value={editingBroker.partnerUrl}
+                  onChange={(e) => setEditingBroker({ ...editingBroker, partnerUrl: e.target.value })}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Partner Coupon Code (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. GTC25, EXNESS25"
+                  value={editingBroker.couponCode || ""}
+                  onChange={(e) =>
+                    setEditingBroker({
+                      ...editingBroker,
+                      couponCode: e.target.value.toUpperCase(),
+                    })
+                  }
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-mono font-bold uppercase text-primary focus:border-primary focus:outline-none"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  If set, students can click a 1-tap &quot;Apply Coupon&quot; button for this broker on checkout.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Custom Description / Tagline
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Open your broker account using our partner link and unlock a special course benefit."
+                  value={editingBroker.description || ""}
+                  onChange={(e) => setEditingBroker({ ...editingBroker, description: e.target.value })}
+                  className="w-full rounded-xl border border-input bg-background p-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <label className="flex items-center gap-2 rounded-xl bg-background/60 p-2.5 border border-border cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingBroker.requiresMemberId !== false}
+                    onChange={(e) =>
+                      setEditingBroker({ ...editingBroker, requiresMemberId: e.target.checked })
+                    }
+                    className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-foreground">Require Member ID</span>
+                </label>
+
+                <label className="flex items-center gap-2 rounded-xl bg-background/60 p-2.5 border border-border cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editingBroker.requiresProof)}
+                    onChange={(e) =>
+                      setEditingBroker({ ...editingBroker, requiresProof: e.target.checked })
+                    }
+                    className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-foreground">Require Screenshot</span>
+                </label>
+              </div>
+
+              <label className="flex items-center gap-2 rounded-xl bg-primary/5 p-2.5 border border-primary/20 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingBroker.isActive}
+                  onChange={(e) =>
+                    setEditingBroker({ ...editingBroker, isActive: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+                />
+                <span className="text-xs font-bold text-foreground">
+                  Active &amp; Visible on Checkout
+                </span>
+              </label>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBrokerModalOpen(false);
+                    setEditingBroker(null);
+                  }}
+                  className="rounded-xl border border-input px-3.5 py-2 text-xs font-semibold hover:bg-accent cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-amber-500 text-black px-4 py-2 text-xs font-bold shadow hover:bg-amber-400 cursor-pointer"
+                >
+                  Save to List
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

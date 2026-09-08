@@ -9,6 +9,7 @@ import {
   BrokerOfferSettings,
   BrokerOfferMode,
   EligibleCourseScope,
+  BrokerItem,
 } from "@/lib/broker/config";
 import {
   verifyBrokerMemberIdServer,
@@ -44,6 +45,9 @@ export interface PublicBrokerConfig {
   requireProof: boolean;
   description: string;
   isAutoVerificationActive: boolean;
+
+  // Multi-broker items
+  brokers: BrokerItem[];
 }
 
 /**
@@ -66,7 +70,7 @@ export async function getBrokerPublicConfigAction(): Promise<PublicBrokerConfig>
     mode: settings.mode,
     brokerName: settings.brokerName,
     brokerPartnerUrl: settings.brokerPartnerUrl,
-    offerPercentage: Number(settings.offerPercentage) || 40,
+    offerPercentage: Number(settings.offerPercentage) || 25,
     minimumOrderAmount: Number(settings.minimumOrderAmount) || 0,
     maximumBenefitAmount: settings.maximumBenefitAmount ? Number(settings.maximumBenefitAmount) : null,
     startDate: settings.startDate || null,
@@ -77,6 +81,7 @@ export async function getBrokerPublicConfigAction(): Promise<PublicBrokerConfig>
     requireProof: Boolean(settings.requireProof),
     description: settings.description || "Open your broker account using our partner link and unlock a special course benefit.",
     isAutoVerificationActive: Boolean(settings.isAutoVerificationActive),
+    brokers: settings.brokers || [],
   };
 }
 
