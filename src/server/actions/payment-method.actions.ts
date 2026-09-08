@@ -453,7 +453,7 @@ export async function updatePaymentMethodAction(
   } else if (existing.type === "CRYPTO") {
     const network = formData.get("network")?.toString().trim();
     const walletAddress = formData.get("walletAddress")?.toString().trim();
-    let qrCodeUrl = formData.get("qrCodeUrl")?.toString().trim();
+    let qrCodeUrl = formData.get("qrCodeUrl")?.toString().trim() || currentDetails.qrCodeUrl;
 
     if (walletAddress && !qrCodeUrl) {
       qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(

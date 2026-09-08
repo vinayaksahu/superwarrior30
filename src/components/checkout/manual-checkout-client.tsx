@@ -914,13 +914,18 @@ export function ManualCheckoutClient({
                   {/* UPI QR & ID */}
                   {selectedMethod.type === "UPI" && (
                     <div className="space-y-4">
-                      {selectedMethod.details?.qrCodeUrl && (
+                      {(selectedMethod.details?.qrCodeUrl || selectedMethod.details?.upiId) && (
                         <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background border border-border">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={selectedMethod.details.qrCodeUrl}
+                            src={
+                              selectedMethod.details?.qrCodeUrl ||
+                              `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi://pay?pa=${encodeURIComponent(
+                                selectedMethod.details?.upiId || ""
+                              )}`
+                            }
                             alt="UPI QR Code"
-                            className="h-44 w-44 object-contain rounded-lg border"
+                            className="h-44 w-44 object-contain rounded-lg border bg-white p-1"
                           />
                           <p className="text-[11px] text-muted-foreground mt-2">
                             Scan with Google Pay, PhonePe, Paytm, or BHIM
@@ -1000,28 +1005,57 @@ export function ManualCheckoutClient({
                   )}
 
                   {/* Crypto Wallet Details */}
-                  {selectedMethod.type === "CRYPTO" && selectedMethod.details?.walletAddress && (
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between py-1 border-b border-border/50">
-                        <span className="text-muted-foreground">Network:</span>
-                        <span className="font-bold text-foreground">{selectedMethod.details.network || "USDT (TRC-20)"}</span>
-                      </div>
-                      <div className="p-3 rounded-lg bg-background border border-border space-y-1">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                          Deposit Address
-                        </span>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono text-xs text-foreground break-all">
-                            {selectedMethod.details.walletAddress}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(selectedMethod.details.walletAddress!, "crypto")}
-                            className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs font-medium hover:bg-accent shrink-0"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
+                  {selectedMethod.type === "CRYPTO" && (
+                    <div className="space-y-4">
+                      {(selectedMethod.details?.qrCodeUrl || selectedMethod.details?.walletAddress) && (
+                        <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background border border-border">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={
+                              selectedMethod.details.qrCodeUrl ||
+                              `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+                                selectedMethod.details.walletAddress || ""
+                              )}`
+                            }
+                            alt={`${selectedMethod.title} QR Code`}
+                            className="h-44 w-44 object-contain rounded-lg border bg-white p-1"
+                          />
+                          <p className="text-[11px] text-muted-foreground mt-2">
+                            Scan with Binance, Bybit, Trust Wallet, or any Crypto App
+                          </p>
                         </div>
+                      )}
+
+                      <div className="space-y-2 text-xs">
+                        {selectedMethod.details?.network && (
+                          <div className="flex justify-between py-1 border-b border-border/50">
+                            <span className="text-muted-foreground">Network:</span>
+                            <span className="font-bold text-foreground">{selectedMethod.details.network}</span>
+                          </div>
+                        )}
+                        {selectedMethod.details?.walletAddress && (
+                          <div className="p-3 rounded-lg bg-background border border-border space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                              Deposit Address
+                            </span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono text-xs text-foreground break-all">
+                                {selectedMethod.details.walletAddress}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(selectedMethod.details.walletAddress!, "crypto")}
+                                className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs font-medium hover:bg-accent shrink-0"
+                              >
+                                {copiedKey === "crypto" ? (
+                                  <Check className="h-3 w-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1237,7 +1271,7 @@ export function ManualCheckoutClient({
                                 </span>
                               </p>
                               <p className="text-[11px] text-muted-foreground">
-                                {userReferralCoupon.discountPercentage}% Instant Discount (From {userReferralCoupon.referrerName})
+                                {userReferralCoupon.discountPercentage}% Instant Discount
                               </p>
                             </div>
                           </div>
