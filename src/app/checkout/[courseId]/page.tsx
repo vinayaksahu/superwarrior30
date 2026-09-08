@@ -135,7 +135,7 @@ export default async function CheckoutPage({
         discountPercentage: number;
       } | null = null;
 
-      const defaultReferralCode = "7G8IQAQA";
+      const defaultReferralCode = "SUPERWARRIOR30";
       const defaultReferrerName = "Vinayak Sahu";
       const referralPct = Number(config?.referralDiscountPercentage) || 25;
 
@@ -150,7 +150,7 @@ export default async function CheckoutPage({
           discountPercentage: referralPct,
         };
       } else if (config?.isReferralDiscountEnabled !== false) {
-        // Direct / New student without a referrer gets default Welcome Coupon "7G8IQAQA"
+        // Direct / New student without a referrer gets default Welcome Coupon "SUPERWARRIOR30"
         const isSelf = user?.referralCode === defaultReferralCode;
         if (!isSelf) {
           refCoupon = {

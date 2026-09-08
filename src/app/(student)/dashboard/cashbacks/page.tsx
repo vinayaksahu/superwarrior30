@@ -34,7 +34,7 @@ export default async function StudentCashbacksPage() {
   const referralDiscountPercentage = Number(brokerSettings.referralDiscountPercentage) || 25;
   const isReferralDiscountEnabled = brokerSettings.isReferralDiscountEnabled !== false;
 
-  const defaultReferralCode = "7G8IQAQA";
+  const defaultReferralCode = "SUPERWARRIOR30";
   const defaultReferrerName = "Vinayak Sahu";
   const isSelf = user.referralCode === defaultReferralCode;
 

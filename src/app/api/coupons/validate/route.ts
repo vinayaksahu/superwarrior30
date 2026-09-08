@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     });
 
     if (!coupon) {
-      // Check if it matches an affiliate referral / welcome code (e.g. 7G8IQAQA)
+      // Check if it matches an affiliate referral / welcome code (e.g. SUPERWARRIOR30)
       const referrerUser = await prisma.user.findUnique({
         where: { referralCode: cleanCode },
         select: { id: true, name: true, referralCode: true, status: true },
