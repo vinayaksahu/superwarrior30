@@ -254,8 +254,8 @@ export async function replyStudentTicketAction(params: {
       return { success: false, error: "This ticket has been closed. Please open a new ticket." };
     }
 
-    await prisma.$transaction([
-      prisma.supportInquiryMessage.create({
+    await prisma.$transaction(async (tx) => {
+      await tx.supportInquiryMessage.create({
         data: {
           inquiryId: params.ticketId,
           senderId: user.id,
@@ -263,15 +263,15 @@ export async function replyStudentTicketAction(params: {
           senderName: user.name || "Student",
           message: params.message.trim(),
         },
-      }),
-      prisma.supportInquiry.update({
+      });
+      await tx.supportInquiry.update({
         where: { id: params.ticketId },
         data: {
           status: "OPEN", // Move back to OPEN so admin sees new response
           updatedAt: new Date(),
         },
-      }),
-    ]);
+      });
+    });
 
     revalidatePath(`/dashboard/support/${params.ticketId}`);
     revalidatePath("/dashboard/support");
@@ -495,8 +495,8 @@ export async function replyAdminInquiryAction(params: {
 
     const nextStatus = params.newStatus || "WAITING_FOR_USER";
 
-    await prisma.$transaction([
-      prisma.supportInquiryMessage.create({
+    await prisma.$transaction(async (tx) => {
+      await tx.supportInquiryMessage.create({
         data: {
           inquiryId: params.inquiryId,
           senderId: admin.id,
@@ -504,15 +504,15 @@ export async function replyAdminInquiryAction(params: {
           senderName: admin.name || "Support Staff",
           message: params.message.trim(),
         },
-      }),
-      prisma.supportInquiry.update({
+      });
+      await tx.supportInquiry.update({
         where: { id: params.inquiryId },
         data: {
           status: nextStatus,
           updatedAt: new Date(),
         },
-      }),
-    ]);
+      });
+    });
 
     revalidatePath("/admin/support");
     if (inquiry.userId) {

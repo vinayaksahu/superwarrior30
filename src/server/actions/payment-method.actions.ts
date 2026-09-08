@@ -574,14 +574,14 @@ export async function reorderPaymentMethodsAction(
       return { success: false, message: "No payment methods provided." };
     }
 
-    await prisma.$transaction(
-      orderedIds.map((id, index) =>
-        prisma.systemPaymentMethod.update({
-          where: { id },
+    await prisma.$transaction(async (tx) => {
+      for (let index = 0; index < orderedIds.length; index++) {
+        await tx.systemPaymentMethod.update({
+          where: { id: orderedIds[index] },
           data: { displayOrder: index },
-        })
-      )
-    );
+        });
+      }
+    });
 
     await prisma.auditLog.create({
       data: {
