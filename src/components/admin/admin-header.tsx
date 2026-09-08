@@ -145,7 +145,7 @@ export function AdminHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           <EnvironmentSwitcher
             currentEnvironment={currentEnvironment || "LIVE"}
             isSuperAdmin={isSuper}
@@ -153,18 +153,20 @@ export function AdminHeader({
             staffTestingAllowed={staffTestingAllowed}
             initialVisibilityScope={testVisibilityScope}
           />
-          <LanguageSwitcher variant="header" />
+          <div className="hidden sm:inline-block">
+            <LanguageSwitcher variant="header" />
+          </div>
           <ThemeToggle />
           <div className="text-right hidden sm:block">
             <p className="text-xs sm:text-sm font-semibold text-foreground">
               {user.name || user.email}
             </p>
           </div>
-          <form action={logoutAction}>
+          <form action={logoutAction} className="shrink-0">
             <button
               type="submit"
               className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive cursor-pointer"
-              title="Sign Out"
+              title="Sign Out / Logout"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -183,7 +185,8 @@ export function AdminHeader({
             className="relative flex w-full max-w-xs flex-1 flex-col bg-background p-4 shadow-xl border-r border-border animate-in slide-in-from-left duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-border pb-4 mb-3">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-3">
               <span className="text-sm font-bold text-primary">Administration</span>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -194,7 +197,23 @@ export function AdminHeader({
               </button>
             </div>
 
-            <nav className="flex flex-col gap-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
+            {/* Admin User Info Card */}
+            <div className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/40 p-3 mb-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-bold text-sm">
+                {(user.name || user.email).charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-foreground truncate">
+                  {user.name || user.email}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate font-mono">
+                  {user.role}
+                </p>
+              </div>
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="flex flex-col gap-1 overflow-y-auto flex-1 pr-1 max-h-[calc(100vh-14rem)]">
               {visibleLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive =
@@ -220,6 +239,21 @@ export function AdminHeader({
                 );
               })}
             </nav>
+
+            {/* Mobile Drawer Footer: Language & Logout */}
+            <div className="border-t border-border/80 pt-3 mt-3 space-y-2.5">
+              <LanguageSwitcher variant="mobile" />
+
+              <form action={logoutAction} className="w-full">
+                <button
+                  type="submit"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-destructive/10 px-4 py-2.5 text-xs font-bold text-destructive hover:bg-destructive/20 active:scale-[0.98] transition-all cursor-pointer border border-destructive/20"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign Out / Logout</span>
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}

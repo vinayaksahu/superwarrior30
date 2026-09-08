@@ -127,3 +127,25 @@ export async function checkBunnyStorageFile(path: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Refreshes an expired or token-signed CDN URL if it points to Bunny CDN storage.
+ * Re-signs with a 7-day expiration so public images never break.
+ */
+export async function refreshMediaUrl(
+  rawUrl: string | null | undefined,
+  expiresInSec: number = 86400 * 7
+): Promise<string | null> {
+  if (!rawUrl) return null;
+  try {
+    const urlObj = new URL(rawUrl);
+    if (!urlObj.hostname.includes("b-cdn.net") && !urlObj.hostname.includes("bunny")) {
+      return rawUrl;
+    }
+    const cleanPath = urlObj.pathname.startsWith("/") ? urlObj.pathname.slice(1) : urlObj.pathname;
+    return await getBunnyCdnUrl(cleanPath, expiresInSec);
+  } catch {
+    return rawUrl;
+  }
+}
+

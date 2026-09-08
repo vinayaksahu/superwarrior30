@@ -1341,42 +1341,50 @@ export function ManualCheckoutClient({
                   ) : (
                     <div className="space-y-3">
                       {availableCoupons.length > 0 && (
-                        <div className="space-y-2 rounded-xl border border-border/70 bg-card/60 p-3">
-                          <p className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
-                            <Sparkles className="h-3.5 w-3.5 text-primary" />
-                            Available Coupons (Click to apply):
-                          </p>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {availableCoupons.map((c) => (
-                              <div
-                                key={c.id}
-                                onClick={() => applyCouponCode(c.code)}
-                                className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-primary/30 bg-background/90 p-2.5 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <Tag className="h-3.5 w-3.5 text-primary group-hover:scale-110 transition-transform shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="font-mono text-xs font-black uppercase text-foreground truncate">
-                                      {c.code}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {c.minOrderAmount > 0 ? `Min ₹${c.minOrderAmount}` : "No minimum"}
-                                    </p>
-                                  </div>
+                        <div className="space-y-2.5">
+                          {availableCoupons.map((c) => (
+                            <div
+                              key={c.id}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-primary/40 bg-primary/10 p-3 shadow-sm"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                                  <Tag className="h-4 w-4" />
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-extrabold text-foreground">
+                                    Promo Coupon:{" "}
+                                    <span className="font-mono text-primary font-black uppercase tracking-wider">
+                                      {c.code}
+                                    </span>
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
                                     {c.discountType === "PERCENTAGE"
-                                      ? `${c.discountValue}% OFF`
-                                      : `₹${c.discountValue} OFF`}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-primary underline group-hover:text-primary-foreground group-hover:bg-primary group-hover:no-underline group-hover:px-2 group-hover:py-0.5 group-hover:rounded transition-all">
-                                    Apply
-                                  </span>
+                                      ? `${c.discountValue}% Instant Discount`
+                                      : `₹${c.discountValue} Instant Discount`}
+                                    {c.minOrderAmount > 0 && (
+                                      <span className="text-muted-foreground/80">
+                                        {" "}• Min Order: ₹{c.minOrderAmount}
+                                      </span>
+                                    )}
+                                  </p>
                                 </div>
                               </div>
-                            ))}
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() => applyCouponCode(c.code)}
+                                disabled={isCheckingCoupon}
+                                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
+                              >
+                                {isCheckingCoupon ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5" />
+                                )}
+                                Apply Coupon
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       )}
 

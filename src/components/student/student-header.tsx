@@ -102,14 +102,16 @@ export function StudentHeader({ user }: StudentHeaderProps) {
             </Link>
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <Link
               href="/courses"
               className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground hidden sm:inline-block"
             >
               {t("nav_browse_catalog", "Browse Courses")}
             </Link>
-            <LanguageSwitcher variant="header" />
+            <div className="hidden sm:inline-block">
+              <LanguageSwitcher variant="header" />
+            </div>
             <ThemeToggle />
             <StudentNotificationBell />
             <div className="text-right hidden sm:flex items-center gap-2">
@@ -118,11 +120,11 @@ export function StudentHeader({ user }: StudentHeaderProps) {
               </p>
               <TestUserBadge isTestData={user.isTestData} />
             </div>
-            <form action={logoutAction}>
+            <form action={logoutAction} className="shrink-0">
               <button
                 type="submit"
                 className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive cursor-pointer"
-                title="Sign Out"
+                title="Sign Out / Logout"
               >
                 <LogOut className="h-4 w-4" />
               </button>

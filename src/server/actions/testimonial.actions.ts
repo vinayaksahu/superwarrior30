@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireAdmin, requirePermission } from "@/server/dal/auth";
 import { resolveCurrentEnvironment } from "@/lib/env-context";
 import { revalidatePath } from "next/cache";
-import { uploadToBunnyStorage } from "@/lib/bunny/storage";
+import { uploadToBunnyStorage, refreshMediaUrl } from "@/lib/bunny/storage";
 import crypto from "crypto";
 
 // ==========================================
@@ -236,27 +236,38 @@ export async function getApprovedTestimonialsAction(placement?: "HOME" | "LANDIN
       });
     }
 
-    return resultList.map((t) => ({
-      id: t.id,
-      studentName: t.studentName,
-      content: t.content,
-      photoUrl: t.photoUrl,
-      rating: t.rating,
-      isFeatured: t.isFeatured,
-      showOnHome: t.showOnHome,
-      showOnLanding: t.showOnLanding,
-      tradingPlatform: t.tradingPlatform,
-      accountType: t.accountType,
-      tradingResult: t.tradingResult,
-      experienceDuration: t.experienceDuration,
-      isTestData: isTesting ? true : false,
-      createdAt: t.createdAt.toISOString(),
-      screenshots: t.media.map((m) => ({
-        id: m.id,
-        url: m.url,
-        caption: m.caption,
-      })),
-    }));
+    const mapped = await Promise.all(
+      resultList.map(async (t) => {
+        const freshPhotoUrl = await refreshMediaUrl(t.photoUrl);
+        const freshMedia = await Promise.all(
+          t.media.map(async (m) => ({
+            id: m.id,
+            url: (await refreshMediaUrl(m.url)) || m.url,
+            caption: m.caption,
+          }))
+        );
+
+        return {
+          id: t.id,
+          studentName: t.studentName,
+          content: t.content,
+          photoUrl: freshPhotoUrl || t.photoUrl,
+          rating: t.rating,
+          isFeatured: t.isFeatured,
+          showOnHome: t.showOnHome,
+          showOnLanding: t.showOnLanding,
+          tradingPlatform: t.tradingPlatform,
+          accountType: t.accountType,
+          tradingResult: t.tradingResult,
+          experienceDuration: t.experienceDuration,
+          isTestData: isTesting ? true : false,
+          createdAt: t.createdAt.toISOString(),
+          screenshots: freshMedia,
+        };
+      })
+    );
+
+    return mapped;
   } catch (error) {
     console.error("Failed to load approved testimonials:", error);
     return STARTER_FALLBACK_TESTIMONIALS;

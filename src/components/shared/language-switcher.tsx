@@ -89,14 +89,24 @@ export function LanguageSwitcher({ variant = "header", className }: LanguageSwit
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div
-          className={cn(
-            "absolute z-50 mt-2 w-64 rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150",
-            variant === "floating" ? "bottom-full mb-2 left-0" : "right-0"
+        <>
+          {variant === "header" && (
+            <div
+              className="fixed inset-0 bg-black/40 z-40 sm:hidden"
+              onClick={() => setIsOpen(false)}
+            />
           )}
-          role="menu"
-          aria-orientation="vertical"
-        >
+          <div
+            className={cn(
+              "z-50 rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150",
+              variant === "floating" && "absolute bottom-full mb-2 left-0 w-64",
+              variant === "header" &&
+                "fixed left-4 right-4 top-16 max-w-sm mx-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64",
+              variant === "mobile" && "w-full mt-2 border border-border/80 bg-background/95 shadow-sm"
+            )}
+            role="menu"
+            aria-orientation="vertical"
+          >
           <div className="px-3 py-2 border-b border-border/60 mb-1">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -150,6 +160,7 @@ export function LanguageSwitcher({ variant = "header", className }: LanguageSwit
             })}
           </div>
         </div>
+        </>
       )}
     </div>
   );
