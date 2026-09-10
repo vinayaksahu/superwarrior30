@@ -183,6 +183,9 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     // referral_levels columns
     `ALTER TABLE "referral_levels" ADD COLUMN IF NOT EXISTS "requiresDirectReferralQualification" BOOLEAN DEFAULT false;`,
     `ALTER TABLE "referral_levels" ADD COLUMN IF NOT EXISTS "directReferralsRequired" INTEGER DEFAULT 0;`,
+    `ALTER TABLE "referral_levels" ADD COLUMN IF NOT EXISTS "commissionType" TEXT DEFAULT 'PERCENTAGE';`,
+    `ALTER TABLE "referral_levels" ADD COLUMN IF NOT EXISTS "commissionValue" DECIMAL(10,2) DEFAULT 0;`,
+    `UPDATE "referral_levels" SET "commissionValue" = ROUND("commissionRate" * 100, 2) WHERE ("commissionValue" IS NULL OR "commissionValue" = 0) AND "commissionRate" > 0;`,
 
     // users columns
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" TEXT DEFAULT 'STUDENT';`,

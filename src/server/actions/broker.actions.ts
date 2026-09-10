@@ -24,6 +24,8 @@ export interface PublicBrokerConfig {
   isCouponEnabled: boolean;
   isReferralDiscountEnabled: boolean;
   referralDiscountPercentage: number;
+  referralDiscountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  referralDiscountValue: number;
   allowCouponWithBroker: boolean;
   allowReferralWithCoupon: boolean;
   allowReferralWithBroker: boolean;
@@ -34,6 +36,8 @@ export interface PublicBrokerConfig {
   mode: BrokerOfferMode;
   brokerName: string;
   brokerPartnerUrl: string;
+  discountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountValue: number;
   offerPercentage: number;
   minimumOrderAmount: number;
   maximumBenefitAmount: number | null;
@@ -55,11 +59,18 @@ export interface PublicBrokerConfig {
  */
 export async function getBrokerPublicConfigAction(): Promise<PublicBrokerConfig> {
   const settings = await getBrokerSettings();
+  const discountType = settings.discountType === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE";
+  const discountValue = settings.discountValue !== undefined ? Number(settings.discountValue) : (Number(settings.offerPercentage) || 25);
+  const referralDiscountType = settings.referralDiscountType === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE";
+  const referralDiscountValue = settings.referralDiscountValue !== undefined ? Number(settings.referralDiscountValue) : (Number(settings.referralDiscountPercentage) || 10);
+
   return {
     isEnabled: settings.isEnabled,
     isCouponEnabled: settings.isCouponEnabled !== false,
     isReferralDiscountEnabled: settings.isReferralDiscountEnabled !== false,
     referralDiscountPercentage: Number(settings.referralDiscountPercentage) || 10,
+    referralDiscountType,
+    referralDiscountValue,
     allowCouponWithBroker: Boolean(settings.allowCouponWithBroker),
     allowReferralWithCoupon: Boolean(settings.allowReferralWithCoupon),
     allowReferralWithBroker: Boolean(settings.allowReferralWithBroker),
@@ -70,6 +81,8 @@ export async function getBrokerPublicConfigAction(): Promise<PublicBrokerConfig>
     mode: settings.mode,
     brokerName: settings.brokerName,
     brokerPartnerUrl: settings.brokerPartnerUrl,
+    discountType,
+    discountValue,
     offerPercentage: Number(settings.offerPercentage) || 25,
     minimumOrderAmount: Number(settings.minimumOrderAmount) || 0,
     maximumBenefitAmount: settings.maximumBenefitAmount ? Number(settings.maximumBenefitAmount) : null,

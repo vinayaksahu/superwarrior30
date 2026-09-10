@@ -182,6 +182,8 @@ export function AdminBrokerOffersClient({
       id: `broker-${Date.now()}`,
       name: "",
       partnerUrl: "",
+      discountType: "PERCENTAGE",
+      discountValue: 25,
       offerPercentage: 25,
       couponCode: "",
       description: "Open your broker account using our partner link and unlock a special course benefit.",
@@ -193,7 +195,11 @@ export function AdminBrokerOffersClient({
   };
 
   const handleOpenEditBroker = (broker: BrokerItem) => {
-    setEditingBroker({ ...broker });
+    setEditingBroker({
+      ...broker,
+      discountType: broker.discountType || "PERCENTAGE",
+      discountValue: broker.discountValue !== undefined ? broker.discountValue : broker.offerPercentage,
+    });
     setIsBrokerModalOpen(true);
   };
 
@@ -210,11 +216,20 @@ export function AdminBrokerOffersClient({
       return;
     }
 
+    const itemToSave: BrokerItem = {
+      ...editingBroker,
+      discountType: editingBroker.discountType || "PERCENTAGE",
+      discountValue: editingBroker.discountValue !== undefined ? editingBroker.discountValue : (editingBroker.offerPercentage || 25),
+      offerPercentage: editingBroker.discountType === "FIXED_AMOUNT"
+        ? (editingBroker.offerPercentage || 25)
+        : (editingBroker.discountValue ?? editingBroker.offerPercentage ?? 25),
+    };
+
     const currentBrokers = settings.brokers || [];
-    const exists = currentBrokers.some((b) => b.id === editingBroker.id);
+    const exists = currentBrokers.some((b) => b.id === itemToSave.id);
     const updatedBrokers = exists
-      ? currentBrokers.map((b) => (b.id === editingBroker.id ? editingBroker : b))
-      : [...currentBrokers, editingBroker];
+      ? currentBrokers.map((b) => (b.id === itemToSave.id ? itemToSave : b))
+      : [...currentBrokers, itemToSave];
 
     const primary = updatedBrokers.find((b) => b.isActive) || updatedBrokers[0];
     setSettings({
@@ -222,12 +237,14 @@ export function AdminBrokerOffersClient({
       brokers: updatedBrokers,
       brokerName: primary?.name || settings.brokerName,
       brokerPartnerUrl: primary?.partnerUrl || settings.brokerPartnerUrl,
+      discountType: primary?.discountType || settings.discountType || "PERCENTAGE",
+      discountValue: primary?.discountValue ?? settings.discountValue ?? primary?.offerPercentage ?? settings.offerPercentage,
       offerPercentage: primary?.offerPercentage ?? settings.offerPercentage,
     });
 
     setIsBrokerModalOpen(false);
     setEditingBroker(null);
-    toast.success(`Broker "${editingBroker.name}" updated! Click "Save Broker Settings" to persist.`);
+    toast.success(`Broker "${itemToSave.name}" updated! Click "Save Offer Settings" to persist.`);
   };
 
   const handleDeleteBrokerItem = (brokerId: string) => {
@@ -247,6 +264,8 @@ export function AdminBrokerOffersClient({
       brokers: updatedBrokers,
       brokerName: primary?.name || settings.brokerName,
       brokerPartnerUrl: primary?.partnerUrl || settings.brokerPartnerUrl,
+      discountType: primary?.discountType || settings.discountType || "PERCENTAGE",
+      discountValue: primary?.discountValue ?? settings.discountValue ?? primary?.offerPercentage ?? settings.offerPercentage,
       offerPercentage: primary?.offerPercentage ?? settings.offerPercentage,
     });
     toast.success("Broker removed from list.");
@@ -263,6 +282,8 @@ export function AdminBrokerOffersClient({
       brokers: updatedBrokers,
       brokerName: primary?.name || settings.brokerName,
       brokerPartnerUrl: primary?.partnerUrl || settings.brokerPartnerUrl,
+      discountType: primary?.discountType || settings.discountType || "PERCENTAGE",
+      discountValue: primary?.discountValue ?? settings.discountValue ?? primary?.offerPercentage ?? settings.offerPercentage,
       offerPercentage: primary?.offerPercentage ?? settings.offerPercentage,
     });
   };
@@ -555,28 +576,62 @@ export function AdminBrokerOffersClient({
                   </label>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                    Broker Offer Percentage (%)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      step={1}
-                      value={settings.offerPercentage || 40}
-                      onChange={(e) =>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      Discount Type <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      value={settings.discountType || "PERCENTAGE"}
+                      onChange={(e) => {
+                        const newType = e.target.value as "PERCENTAGE" | "FIXED_AMOUNT";
                         setSettings({
                           ...settings,
-                          offerPercentage: Math.max(1, Math.min(100, Number(e.target.value) || 0)),
-                        })
-                      }
-                      className="h-10 w-full rounded-xl border border-input bg-background pl-3.5 pr-8 text-sm font-black text-amber-400 focus:border-amber-500 focus:outline-none"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                      %
-                    </span>
+                          discountType: newType,
+                          discountValue: newType === "PERCENTAGE"
+                            ? Math.min(100, settings.discountValue || settings.offerPercentage || 25)
+                            : (settings.discountValue || 500),
+                        });
+                      }}
+                      className="flex h-9 w-full rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus:border-amber-500 focus:outline-none"
+                    >
+                      <option value="PERCENTAGE">Percentage (%) Off</option>
+                      <option value="FIXED_AMOUNT">Fixed Amount (₹) Off</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      {settings.discountType === "FIXED_AMOUNT" ? "Broker Offer Amount (₹) *" : "Broker Offer Percentage (%) *"}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={1}
+                        max={settings.discountType === "FIXED_AMOUNT" ? undefined : 100}
+                        step={1}
+                        value={
+                          settings.discountType === "FIXED_AMOUNT"
+                            ? (settings.discountValue ?? 500)
+                            : (settings.discountValue ?? settings.offerPercentage ?? 25)
+                        }
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          const safeVal = settings.discountType === "FIXED_AMOUNT"
+                            ? Math.max(0, val)
+                            : Math.max(1, Math.min(100, val));
+                          setSettings({
+                            ...settings,
+                            discountValue: safeVal,
+                            offerPercentage: settings.discountType === "FIXED_AMOUNT" ? (settings.offerPercentage || 25) : safeVal,
+                          });
+                        }}
+                        className="h-9 w-full rounded-xl border border-input bg-background pl-3.5 pr-8 text-sm font-black text-amber-400 focus:border-amber-500 focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                        {settings.discountType === "FIXED_AMOUNT" ? "₹" : "%"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -629,38 +684,76 @@ export function AdminBrokerOffersClient({
                   </label>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                    Referral Discount Rate (%)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      step={1}
-                      value={
-                        settings.referralDiscountPercentage !== undefined
-                          ? settings.referralDiscountPercentage
-                          : 10
-                      }
-                      onChange={(e) =>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      Discount Type <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      value={settings.referralDiscountType || "PERCENTAGE"}
+                      onChange={(e) => {
+                        const newType = e.target.value as "PERCENTAGE" | "FIXED_AMOUNT";
                         setSettings({
                           ...settings,
-                          referralDiscountPercentage: Math.max(1, Math.min(100, Number(e.target.value) || 0)),
-                        })
-                      }
-                      className="h-10 w-full rounded-xl border border-input bg-background pl-3.5 pr-8 text-sm font-black text-primary focus:border-primary focus:outline-none"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                      %
-                    </span>
+                          referralDiscountType: newType,
+                          referralDiscountValue: newType === "PERCENTAGE"
+                            ? Math.min(100, settings.referralDiscountValue || settings.referralDiscountPercentage || 10)
+                            : (settings.referralDiscountValue || 500),
+                        });
+                      }}
+                      className="flex h-9 w-full rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+                    >
+                      <option value="PERCENTAGE">Percentage (%) Off</option>
+                      <option value="FIXED_AMOUNT">Fixed Amount (₹) Off</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      {settings.referralDiscountType === "FIXED_AMOUNT" ? "Referral Discount Amount (₹) *" : "Referral Discount Rate (%) *"}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={1}
+                        max={settings.referralDiscountType === "FIXED_AMOUNT" ? undefined : 100}
+                        step={1}
+                        value={
+                          settings.referralDiscountType === "FIXED_AMOUNT"
+                            ? (settings.referralDiscountValue ?? 500)
+                            : (settings.referralDiscountValue ?? settings.referralDiscountPercentage ?? 10)
+                        }
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          const safeVal = settings.referralDiscountType === "FIXED_AMOUNT"
+                            ? Math.max(0, val)
+                            : Math.max(1, Math.min(100, val));
+                          setSettings({
+                            ...settings,
+                            referralDiscountValue: safeVal,
+                            referralDiscountPercentage: settings.referralDiscountType === "FIXED_AMOUNT" ? (settings.referralDiscountPercentage || 10) : safeVal,
+                          });
+                        }}
+                        className="h-9 w-full rounded-xl border border-input bg-background pl-3.5 pr-8 text-sm font-black text-primary focus:border-primary focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                        {settings.referralDiscountType === "FIXED_AMOUNT" ? "₹" : "%"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-muted-foreground pt-1 leading-relaxed">
-                  Students signing up or checking out with an affiliate referral code instantly unlock this % discount.
-                </p>
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Students signing up or checking out with an affiliate referral code instantly unlock this discount.
+                  </p>
+                  <Link
+                    href="/admin/referrals/settings"
+                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 pt-0.5"
+                  >
+                    Manage Affiliate Settings <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
               </div>
 
               {/* CARD 3: PROMO COUPONS */}
@@ -881,7 +974,9 @@ export function AdminBrokerOffersClient({
                             {broker.name}
                           </span>
                           <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
-                            {broker.offerPercentage}% OFF
+                            {broker.discountType === "FIXED_AMOUNT"
+                              ? `₹${broker.discountValue !== undefined ? broker.discountValue : 500} OFF`
+                              : `${broker.discountValue ?? broker.offerPercentage}% OFF`}
                           </span>
                           {broker.couponCode ? (
                             <span className="rounded bg-primary/20 px-2 py-0.5 text-[10px] font-mono font-bold text-primary">
@@ -1631,25 +1726,57 @@ export function AdminBrokerOffersClient({
 
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                    Offer Discount (%) *
+                    Discount Type *
+                  </label>
+                  <select
+                    value={editingBroker.discountType || "PERCENTAGE"}
+                    onChange={(e) => {
+                      const newType = e.target.value as "PERCENTAGE" | "FIXED_AMOUNT";
+                      setEditingBroker({
+                        ...editingBroker,
+                        discountType: newType,
+                        discountValue: newType === "PERCENTAGE"
+                          ? Math.min(100, editingBroker.discountValue || editingBroker.offerPercentage || 25)
+                          : (editingBroker.discountValue || 500),
+                      });
+                    }}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground focus:border-amber-400 focus:outline-none"
+                  >
+                    <option value="PERCENTAGE">Percentage (%) Off</option>
+                    <option value="FIXED_AMOUNT">Fixed Amount (₹) Off</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    {editingBroker.discountType === "FIXED_AMOUNT" ? "Discount Value (₹) *" : "Discount Value (%) *"}
                   </label>
                   <div className="relative">
                     <input
                       type="number"
                       required
                       min={1}
-                      max={100}
-                      value={editingBroker.offerPercentage}
-                      onChange={(e) =>
+                      max={editingBroker.discountType === "FIXED_AMOUNT" ? undefined : 100}
+                      value={
+                        editingBroker.discountType === "FIXED_AMOUNT"
+                          ? (editingBroker.discountValue ?? 500)
+                          : (editingBroker.discountValue ?? editingBroker.offerPercentage ?? 25)
+                      }
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        const safeVal = editingBroker.discountType === "FIXED_AMOUNT"
+                          ? Math.max(0, val)
+                          : Math.max(1, Math.min(100, val));
                         setEditingBroker({
                           ...editingBroker,
-                          offerPercentage: Math.max(1, Math.min(100, Number(e.target.value) || 0)),
-                        })
-                      }
+                          discountValue: safeVal,
+                          offerPercentage: editingBroker.discountType === "FIXED_AMOUNT" ? (editingBroker.offerPercentage || 25) : safeVal,
+                        });
+                      }}
                       className="w-full rounded-xl border border-input bg-background px-3 py-2 pr-7 text-xs font-bold text-amber-400 focus:border-amber-400 focus:outline-none"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                      %
+                      {editingBroker.discountType === "FIXED_AMOUNT" ? "₹" : "%"}
                     </span>
                   </div>
                 </div>

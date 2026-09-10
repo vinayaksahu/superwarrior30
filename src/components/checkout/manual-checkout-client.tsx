@@ -47,6 +47,8 @@ export interface UserReferralCoupon {
   code: string;
   referrerName: string;
   discountPercentage: number;
+  discountType?: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountValue?: number;
 }
 
 interface ManualCheckoutClientProps {
@@ -132,8 +134,22 @@ export function ManualCheckoutClient({
     code: string;
     referrerName: string;
     discountPercentage: number;
+    discountType?: "PERCENTAGE" | "FIXED_AMOUNT";
+    discountValue?: number;
     discountAmount: number;
-  } | null>(null);
+  } | null>(() => {
+    if (userReferralCoupon && isReferralModuleEnabled) {
+      return {
+        code: userReferralCoupon.code,
+        referrerName: userReferralCoupon.referrerName,
+        discountPercentage: userReferralCoupon.discountPercentage,
+        discountType: userReferralCoupon.discountType || "PERCENTAGE",
+        discountValue: userReferralCoupon.discountValue,
+        discountAmount: 0,
+      };
+    }
+    return null;
+  });
 
   // ----------------------------------------------------
   // 3. BROKER PARTNER OFFER STATE
@@ -171,6 +187,8 @@ export function ManualCheckoutClient({
         partnerUrl:
           brokerConfig?.brokerPartnerUrl ||
           "https://web.mygtc.app/login/register?ref=FtHnmAFV",
+        discountType: brokerConfig?.discountType || "PERCENTAGE",
+        discountValue: brokerConfig?.discountValue !== undefined ? Number(brokerConfig.discountValue) : 25,
         offerPercentage: Number(brokerConfig?.offerPercentage) || 25,
         couponCode: "",
         description:
@@ -218,13 +236,26 @@ export function ManualCheckoutClient({
   const [appliedBrokerId, setAppliedBrokerId] = useState<string | null>(null);
   const [appliedBrokerName, setAppliedBrokerName] = useState<string | null>(null);
   const [appliedBrokerOfferPct, setAppliedBrokerOfferPct] = useState<number | null>(null);
+  const [appliedBrokerDiscountType, setAppliedBrokerDiscountType] = useState<"PERCENTAGE" | "FIXED_AMOUNT">("PERCENTAGE");
+  const [appliedBrokerDiscountValue, setAppliedBrokerDiscountValue] = useState<number | null>(null);
 
   // ----------------------------------------------------
   // SEQUENTIAL DISCOUNT CALCULATIONS (Stage 1 -> Stage 2 -> Stage 3)
   // ----------------------------------------------------
   // 1. Broker Benefit calculation (Stage 1: on Course Base Price)
-  const currentBrokerPct = appliedBrokerOfferPct ?? brokerOfferPct;
-  let rawBenefit = Math.round((course.price * currentBrokerPct) / 100);
+  const brokerDiscountType = appliedBrokerId ? appliedBrokerDiscountType : (selectedBroker?.discountType || brokerConfig?.discountType || "PERCENTAGE");
+  const brokerDiscountVal = appliedBrokerId
+    ? (appliedBrokerDiscountValue !== null ? appliedBrokerDiscountValue : (appliedBrokerOfferPct ?? brokerOfferPct))
+    : (selectedBroker?.discountValue !== undefined
+        ? Number(selectedBroker.discountValue)
+        : (brokerDiscountType === "FIXED_AMOUNT" ? 500 : brokerOfferPct));
+
+  let rawBenefit = 0;
+  if (brokerDiscountType === "FIXED_AMOUNT") {
+    rawBenefit = Math.min(course.price, brokerDiscountVal);
+  } else {
+    rawBenefit = Math.round((course.price * (appliedBrokerOfferPct ?? brokerOfferPct)) / 100);
+  }
   if (brokerConfig?.maximumBenefitAmount && brokerConfig.maximumBenefitAmount > 0) {
     rawBenefit = Math.min(rawBenefit, brokerConfig.maximumBenefitAmount);
   }
@@ -238,8 +269,16 @@ export function ManualCheckoutClient({
   // 2. Referral Discount (Stage 2: sequentially applied to balanceAfterBroker)
   let referralDiscount = 0;
   if (appliedReferral) {
-    const pct = appliedReferral.discountPercentage ?? referralDiscountPct;
-    referralDiscount = Number(((balanceAfterBroker * pct) / 100).toFixed(2));
+    const rType = appliedReferral.discountType ?? brokerConfig?.referralDiscountType ?? "PERCENTAGE";
+    const rVal = appliedReferral.discountValue !== undefined
+      ? Number(appliedReferral.discountValue)
+      : (rType === "FIXED_AMOUNT" ? 500 : (appliedReferral.discountPercentage ?? referralDiscountPct));
+
+    if (rType === "FIXED_AMOUNT") {
+      referralDiscount = Math.min(balanceAfterBroker, rVal);
+    } else {
+      referralDiscount = Number(((balanceAfterBroker * rVal) / 100).toFixed(2));
+    }
   }
 
   // Running balance remaining after Referral Discount
@@ -450,6 +489,8 @@ export function ManualCheckoutClient({
           code: data.code,
           referrerName: data.referrerName,
           discountPercentage: data.discountPercentage,
+          discountType: data.discountType,
+          discountValue: data.discountValue,
           discountAmount: data.discountAmount,
         });
         toast.success(data.message || `Referral code applied! Saved ₹${data.discountAmount}`);
@@ -559,36 +600,59 @@ export function ManualCheckoutClient({
             }),
           });
 
+          const bType = selectedBroker?.discountType || brokerConfig?.discountType || "PERCENTAGE";
+          const bVal = selectedBroker?.discountValue !== undefined
+            ? Number(selectedBroker.discountValue)
+            : (bType === "FIXED_AMOUNT" ? 500 : brokerOfferPct);
+          const discountLabel = bType === "FIXED_AMOUNT" ? `₹${rawBenefit}` : `${brokerOfferPct}%`;
+
           const data = await res.json();
           if (data.isVerified) {
             setBrokerVerified(true);
             setAppliedBrokerId(idToApply);
             setAppliedBrokerName(brokerName);
             setAppliedBrokerOfferPct(brokerOfferPct);
+            setAppliedBrokerDiscountType(bType);
+            setAppliedBrokerDiscountValue(bVal);
             setBrokerStatusMessage(
-              `Verified! Instant ${brokerOfferPct}% discount (-₹${rawBenefit}) applied.`
+              `Verified! Instant ${discountLabel} discount (-₹${rawBenefit}) applied.`
             );
             toast.success(
-              `${brokerName} Member ID verified! ${brokerOfferPct}% discount applied.`
+              `${brokerName} Member ID verified! ${discountLabel} discount applied.`
             );
           } else {
             setBrokerStatusMessage(data.message || "Could not verify Member ID.");
             toast.error(data.message || "Invalid Broker Member ID.");
           }
         } else {
+          const bType = selectedBroker?.discountType || brokerConfig?.discountType || "PERCENTAGE";
+          const bVal = selectedBroker?.discountValue !== undefined
+            ? Number(selectedBroker.discountValue)
+            : (bType === "FIXED_AMOUNT" ? 500 : brokerOfferPct);
+          const discountLabel = bType === "FIXED_AMOUNT" ? `₹${rawBenefit}` : `${brokerOfferPct}%`;
+
           setBrokerVerified(true);
           setAppliedBrokerId(idToApply);
           setAppliedBrokerName(brokerName);
           setAppliedBrokerOfferPct(brokerOfferPct);
+          setAppliedBrokerDiscountType(bType);
+          setAppliedBrokerDiscountValue(bVal);
           setBrokerStatusMessage(
             `${brokerName} Partner discount applied (-₹${rawBenefit}). Subject to review.`
           );
-          toast.success(`${brokerName} Partner ${brokerOfferPct}% discount applied!`);
+          toast.success(`${brokerName} Partner ${discountLabel} discount applied!`);
         }
       } else {
+        const bType = selectedBroker?.discountType || brokerConfig?.discountType || "PERCENTAGE";
+        const bVal = selectedBroker?.discountValue !== undefined
+          ? Number(selectedBroker.discountValue)
+          : (bType === "FIXED_AMOUNT" ? 500 : brokerOfferPct);
+
         setAppliedBrokerId(idToApply);
         setAppliedBrokerName(brokerName);
         setAppliedBrokerOfferPct(brokerOfferPct);
+        setAppliedBrokerDiscountType(bType);
+        setAppliedBrokerDiscountValue(bVal);
         setBrokerVerified(true);
         setBrokerStatusMessage(
           `Member ID saved. You will receive ₹${potentialCashback} Cashback after admin approval.`
@@ -636,14 +700,22 @@ export function ManualCheckoutClient({
       return;
     }
 
+    const bType = selectedBroker?.discountType || brokerConfig?.discountType || "PERCENTAGE";
+    const bVal = selectedBroker?.discountValue !== undefined
+      ? Number(selectedBroker.discountValue)
+      : (bType === "FIXED_AMOUNT" ? 500 : brokerOfferPct);
+    const discountLabel = bType === "FIXED_AMOUNT" ? `₹${bVal}` : `${brokerOfferPct}%`;
+    const benefit = bType === "FIXED_AMOUNT" ? Math.min(course.price, bVal) : Math.round((course.price * brokerOfferPct) / 100);
+
     setHasBrokerAccount(true);
     setAppliedBrokerId(code);
     setAppliedBrokerName(brokerName);
     setAppliedBrokerOfferPct(brokerOfferPct);
+    setAppliedBrokerDiscountType(bType);
+    setAppliedBrokerDiscountValue(bVal);
     setBrokerVerified(true);
-    const benefit = Math.round((course.price * brokerOfferPct) / 100);
     setBrokerStatusMessage(
-      `${brokerName} partner offer applied (${brokerOfferPct}% instant discount: -₹${benefit})`
+      `${brokerName} partner offer applied (${discountLabel} instant discount: -₹${benefit})`
     );
     toast.success(`${brokerName} coupon applied! Saved ₹${benefit}`);
   };
@@ -652,6 +724,8 @@ export function ManualCheckoutClient({
     setAppliedBrokerId(null);
     setAppliedBrokerName(null);
     setAppliedBrokerOfferPct(null);
+    setAppliedBrokerDiscountType("PERCENTAGE");
+    setAppliedBrokerDiscountValue(null);
     setBrokerMemberInput("");
     setBrokerProofUrl(null);
     setBrokerVerified(false);
@@ -1226,7 +1300,11 @@ export function ManualCheckoutClient({
                               }`}
                             >
                               <p className="text-xs font-bold truncate">{b.name}</p>
-                              <p className="text-[10px] text-amber-400 font-semibold">{b.offerPercentage}% OFF</p>
+                              <p className="text-[10px] text-amber-400 font-semibold">
+                                {b.discountType === "FIXED_AMOUNT"
+                                  ? `₹${b.discountValue !== undefined ? b.discountValue : 500} OFF`
+                                  : `${b.discountValue ?? b.offerPercentage}% OFF`}
+                              </p>
                             </button>
                           );
                         })}
@@ -1254,7 +1332,7 @@ export function ManualCheckoutClient({
                           {brokerName} Partner Coupon:
                         </span>
                         <span className="font-mono text-xs font-black text-amber-300">
-                          {brokerCouponCode} ({brokerOfferPct}% Discount)
+                          {brokerCouponCode} ({selectedBroker?.discountType === "FIXED_AMOUNT" ? `₹${selectedBroker.discountValue ?? 500}` : `${brokerOfferPct}%`} Discount)
                         </span>
                       </div>
                       <button

@@ -106,25 +106,36 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const referralPct = Number(brokerSettings.referralDiscountPercentage) || 10;
+    const refType = brokerSettings.referralDiscountType || "PERCENTAGE";
+    const refVal = brokerSettings.referralDiscountValue !== undefined
+      ? Number(brokerSettings.referralDiscountValue)
+      : (Number(brokerSettings.referralDiscountPercentage) || 10);
     const calculationBase = typeof currentBalance === "number" && !isNaN(currentBalance)
       ? Math.max(0, currentBalance)
       : coursePrice;
 
-    const discountAmount = Number(((calculationBase * referralPct) / 100).toFixed(2));
+    let discountAmount = 0;
+    if (refType === "FIXED_AMOUNT") {
+      discountAmount = Math.min(calculationBase, refVal);
+    } else {
+      discountAmount = Number(((calculationBase * refVal) / 100).toFixed(2));
+    }
     const finalPrice = Math.max(0, Number((calculationBase - discountAmount).toFixed(2)));
     const maskedName = maskAffiliateName(referrerUser.name);
+    const discountLabel = refType === "FIXED_AMOUNT" ? `₹${discountAmount}` : `${refVal}%`;
 
     return NextResponse.json({
       valid: true,
       referrerName: maskedName,
       code: referrerUser.referralCode,
-      discountPercentage: referralPct,
+      discountType: refType,
+      discountValue: refVal,
+      discountPercentage: refType === "PERCENTAGE" ? refVal : (calculationBase > 0 ? Number(((discountAmount / calculationBase) * 100).toFixed(1)) : 0),
       discountAmount,
       originalPrice: coursePrice,
       calculationBase,
       finalPrice,
-      message: `Referral code "${referrerUser.referralCode}" applied! You unlocked ${referralPct}% instant discount (-₹${discountAmount}).`,
+      message: `Referral code "${referrerUser.referralCode}" applied! You unlocked ${discountLabel} instant discount (-₹${discountAmount}).`,
     });
   } catch (error) {
     console.error("Referral validation error:", error);

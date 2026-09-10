@@ -17,6 +17,8 @@ export default async function RegisterPage({
 }) {
   const brokerSettings = await getBrokerSettings();
   const referralDiscountPercentage = Number(brokerSettings.referralDiscountPercentage) || 10;
+  const referralDiscountType = brokerSettings.referralDiscountType || "PERCENTAGE";
+  const referralDiscountValue = brokerSettings.referralDiscountValue !== undefined ? Number(brokerSettings.referralDiscountValue) : referralDiscountPercentage;
   const isReferralDiscountEnabled = brokerSettings.isReferralDiscountEnabled !== false;
 
   return (
@@ -31,6 +33,8 @@ export default async function RegisterPage({
       <RegisterForm
         searchParams={searchParams}
         referralDiscountPercentage={referralDiscountPercentage}
+        referralDiscountType={referralDiscountType}
+        referralDiscountValue={referralDiscountValue}
         isReferralDiscountEnabled={isReferralDiscountEnabled}
       />
       <p className="text-center text-sm text-muted-foreground">

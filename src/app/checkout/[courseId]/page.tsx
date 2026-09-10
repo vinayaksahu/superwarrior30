@@ -133,11 +133,15 @@ export default async function CheckoutPage({
         code: string;
         referrerName: string;
         discountPercentage: number;
+        discountType?: "PERCENTAGE" | "FIXED_AMOUNT";
+        discountValue?: number;
       } | null = null;
 
       const defaultReferralCode = "SUPERWARRIOR30";
       const defaultReferrerName = "Vinayak Sahu";
       const referralPct = Number(config?.referralDiscountPercentage) || 25;
+      const refType = config?.referralDiscountType || "PERCENTAGE";
+      const refVal = config?.referralDiscountValue !== undefined ? config?.referralDiscountValue : referralPct;
 
       if (
         referralRel &&
@@ -148,6 +152,8 @@ export default async function CheckoutPage({
           code: referralRel.referrer.referralCode,
           referrerName: referralRel.referrer.name || "Mentor / Friend",
           discountPercentage: referralPct,
+          discountType: refType,
+          discountValue: refVal,
         };
       } else if (config?.isReferralDiscountEnabled !== false) {
         // Direct / New student without a referrer gets default Welcome Coupon "SUPERWARRIOR30"
@@ -157,6 +163,8 @@ export default async function CheckoutPage({
             code: defaultReferralCode,
             referrerName: defaultReferrerName,
             discountPercentage: referralPct,
+            discountType: refType,
+            discountValue: refVal,
           };
         }
       }

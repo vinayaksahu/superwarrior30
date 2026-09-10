@@ -26,12 +26,16 @@ import {
 interface RegisterFormProps {
   searchParams: Promise<{ ref?: string }>;
   referralDiscountPercentage?: number;
+  referralDiscountType?: "PERCENTAGE" | "FIXED_AMOUNT";
+  referralDiscountValue?: number;
   isReferralDiscountEnabled?: boolean;
 }
 
 export function RegisterForm({
   searchParams,
   referralDiscountPercentage = 10,
+  referralDiscountType = "PERCENTAGE",
+  referralDiscountValue,
   isReferralDiscountEnabled = true,
 }: RegisterFormProps) {
   const router = useRouter();
@@ -40,6 +44,10 @@ export function RegisterForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  const discountLabel = referralDiscountType === "FIXED_AMOUNT"
+    ? `₹${referralDiscountValue ?? referralDiscountPercentage}`
+    : `${referralDiscountValue ?? referralDiscountPercentage}%`;
 
   // OTP Verification Step State
   const [step, setStep] = useState<"DETAILS" | "OTP">("DETAILS");
@@ -254,10 +262,10 @@ export function RegisterForm({
             <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <div className="text-xs space-y-0.5">
               <span className="font-bold text-foreground block">
-                🎁 Referral Bonus: {referralDiscountPercentage}% Instant Discount
+                🎁 Referral Bonus: {discountLabel} Instant Discount
               </span>
               <p className="text-muted-foreground text-[11px] leading-relaxed">
-                Use a friend or mentor&apos;s referral code below to unlock an instant {referralDiscountPercentage}% discount on your course enrollment!
+                Use a friend or mentor&apos;s referral code below to unlock an instant {discountLabel} discount on your course enrollment!
               </p>
             </div>
           </div>
@@ -385,7 +393,7 @@ export function RegisterForm({
               {isReferralDiscountEnabled && (
                 <span className="text-[11px] font-bold text-primary flex items-center gap-1">
                   <Tag className="h-3 w-3" />
-                  {referralDiscountPercentage}% Discount
+                  {discountLabel} Discount
                 </span>
               )}
             </div>
@@ -402,7 +410,7 @@ export function RegisterForm({
               {refCode && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-bold text-emerald-400">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>{referralDiscountPercentage}% OFF</span>
+                  <span>{discountLabel} OFF</span>
                 </div>
               )}
             </div>

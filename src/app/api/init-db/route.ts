@@ -107,6 +107,10 @@ export async function GET(req: Request) {
         "id" TEXT PRIMARY KEY,
         "level" INTEGER UNIQUE NOT NULL,
         "commissionRate" DECIMAL(5,4) NOT NULL,
+        "commissionType" TEXT NOT NULL DEFAULT 'PERCENTAGE',
+        "commissionValue" DECIMAL(10,2) NOT NULL DEFAULT 0,
+        "requiresDirectReferralQualification" BOOLEAN NOT NULL DEFAULT false,
+        "directReferralsRequired" INTEGER NOT NULL DEFAULT 0,
         "isEnabled" BOOLEAN NOT NULL DEFAULT true,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP

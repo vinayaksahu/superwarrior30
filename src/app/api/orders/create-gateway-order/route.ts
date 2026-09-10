@@ -301,7 +301,12 @@ export async function POST(req: Request) {
         : null;
 
       const targetBrokerName = matchedBroker?.name || requestedBrokerName || brokerSettings.brokerName || "Partner Broker";
-      const offerPct = matchedBroker ? Number(matchedBroker.offerPercentage) : (Number(brokerSettings.offerPercentage) || 25);
+      const brokerDiscountType = matchedBroker?.discountType || brokerSettings.discountType || "PERCENTAGE";
+      const brokerDiscountVal = matchedBroker?.discountValue !== undefined
+        ? Number(matchedBroker.discountValue)
+        : (brokerDiscountType === "FIXED_AMOUNT"
+            ? (brokerSettings.discountValue !== undefined ? Number(brokerSettings.discountValue) : 500)
+            : (matchedBroker ? Number(matchedBroker.offerPercentage) : (Number(brokerSettings.offerPercentage) || 25)));
       const isBrokerCoupon = Boolean(matchedBroker?.couponCode && requestedBrokerMemberId.toUpperCase() === matchedBroker.couponCode.toUpperCase());
       const requireMemberId = matchedBroker ? matchedBroker.requiresMemberId !== false : brokerSettings.requireMemberId !== false;
       const requireProof = matchedBroker ? Boolean(matchedBroker.requiresProof) : Boolean(brokerSettings.requireProof);
@@ -328,7 +333,12 @@ export async function POST(req: Request) {
         );
       }
 
-      let calculatedBrokerValue = (coursePrice * offerPct) / 100;
+      let calculatedBrokerValue = 0;
+      if (brokerDiscountType === "FIXED_AMOUNT") {
+        calculatedBrokerValue = Math.min(coursePrice, brokerDiscountVal);
+      } else {
+        calculatedBrokerValue = (coursePrice * brokerDiscountVal) / 100;
+      }
 
       // Cap at maximum benefit amount if configured
       if (
@@ -352,6 +362,11 @@ export async function POST(req: Request) {
         isAutoVerified = verifyResult.isVerified;
       }
 
+      const recordedOfferPct =
+        brokerDiscountType === "FIXED_AMOUNT"
+          ? (coursePrice > 0 ? (calculatedBrokerValue / coursePrice) * 100 : 0)
+          : brokerDiscountVal;
+
       brokerClaimData = {
         brokerName: targetBrokerName,
         brokerMemberId: cleanMemberId,
@@ -360,7 +375,7 @@ export async function POST(req: Request) {
         verificationStatus: isAutoVerified ? "VERIFIED" : "PENDING",
         verifiedAt: isAutoVerified ? new Date() : undefined,
         coursePrice: new Prisma.Decimal(coursePrice.toFixed(2)),
-        offerPercentage: new Prisma.Decimal(offerPct.toFixed(2)),
+        offerPercentage: new Prisma.Decimal(Math.min(999.99, recordedOfferPct).toFixed(2)),
         calculatedAmount: new Prisma.Decimal(calculatedBrokerValue.toFixed(2)),
         cashbackStatus:
           brokerSettings.mode === "CASHBACK"
@@ -385,8 +400,16 @@ export async function POST(req: Request) {
 
       if (referrerUser && referrerUser.status === "ACTIVE" && referrerUser.id !== user.id) {
         appliedReferrerId = referrerUser.id;
-        const refPct = Number(brokerSettings.referralDiscountPercentage) || 10;
-        referralDiscount = Number(((balanceAfterBroker * refPct) / 100).toFixed(2));
+        const refDiscountType = brokerSettings.referralDiscountType || "PERCENTAGE";
+        const refDiscountVal = brokerSettings.referralDiscountValue !== undefined
+          ? Number(brokerSettings.referralDiscountValue)
+          : (Number(brokerSettings.referralDiscountPercentage) || 10);
+
+        if (refDiscountType === "FIXED_AMOUNT") {
+          referralDiscount = Math.min(balanceAfterBroker, Number(refDiscountVal));
+        } else {
+          referralDiscount = Number(((balanceAfterBroker * refDiscountVal) / 100).toFixed(2));
+        }
       }
     }
 

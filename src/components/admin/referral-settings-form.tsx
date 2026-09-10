@@ -8,6 +8,8 @@ import { toast } from "sonner";
 interface ReferralLevelItem {
   id?: string;
   level: number;
+  commissionType: "PERCENTAGE" | "FIXED_AMOUNT";
+  commissionValue: number;
   commissionPercentage: number;
   isEnabled: boolean;
   requiresDirectReferralQualification: boolean;
@@ -19,10 +21,14 @@ interface ReferralSettingsFormProps {
   initialHoldingPeriodDays?: number;
   initialMinWithdrawalAmount?: number;
   initialReferralDiscountPercentage?: number;
+  initialReferralDiscountType?: "PERCENTAGE" | "FIXED_AMOUNT";
+  initialReferralDiscountValue?: number;
   initialIsReferralDiscountEnabled?: boolean;
   initialLevels: Array<{
     id?: string;
     level: number;
+    commissionType?: "PERCENTAGE" | "FIXED_AMOUNT";
+    commissionValue?: number;
     commissionPercentage: number;
     isEnabled: boolean;
     requiresDirectReferralQualification?: boolean;
@@ -35,28 +41,40 @@ export function ReferralSettingsForm({
   initialHoldingPeriodDays = 7,
   initialMinWithdrawalAmount = 500,
   initialReferralDiscountPercentage = 10,
+  initialReferralDiscountType = "PERCENTAGE",
+  initialReferralDiscountValue,
   initialIsReferralDiscountEnabled = true,
   initialLevels,
 }: ReferralSettingsFormProps) {
   const [isReferralEnabled, setIsReferralEnabled] = useState(initialEnabled);
   const [holdingPeriodDays, setHoldingPeriodDays] = useState(initialHoldingPeriodDays);
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState(initialMinWithdrawalAmount);
+  const [referralDiscountType, setReferralDiscountType] = useState<"PERCENTAGE" | "FIXED_AMOUNT">(initialReferralDiscountType);
+  const [referralDiscountValue, setReferralDiscountValue] = useState<number>(
+    initialReferralDiscountValue !== undefined ? initialReferralDiscountValue : initialReferralDiscountPercentage
+  );
   const [referralDiscountPercentage, setReferralDiscountPercentage] = useState(initialReferralDiscountPercentage);
   const [isReferralDiscountEnabled, setIsReferralDiscountEnabled] = useState(initialIsReferralDiscountEnabled);
   const [levels, setLevels] = useState<ReferralLevelItem[]>(
     initialLevels.length > 0
-      ? initialLevels.map((l) => ({
-          id: l.id,
-          level: l.level,
-          commissionPercentage: l.commissionPercentage,
-          isEnabled: l.isEnabled,
-          requiresDirectReferralQualification: Boolean(l.requiresDirectReferralQualification),
-          directReferralsRequired: Number(l.directReferralsRequired) || 0,
-        }))
+      ? initialLevels.map((l) => {
+          const type = (l.commissionType === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE") as "PERCENTAGE" | "FIXED_AMOUNT";
+          const val = l.commissionValue !== undefined && l.commissionValue !== null ? Number(l.commissionValue) : Number(l.commissionPercentage);
+          return {
+            id: l.id,
+            level: l.level,
+            commissionType: type,
+            commissionValue: val,
+            commissionPercentage: type === "PERCENTAGE" ? val : Number(l.commissionPercentage) || 0,
+            isEnabled: l.isEnabled,
+            requiresDirectReferralQualification: Boolean(l.requiresDirectReferralQualification),
+            directReferralsRequired: Number(l.directReferralsRequired) || 0,
+          };
+        })
       : [
-          { level: 1, commissionPercentage: 10, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
-          { level: 2, commissionPercentage: 5, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
-          { level: 3, commissionPercentage: 3, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
+          { level: 1, commissionType: "PERCENTAGE", commissionValue: 10, commissionPercentage: 10, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
+          { level: 2, commissionType: "PERCENTAGE", commissionValue: 5, commissionPercentage: 5, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
+          { level: 3, commissionType: "PERCENTAGE", commissionValue: 3, commissionPercentage: 3, isEnabled: true, requiresDirectReferralQualification: false, directReferralsRequired: 0 },
         ]
   );
   const [isPending, startTransition] = useTransition();
@@ -67,6 +85,8 @@ export function ReferralSettingsForm({
       ...levels,
       {
         level: nextLevelNumber,
+        commissionType: "PERCENTAGE",
+        commissionValue: 2,
         commissionPercentage: 2,
         isEnabled: true,
         requiresDirectReferralQualification: false,
@@ -87,12 +107,29 @@ export function ReferralSettingsForm({
 
   const handleLevelChange = (
     index: number,
-    field: "commissionPercentage" | "isEnabled" | "requiresDirectReferralQualification" | "directReferralsRequired",
-    value: number | boolean
+    field: "commissionType" | "commissionValue" | "commissionPercentage" | "isEnabled" | "requiresDirectReferralQualification" | "directReferralsRequired",
+    value: string | number | boolean
   ) => {
     const updated = [...levels];
-    if (field === "commissionPercentage") {
-      updated[index].commissionPercentage = Math.max(0, Math.min(100, Number(value)));
+    if (field === "commissionType") {
+      const type = value === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE";
+      updated[index].commissionType = type;
+      if (type === "PERCENTAGE" && updated[index].commissionValue > 100) {
+        updated[index].commissionValue = 10;
+        updated[index].commissionPercentage = 10;
+      } else if (type === "PERCENTAGE") {
+        updated[index].commissionPercentage = updated[index].commissionValue;
+      }
+    } else if (field === "commissionValue" || field === "commissionPercentage") {
+      const num = Math.max(0, Number(value) || 0);
+      if (updated[index].commissionType === "PERCENTAGE") {
+        const clamped = Math.min(100, num);
+        updated[index].commissionValue = clamped;
+        updated[index].commissionPercentage = clamped;
+      } else {
+        updated[index].commissionValue = num;
+        updated[index].commissionPercentage = 0;
+      }
     } else if (field === "isEnabled") {
       updated[index].isEnabled = Boolean(value);
     } else if (field === "requiresDirectReferralQualification") {
@@ -103,15 +140,19 @@ export function ReferralSettingsForm({
     setLevels(updated);
   };
 
-  const totalCommission = levels
-    .filter((l) => l.isEnabled)
-    .reduce((sum, l) => sum + l.commissionPercentage, 0);
+  const totalPercentageCommission = levels
+    .filter((l) => l.isEnabled && (l.commissionType || "PERCENTAGE") === "PERCENTAGE")
+    .reduce((sum, l) => sum + (l.commissionValue !== undefined ? l.commissionValue : l.commissionPercentage), 0);
+
+  const totalFixedCommission = levels
+    .filter((l) => l.isEnabled && l.commissionType === "FIXED_AMOUNT")
+    .reduce((sum, l) => sum + (l.commissionValue !== undefined ? l.commissionValue : 0), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (totalCommission > 100) {
-      toast.error("Total enabled commission cannot exceed 100%");
+    if (totalPercentageCommission > 100) {
+      toast.error("Total enabled percentage commission cannot exceed 100%");
       return;
     }
 
@@ -125,8 +166,13 @@ export function ReferralSettingsForm({
       return;
     }
 
-    if (referralDiscountPercentage < 0 || referralDiscountPercentage > 100) {
+    if (referralDiscountType === "PERCENTAGE" && (referralDiscountValue < 0 || referralDiscountValue > 100)) {
       toast.error("Referral discount percentage must be between 0% and 100%");
+      return;
+    }
+
+    if (referralDiscountType === "FIXED_AMOUNT" && referralDiscountValue < 0) {
+      toast.error("Referral discount amount cannot be negative");
       return;
     }
 
@@ -136,7 +182,9 @@ export function ReferralSettingsForm({
           isReferralEnabled,
           holdingPeriodDays,
           minWithdrawalAmount,
-          referralDiscountPercentage,
+          referralDiscountPercentage: referralDiscountType === "PERCENTAGE" ? referralDiscountValue : referralDiscountPercentage,
+          referralDiscountType,
+          referralDiscountValue,
           isReferralDiscountEnabled,
           levels,
         });
@@ -211,30 +259,64 @@ export function ReferralSettingsForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          {/* Discount % Input */}
-          <div className="rounded-xl border border-border/80 bg-background p-4 space-y-2">
-            <div className="flex items-center justify-between">
+          {/* Discount Settings */}
+          <div className="rounded-xl border border-border/80 bg-background p-4 space-y-3">
+            <div className="space-y-1.5">
               <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <Tag className="h-3.5 w-3.5 text-primary" />
-                Referral Discount Percentage (%)
+                Discount Type <span className="text-destructive">*</span>
               </label>
+              <select
+                value={referralDiscountType}
+                onChange={(e) => {
+                  const newType = e.target.value as "PERCENTAGE" | "FIXED_AMOUNT";
+                  setReferralDiscountType(newType);
+                  if (newType === "PERCENTAGE") {
+                    setReferralDiscountValue(Math.min(100, referralDiscountValue || 10));
+                  } else {
+                    setReferralDiscountValue(referralDiscountValue || 500);
+                  }
+                }}
+                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="PERCENTAGE">Percentage (%) Off</option>
+                <option value="FIXED_AMOUNT">Fixed Amount (₹) Off</option>
+              </select>
             </div>
-            <div className="relative">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={referralDiscountPercentage}
-                onChange={(e) => setReferralDiscountPercentage(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-10 text-sm font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                %
-              </span>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-foreground">
+                {referralDiscountType === "FIXED_AMOUNT"
+                  ? "Referral Discount Amount (₹) *"
+                  : "Referral Discount Rate (%) *"}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max={referralDiscountType === "FIXED_AMOUNT" ? undefined : 100}
+                  step="1"
+                  value={referralDiscountValue}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    const safeVal = referralDiscountType === "FIXED_AMOUNT"
+                      ? Math.max(0, val)
+                      : Math.max(0, Math.min(100, val));
+                    setReferralDiscountValue(safeVal);
+                    if (referralDiscountType === "PERCENTAGE") {
+                      setReferralDiscountPercentage(safeVal);
+                    }
+                  }}
+                  className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-10 text-sm font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                  {referralDiscountType === "FIXED_AMOUNT" ? "₹" : "%"}
+                </span>
+              </div>
             </div>
+
             <p className="text-[11px] text-muted-foreground">
-              Students who enter a referral code on <strong>/register</strong> or <strong>/checkout</strong> get this instant discount (e.g. 5%, 6%, 10%, 20%).
+              Students who enter a referral code on <strong>/register</strong> or <strong>/checkout</strong> get this instant discount.
             </p>
           </div>
 
@@ -243,13 +325,22 @@ export function ReferralSettingsForm({
               <span className="text-xs font-bold text-foreground block">Active Status Summary</span>
               <p className="text-[11px] text-muted-foreground mt-1">
                 {isReferralDiscountEnabled
-                  ? `Students will receive a ${referralDiscountPercentage}% discount on course checkout when referred.`
+                  ? `Students will receive a ${
+                      referralDiscountType === "FIXED_AMOUNT"
+                        ? `₹${referralDiscountValue}`
+                        : `${referralDiscountValue}%`
+                    } discount on course checkout when referred.`
                   : "Referral discount is currently disabled for incoming students."}
               </p>
             </div>
             <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-background/80 px-3 py-1.5 text-xs font-bold text-primary border border-primary/20">
               <CheckCircle2 className="h-4 w-4" />
-              <span>{referralDiscountPercentage}% Discount Active</span>
+              <span>
+                {referralDiscountType === "FIXED_AMOUNT"
+                  ? `₹${referralDiscountValue} Off`
+                  : `${referralDiscountValue}% Off`}{" "}
+                Active
+              </span>
             </div>
           </div>
         </div>
@@ -423,52 +514,84 @@ export function ReferralSettingsForm({
                 )}
               </div>
 
-              {/* Commission % & Actions */}
-              <div className="flex items-center justify-between gap-4 lg:justify-end">
-                {/* Commission % Input */}
-                <div className="flex items-center gap-1.5">
-                  <div className="relative w-24">
+              {/* Commission Type, Value & Actions */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Discount Type Dropdown */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Discount Type <span className="text-destructive">*</span>
+                  </span>
+                  <select
+                    disabled={!lvl.isEnabled}
+                    value={lvl.commissionType || "PERCENTAGE"}
+                    onChange={(e) =>
+                      handleLevelChange(index, "commissionType", e.target.value)
+                    }
+                    className="flex h-9 w-38 rounded-lg border border-input bg-background px-2.5 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 cursor-pointer"
+                  >
+                    <option value="PERCENTAGE">Percentage (%) Off</option>
+                    <option value="FIXED_AMOUNT">Fixed Amount (₹) Off</option>
+                  </select>
+                </div>
+
+                {/* Commission Value Input */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Value ({lvl.commissionType === "FIXED_AMOUNT" ? "₹" : "%"}) <span className="text-destructive">*</span>
+                  </span>
+                  <div className="relative w-28">
+                    {lvl.commissionType === "FIXED_AMOUNT" && (
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                        ₹
+                      </span>
+                    )}
                     <input
                       type="number"
-                      step="0.1"
+                      step={lvl.commissionType === "FIXED_AMOUNT" ? "1" : "0.1"}
                       min="0"
-                      max="100"
+                      max={lvl.commissionType === "FIXED_AMOUNT" ? undefined : 100}
                       disabled={!lvl.isEnabled}
-                      value={lvl.commissionPercentage}
+                      value={lvl.commissionValue !== undefined ? lvl.commissionValue : lvl.commissionPercentage}
                       onChange={(e) =>
-                        handleLevelChange(index, "commissionPercentage", Number(e.target.value))
+                        handleLevelChange(index, "commissionValue", Number(e.target.value))
                       }
-                      className="flex h-9 w-full rounded-md border border-input bg-background pl-3 pr-7 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      className={`flex h-9 w-full rounded-lg border border-input bg-background text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${
+                        lvl.commissionType === "FIXED_AMOUNT" ? "pl-6 pr-2.5" : "pl-3 pr-7"
+                      }`}
                     />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                      %
-                    </span>
+                    {lvl.commissionType !== "FIXED_AMOUNT" && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                        %
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Level Toggle */}
-                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={lvl.isEnabled}
-                    onChange={(e) =>
-                      handleLevelChange(index, "isEnabled", e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
-                  />
-                  <span>Enabled</span>
-                </label>
+                {/* Level Toggle & Delete */}
+                <div className="flex items-center gap-3 pt-4 sm:pt-4">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={lvl.isEnabled}
+                      onChange={(e) =>
+                        handleLevelChange(index, "isEnabled", e.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Enabled</span>
+                  </label>
 
-                {/* Remove button */}
-                <button
-                  type="button"
-                  disabled={levels.length <= 1}
-                  onClick={() => handleRemoveLevel(index)}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 cursor-pointer"
-                  title="Remove Level"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  {/* Remove button */}
+                  <button
+                    type="button"
+                    disabled={levels.length <= 1}
+                    onClick={() => handleRemoveLevel(index)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 cursor-pointer"
+                    title="Remove Level"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -485,15 +608,19 @@ export function ReferralSettingsForm({
           <div className="text-right">
             <span
               className={`text-xl font-extrabold ${
-                totalCommission > 50 ? "text-amber-500" : "text-primary"
+                totalPercentageCommission > 50 ? "text-amber-500" : "text-primary"
               }`}
             >
-              {totalCommission.toFixed(1)}%
+              {totalPercentageCommission > 0 && totalFixedCommission > 0
+                ? `${totalPercentageCommission.toFixed(1)}% + ₹${totalFixedCommission.toLocaleString("en-IN")}`
+                : totalFixedCommission > 0
+                ? `₹${totalFixedCommission.toLocaleString("en-IN")}`
+                : `${totalPercentageCommission.toFixed(1)}%`}
             </span>
-            {totalCommission > 50 && (
+            {totalPercentageCommission > 50 && (
               <p className="text-[11px] text-amber-500 flex items-center gap-1 justify-end">
                 <ShieldAlert className="h-3 w-3" />
-                High commission payout
+                High percentage commission payout
               </p>
             )}
           </div>

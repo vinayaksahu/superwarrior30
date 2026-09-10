@@ -26,6 +26,8 @@ export async function getReferralSettingsAction() {
             "referral_holding_days",
             "referral_min_withdrawal",
             "referral_discount_percentage",
+            "referral_discount_type",
+            "referral_discount_value",
             "referral_discount_enabled",
           ],
         },
@@ -41,6 +43,10 @@ export async function getReferralSettingsAction() {
   const holdingPeriodDays = map.has("referral_holding_days") ? parseInt(map.get("referral_holding_days")!, 10) || 7 : 7;
   const minWithdrawalAmount = map.has("referral_min_withdrawal") ? parseFloat(map.get("referral_min_withdrawal")!) || 500 : 500;
   const referralDiscountPercentage = map.has("referral_discount_percentage") ? parseFloat(map.get("referral_discount_percentage")!) || 10 : 10;
+  const referralDiscountType = (map.get("referral_discount_type") === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE") as "PERCENTAGE" | "FIXED_AMOUNT";
+  const referralDiscountValue = map.has("referral_discount_value")
+    ? parseFloat(map.get("referral_discount_value")!) || (referralDiscountType === "PERCENTAGE" ? referralDiscountPercentage : 500)
+    : referralDiscountPercentage;
   const isReferralDiscountEnabled = map.has("referral_discount_enabled") ? map.get("referral_discount_enabled") === "true" : true;
 
   return {
@@ -48,15 +54,25 @@ export async function getReferralSettingsAction() {
     holdingPeriodDays,
     minWithdrawalAmount,
     referralDiscountPercentage,
+    referralDiscountType,
+    referralDiscountValue,
     isReferralDiscountEnabled,
-    levels: levels.map((l) => ({
-      id: l.id,
-      level: l.level,
-      commissionPercentage: Number(l.commissionRate) * 100,
-      isEnabled: l.isEnabled,
-      requiresDirectReferralQualification: l.requiresDirectReferralQualification ?? false,
-      directReferralsRequired: l.directReferralsRequired ?? 0,
-    })),
+    levels: levels.map((l) => {
+      const commissionType = (l.commissionType === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE") as "PERCENTAGE" | "FIXED_AMOUNT";
+      const commissionValue = l.commissionValue !== undefined && l.commissionValue !== null
+        ? Number(l.commissionValue)
+        : Number(l.commissionRate) * 100;
+      return {
+        id: l.id,
+        level: l.level,
+        commissionType,
+        commissionValue,
+        commissionPercentage: commissionType === "PERCENTAGE" ? commissionValue : (Number(l.commissionRate) * 100 || commissionValue),
+        isEnabled: l.isEnabled,
+        requiresDirectReferralQualification: l.requiresDirectReferralQualification ?? false,
+        directReferralsRequired: l.directReferralsRequired ?? 0,
+      };
+    }),
   };
 }
 
@@ -80,9 +96,14 @@ export async function saveReferralSettingsAction(
     holdingPeriodDays,
     minWithdrawalAmount,
     referralDiscountPercentage,
+    referralDiscountType = "PERCENTAGE",
+    referralDiscountValue = referralDiscountPercentage,
     isReferralDiscountEnabled,
     levels,
   } = validated.data;
+
+  const effectivePercentage =
+    referralDiscountType === "PERCENTAGE" ? referralDiscountValue : referralDiscountPercentage;
 
   await prisma.$transaction(async (tx) => {
     // 1. Update global settings
@@ -118,10 +139,30 @@ export async function saveReferralSettingsAction(
 
     await tx.siteSetting.upsert({
       where: { key: "referral_discount_percentage" },
-      update: { value: referralDiscountPercentage.toString() },
+      update: { value: effectivePercentage.toString() },
       create: {
         key: "referral_discount_percentage",
-        value: referralDiscountPercentage.toString(),
+        value: effectivePercentage.toString(),
+        type: "number",
+      },
+    });
+
+    await tx.siteSetting.upsert({
+      where: { key: "referral_discount_type" },
+      update: { value: referralDiscountType },
+      create: {
+        key: "referral_discount_type",
+        value: referralDiscountType,
+        type: "string",
+      },
+    });
+
+    await tx.siteSetting.upsert({
+      where: { key: "referral_discount_value" },
+      update: { value: referralDiscountValue.toString() },
+      create: {
+        key: "referral_discount_value",
+        value: referralDiscountValue.toString(),
         type: "number",
       },
     });
@@ -140,14 +181,19 @@ export async function saveReferralSettingsAction(
     await tx.referralLevel.deleteMany({});
 
     for (const lvl of levels) {
+      const type = (lvl.commissionType === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE") as "PERCENTAGE" | "FIXED_AMOUNT";
+      const val = lvl.commissionValue !== undefined ? lvl.commissionValue : lvl.commissionPercentage;
+      const percentageRate = type === "PERCENTAGE" ? val : 0;
       const decimalRate = new Prisma.Decimal(
-        (lvl.commissionPercentage / 100).toFixed(4)
+        (percentageRate / 100).toFixed(4)
       );
 
       await tx.referralLevel.create({
         data: {
           level: lvl.level,
           commissionRate: decimalRate,
+          commissionType: type,
+          commissionValue: new Prisma.Decimal(val.toFixed(2)),
           isEnabled: lvl.isEnabled,
           requiresDirectReferralQualification: lvl.requiresDirectReferralQualification ?? false,
           directReferralsRequired: lvl.directReferralsRequired ?? 0,
@@ -169,9 +215,13 @@ export async function saveReferralSettingsAction(
           holdingPeriodDays,
           minWithdrawalAmount,
           referralDiscountPercentage,
+          referralDiscountType,
+          referralDiscountValue,
           isReferralDiscountEnabled,
           levels: levels.map((l) => ({
             level: l.level,
+            commissionType: l.commissionType || "PERCENTAGE",
+            commissionValue: l.commissionValue !== undefined ? l.commissionValue : l.commissionPercentage,
             percentage: l.commissionPercentage,
             isEnabled: l.isEnabled,
             requiresDirectReferralQualification: l.requiresDirectReferralQualification ?? false,
@@ -182,10 +232,24 @@ export async function saveReferralSettingsAction(
     });
   });
 
+  try {
+    const { saveBrokerSettings } = await import("@/lib/broker/config");
+    await saveBrokerSettings({
+      referralDiscountType,
+      referralDiscountValue,
+      referralDiscountPercentage: effectivePercentage,
+      isReferralDiscountEnabled,
+    });
+  } catch (e) {
+    console.warn("Could not sync with broker settings:", e);
+  }
+
   revalidatePath("/admin/referrals");
   revalidatePath("/admin/referrals/settings");
+  revalidatePath("/admin/broker-offers");
   revalidatePath("/admin/referrals/clearance");
   revalidatePath("/dashboard/referrals");
+  revalidatePath("/checkout");
   revalidatePath("/wallet");
 
   return { success: true, message: "Referral settings saved successfully." };
@@ -286,6 +350,8 @@ export async function calculateAndCreateOrderCommissions(
       planSnapshot: configuredLevels.map((lvl) => ({
         level: lvl.level,
         rate: Number(lvl.commissionRate),
+        commissionType: lvl.commissionType || "PERCENTAGE",
+        commissionValue: lvl.commissionValue !== undefined && lvl.commissionValue !== null ? Number(lvl.commissionValue) : Number(lvl.commissionRate) * 100,
         isEnabled: lvl.isEnabled,
         requiresDirectReferralQualification: lvl.requiresDirectReferralQualification ?? false,
         directReferralsRequired: lvl.directReferralsRequired ?? 0,
@@ -315,14 +381,30 @@ export async function calculateAndCreateOrderCommissions(
         }
       }
 
-      const commissionAmountNum = Number(
-        (eligibleBaseAmount * Number(levelConfig.commissionRate)).toFixed(2)
-      );
+      const commissionType = (levelConfig.commissionType || "PERCENTAGE") as "PERCENTAGE" | "FIXED_AMOUNT";
+      const configuredVal = levelConfig.commissionValue !== undefined && levelConfig.commissionValue !== null
+        ? Number(levelConfig.commissionValue)
+        : Number(levelConfig.commissionRate) * 100;
+
+      let commissionAmountNum = 0;
+      if (commissionType === "FIXED_AMOUNT") {
+        commissionAmountNum = Math.min(configuredVal, eligibleBaseAmount);
+      } else {
+        commissionAmountNum = Number(
+          (eligibleBaseAmount * (configuredVal / 100)).toFixed(2)
+        );
+      }
 
       if (commissionAmountNum > 0) {
         const commissionAmountDecimal = new Prisma.Decimal(
           commissionAmountNum.toFixed(2)
         );
+
+        // Calculate safe rate applied for audit history that never overflows DECIMAL(5, 4)
+        const effectiveRate = eligibleBaseAmount > 0
+          ? Math.min(0.9999, Math.max(0, commissionAmountNum / eligibleBaseAmount))
+          : 0;
+        const rateAppliedDecimal = new Prisma.Decimal(effectiveRate.toFixed(4));
 
         // A. Create commission record with unique constraint protection & availableAt
         const record = await tx.referralCommissionRecord.create({
@@ -331,7 +413,7 @@ export async function calculateAndCreateOrderCommissions(
             orderId: order.id,
             beneficiaryId: matchingAncestor.ancestorId,
             level: levelConfig.level,
-            rateApplied: levelConfig.commissionRate,
+            rateApplied: rateAppliedDecimal,
             commissionAmount: commissionAmountDecimal,
             status: "PENDING",
             isTestData: order.isTestData,

@@ -38,6 +38,8 @@ export default async function AdminReferralSettingsPage() {
         initialHoldingPeriodDays={settings.holdingPeriodDays}
         initialMinWithdrawalAmount={settings.minWithdrawalAmount}
         initialReferralDiscountPercentage={settings.referralDiscountPercentage}
+        initialReferralDiscountType={settings.referralDiscountType}
+        initialReferralDiscountValue={settings.referralDiscountValue}
         initialIsReferralDiscountEnabled={settings.isReferralDiscountEnabled}
         initialLevels={settings.levels}
       />

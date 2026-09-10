@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
       isVerified: result.isVerified,
       isServiceAvailable: result.isServiceAvailable,
       mode: settings.mode,
+      discountType: settings.discountType || "PERCENTAGE",
+      discountValue: settings.discountValue !== undefined ? Number(settings.discountValue) : (Number(settings.offerPercentage) || 40),
       offerPercentage: Number(settings.offerPercentage) || 40,
       brokerName: settings.brokerName,
       message: result.message,

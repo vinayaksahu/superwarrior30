@@ -76,9 +76,13 @@ export async function validateAndCalculateCouponAction({
         return { valid: false, message: "Referral discount is currently disabled." };
       }
 
-      const referralPct = Number(brokerSettings.referralDiscountPercentage) || 10;
-      const discountAmount = Number(((coursePrice * referralPct) / 100).toFixed(2));
+      const refType = brokerSettings.referralDiscountType === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE";
+      const refVal = brokerSettings.referralDiscountValue !== undefined ? Number(brokerSettings.referralDiscountValue) : (Number(brokerSettings.referralDiscountPercentage) || 10);
+      const discountAmount = refType === "FIXED_AMOUNT"
+        ? Math.min(coursePrice, refVal)
+        : Number(((coursePrice * refVal) / 100).toFixed(2));
       const finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
+      const discountLabel = refType === "FIXED_AMOUNT" ? `₹${discountAmount}` : `${refVal}%`;
 
       return {
         valid: true,
@@ -87,12 +91,12 @@ export async function validateAndCalculateCouponAction({
         referrerId: referrer.id,
         referrerName: referrer.name || "Affiliate Partner",
         code: referrer.referralCode,
-        discountType: "PERCENTAGE",
-        discountValue: referralPct,
+        discountType: refType,
+        discountValue: refVal,
         discountAmount,
         originalPrice: coursePrice,
         finalPrice,
-        message: `Referral code "${referrer.referralCode}" applied! You unlocked ${referralPct}% instant discount (₹${discountAmount}).`,
+        message: `Referral code "${referrer.referralCode}" applied! You unlocked ${discountLabel} instant discount (₹${discountAmount}).`,
       };
     }
 
