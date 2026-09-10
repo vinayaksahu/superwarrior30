@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useState, useEffect, useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { createCouponAction, updateCouponAction } from "@/server/actions/coupon.actions";
 import { Loader2, ArrowLeft, Tag, Calendar, ShieldCheck, Check } from "lucide-react";
 import Link from "next/link";
 import type { ActionState } from "@/types";
+import { toast } from "sonner";
 
 interface CourseOption {
   id: string;
@@ -33,6 +35,7 @@ interface CouponFormProps {
 }
 
 export function CouponForm({ coupon, courses, isEdit = false }: CouponFormProps) {
+  const router = useRouter();
   const [discountType, setDiscountType] = useState(coupon?.discountType || "PERCENTAGE");
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>(
     coupon?.courses?.map((c) => c.courseId) || []
@@ -46,6 +49,25 @@ export function CouponForm({ coupon, courses, isEdit = false }: CouponFormProps)
     actionFn,
     null
   );
+
+  useEffect(() => {
+    if (coupon?.discountType) {
+      setDiscountType(coupon.discountType);
+    }
+    if (coupon?.courses) {
+      setSelectedCourseIds(coupon.courses.map((c) => c.courseId));
+    }
+  }, [coupon?.id, coupon?.discountType, coupon?.courses]);
+
+  useEffect(() => {
+    if (state?.success) {
+      toast.success(state.message || (isEdit ? "Coupon updated successfully!" : "Coupon created successfully!"));
+      router.push("/admin/broker-offers?tab=coupons");
+      router.refresh();
+    } else if (state?.message && !state.success) {
+      toast.error(state.message);
+    }
+  }, [state, isEdit, router]);
 
   const toggleCourseSelection = (courseId: string) => {
     if (selectedCourseIds.includes(courseId)) {

@@ -79,6 +79,8 @@ export default async function CheckoutPage({
   const [paymentMethods, brokerConfig, availableCoupons, userReferralCoupon] =
     await withEnvironmentContext(pageEnv, async () => {
       const now = new Date();
+      const startOfToday = new Date(now);
+      startOfToday.setUTCHours(0, 0, 0, 0);
 
       const [methods, config, rawCoupons, referralRel] = await Promise.all([
         getPublicPaymentMethodsAction(),
@@ -88,7 +90,7 @@ export default async function CheckoutPage({
             isActive: true,
             showInCheckout: true,
             startDate: { lte: now },
-            endDate: { gte: now },
+            endDate: { gte: startOfToday },
             OR: [
               { courses: { none: {} } },
               { courses: { some: { courseId: course.id } } },

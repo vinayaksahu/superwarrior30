@@ -8,6 +8,19 @@ import { PAGINATION } from "@/lib/constants";
 import type { ActionState } from "@/types";
 import { Prisma } from "@/generated/prisma";
 
+function parseCouponDate(dateStr: string, isEndOfDay = false): Date {
+  if (!dateStr) return new Date();
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T${isEndOfDay ? "23:59:59.999Z" : "00:00:00.000Z"}`);
+  }
+  const d = new Date(trimmed);
+  if (isEndOfDay && d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
+    d.setUTCHours(23, 59, 59, 999);
+  }
+  return d;
+}
+
 // ==========================================
 // 1. STUDENT COUPON VALIDATION & CALCULATION
 // ==========================================
@@ -113,7 +126,11 @@ export async function validateAndCalculateCouponAction({
   if (now < new Date(coupon.startDate)) {
     return { valid: false, message: "This coupon promotion has not started yet." };
   }
-  if (now > new Date(coupon.endDate)) {
+  const couponEnd = new Date(coupon.endDate);
+  if (couponEnd.getUTCHours() === 0 && couponEnd.getUTCMinutes() === 0 && couponEnd.getUTCSeconds() === 0) {
+    couponEnd.setUTCHours(23, 59, 59, 999);
+  }
+  if (now > couponEnd) {
     return { valid: false, message: "This coupon has expired." };
   }
 
@@ -215,15 +232,17 @@ export async function getAdminCouponsAction({
   await requireAdmin();
 
   const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setUTCHours(0, 0, 0, 0);
   const where: Prisma.CouponWhereInput = {};
 
   if (status === "active") {
     where.isActive = true;
-    where.endDate = { gte: now };
+    where.endDate = { gte: startOfToday };
   } else if (status === "inactive") {
     where.isActive = false;
   } else if (status === "expired") {
-    where.endDate = { lt: now };
+    where.endDate = { lt: startOfToday };
   }
 
   if (search) {
@@ -249,25 +268,31 @@ export async function getAdminCouponsAction({
   ]);
 
   return {
-    data: coupons.map((c) => ({
-      id: c.id,
-      code: c.code,
-      discountType: c.discountType,
-      discountValue: Number(c.discountValue),
-      minOrderAmount: Number(c.minOrderAmount),
-      maxDiscountAmount: c.maxDiscountAmount ? Number(c.maxDiscountAmount) : null,
-      startDate: c.startDate,
-      endDate: c.endDate,
-      usageLimit: c.usageLimit,
-      perUserLimit: c.perUserLimit,
-      usageCount: c.usageCount,
-      isActive: c.isActive,
-      showInCheckout: c.showInCheckout,
-      isExpired: c.endDate < now,
-      redemptionsCount: c._count.redemptions,
-      applicableCoursesCount: c._count.courses,
-      createdAt: c.createdAt,
-    })),
+    data: coupons.map((c) => {
+      const couponEnd = new Date(c.endDate);
+      if (couponEnd.getUTCHours() === 0 && couponEnd.getUTCMinutes() === 0 && couponEnd.getUTCSeconds() === 0) {
+        couponEnd.setUTCHours(23, 59, 59, 999);
+      }
+      return {
+        id: c.id,
+        code: c.code,
+        discountType: c.discountType,
+        discountValue: Number(c.discountValue),
+        minOrderAmount: Number(c.minOrderAmount),
+        maxDiscountAmount: c.maxDiscountAmount ? Number(c.maxDiscountAmount) : null,
+        startDate: c.startDate,
+        endDate: c.endDate,
+        usageLimit: c.usageLimit,
+        perUserLimit: c.perUserLimit,
+        usageCount: c.usageCount,
+        isActive: c.isActive,
+        showInCheckout: c.showInCheckout,
+        isExpired: couponEnd < now,
+        redemptionsCount: c._count.redemptions,
+        applicableCoursesCount: c._count.courses,
+        createdAt: c.createdAt,
+      };
+    }),
     total,
     page,
     pageSize,
@@ -364,8 +389,8 @@ export async function createCouponAction(
         maxDiscountAmount: data.maxDiscountAmount
           ? new Prisma.Decimal(data.maxDiscountAmount)
           : null,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
+        startDate: parseCouponDate(data.startDate, false),
+        endDate: parseCouponDate(data.endDate, true),
         usageLimit: data.usageLimit,
         perUserLimit: data.perUserLimit,
         isActive: data.isActive,
@@ -398,6 +423,7 @@ export async function createCouponAction(
 
   revalidatePath("/admin/coupons");
   revalidatePath("/admin/broker-offers");
+  revalidatePath("/checkout", "layout");
   return { success: true, message: `Coupon "${data.code}" created successfully.` };
 }
 
@@ -460,8 +486,8 @@ export async function updateCouponAction(
         maxDiscountAmount: data.maxDiscountAmount
           ? new Prisma.Decimal(data.maxDiscountAmount)
           : null,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
+        startDate: parseCouponDate(data.startDate, false),
+        endDate: parseCouponDate(data.endDate, true),
         usageLimit: data.usageLimit,
         perUserLimit: data.perUserLimit,
         isActive: data.isActive,
@@ -488,7 +514,7 @@ export async function updateCouponAction(
         action: "COUPON_UPDATED",
         entityType: "Coupon",
         entityId: couponId,
-        newValues: { code: data.code, isActive: data.isActive },
+        newValues: { code: data.code, isActive: data.isActive, discountType: data.discountType, discountValue: data.discountValue },
       },
     });
   });
@@ -496,6 +522,7 @@ export async function updateCouponAction(
   revalidatePath("/admin/coupons");
   revalidatePath(`/admin/coupons/${couponId}`);
   revalidatePath("/admin/broker-offers");
+  revalidatePath("/checkout", "layout");
   return { success: true, message: `Coupon "${data.code}" updated successfully.` };
 }
 
@@ -524,6 +551,7 @@ export async function toggleCouponStatusAction(
 
   revalidatePath("/admin/coupons");
   revalidatePath("/admin/broker-offers");
+  revalidatePath("/checkout", "layout");
   return { success: true, message: `Coupon is now ${isActive ? "active" : "inactive"}.` };
 }
 
@@ -552,7 +580,7 @@ export async function toggleCouponCheckoutVisibilityAction(
 
   revalidatePath("/admin/coupons");
   revalidatePath("/admin/broker-offers");
-  revalidatePath("/checkout");
+  revalidatePath("/checkout", "layout");
   return {
     success: true,
     message: `Coupon is now ${showInCheckout ? "visible on" : "hidden from"} course checkout.`,
@@ -577,6 +605,7 @@ export async function deleteCouponAction(couponId: string): Promise<ActionState>
     });
     revalidatePath("/admin/coupons");
     revalidatePath("/admin/broker-offers");
+    revalidatePath("/checkout", "layout");
     return {
       success: true,
       message: "Coupon has existing redemptions and was deactivated to preserve order history.",
@@ -599,5 +628,6 @@ export async function deleteCouponAction(couponId: string): Promise<ActionState>
 
   revalidatePath("/admin/coupons");
   revalidatePath("/admin/broker-offers");
+  revalidatePath("/checkout", "layout");
   return { success: true, message: "Coupon deleted successfully." };
 }

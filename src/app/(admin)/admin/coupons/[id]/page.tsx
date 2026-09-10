@@ -5,6 +5,9 @@ import { getAdminCouponByIdAction } from "@/server/actions/coupon.actions";
 import { CouponForm } from "@/components/admin/coupon-form";
 import { requireAdmin } from "@/server/dal/auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Edit Coupon",
 };
@@ -47,6 +50,7 @@ export default async function AdminEditCouponPage({
       </div>
 
       <CouponForm
+        key={`${coupon.id}-${coupon.discountType}-${coupon.discountValue}-${new Date(coupon.updatedAt).getTime()}`}
         isEdit
         coupon={coupon}
         courses={courses.map((c) => ({
