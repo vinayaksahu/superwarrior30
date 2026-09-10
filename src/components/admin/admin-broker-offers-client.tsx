@@ -751,7 +751,7 @@ export function AdminBrokerOffersClient({
                     href="/admin/referrals/settings"
                     className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 pt-0.5"
                   >
-                    Manage Affiliate Settings <ArrowRight className="h-3 w-3" />
+                    Manage Commission Tiers & Levels <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>
               </div>

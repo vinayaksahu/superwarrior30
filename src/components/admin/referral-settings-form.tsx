@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveReferralSettingsAction } from "@/server/actions/referral.actions";
-import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Clock, IndianRupee, Tag, Sparkles, Info, Users } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Clock, IndianRupee, Info, Users } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReferralLevelItem {
@@ -49,12 +49,6 @@ export function ReferralSettingsForm({
   const [isReferralEnabled, setIsReferralEnabled] = useState(initialEnabled);
   const [holdingPeriodDays, setHoldingPeriodDays] = useState(initialHoldingPeriodDays);
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState(initialMinWithdrawalAmount);
-  const [referralDiscountType, setReferralDiscountType] = useState<"PERCENTAGE" | "FIXED_AMOUNT">(initialReferralDiscountType);
-  const [referralDiscountValue, setReferralDiscountValue] = useState<number>(
-    initialReferralDiscountValue !== undefined ? initialReferralDiscountValue : initialReferralDiscountPercentage
-  );
-  const [referralDiscountPercentage, setReferralDiscountPercentage] = useState(initialReferralDiscountPercentage);
-  const [isReferralDiscountEnabled, setIsReferralDiscountEnabled] = useState(initialIsReferralDiscountEnabled);
   const [levels, setLevels] = useState<ReferralLevelItem[]>(
     initialLevels.length > 0
       ? initialLevels.map((l) => {
@@ -166,31 +160,21 @@ export function ReferralSettingsForm({
       return;
     }
 
-    if (referralDiscountType === "PERCENTAGE" && (referralDiscountValue < 0 || referralDiscountValue > 100)) {
-      toast.error("Referral discount percentage must be between 0% and 100%");
-      return;
-    }
-
-    if (referralDiscountType === "FIXED_AMOUNT" && referralDiscountValue < 0) {
-      toast.error("Referral discount amount cannot be negative");
-      return;
-    }
-
     startTransition(async () => {
       try {
         const res = await saveReferralSettingsAction({
           isReferralEnabled,
           holdingPeriodDays,
           minWithdrawalAmount,
-          referralDiscountPercentage: referralDiscountType === "PERCENTAGE" ? referralDiscountValue : referralDiscountPercentage,
-          referralDiscountType,
-          referralDiscountValue,
-          isReferralDiscountEnabled,
+          referralDiscountPercentage: initialReferralDiscountPercentage,
+          referralDiscountType: initialReferralDiscountType,
+          referralDiscountValue: initialReferralDiscountValue !== undefined ? initialReferralDiscountValue : initialReferralDiscountPercentage,
+          isReferralDiscountEnabled: initialIsReferralDiscountEnabled,
           levels,
         });
 
         if (res.success) {
-          toast.success("Affiliate program & referral discount settings saved successfully!");
+          toast.success("Affiliate program settings saved successfully!");
         } else {
           toast.error(res.message || "Failed to save settings");
         }
@@ -234,117 +218,6 @@ export function ReferralSettingsForm({
         )}
       </div>
 
-      {/* Referral Discount Coupon Configuration */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-          <div>
-            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Referral Discount Coupon Settings
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Configure the instant discount given to students when they register or checkout using an affiliate referral code
-            </p>
-          </div>
-
-          <label className="relative inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              checked={isReferralDiscountEnabled}
-              onChange={(e) => setIsReferralDiscountEnabled(e.target.checked)}
-              className="peer sr-only"
-            />
-            <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-border after:bg-background after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white" />
-          </label>
-        </div>
-
-        <div className="grid gap-5 sm:grid-cols-2">
-          {/* Discount Settings */}
-          <div className="rounded-xl border border-border/80 bg-background p-4 space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <Tag className="h-3.5 w-3.5 text-primary" />
-                Discount Type <span className="text-destructive">*</span>
-              </label>
-              <select
-                value={referralDiscountType}
-                onChange={(e) => {
-                  const newType = e.target.value as "PERCENTAGE" | "FIXED_AMOUNT";
-                  setReferralDiscountType(newType);
-                  if (newType === "PERCENTAGE") {
-                    setReferralDiscountValue(Math.min(100, referralDiscountValue || 10));
-                  } else {
-                    setReferralDiscountValue(referralDiscountValue || 500);
-                  }
-                }}
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="PERCENTAGE">Percentage (%) Off</option>
-                <option value="FIXED_AMOUNT">Fixed Amount (₹) Off</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">
-                {referralDiscountType === "FIXED_AMOUNT"
-                  ? "Referral Discount Amount (₹) *"
-                  : "Referral Discount Rate (%) *"}
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  min="0"
-                  max={referralDiscountType === "FIXED_AMOUNT" ? undefined : 100}
-                  step="1"
-                  value={referralDiscountValue}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value) || 0;
-                    const safeVal = referralDiscountType === "FIXED_AMOUNT"
-                      ? Math.max(0, val)
-                      : Math.max(0, Math.min(100, val));
-                    setReferralDiscountValue(safeVal);
-                    if (referralDiscountType === "PERCENTAGE") {
-                      setReferralDiscountPercentage(safeVal);
-                    }
-                  }}
-                  className="flex h-10 w-full rounded-lg border border-input bg-background pl-3 pr-10 text-sm font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                  {referralDiscountType === "FIXED_AMOUNT" ? "₹" : "%"}
-                </span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-muted-foreground">
-              Students who enter a referral code on <strong>/register</strong> or <strong>/checkout</strong> get this instant discount.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex flex-col justify-between">
-            <div>
-              <span className="text-xs font-bold text-foreground block">Active Status Summary</span>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {isReferralDiscountEnabled
-                  ? `Students will receive a ${
-                      referralDiscountType === "FIXED_AMOUNT"
-                        ? `₹${referralDiscountValue}`
-                        : `${referralDiscountValue}%`
-                    } discount on course checkout when referred.`
-                  : "Referral discount is currently disabled for incoming students."}
-              </p>
-            </div>
-            <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-background/80 px-3 py-1.5 text-xs font-bold text-primary border border-primary/20">
-              <CheckCircle2 className="h-4 w-4" />
-              <span>
-                {referralDiscountType === "FIXED_AMOUNT"
-                  ? `₹${referralDiscountValue} Off`
-                  : `${referralDiscountValue}% Off`}{" "}
-                Active
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Financial Clearance & Payout Rules */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
