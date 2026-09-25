@@ -965,6 +965,134 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     // ignore
   }
 
+  // 12. YouTube Live Trades (AI Trade Clip Finder) Tables
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "youtube_streams" (
+        "id" TEXT PRIMARY KEY,
+        "youtubeVideoId" TEXT UNIQUE NOT NULL,
+        "url" TEXT NOT NULL,
+        "title" TEXT NOT NULL,
+        "thumbnail" TEXT,
+        "channel" TEXT DEFAULT 'Rahul Trade Warrior Academy',
+        "publishedAt" TIMESTAMP(3),
+        "duration" INTEGER NOT NULL DEFAULT 0,
+        "status" TEXT NOT NULL DEFAULT 'QUEUED',
+        "transcriptStatus" TEXT NOT NULL DEFAULT 'PENDING',
+        "analysisStatus" TEXT NOT NULL DEFAULT 'PENDING',
+        "tradesCount" INTEGER NOT NULL DEFAULT 0,
+        "clipsCount" INTEGER NOT NULL DEFAULT 0,
+        "transcriptText" TEXT,
+        "transcriptJson" JSONB,
+        "isTestData" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "youtube_streams_youtubeVideoId_idx" ON "youtube_streams"("youtubeVideoId");
+      CREATE INDEX IF NOT EXISTS "youtube_streams_status_idx" ON "youtube_streams"("status");
+      CREATE INDEX IF NOT EXISTS "youtube_streams_analysisStatus_idx" ON "youtube_streams"("analysisStatus");
+      CREATE INDEX IF NOT EXISTS "youtube_streams_createdAt_idx" ON "youtube_streams"("createdAt" DESC);
+
+      CREATE TABLE IF NOT EXISTS "trade_candidates" (
+        "id" TEXT PRIMARY KEY,
+        "streamId" TEXT NOT NULL REFERENCES "youtube_streams"("id") ON DELETE CASCADE,
+        "tradeNumber" INTEGER NOT NULL DEFAULT 1,
+        "instrument" TEXT NOT NULL,
+        "direction" TEXT NOT NULL,
+        "marketContext" TEXT,
+        "liquidity" JSONB,
+        "marketStructure" JSONB,
+        "priceAction" TEXT,
+        "candleConfirmation" JSONB,
+        "entryCriteria" TEXT,
+        "plannedEntry" JSONB,
+        "actualEntry" JSONB,
+        "stopLoss" JSONB,
+        "takeProfit" JSONB,
+        "plannedRR" TEXT DEFAULT '1:3',
+        "currentR" TEXT,
+        "realizedR" TEXT,
+        "riskStatus" TEXT NOT NULL DEFAULT 'ACTIVE',
+        "result" TEXT NOT NULL DEFAULT 'TP',
+        "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0.85,
+        "completenessScore" DOUBLE PRECISION NOT NULL DEFAULT 0.90,
+        "clipStart" INTEGER,
+        "clipEnd" INTEGER,
+        "isVerified" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "trade_candidates_streamId_idx" ON "trade_candidates"("streamId");
+      CREATE INDEX IF NOT EXISTS "trade_candidates_direction_idx" ON "trade_candidates"("direction");
+      CREATE INDEX IF NOT EXISTS "trade_candidates_instrument_idx" ON "trade_candidates"("instrument");
+      CREATE INDEX IF NOT EXISTS "trade_candidates_result_idx" ON "trade_candidates"("result");
+      CREATE INDEX IF NOT EXISTS "trade_candidates_createdAt_idx" ON "trade_candidates"("createdAt" DESC);
+
+      CREATE TABLE IF NOT EXISTS "trade_events" (
+        "id" TEXT PRIMARY KEY,
+        "tradeId" TEXT NOT NULL REFERENCES "trade_candidates"("id") ON DELETE CASCADE,
+        "eventType" TEXT NOT NULL,
+        "timestamp" INTEGER NOT NULL,
+        "endTimestamp" INTEGER,
+        "text" TEXT NOT NULL,
+        "price" DOUBLE PRECISION,
+        "confidence" TEXT NOT NULL DEFAULT 'HIGH',
+        "source" TEXT NOT NULL DEFAULT 'TRANSCRIPT',
+        "visualVerified" BOOLEAN NOT NULL DEFAULT false,
+        "metadata" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "trade_events_tradeId_timestamp_idx" ON "trade_events"("tradeId", "timestamp");
+      CREATE INDEX IF NOT EXISTS "trade_events_eventType_idx" ON "trade_events"("eventType");
+
+      CREATE TABLE IF NOT EXISTS "trade_clips" (
+        "id" TEXT PRIMARY KEY,
+        "tradeId" TEXT NOT NULL REFERENCES "trade_candidates"("id") ON DELETE CASCADE,
+        "masterVideoUrl" TEXT,
+        "shortVideoUrl" TEXT,
+        "srtUrl" TEXT,
+        "jsonUrl" TEXT,
+        "storageProvider" TEXT NOT NULL DEFAULT 'BUNNY',
+        "durationSec" INTEGER DEFAULT 0,
+        "status" TEXT NOT NULL DEFAULT 'READY',
+        "metadata" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "trade_clips_tradeId_idx" ON "trade_clips"("tradeId");
+      CREATE INDEX IF NOT EXISTS "trade_clips_status_idx" ON "trade_clips"("status");
+
+      CREATE TABLE IF NOT EXISTS "trade_processing_jobs" (
+        "id" TEXT PRIMARY KEY,
+        "streamId" TEXT REFERENCES "youtube_streams"("id") ON DELETE CASCADE,
+        "tradeId" TEXT,
+        "jobType" TEXT NOT NULL,
+        "stage" TEXT NOT NULL DEFAULT 'QUEUED',
+        "progressPercent" INTEGER NOT NULL DEFAULT 0,
+        "errorMessage" TEXT,
+        "logs" JSONB,
+        "startedAt" TIMESTAMP(3),
+        "completedAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "trade_processing_jobs_streamId_idx" ON "trade_processing_jobs"("streamId");
+      CREATE INDEX IF NOT EXISTS "trade_processing_jobs_stage_idx" ON "trade_processing_jobs"("stage");
+      CREATE INDEX IF NOT EXISTS "trade_processing_jobs_createdAt_idx" ON "trade_processing_jobs"("createdAt" DESC);
+
+      CREATE TABLE IF NOT EXISTS "trade_settings" (
+        "id" TEXT PRIMARY KEY,
+        "key" TEXT UNIQUE NOT NULL,
+        "value" TEXT NOT NULL,
+        "description" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch {
+    // ignore
+  }
+
     syncedEnvironments.add(currentEnv);
   } finally {
     syncPromises.delete(currentEnv);

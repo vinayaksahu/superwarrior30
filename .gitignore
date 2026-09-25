@@ -47,3 +47,5 @@ src/generated/prisma
 # temporary/scratch
 scratch/
 .agents/
+tmp/
+/public/uploads/

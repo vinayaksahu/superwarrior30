@@ -69,6 +69,20 @@ export const ALL_MODULES: ModuleDefinition[] = [
     ],
   },
   {
+    id: "youtube_live_trades",
+    name: "YouTube Live Trades (AI Trade Clip Finder)",
+    description: "AI-assisted livestream trade detection, timelines and clip generation",
+    iconName: "Video",
+    permissions: [
+      { key: "youtube_live_trades.view", name: "View Live Trades", description: "Browse livestream analyses and trade timelines", action: "VIEW" },
+      { key: "youtube_live_trades.analyze", name: "Analyze Livestreams", description: "Ingest and analyze YouTube livestreams for trades", action: "CREATE" },
+      { key: "youtube_live_trades.generate_clip", name: "Generate Clips", description: "Create master and 9:16 vertical short clips", action: "MANAGE" },
+      { key: "youtube_live_trades.delete", name: "Delete Streams / Trades", description: "Remove livestreams and detected trade records", action: "DELETE" },
+      { key: "youtube_live_trades.settings", name: "Manage Trade Settings", description: "Configure AI models, silence acceleration, and ROI profiles", action: "EDIT" },
+      { key: "youtube_live_trades.manage", name: "Full Live Trade Management", description: "Edit timelines, verify events, and manage queue", action: "MANAGE" },
+    ],
+  },
+  {
     id: "students",
     name: "Students & Users",
     description: "Student directory, profile inspection and access control",
@@ -303,6 +317,7 @@ export const ROLE_PRESETS: Record<AdminRoleType, RolePreset> = {
       "courses.view", "courses.create", "courses.edit", "courses.delete", "courses.publish",
       "media.view", "media.upload", "media.delete",
       "live_sessions.view", "live_sessions.create", "live_sessions.edit", "live_sessions.delete",
+      "youtube_live_trades.view", "youtube_live_trades.analyze", "youtube_live_trades.generate_clip", "youtube_live_trades.delete", "youtube_live_trades.settings", "youtube_live_trades.manage",
       "students.view", "students.edit", "students.block",
       "orders.view", "orders.export", "orders.manage",
       "withdrawals.view", "withdrawals.approve", "withdrawals.reject", "withdrawals.payout",

@@ -112,10 +112,10 @@ export const allSidebarLinks: SidebarLink[] = [
     requiredPermission: "students.view",
   },
   {
-    href: "/admin/live-trade-proofs",
+    href: "/admin/youtube-live-trades",
     label: "YouTube Live Trades",
     icon: Video,
-    requiredPermission: "courses.view",
+    requiredPermission: "youtube_live_trades.view",
   },
   {
     href: "/admin/referrals",
