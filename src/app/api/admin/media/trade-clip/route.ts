@@ -4,9 +4,6 @@ import path from "path";
 import os from "os";
 import { prisma } from "@/lib/prisma";
 
-// Minimal valid ISO Base Media File (MP4) buffer for cloud / headless serverless fallback
-const MINIMAL_MP4_BASE64 =
-  "AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAAsbWRhdAAAAAA=";
 
 /**
  * GET /api/admin/media/trade-clip?streamId=...&filename=...
@@ -78,11 +75,23 @@ export async function GET(request: NextRequest) {
       where: {
         trade: { streamId: safeStreamId },
       },
+      include: {
+        trade: {
+          select: {
+            clipStart: true,
+            stream: {
+              select: {
+                youtubeVideoId: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
 
     if (clip) {
-      // If clip has a direct CDN URL, redirect to it
+      // If clip has a direct CDN URL, redirect directly to Bunny CDN
       if (safeFilename.includes("master") && clip.masterVideoUrl && clip.masterVideoUrl.startsWith("http")) {
         return NextResponse.redirect(clip.masterVideoUrl);
       }
@@ -92,67 +101,24 @@ export async function GET(request: NextRequest) {
       if (safeFilename.endsWith(".srt") && clip.srtUrl && clip.srtUrl.startsWith("http")) {
         return NextResponse.redirect(clip.srtUrl);
       }
-
-      const meta = (clip.metadata as any) || {};
-      let buffer: Buffer | null = null;
-      let contentType = "video/mp4";
-
-      if (safeFilename.includes("master") && meta.masterBase64) {
-        buffer = Buffer.from(meta.masterBase64, "base64");
-        contentType = "video/mp4";
-      } else if (safeFilename.includes("short") && meta.shortBase64) {
-        buffer = Buffer.from(meta.shortBase64, "base64");
-        contentType = "video/mp4";
-      } else if (safeFilename.endsWith(".srt") && meta.srtContent) {
-        buffer = Buffer.from(meta.srtContent, "utf-8");
-        contentType = "text/plain; charset=utf-8";
-      } else if (meta.masterBase64) {
-        buffer = Buffer.from(meta.masterBase64, "base64");
-        contentType = "video/mp4";
-      }
-
-      if (buffer && buffer.length > 0) {
-        return new NextResponse(new Uint8Array(buffer), {
-          headers: {
-            "Content-Type": contentType,
-            "Content-Length": String(buffer.length),
-            "Content-Disposition": `attachment; filename="${safeFilename}"`,
-            "Cache-Control": "public, max-age=86400, stale-while-revalidate=43200",
-            "Accept-Ranges": "bytes",
-          },
-        });
-      }
     }
   } catch (dbErr) {
     console.warn("[TradeClipRoute] DB retrieval error:", dbErr);
   }
 
-  // 3. Fallback: return valid minimal MP4/SRT payload rather than broken 404
-  if (safeFilename.endsWith(".mp4")) {
-    const buffer = Buffer.from(MINIMAL_MP4_BASE64, "base64");
-    return new NextResponse(new Uint8Array(buffer), {
+  // 3. If file not found, return 404 with diagnostic details instead of corrupt 52-byte file
+  return new NextResponse(
+    JSON.stringify({
+      error: "Video clip asset not found or still rendering on Bunny Storage.",
+      streamId: safeStreamId,
+      filename: safeFilename,
+      tip: "You can preview and watch the high-definition clip directly via the YouTube livestream player at the exact trade timestamp.",
+    }),
+    {
+      status: 404,
       headers: {
-        "Content-Type": "video/mp4",
-        "Content-Length": String(buffer.length),
-        "Content-Disposition": `attachment; filename="${safeFilename}"`,
-        "Cache-Control": "public, max-age=86400",
+        "Content-Type": "application/json",
       },
-    });
-  }
-
-  if (safeFilename.endsWith(".srt")) {
-    const srtSample = "1\n00:00:00,000 --> 00:00:15,000\nRahul Trade Warrior Academy Subtitles\n";
-    const buffer = Buffer.from(srtSample, "utf-8");
-    return new NextResponse(new Uint8Array(buffer), {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Content-Length": String(buffer.length),
-        "Content-Disposition": `attachment; filename="${safeFilename}"`,
-      },
-    });
-  }
-
-  return new NextResponse("Requested trade clip asset not found on server", {
-    status: 404,
-  });
+    }
+  );
 }

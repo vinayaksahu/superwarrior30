@@ -1586,7 +1586,6 @@ export async function generateTradeMasterClipAction(
           format: clipResult.format,
           fileSizeBytes: clipResult.fileSizeBytes,
           generatedAt: new Date().toISOString(),
-          masterBase64: savedMaster.base64Data,
         },
       },
     });
@@ -1897,7 +1896,6 @@ export async function generateTradeVerticalShortAction(
           shortFormat: shortResult.format,
           shortResolution: shortResult.resolution,
           shortFileSizeBytes: shortResult.fileSizeBytes,
-          shortBase64: savedShort.base64Data,
         },
       },
     });

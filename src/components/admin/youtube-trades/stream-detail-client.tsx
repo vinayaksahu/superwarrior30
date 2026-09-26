@@ -136,7 +136,20 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerifyingVisuals, setIsVerifyingVisuals] = useState(false);
   const [isGeneratingClip, setIsGeneratingClip] = useState(false);
-  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [previewModal, setPreviewModal] = useState<{
+    isOpen: boolean;
+    tradeNumber: number;
+    instrument: string;
+    direction: string;
+    plannedRR?: string;
+    clipStart: number;
+    clipEnd: number;
+    videoUrl?: string | null;
+    isVertical?: boolean;
+    srtUrl?: string | null;
+    storageProvider?: string;
+    activeTab: "YOUTUBE" | "BUNNY";
+  } | null>(null);
   const [currentSeekTime, setCurrentSeekTime] = useState<number>(
     stream.trades?.[0]?.events?.[0]?.timestamp || 0
   );
@@ -786,22 +799,53 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
                         <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                           <button
                             type="button"
-                            onClick={() => setPreviewVideoUrl(selectedTrade.clips![0].masterVideoUrl!)}
+                            onClick={() =>
+                              setPreviewModal({
+                                isOpen: true,
+                                tradeNumber: selectedTrade.tradeNumber,
+                                instrument: selectedTrade.instrument,
+                                direction: selectedTrade.direction,
+                                plannedRR: selectedTrade.plannedRR || undefined,
+                                clipStart: selectedTrade.clipStart || 0,
+                                clipEnd: selectedTrade.clipEnd || (selectedTrade.clipStart || 0) + 30,
+                                videoUrl: selectedTrade.clips![0].masterVideoUrl,
+                                isVertical: false,
+                                srtUrl: selectedTrade.clips![0].srtUrl,
+                                storageProvider: selectedTrade.clips![0].storageProvider || "LOCAL",
+                                activeTab:
+                                  selectedTrade.clips![0].masterVideoUrl?.startsWith("http") &&
+                                  selectedTrade.clips![0].storageProvider === "BUNNY"
+                                    ? "BUNNY"
+                                    : "YOUTUBE",
+                              })
+                            }
                             className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold cursor-pointer"
                           >
                             <Play className="h-3 w-3" />
                             Preview
                           </button>
-                          <a
-                            href={selectedTrade.clips[0].masterVideoUrl}
-                            download={`trade_${selectedTrade.tradeNumber}_${selectedTrade.instrument}_master.mp4`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
-                          >
-                            <Download className="h-3 w-3" />
-                            Download
-                          </a>
+                          {selectedTrade.clips[0].masterVideoUrl?.startsWith("http") && selectedTrade.clips[0].storageProvider === "BUNNY" ? (
+                            <a
+                              href={selectedTrade.clips[0].masterVideoUrl}
+                              download={`trade_${selectedTrade.tradeNumber}_${selectedTrade.instrument}_master.mp4`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
+                            >
+                              <Download className="h-3 w-3" />
+                              Download
+                            </a>
+                          ) : (
+                            <a
+                              href={`https://youtu.be/${stream.youtubeVideoId}?t=${selectedTrade.clipStart || 0}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
+                            >
+                              <ExternalLink className="h-3 w-3 text-red-500" />
+                              YouTube
+                            </a>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[11px] text-muted-foreground italic">Generating...</span>
@@ -829,22 +873,53 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
                         <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                           <button
                             type="button"
-                            onClick={() => setPreviewVideoUrl(selectedTrade.clips![0].shortVideoUrl!)}
+                            onClick={() =>
+                              setPreviewModal({
+                                isOpen: true,
+                                tradeNumber: selectedTrade.tradeNumber,
+                                instrument: selectedTrade.instrument,
+                                direction: selectedTrade.direction,
+                                plannedRR: selectedTrade.plannedRR || undefined,
+                                clipStart: selectedTrade.clipStart || 0,
+                                clipEnd: selectedTrade.clipEnd || (selectedTrade.clipStart || 0) + 30,
+                                videoUrl: selectedTrade.clips![0].shortVideoUrl,
+                                isVertical: true,
+                                srtUrl: selectedTrade.clips![0].srtUrl,
+                                storageProvider: selectedTrade.clips![0].storageProvider || "LOCAL",
+                                activeTab:
+                                  selectedTrade.clips![0].shortVideoUrl?.startsWith("http") &&
+                                  selectedTrade.clips![0].storageProvider === "BUNNY"
+                                    ? "BUNNY"
+                                    : "YOUTUBE",
+                              })
+                            }
                             className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-xs font-semibold cursor-pointer"
                           >
                             <Play className="h-3 w-3" />
                             Preview
                           </button>
-                          <a
-                            href={selectedTrade.clips[0].shortVideoUrl}
-                            download={`trade_${selectedTrade.tradeNumber}_${selectedTrade.instrument}_short.mp4`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
-                          >
-                            <Download className="h-3 w-3" />
-                            Download
-                          </a>
+                          {selectedTrade.clips[0].shortVideoUrl?.startsWith("http") && selectedTrade.clips[0].storageProvider === "BUNNY" ? (
+                            <a
+                              href={selectedTrade.clips[0].shortVideoUrl}
+                              download={`trade_${selectedTrade.tradeNumber}_${selectedTrade.instrument}_short.mp4`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
+                            >
+                              <Download className="h-3 w-3" />
+                              Download
+                            </a>
+                          ) : (
+                            <a
+                              href={`https://youtu.be/${stream.youtubeVideoId}?t=${selectedTrade.clipStart || 0}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
+                            >
+                              <ExternalLink className="h-3 w-3 text-red-500" />
+                              YouTube
+                            </a>
+                          )}
                         </div>
                       ) : (
                         <button
@@ -1258,59 +1333,202 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
         </div>
       )}
 
-      {/* Video Preview Modal */}
-      {previewVideoUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+      {/* Upgraded Video Preview Modal with YouTube HD Streaming & Bunny CDN */}
+      {previewModal && previewModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
           <div className="relative w-full max-w-4xl bg-card border border-border rounded-3xl overflow-hidden shadow-2xl p-4 sm:p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <Film className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-sm text-foreground">Video Clip Preview</h3>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                  <Film className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm sm:text-base text-foreground">
+                      Trade #{previewModal.tradeNumber}: {previewModal.instrument} ({previewModal.direction})
+                    </h3>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                        previewModal.direction === "BUY"
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-red-500/20 text-red-400"
+                      }`}
+                    >
+                      {previewModal.direction}
+                    </span>
+                    {previewModal.isVertical && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-500/20 text-purple-400 uppercase">
+                        9:16 Short
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                    Livestream Window: {formatTimestamp(previewModal.clipStart)} → {formatTimestamp(previewModal.clipEnd)} (
+                    {Math.max(1, previewModal.clipEnd - previewModal.clipStart)}s)
+                  </p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setPreviewVideoUrl(null)}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
+
+              {/* Source Switcher Tabs & Close */}
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="flex items-center p-1 rounded-xl bg-muted/60 border border-border text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewModal({ ...previewModal, activeTab: "YOUTUBE" })}
+                    className={`px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      previewModal.activeTab === "YOUTUBE"
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    YouTube HD Stream
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewModal({ ...previewModal, activeTab: "BUNNY" })}
+                    className={`px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      previewModal.activeTab === "BUNNY"
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Bunny CDN Video
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewModal(null)}
+                  className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
+            {/* Video Player Display */}
             <div className="relative aspect-video max-h-[65vh] bg-black rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
-              <video
-                src={previewVideoUrl}
-                controls
-                autoPlay
-                className="w-full h-full object-contain"
-              />
+              {previewModal.activeTab === "YOUTUBE" ? (
+                stream.youtubeVideoId ? (
+                  <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${stream.youtubeVideoId}?start=${previewModal.clipStart}&end=${previewModal.clipEnd}&autoplay=1&rel=0&modestbranding=1`}
+                    title={`Trade #${previewModal.tradeNumber} Clip Preview`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full border-0"
+                  />
+                ) : (
+                  <div className="text-center p-6 space-y-2">
+                    <AlertTriangle className="h-8 w-8 text-amber-400 mx-auto" />
+                    <p className="text-sm font-semibold text-foreground">YouTube Video ID not detected for this livestream.</p>
+                  </div>
+                )
+              ) : previewModal.videoUrl && previewModal.videoUrl.startsWith("http") && previewModal.storageProvider === "BUNNY" ? (
+                <video
+                  src={previewModal.videoUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="text-center p-8 space-y-3 max-w-md">
+                  <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 inline-block">
+                    <Sparkles className="h-7 w-7 mx-auto animate-pulse" />
+                  </div>
+                  <h4 className="font-bold text-sm text-foreground">
+                    Bunny CDN Video Storage
+                  </h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Composited trade overlay is stored on Bunny CDN (<span className="font-mono text-primary font-bold">sw30-production-storage</span>). You can watch Rahul Sir's exact high-definition 1080p entry instantly via the <strong className="text-foreground">YouTube HD Stream</strong> tab!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewModal({ ...previewModal, activeTab: "YOUTUBE" })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow hover:bg-primary/90 cursor-pointer"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    <span>Watch via YouTube Stream Player</span>
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs pt-1">
-              <span className="text-muted-foreground truncate font-mono text-[11px] max-w-md">
-                {previewVideoUrl}
-              </span>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* Footer Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs pt-1 border-t border-border/50">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span className="font-mono text-[11px] truncate max-w-xs">
+                  {previewModal.activeTab === "YOUTUBE"
+                    ? `https://youtu.be/${stream.youtubeVideoId}?t=${previewModal.clipStart}`
+                    : previewModal.videoUrl || "Bunny Storage Asset"}
+                </span>
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(previewVideoUrl);
-                    toast.success("Video URL copied to clipboard!");
+                    const textToCopy =
+                      previewModal.activeTab === "YOUTUBE"
+                        ? `https://youtu.be/${stream.youtubeVideoId}?t=${previewModal.clipStart}`
+                        : previewModal.videoUrl || "";
+                    navigator.clipboard.writeText(textToCopy);
+                    toast.success("Link copied to clipboard!");
                   }}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-foreground font-semibold text-xs hover:bg-muted cursor-pointer"
+                  className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                  title="Copy Link"
                 >
                   <Copy className="h-3.5 w-3.5" />
-                  <span>Copy Link</span>
                 </button>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {/* Open in YouTube (Direct Timestamp) */}
                 <a
-                  href={previewVideoUrl}
-                  download
+                  href={`https://youtu.be/${stream.youtubeVideoId}?t=${previewModal.clipStart}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 cursor-pointer shadow"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-foreground font-semibold text-xs hover:bg-muted cursor-pointer transition-colors"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Download MP4</span>
+                  <ExternalLink className="h-3.5 w-3.5 text-red-500" />
+                  <span>Open in YouTube</span>
                 </a>
+
+                {/* Subtitle (.SRT) Download if available */}
+                {previewModal.srtUrl && (
+                  <a
+                    href={previewModal.srtUrl}
+                    download={`trade_${previewModal.tradeNumber}_${previewModal.instrument}.srt`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-xs hover:bg-amber-500/20 cursor-pointer transition-colors"
+                  >
+                    <FileDown className="h-3.5 w-3.5" />
+                    <span>Download .SRT</span>
+                  </a>
+                )}
+
+                {/* Download MP4 button */}
+                {previewModal.videoUrl && previewModal.videoUrl.startsWith("http") && previewModal.storageProvider === "BUNNY" ? (
+                  <a
+                    href={previewModal.videoUrl}
+                    download={`trade_${previewModal.tradeNumber}_${previewModal.instrument}_clip.mp4`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 cursor-pointer shadow transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download MP4</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.info("Clip is currently streaming from YouTube HD. You can watch it directly above or click 'Open in YouTube'!");
+                    }}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-muted text-muted-foreground font-bold text-xs hover:bg-muted/80 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download MP4</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

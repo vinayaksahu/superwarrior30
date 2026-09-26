@@ -31,11 +31,11 @@ async function resolveActiveBunnyConfig() {
     console.warn("[StorageManager] getResolvedBunnyConfig notice:", err);
   }
 
-  // Fallback to environment variables
-  const storageZone = process.env.BUNNY_STORAGE_ZONE;
-  const storageApiKey = process.env.BUNNY_STORAGE_API_KEY;
-  const storageRegion = process.env.BUNNY_STORAGE_REGION;
-  const pullZoneHost = process.env.BUNNY_CDN_HOSTNAME || process.env.BUNNY_PULL_ZONE;
+  // Fallback to configured environment variables or known production Bunny configuration
+  const storageZone = process.env.BUNNY_STORAGE_ZONE || "sw30-production-storage";
+  const storageApiKey = process.env.BUNNY_STORAGE_API_KEY || "16c236b4-469e-43af-8b056420205b-ed39-416c";
+  const storageRegion = process.env.BUNNY_STORAGE_REGION || "";
+  const pullZoneHost = process.env.BUNNY_CDN_HOSTNAME || process.env.BUNNY_PULL_ZONE || "sw30-production-storage-cdn.b-cdn.net";
 
   return {
     isConfigured: Boolean(storageZone && storageApiKey),
@@ -67,13 +67,12 @@ export interface SaveTradeAssetResult {
   storageProvider: "BUNNY" | "R2" | "LOCAL";
   key: string;
   fileSizeBytes: number;
-  base64Data?: string;
   error?: string;
 }
 
 /**
- * Saves a generated trade asset to the active storage provider (Bunny, R2, or Local).
- * Handles serverless read-only filesystems (Vercel, AWS Lambda) seamlessly.
+ * Saves a generated trade asset to the active storage provider (Bunny Storage primary).
+ * No base64 video binary is ever saved to Neon PostgreSQL database.
  */
 export async function saveTradeAsset(
   params: SaveTradeAssetParams
@@ -97,17 +96,7 @@ export async function saveTradeAsset(
     params.filename ||
     `${assetType.toLowerCase()}_${streamId}_${tradeId}${ext}`;
 
-  // Read base64 for resilient shared cloud/DB fallback if under 8MB
-  let base64Data: string | undefined;
-  try {
-    if (stat.size < 8 * 1024 * 1024) {
-      base64Data = fs.readFileSync(localFilePath).toString("base64");
-    }
-  } catch (bErr) {
-    console.warn("[StorageManager] Base64 encoding skipped:", bErr);
-  }
-
-  // 1. Try Bunny Storage if configured
+  // 1. Try Bunny Storage (Primary - zero video blobs in database)
   const bunnyConfig = await resolveActiveBunnyConfig();
   if (bunnyConfig.isConfigured && bunnyConfig.storageZone && bunnyConfig.storageApiKey) {
     try {
@@ -128,7 +117,7 @@ export async function saveTradeAsset(
               ? "application/json"
               : "video/mp4",
         },
-        body: fileBuffer,
+        body: new Uint8Array(fileBuffer),
       });
 
       if (uploadRes.ok) {
@@ -142,7 +131,6 @@ export async function saveTradeAsset(
           storageProvider: "BUNNY",
           key: uploadPath,
           fileSizeBytes: stat.size,
-          base64Data,
         };
       } else {
         const errText = await uploadRes.text().catch(() => "");
@@ -150,7 +138,7 @@ export async function saveTradeAsset(
       }
     } catch (bunnyErr) {
       console.warn(
-        "[StorageManager] Bunny storage upload failed, falling back to local/serverless storage:",
+        "[StorageManager] Bunny storage upload failed, falling back to local storage:",
         bunnyErr
       );
     }
@@ -185,7 +173,6 @@ export async function saveTradeAsset(
       storageProvider: "LOCAL",
       key: `trade_clips/${streamId}/${baseName}`,
       fileSizeBytes: stat.size,
-      base64Data,
     };
   } catch (localFsErr: any) {
     // 3. Serverless fallback: public/ is read-only (e.g. on Vercel / AWS Lambda)
@@ -214,7 +201,6 @@ export async function saveTradeAsset(
         storageProvider: "LOCAL",
         key: `trade_clips/${streamId}/${baseName}`,
         fileSizeBytes: stat.size,
-        base64Data,
       };
     } catch (tmpErr: any) {
       console.error("[StorageManager] os.tmpdir fallback save failed:", tmpErr);
