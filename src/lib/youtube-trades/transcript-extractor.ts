@@ -6,6 +6,7 @@
 
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { extractYouTubeVideoId } from "./youtube-metadata";
@@ -177,7 +178,7 @@ export function parseVtt(vttContent: string): TranscriptSegment[] {
  * Extremely fast (1-4 seconds) and reliable when direct TimedText HTTP is blocked or rate-limited.
  */
 export async function extractSubtitlesViaYtDlp(videoId: string): Promise<TranscriptSegment[]> {
-  const tmpDir = path.resolve(process.cwd(), "tmp");
+  const tmpDir = path.join(os.tmpdir(), "trade_clips", "transcripts");
   if (!fs.existsSync(tmpDir)) {
     fs.mkdirSync(tmpDir, { recursive: true });
   }

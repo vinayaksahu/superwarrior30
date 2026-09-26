@@ -1504,8 +1504,15 @@ export async function generateTradeMasterClipAction(
     });
 
     // Check if raw segment exists; if not, download or mock-generate it
-    const expectedSegmentPath = `tmp/trade_clips/segments/trade_${candidate.streamId}_${candidate.id}.mp4`;
-    const fullSegmentPath = require("path").resolve(process.cwd(), expectedSegmentPath);
+    const os = require("os");
+    const path = require("path");
+    const expectedSegmentPath = path.join(
+      os.tmpdir(),
+      "trade_clips",
+      "segments",
+      `trade_${candidate.streamId}_${candidate.id}.mp4`
+    );
+    let fullSegmentPath = expectedSegmentPath;
     let segmentReady = require("fs").existsSync(fullSegmentPath);
 
     if (!segmentReady) {
@@ -1528,6 +1535,8 @@ export async function generateTradeMasterClipAction(
         });
         return { success: false, message: segRes.error || "Failed to acquire trade video segment." };
       }
+
+      fullSegmentPath = segRes.filePath;
     }
 
     // Now composite Master MP4

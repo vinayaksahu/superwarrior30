@@ -8,6 +8,7 @@
 
 import path from "path";
 import fs from "fs";
+import os from "os";
 
 export interface SubtitleEventInput {
   timestamp: number; // in seconds (absolute stream time)
@@ -124,7 +125,7 @@ export async function generateSrtFile(
     events,
     clipStart,
     clipEnd,
-    outputDir = path.join(process.cwd(), "tmp", "trade_clips", "subtitles"),
+    outputDir = path.join(os.tmpdir(), "trade_clips", "subtitles"),
     filename = "trade_subtitles.srt",
   } = params;
 

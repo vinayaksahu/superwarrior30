@@ -7,6 +7,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
+import os from "os";
 
 export interface VisualVerificationResult {
   chartDetected: boolean;
@@ -47,7 +48,7 @@ export async function verifyVisualChartFrame(
   options: VerifyVisualOptions
 ): Promise<VisualVerificationResult> {
   const scriptPath = path.join(process.cwd(), "scripts", "trade_worker", "visual_verifier.py");
-  const outputDir = options.outputDir || path.join(process.cwd(), "tmp", "verification_frames");
+  const outputDir = options.outputDir || path.join(os.tmpdir(), "trade_clips", "verification_frames");
 
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });

@@ -8,8 +8,30 @@
 
 import path from "path";
 import fs from "fs";
+import os from "os";
+import { getResolvedBunnyConfig } from "@/lib/bunny/config";
 
-function getBunnyStorageConfig() {
+async function resolveActiveBunnyConfig() {
+  // First check database-driven / dynamic resolved Bunny config
+  try {
+    const resolved = await getResolvedBunnyConfig();
+    if (resolved && resolved.storageZoneName && resolved.storagePassword && resolved.cdnHostname) {
+      return {
+        isConfigured: true,
+        storageZone: resolved.storageZoneName,
+        storageApiKey: resolved.storagePassword,
+        storageRegion: resolved.storageHostname.includes("storage.bunnycdn.com")
+          ? resolved.storageHostname.split(".storage.bunnycdn.com")[0]
+          : "",
+        pullZoneHost: resolved.cdnHostname,
+        storageHost: resolved.storageHostname || "storage.bunnycdn.com",
+      };
+    }
+  } catch (err) {
+    console.warn("[StorageManager] getResolvedBunnyConfig notice:", err);
+  }
+
+  // Fallback to environment variables
   const storageZone = process.env.BUNNY_STORAGE_ZONE;
   const storageApiKey = process.env.BUNNY_STORAGE_API_KEY;
   const storageRegion = process.env.BUNNY_STORAGE_REGION;
@@ -21,6 +43,7 @@ function getBunnyStorageConfig() {
     storageApiKey,
     storageRegion,
     pullZoneHost,
+    storageHost: storageRegion ? `${storageRegion}.storage.bunnycdn.com` : "storage.bunnycdn.com",
   };
 }
 
@@ -49,6 +72,7 @@ export interface SaveTradeAssetResult {
 
 /**
  * Saves a generated trade asset to the active storage provider (Bunny, R2, or Local).
+ * Handles serverless read-only filesystems (Vercel, AWS Lambda) seamlessly.
  */
 export async function saveTradeAsset(
   params: SaveTradeAssetParams
@@ -73,13 +97,11 @@ export async function saveTradeAsset(
     `${assetType.toLowerCase()}_${streamId}_${tradeId}${ext}`;
 
   // 1. Try Bunny Storage if configured
-  const bunnyConfig = getBunnyStorageConfig();
+  const bunnyConfig = await resolveActiveBunnyConfig();
   if (bunnyConfig.isConfigured && bunnyConfig.storageZone && bunnyConfig.storageApiKey) {
     try {
       const fileBuffer = fs.readFileSync(localFilePath);
-      const storageHost = bunnyConfig.storageRegion
-        ? `${bunnyConfig.storageRegion}.storage.bunnycdn.com`
-        : "storage.bunnycdn.com";
+      const storageHost = bunnyConfig.storageHost || "storage.bunnycdn.com";
 
       const uploadPath = `trade_clips/${streamId}/${baseName}`;
       const uploadUrl = `https://${storageHost}/${bunnyConfig.storageZone}/${uploadPath}`;
@@ -110,16 +132,19 @@ export async function saveTradeAsset(
           key: uploadPath,
           fileSizeBytes: stat.size,
         };
+      } else {
+        const errText = await uploadRes.text().catch(() => "");
+        console.warn(`[StorageManager] Bunny upload returned ${uploadRes.status}: ${errText}`);
       }
     } catch (bunnyErr) {
       console.warn(
-        "[StorageManager] Bunny storage upload failed, falling back to local:",
+        "[StorageManager] Bunny storage upload failed, falling back to local/serverless storage:",
         bunnyErr
       );
     }
   }
 
-  // 2. Local public file storage (universal fallback)
+  // 2. Local public file storage (writable environments like VPS, local machine)
   try {
     const publicUploadsDir = path.join(
       process.cwd(),
@@ -149,15 +174,44 @@ export async function saveTradeAsset(
       key: `trade_clips/${streamId}/${baseName}`,
       fileSizeBytes: stat.size,
     };
-  } catch (localErr: any) {
-    console.error("[StorageManager] Local storage save failed:", localErr);
-    return {
-      success: false,
-      publicUrl: localFilePath,
-      storageProvider: "LOCAL",
-      key: localFilePath,
-      fileSizeBytes: stat.size,
-      error: localErr?.message || "Failed to persist asset to storage",
-    };
+  } catch (localFsErr: any) {
+    // 3. Serverless fallback: public/ is read-only (e.g. on Vercel / AWS Lambda)
+    // Save to writable os.tmpdir() and serve via Next.js streaming API route
+    console.warn(
+      "[StorageManager] public/ is read-only (Vercel/Lambda). Storing in os.tmpdir and using API streaming route fallback:",
+      localFsErr?.message
+    );
+
+    try {
+      const tmpPublicDir = path.join(os.tmpdir(), "trade_clips", "public", streamId);
+      if (!fs.existsSync(tmpPublicDir)) {
+        fs.mkdirSync(tmpPublicDir, { recursive: true });
+      }
+
+      const targetTmpPath = path.join(tmpPublicDir, baseName);
+      if (path.resolve(localFilePath) !== path.resolve(targetTmpPath)) {
+        fs.copyFileSync(localFilePath, targetTmpPath);
+      }
+
+      const publicUrl = `/api/admin/media/trade-clip?streamId=${encodeURIComponent(streamId)}&filename=${encodeURIComponent(baseName)}`;
+
+      return {
+        success: true,
+        publicUrl,
+        storageProvider: "LOCAL",
+        key: `trade_clips/${streamId}/${baseName}`,
+        fileSizeBytes: stat.size,
+      };
+    } catch (tmpErr: any) {
+      console.error("[StorageManager] os.tmpdir fallback save failed:", tmpErr);
+      return {
+        success: false,
+        publicUrl: localFilePath,
+        storageProvider: "LOCAL",
+        key: localFilePath,
+        fileSizeBytes: stat.size,
+        error: tmpErr?.message || "Failed to persist asset to storage",
+      };
+    }
   }
 }
