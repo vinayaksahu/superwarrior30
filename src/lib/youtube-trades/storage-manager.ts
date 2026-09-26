@@ -67,6 +67,7 @@ export interface SaveTradeAssetResult {
   storageProvider: "BUNNY" | "R2" | "LOCAL";
   key: string;
   fileSizeBytes: number;
+  base64Data?: string;
   error?: string;
 }
 
@@ -95,6 +96,16 @@ export async function saveTradeAsset(
   const baseName =
     params.filename ||
     `${assetType.toLowerCase()}_${streamId}_${tradeId}${ext}`;
+
+  // Read base64 for resilient shared cloud/DB fallback if under 8MB
+  let base64Data: string | undefined;
+  try {
+    if (stat.size < 8 * 1024 * 1024) {
+      base64Data = fs.readFileSync(localFilePath).toString("base64");
+    }
+  } catch (bErr) {
+    console.warn("[StorageManager] Base64 encoding skipped:", bErr);
+  }
 
   // 1. Try Bunny Storage if configured
   const bunnyConfig = await resolveActiveBunnyConfig();
@@ -131,6 +142,7 @@ export async function saveTradeAsset(
           storageProvider: "BUNNY",
           key: uploadPath,
           fileSizeBytes: stat.size,
+          base64Data,
         };
       } else {
         const errText = await uploadRes.text().catch(() => "");
@@ -173,6 +185,7 @@ export async function saveTradeAsset(
       storageProvider: "LOCAL",
       key: `trade_clips/${streamId}/${baseName}`,
       fileSizeBytes: stat.size,
+      base64Data,
     };
   } catch (localFsErr: any) {
     // 3. Serverless fallback: public/ is read-only (e.g. on Vercel / AWS Lambda)
@@ -201,6 +214,7 @@ export async function saveTradeAsset(
         storageProvider: "LOCAL",
         key: `trade_clips/${streamId}/${baseName}`,
         fileSizeBytes: stat.size,
+        base64Data,
       };
     } catch (tmpErr: any) {
       console.error("[StorageManager] os.tmpdir fallback save failed:", tmpErr);

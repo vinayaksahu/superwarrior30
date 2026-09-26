@@ -1586,6 +1586,7 @@ export async function generateTradeMasterClipAction(
           format: clipResult.format,
           fileSizeBytes: clipResult.fileSizeBytes,
           generatedAt: new Date().toISOString(),
+          masterBase64: savedMaster.base64Data,
         },
       },
     });
@@ -1792,6 +1793,10 @@ export async function generateTradeSubtitlesAction(tradeId: string) {
         where: { id: candidate.clips[0].id },
         data: {
           srtUrl: publicSrtUrl,
+          metadata: {
+            ...((candidate.clips[0].metadata as any) || {}),
+            srtContent: srtResult.srtContent,
+          },
         },
       });
     }
@@ -1892,6 +1897,7 @@ export async function generateTradeVerticalShortAction(
           shortFormat: shortResult.format,
           shortResolution: shortResult.resolution,
           shortFileSizeBytes: shortResult.fileSizeBytes,
+          shortBase64: savedShort.base64Data,
         },
       },
     });
