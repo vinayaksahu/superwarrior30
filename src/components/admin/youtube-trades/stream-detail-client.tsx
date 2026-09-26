@@ -33,6 +33,11 @@ import {
   X,
   Eye,
   Lock,
+  Download,
+  FileDown,
+  Smartphone,
+  MonitorPlay,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -41,6 +46,7 @@ import {
   verifyTradeCandidateAction,
   updateTradeCandidateAction,
   verifyTradeCandidateVisualsAction,
+  generateFullTradeClipSuiteAction,
 } from "@/server/actions/youtube-trades.actions";
 import { buildRRTimeline } from "@/lib/youtube-trades/rr-engine";
 import { analyzeTradeManagement } from "@/lib/youtube-trades/trade-management";
@@ -83,7 +89,21 @@ interface TradeCandidateItem {
   clipEnd?: number | null;
   isVerified: boolean;
   events: TradeEventItem[];
-  clips?: any[];
+  clips?: TradeClipItem[];
+}
+
+export interface TradeClipItem {
+  id: string;
+  tradeId: string;
+  masterVideoUrl?: string | null;
+  shortVideoUrl?: string | null;
+  srtUrl?: string | null;
+  jsonUrl?: string | null;
+  storageProvider?: string;
+  durationSec?: number | null;
+  status: string;
+  metadata?: any;
+  createdAt?: string | Date;
 }
 
 interface StreamDetailProps {
@@ -115,6 +135,8 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
   const [isAnalyzingTrades, setIsAnalyzingTrades] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerifyingVisuals, setIsVerifyingVisuals] = useState(false);
+  const [isGeneratingClip, setIsGeneratingClip] = useState(false);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [currentSeekTime, setCurrentSeekTime] = useState<number>(
     stream.trades?.[0]?.events?.[0]?.timestamp || 0
   );
@@ -267,6 +289,25 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
       toast.error("Failed to update trade candidate.");
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const handleGenerateFullClipSuite = async (tradeId: string) => {
+    if (!tradeId) return;
+    setIsGeneratingClip(true);
+    const toastId = toast.loading("Generating Clip Suite (Master MP4, 9:16 Short & Subtitles)...");
+    try {
+      const res = await generateFullTradeClipSuiteAction(tradeId);
+      if (res.success) {
+        toast.success(res.message, { id: toastId });
+        window.location.reload();
+      } else {
+        toast.error(res.message || "Clip generation failed.", { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An error occurred during clip generation.", { id: toastId });
+    } finally {
+      setIsGeneratingClip(false);
     }
   };
 
@@ -461,6 +502,12 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
                           </span>
                           {trade.isVerified && (
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                          )}
+                          {trade.clips && trade.clips.length > 0 && (
+                            <span className="inline-flex items-center gap-0.5 rounded bg-primary/20 px-1 py-0.2 text-[8px] font-extrabold text-primary">
+                              <Film className="h-2.5 w-2.5" />
+                              CLIP
+                            </span>
                           )}
                         </div>
                         <span
@@ -702,6 +749,160 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
                 </div>
               )}
 
+              {/* Generated Clips & Video Exports Card */}
+              {selectedTrade.clips && selectedTrade.clips.length > 0 && (
+                <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-primary/20 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Film className="h-4 w-4 text-primary" />
+                      <h4 className="text-xs font-bold text-foreground">
+                        Generated Video Clips &amp; Social Exports ({selectedTrade.clips.length})
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-bold uppercase">
+                      {selectedTrade.clips[0].storageProvider || "LOCAL"} Ready
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* 16:9 Master Video */}
+                    <div className="rounded-xl border border-border/80 bg-background/80 p-3 space-y-2 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold flex items-center gap-1.5 text-foreground">
+                            <MonitorPlay className="h-3.5 w-3.5 text-primary" />
+                            16:9 Master MP4
+                          </span>
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {selectedTrade.clips[0].durationSec ? `${selectedTrade.clips[0].durationSec}s` : "Full HD"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Full screen with HUD overlay, entry triggers &amp; trailing SL targets.
+                        </p>
+                      </div>
+
+                      {selectedTrade.clips[0].masterVideoUrl ? (
+                        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewVideoUrl(selectedTrade.clips![0].masterVideoUrl!)}
+                            className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold cursor-pointer"
+                          >
+                            <Play className="h-3 w-3" />
+                            Preview
+                          </button>
+                          <a
+                            href={selectedTrade.clips[0].masterVideoUrl}
+                            download={`trade_${selectedTrade.tradeNumber}_${selectedTrade.instrument}_master.mp4`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
+                          >
+                            <Download className="h-3 w-3" />
+                            Download
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground italic">Generating...</span>
+                      )}
+                    </div>
+
+                    {/* 9:16 Vertical Short */}
+                    <div className="rounded-xl border border-border/80 bg-background/80 p-3 space-y-2 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold flex items-center gap-1.5 text-foreground">
+                            <Smartphone className="h-3.5 w-3.5 text-purple-400" />
+                            9:16 Vertical Short
+                          </span>
+                          <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                            Reels / Shorts
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Mobile-first 1080x1920 with blurred backdrop &amp; high CTR callouts.
+                        </p>
+                      </div>
+
+                      {selectedTrade.clips[0].shortVideoUrl ? (
+                        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewVideoUrl(selectedTrade.clips![0].shortVideoUrl!)}
+                            className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-xs font-semibold cursor-pointer"
+                          >
+                            <Play className="h-3 w-3" />
+                            Preview
+                          </button>
+                          <a
+                            href={selectedTrade.clips[0].shortVideoUrl}
+                            download={`trade_${selectedTrade.tradeNumber}_${selectedTrade.instrument}_short.mp4`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
+                          >
+                            <Download className="h-3 w-3" />
+                            Download
+                          </a>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isGeneratingClip}
+                          onClick={() => handleGenerateFullClipSuite(selectedTrade.id)}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 text-xs font-semibold cursor-pointer"
+                        >
+                          Generate 9:16 Short
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Subtitles (.srt) */}
+                    <div className="rounded-xl border border-border/80 bg-background/80 p-3 space-y-2 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold flex items-center gap-1.5 text-foreground">
+                            <FileText className="h-3.5 w-3.5 text-amber-400" />
+                            Subtitles (.srt)
+                          </span>
+                          <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                            Hinglish
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Synchronized Hindi/Hinglish subtitles for automated captioning.
+                        </p>
+                      </div>
+
+                      {selectedTrade.clips[0].srtUrl ? (
+                        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                          <a
+                            href={selectedTrade.clips[0].srtUrl}
+                            download={`trade_${selectedTrade.tradeNumber}_${selectedTrade.instrument}.srt`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-xs font-semibold cursor-pointer"
+                          >
+                            <FileDown className="h-3 w-3" />
+                            Download .SRT
+                          </a>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isGeneratingClip}
+                          onClick={() => handleGenerateFullClipSuite(selectedTrade.id)}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-xs font-semibold cursor-pointer"
+                        >
+                          Generate .SRT
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Actions Footer */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border/60">
                 <span className="text-[11px] text-muted-foreground font-mono">
@@ -710,13 +911,21 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    toast.success("Clip generation triggered! Ingesting selective video segment...")
-                  }
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all cursor-pointer"
+                  disabled={isGeneratingClip}
+                  onClick={() => handleGenerateFullClipSuite(selectedTrade.id)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <Film className="h-4 w-4" />
-                  <span>Generate Clip (Master &amp; 9:16)</span>
+                  {isGeneratingClip ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Rendering Clip Suite (Master, 9:16 &amp; SRT)...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Film className="h-4 w-4" />
+                      <span>{selectedTrade.clips && selectedTrade.clips.length > 0 ? "Regenerate Clip Suite" : "Generate Clip (Master & 9:16)"}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1044,6 +1253,65 @@ export function StreamDetailClient({ stream }: StreamDetailProps) {
               >
                 {isSavingEdit ? "Saving..." : "Save Changes"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Preview Modal */}
+      {previewVideoUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-4xl bg-card border border-border rounded-3xl overflow-hidden shadow-2xl p-4 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2">
+                <Film className="h-5 w-5 text-primary" />
+                <h3 className="font-bold text-sm text-foreground">Video Clip Preview</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewVideoUrl(null)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="relative aspect-video max-h-[65vh] bg-black rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
+              <video
+                src={previewVideoUrl}
+                controls
+                autoPlay
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs pt-1">
+              <span className="text-muted-foreground truncate font-mono text-[11px] max-w-md">
+                {previewVideoUrl}
+              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(previewVideoUrl);
+                    toast.success("Video URL copied to clipboard!");
+                  }}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-foreground font-semibold text-xs hover:bg-muted cursor-pointer"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copy Link</span>
+                </button>
+                <a
+                  href={previewVideoUrl}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 cursor-pointer shadow"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Download MP4</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>

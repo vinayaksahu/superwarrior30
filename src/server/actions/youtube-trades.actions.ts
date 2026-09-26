@@ -21,6 +21,7 @@ import { accelerateSilentPeriods } from "@/lib/youtube-trades/silence-accelerato
 import { generateSrtFile } from "@/lib/youtube-trades/subtitle-generator";
 import { generateVerticalShort } from "@/lib/youtube-trades/vertical-short-generator";
 import { scanYouTubeChannel } from "@/lib/youtube-trades/channel-scanner";
+import { saveTradeAsset } from "@/lib/youtube-trades/storage-manager";
 
 export interface StreamFilterOptions {
   page?: number;
@@ -1554,14 +1555,24 @@ export async function generateTradeMasterClipAction(
       return { success: false, message: clipResult.error || "Failed to composite master clip." };
     }
 
+    // Save asset through storage manager (Bunny CDN or public local storage)
+    const savedMaster = await saveTradeAsset({
+      localFilePath: clipResult.filePath,
+      assetType: "MASTER_VIDEO",
+      streamId: candidate.streamId,
+      tradeId: candidate.id,
+    });
+
+    const publicMasterUrl = savedMaster.success ? savedMaster.publicUrl : clipResult.filePath;
+
     // Save TradeClip record
     const clip = await prisma.tradeClip.create({
       data: {
         tradeId: candidate.id,
-        masterVideoUrl: clipResult.filePath,
+        masterVideoUrl: publicMasterUrl,
         durationSec: Math.round(clipResult.durationSec || 0),
         status: "READY",
-        storageProvider: "LOCAL",
+        storageProvider: savedMaster.storageProvider,
         metadata: {
           format: clipResult.format,
           fileSizeBytes: clipResult.fileSizeBytes,
@@ -1755,12 +1766,23 @@ export async function generateTradeSubtitlesAction(tradeId: string) {
       return { success: false, message: srtResult.error || "Failed to generate subtitle file." };
     }
 
+    // Save asset through storage manager
+    const savedSrt = await saveTradeAsset({
+      localFilePath: srtResult.filePath,
+      assetType: "SUBTITLE_SRT",
+      streamId: candidate.streamId,
+      tradeId: candidate.id,
+      filename: `trade_${candidate.streamId}_${candidate.id}.srt`,
+    });
+
+    const publicSrtUrl = savedSrt.success ? savedSrt.publicUrl : srtResult.filePath;
+
     // Update existing TradeClip with srtUrl if clip exists
     if (candidate.clips.length > 0) {
       await prisma.tradeClip.update({
         where: { id: candidate.clips[0].id },
         data: {
-          srtUrl: srtResult.filePath,
+          srtUrl: publicSrtUrl,
         },
       });
     }
@@ -1769,7 +1791,7 @@ export async function generateTradeSubtitlesAction(tradeId: string) {
 
     return {
       success: true,
-      filePath: srtResult.filePath,
+      filePath: publicSrtUrl,
       cueCount: srtResult.cueCount,
       srtContent: srtResult.srtContent,
       message: `Generated ${srtResult.cueCount} subtitle cues (.srt) successfully!`,
@@ -1839,11 +1861,22 @@ export async function generateTradeVerticalShortAction(
       return { success: false, message: shortResult.error || "Failed to composite 9:16 vertical short." };
     }
 
+    // Save asset through storage manager
+    const savedShort = await saveTradeAsset({
+      localFilePath: shortResult.filePath,
+      assetType: "SHORT_VIDEO",
+      streamId: candidate.streamId,
+      tradeId: candidate.id,
+      filename: `short_${candidate.streamId}_${candidate.id}.mp4`,
+    });
+
+    const publicShortUrl = savedShort.success ? savedShort.publicUrl : shortResult.filePath;
+
     // Update existing TradeClip with shortVideoUrl and metadata
     const updatedClip = await prisma.tradeClip.update({
       where: { id: clip.id },
       data: {
-        shortVideoUrl: shortResult.filePath,
+        shortVideoUrl: publicShortUrl,
         metadata: {
           ...((clip.metadata as any) || {}),
           shortGenerated: true,
@@ -1867,6 +1900,55 @@ export async function generateTradeVerticalShortAction(
     return {
       success: false,
       message: err?.message || "Failed to generate vertical short.",
+    };
+  }
+}
+
+/**
+ * 1-Click Complete Clip Suite Generator:
+ * Generates Master MP4 (16:9), Subtitles (.srt), and Vertical Short (9:16)
+ * and persists them through the configured storage provider (Bunny CDN / Local).
+ */
+export async function generateFullTradeClipSuiteAction(
+  tradeId: string,
+  options?: { mockBase?: boolean }
+) {
+  try {
+    await requirePermission("youtube_live_trades.generate_clip");
+    await ensureDatabaseSchemaSync();
+
+    // 1. Generate Master MP4 Clip
+    const masterRes = await generateTradeMasterClipAction(tradeId, options);
+    if (!masterRes.success || !masterRes.clip) {
+      return { success: false, message: masterRes.message || "Failed to generate master video clip." };
+    }
+
+    // 2. Generate Subtitles
+    await generateTradeSubtitlesAction(tradeId).catch((err) => {
+      console.warn("Subtitle generation warning:", err);
+    });
+
+    // 3. Generate Vertical Short (9:16)
+    await generateTradeVerticalShortAction(tradeId, options).catch((err) => {
+      console.warn("Vertical short generation warning:", err);
+    });
+
+    // 4. Retrieve refreshed clip record with all URLs
+    const finalClip = await prisma.tradeClip.findFirst({
+      where: { tradeId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return {
+      success: true,
+      clip: finalClip,
+      message: "Successfully generated Master MP4, 9:16 Vertical Short, and Subtitles (.srt)!",
+    };
+  } catch (err: any) {
+    console.error("Error in generateFullTradeClipSuiteAction:", err);
+    return {
+      success: false,
+      message: err?.message || "Failed to generate complete trade clip suite.",
     };
   }
 }
