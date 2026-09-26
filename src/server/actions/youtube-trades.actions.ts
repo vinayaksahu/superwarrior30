@@ -414,7 +414,7 @@ export async function submitYouTubeStreamAction(input: IngestStreamOptions) {
     });
 
     // 4. Create background processing job
-    await prisma.tradeProcessingJob.create({
+    const job = await prisma.tradeProcessingJob.create({
       data: {
         streamId: stream.id,
         jobType: "ANALYZE_STREAM",
@@ -433,12 +433,21 @@ export async function submitYouTubeStreamAction(input: IngestStreamOptions) {
       },
     });
 
+    // Trigger processing asynchronously in background (no request cookie dependencies)
+    setTimeout(() => {
+      runInternalQueueJob(job.id).catch((err) => {
+        console.error("Auto queue processor error:", err);
+      });
+    }, 50);
+
     revalidatePath("/admin/youtube-live-trades");
+    revalidatePath("/admin/youtube-live-trades/queue");
 
     return {
       success: true,
-      message: `"${metadata.title}" added to the processing queue successfully!`,
+      message: `"${metadata.title}" added to processing queue and analysis started!`,
       streamId: stream.id,
+      jobId: job.id,
       isExisting: false,
     };
   } catch (error: any) {
@@ -596,6 +605,188 @@ export async function cancelProcessingJobAction(jobId: string) {
 }
 
 // ==========================================
+// 4B. EXECUTE / PROCESS SINGLE QUEUE JOB
+// ==========================================
+export async function runInternalQueueJob(jobId: string) {
+  try {
+    const job = await prisma.tradeProcessingJob.findUnique({
+      where: { id: jobId },
+      include: { stream: true },
+    });
+
+    if (!job) {
+      return { success: false, message: "Job not found." };
+    }
+
+    if (job.stage === "COMPLETED") {
+      return { success: true, message: "Job is already completed." };
+    }
+
+    if (!job.streamId) {
+      await prisma.tradeProcessingJob.update({
+        where: { id: jobId },
+        data: { stage: "FAILED", errorMessage: "No streamId associated with this job." },
+      });
+      return { success: false, message: "No streamId found." };
+    }
+
+    const streamId = job.streamId;
+
+    if (job.jobType === "ANALYZE_STREAM" || job.jobType === "EXTRACT_TRANSCRIPT") {
+      // 1. Mark as TRANSCRIBING
+      await prisma.tradeProcessingJob.update({
+        where: { id: jobId },
+        data: {
+          stage: "TRANSCRIBING",
+          progressPercent: 30,
+          startedAt: job.startedAt || new Date(),
+        },
+      });
+
+      // 2. Extract transcript if needed
+      const transcriptRes = await extractStreamTranscriptCore(streamId);
+
+      if (!transcriptRes.success && transcriptRes.source !== "WHISPER_FALLBACK") {
+        await prisma.tradeProcessingJob.update({
+          where: { id: jobId },
+          data: {
+            stage: "FAILED",
+            errorMessage: transcriptRes.message || "Failed to extract transcript from stream.",
+          },
+        });
+        return { success: false, message: transcriptRes.message };
+      }
+
+      // 3. Mark as ANALYZING
+      await prisma.tradeProcessingJob.update({
+        where: { id: jobId },
+        data: {
+          stage: "ANALYZING",
+          progressPercent: 65,
+        },
+      });
+
+      // 4. Run trade analysis
+      const analysisRes = await analyzeStreamTradesCore(streamId);
+
+      if (!analysisRes.success) {
+        await prisma.tradeProcessingJob.update({
+          where: { id: jobId },
+          data: {
+            stage: "FAILED",
+            errorMessage: analysisRes.message || "Trade analysis failed.",
+          },
+        });
+        return { success: false, message: analysisRes.message };
+      }
+
+      // 5. Mark as COMPLETED
+      await prisma.tradeProcessingJob.update({
+        where: { id: jobId },
+        data: {
+          stage: "COMPLETED",
+          progressPercent: 100,
+          completedAt: new Date(),
+          logs: {
+            ...(typeof job.logs === "object" && job.logs !== null ? (job.logs as any) : {}),
+            tradesCount: analysisRes.tradesCount || 0,
+            completedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      try {
+        revalidatePath("/admin/youtube-live-trades");
+        revalidatePath("/admin/youtube-live-trades/queue");
+        revalidatePath(`/admin/youtube-live-trades/${streamId}`);
+      } catch {}
+
+      return {
+        success: true,
+        tradesCount: analysisRes.tradesCount,
+        message: `Analysis completed! Detected ${analysisRes.tradesCount} trade setups.`,
+      };
+    }
+
+    return { success: true, message: `Job ${job.jobType} processed.` };
+  } catch (error: any) {
+    console.error("Error in runInternalQueueJob:", error);
+    await prisma.tradeProcessingJob.update({
+      where: { id: jobId },
+      data: {
+        stage: "FAILED",
+        errorMessage: error?.message || "Internal error during job execution",
+      },
+    }).catch(() => null);
+
+    return { success: false, message: error?.message || "Failed to process job." };
+  }
+}
+
+export async function processQueueJobAction(jobId: string) {
+  await requirePermission("youtube_live_trades.analyze");
+  await ensureDatabaseSchemaSync();
+  return runInternalQueueJob(jobId);
+}
+
+// ==========================================
+// 4C. RETRY FAILED OR QUEUED JOB
+// ==========================================
+export async function retryProcessingJobAction(jobId: string) {
+  await requirePermission("youtube_live_trades.analyze");
+  await ensureDatabaseSchemaSync();
+
+  try {
+    await prisma.tradeProcessingJob.update({
+      where: { id: jobId },
+      data: {
+        stage: "QUEUED",
+        progressPercent: 10,
+        errorMessage: null,
+      },
+    });
+
+    return await processQueueJobAction(jobId);
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Failed to retry job." };
+  }
+}
+
+// ==========================================
+// 4D. PROCESS ALL QUEUED JOBS
+// ==========================================
+export async function processAllQueuedJobsAction() {
+  await requirePermission("youtube_live_trades.analyze");
+  await ensureDatabaseSchemaSync();
+
+  try {
+    const queuedJobs = await prisma.tradeProcessingJob.findMany({
+      where: { stage: "QUEUED" },
+      orderBy: { createdAt: "asc" },
+      take: 5,
+    });
+
+    if (queuedJobs.length === 0) {
+      return { success: true, processedCount: 0, message: "No queued jobs waiting to be processed." };
+    }
+
+    let processed = 0;
+    for (const job of queuedJobs) {
+      await processQueueJobAction(job.id);
+      processed++;
+    }
+
+    return {
+      success: true,
+      processedCount: processed,
+      message: `Processed ${processed} queued job(s) successfully.`,
+    };
+  } catch (error: any) {
+    return { success: false, message: error?.message || "Failed to process queued jobs." };
+  }
+}
+
+// ==========================================
 // 5. DELETE STREAM
 // ==========================================
 export async function deleteYouTubeStreamAction(streamId: string) {
@@ -623,10 +814,7 @@ export async function deleteYouTubeStreamAction(streamId: string) {
 // ==========================================
 // 6. EXTRACT STREAM TRANSCRIPT (YOUTUBE CAPTIONS + WHISPER FALLBACK)
 // ==========================================
-export async function extractStreamTranscriptAction(streamId: string) {
-  await requirePermission("youtube_live_trades.analyze");
-  await ensureDatabaseSchemaSync();
-
+export async function extractStreamTranscriptCore(streamId: string) {
   if (!streamId) {
     return { success: false, message: "Stream ID is required." };
   }
@@ -640,7 +828,7 @@ export async function extractStreamTranscriptAction(streamId: string) {
       return { success: false, message: "Stream record not found." };
     }
 
-    // Tier 1: Extract official YouTube timedtext captions
+    // Tier 1: Extract official YouTube captions (with fast yt-dlp auto-sub fallback)
     const transcript = await extractYouTubeCaptions(stream.url || stream.youtubeVideoId, [
       "hi",
       "en",
@@ -660,8 +848,10 @@ export async function extractStreamTranscriptAction(streamId: string) {
         },
       });
 
-      revalidatePath("/admin/youtube-live-trades");
-      revalidatePath(`/admin/youtube-live-trades/${streamId}`);
+      try {
+        revalidatePath("/admin/youtube-live-trades");
+        revalidatePath(`/admin/youtube-live-trades/${streamId}`);
+      } catch {}
 
       return {
         success: true,
@@ -686,9 +876,15 @@ export async function extractStreamTranscriptAction(streamId: string) {
       message: "YouTube captions are not available for this stream. Marked for Whisper local audio transcription.",
     };
   } catch (err: any) {
-    console.error("Error in extractStreamTranscriptAction:", err);
+    console.error("Error in extractStreamTranscriptCore:", err);
     return { success: false, message: err?.message || "Transcript extraction failed." };
   }
+}
+
+export async function extractStreamTranscriptAction(streamId: string) {
+  await requirePermission("youtube_live_trades.analyze");
+  await ensureDatabaseSchemaSync();
+  return extractStreamTranscriptCore(streamId);
 }
 
 // ==========================================
@@ -722,10 +918,7 @@ export async function getStreamTranscriptAction(streamId: string) {
 // ==========================================
 // 8. ANALYZE STREAM TRADES (STORY RECONSTRUCTION)
 // ==========================================
-export async function analyzeStreamTradesAction(streamId: string) {
-  await requirePermission("youtube_live_trades.analyze");
-  await ensureDatabaseSchemaSync();
-
+export async function analyzeStreamTradesCore(streamId: string) {
   if (!streamId) {
     return { success: false, message: "Stream ID is required." };
   }
@@ -746,7 +939,7 @@ export async function analyzeStreamTradesAction(streamId: string) {
       : [];
 
     if (segments.length === 0) {
-      const extractResult = await extractStreamTranscriptAction(streamId);
+      const extractResult = await extractStreamTranscriptCore(streamId);
       if (extractResult.success) {
         const refreshed = await prisma.youTubeStream.findUnique({
           where: { id: streamId },
@@ -861,8 +1054,10 @@ export async function analyzeStreamTradesAction(streamId: string) {
       },
     });
 
-    revalidatePath("/admin/youtube-live-trades");
-    revalidatePath(`/admin/youtube-live-trades/${streamId}`);
+    try {
+      revalidatePath("/admin/youtube-live-trades");
+      revalidatePath(`/admin/youtube-live-trades/${streamId}`);
+    } catch {}
 
     return {
       success: true,
@@ -870,9 +1065,15 @@ export async function analyzeStreamTradesAction(streamId: string) {
       message: `Successfully analyzed stream! Detected ${candidates.length} trade stories with complete timelines.`,
     };
   } catch (err: any) {
-    console.error("Error in analyzeStreamTradesAction:", err);
+    console.error("Error in analyzeStreamTradesCore:", err);
     return { success: false, message: err?.message || "Trade analysis failed." };
   }
+}
+
+export async function analyzeStreamTradesAction(streamId: string) {
+  await requirePermission("youtube_live_trades.analyze");
+  await ensureDatabaseSchemaSync();
+  return analyzeStreamTradesCore(streamId);
 }
 
 // ==========================================

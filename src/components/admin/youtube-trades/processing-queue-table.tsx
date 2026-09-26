@@ -11,10 +11,15 @@ import {
   XCircle,
   Loader2,
   ExternalLink,
+  Play,
+  RotateCcw,
 } from "lucide-react";
 import {
   getProcessingJobsAction,
   cancelProcessingJobAction,
+  processQueueJobAction,
+  retryProcessingJobAction,
+  processAllQueuedJobsAction,
 } from "@/server/actions/youtube-trades.actions";
 
 interface JobItem {
@@ -46,6 +51,8 @@ export function ProcessingQueueTable({ initialJobs }: ProcessingQueueTableProps)
   const [filter, setFilter] = useState<"ALL" | "ACTIVE" | "COMPLETED" | "FAILED">("ALL");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [isProcessingAll, setIsProcessingAll] = useState(false);
 
   const refreshJobs = async () => {
     setIsRefreshing(true);
@@ -56,6 +63,49 @@ export function ProcessingQueueTable({ initialJobs }: ProcessingQueueTableProps)
       console.error("Failed to refresh jobs:", err);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleProcessJob = async (jobId: string) => {
+    setProcessingId(jobId);
+    try {
+      const res = await processQueueJobAction(jobId);
+      if (!res.success) {
+        alert(res.message || "Failed to process job.");
+      }
+      await refreshJobs();
+    } catch (err: any) {
+      alert(err?.message || "Error processing job.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRetryJob = async (jobId: string) => {
+    setProcessingId(jobId);
+    try {
+      const res = await retryProcessingJobAction(jobId);
+      if (!res.success) {
+        alert(res.message || "Failed to retry job.");
+      }
+      await refreshJobs();
+    } catch (err: any) {
+      alert(err?.message || "Error retrying job.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleProcessAll = async () => {
+    setIsProcessingAll(true);
+    try {
+      const res = await processAllQueuedJobsAction();
+      alert(res.message);
+      await refreshJobs();
+    } catch (err: any) {
+      alert(err?.message || "Failed to process queued jobs.");
+    } finally {
+      setIsProcessingAll(false);
     }
   };
 
@@ -166,6 +216,19 @@ export function ProcessingQueueTable({ initialJobs }: ProcessingQueueTableProps)
             ))}
           </div>
 
+          {/* Process All Queued Button (if any queued) */}
+          {jobs.some((j) => j.stage === "QUEUED") && (
+            <button
+              onClick={handleProcessAll}
+              disabled={isProcessingAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-400 text-xs font-bold transition-colors disabled:opacity-50"
+              title="Process all pending queued jobs"
+            >
+              <Play className={`h-3.5 w-3.5 fill-current ${isProcessingAll ? "animate-pulse" : ""}`} />
+              <span>{isProcessingAll ? "Processing..." : "Process Queued"}</span>
+            </button>
+          )}
+
           {/* Refresh Button */}
           <button
             onClick={refreshJobs}
@@ -275,15 +338,39 @@ export function ProcessingQueueTable({ initialJobs }: ProcessingQueueTableProps)
                     </span>
                   </div>
 
-                  {isActive && (
-                    <button
-                      onClick={() => handleCancelJob(job.id)}
-                      disabled={cancellingId === job.id}
-                      className="px-3 py-1.5 rounded-xl border border-red-500/30 hover:bg-red-500/10 text-red-400 text-xs font-bold transition-colors disabled:opacity-50"
-                    >
-                      {cancellingId === job.id ? "Cancelling..." : "Cancel"}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {job.stage === "QUEUED" && (
+                      <button
+                        onClick={() => handleProcessJob(job.id)}
+                        disabled={processingId === job.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-400 text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        <Play className="h-3 w-3 fill-current" />
+                        {processingId === job.id ? "Processing..." : "Process Now"}
+                      </button>
+                    )}
+
+                    {job.stage === "FAILED" && (
+                      <button
+                        onClick={() => handleRetryJob(job.id)}
+                        disabled={processingId === job.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        {processingId === job.id ? "Retrying..." : "Retry"}
+                      </button>
+                    )}
+
+                    {isActive && (
+                      <button
+                        onClick={() => handleCancelJob(job.id)}
+                        disabled={cancellingId === job.id}
+                        className="px-3 py-1.5 rounded-xl border border-red-500/30 hover:bg-red-500/10 text-red-400 text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        {cancellingId === job.id ? "Cancelling..." : "Cancel"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
