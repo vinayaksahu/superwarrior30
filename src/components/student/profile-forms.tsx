@@ -11,12 +11,14 @@ interface ProfileFormsProps {
   initialName: string;
   initialPhone: string;
   email: string;
+  username?: string | null;
 }
 
 export function ProfileForms({
   initialName,
   initialPhone,
   email,
+  username,
 }: ProfileFormsProps) {
   const [profileState, profileFormAction, isProfilePending] = useActionState<
     ActionState | null,
@@ -75,16 +77,34 @@ export function ProfileForms({
           </div>
 
           <div className="space-y-1.5">
+            <label htmlFor="username" className="text-xs font-semibold text-foreground flex items-center justify-between">
+              <span>Username</span>
+              <span className="text-[10px] text-muted-foreground font-normal">(Permanent / Immutable)</span>
+            </label>
+            <input
+              id="username"
+              type="text"
+              value={username ? `@${username}` : "Not Set"}
+              disabled
+              className="flex h-10 w-full rounded-lg border border-input bg-muted/40 px-3 text-xs opacity-70 cursor-not-allowed font-mono text-muted-foreground"
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <label htmlFor="email" className="text-xs font-semibold text-foreground">
-              Email Address (Immutable)
+              Email Address <span className="text-destructive">*</span>
             </label>
             <input
               id="email"
+              name="email"
               type="email"
-              value={email}
-              disabled
-              className="flex h-10 w-full rounded-lg border border-input bg-muted/40 px-3 text-xs opacity-70 cursor-not-allowed"
+              defaultValue={email}
+              required
+              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
+            {profileState?.errors?.email && (
+              <p className="text-[11px] text-destructive">{profileState.errors.email[0]}</p>
+            )}
           </div>
 
           <div className="space-y-1.5">

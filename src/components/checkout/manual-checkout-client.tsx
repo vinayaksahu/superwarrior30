@@ -100,6 +100,7 @@ export function ManualCheckoutClient({
 
   // Guest registration state
   const [guestName, setGuestName] = useState<string>(userName || "");
+  const [guestUsername, setGuestUsername] = useState<string>("");
   const [guestEmail, setGuestEmail] = useState<string>(userEmail || "");
   const [guestPhone, setGuestPhone] = useState<string>("");
   const [guestPassword, setGuestPassword] = useState<string>("");
@@ -749,6 +750,10 @@ export function ManualCheckoutClient({
         toast.error("Please enter your Full Name.");
         return;
       }
+      if (!guestUsername.trim() || guestUsername.trim().length < 3) {
+        toast.error("Please enter a username of at least 3 characters.");
+        return;
+      }
       if (!guestEmail.trim() || !guestEmail.includes("@")) {
         toast.error("Please enter a valid Email address.");
         return;
@@ -776,6 +781,7 @@ export function ManualCheckoutClient({
           hasBrokerAccount: hasBrokerAccount || Boolean(appliedBrokerId),
           paymentMethodId: selectedMethod?.id,
           guestName: isGuest ? guestName.trim() : undefined,
+          guestUsername: isGuest ? guestUsername.trim() : undefined,
           guestEmail: isGuest ? guestEmail.trim() : undefined,
           guestPhone: isGuest ? guestPhone.trim() : undefined,
           guestPassword: isGuest ? guestPassword : undefined,
@@ -895,6 +901,10 @@ export function ManualCheckoutClient({
         toast.error("Please enter your Full Name.");
         return;
       }
+      if (!guestUsername.trim() || guestUsername.trim().length < 3) {
+        toast.error("Please enter a username of at least 3 characters.");
+        return;
+      }
       if (!guestEmail.trim() || !guestEmail.includes("@")) {
         toast.error("Please enter a valid Email address.");
         return;
@@ -930,6 +940,7 @@ export function ManualCheckoutClient({
           utrRef: utrInput.trim(),
           proofNote: proofNote.trim(),
           guestName: isGuest ? guestName.trim() : undefined,
+          guestUsername: isGuest ? guestUsername.trim() : undefined,
           guestEmail: isGuest ? guestEmail.trim() : undefined,
           guestPhone: isGuest ? guestPhone.trim() : undefined,
           guestPassword: isGuest ? guestPassword : undefined,
@@ -1735,6 +1746,32 @@ export function ManualCheckoutClient({
                           placeholder="Your Full Name"
                           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
                         />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-semibold text-foreground block mb-1 flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-primary" /> Username *
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-normal">Permanent • Used to login</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-mono font-bold">
+                            @
+                          </span>
+                          <input
+                            type="text"
+                            required
+                            value={guestUsername}
+                            onChange={(e) =>
+                              setGuestUsername(
+                                e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "")
+                              )
+                            }
+                            placeholder="username"
+                            className="w-full rounded-lg border border-input bg-background pl-7 pr-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
+                          />
+                        </div>
                       </div>
 
                       <div>

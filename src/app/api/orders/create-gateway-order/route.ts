@@ -26,6 +26,7 @@ export async function POST(req: Request) {
       brokerMemberId,
       paymentMethodId,
       guestName,
+      guestUsername,
       guestEmail,
       guestPassword,
       guestPhone,
@@ -110,6 +111,29 @@ export async function POST(req: Request) {
         const name = (guestName && typeof guestName === "string" ? guestName.trim() : "") || "Student";
         const phone = guestPhone && typeof guestPhone === "string" ? guestPhone.trim() : null;
 
+        // Resolve or validate username
+        let finalUsername = guestUsername && typeof guestUsername === "string" ? guestUsername.toLowerCase().trim() : "";
+        if (finalUsername) {
+          const userCheck = await prisma.user.findFirst({
+            where: { username: { equals: finalUsername, mode: "insensitive" } },
+          });
+          if (userCheck) {
+            return NextResponse.json(
+              { success: false, message: "This username is already taken. Please choose another username." },
+              { status: 400 }
+            );
+          }
+        } else {
+          let base = (cleanEmail.split("@")[0] || "user").replace(/[^a-z0-9_]/g, "");
+          if (base.length < 3) base = `user_${base}`;
+          finalUsername = base;
+          let counter = 1;
+          while (await prisma.user.findFirst({ where: { username: finalUsername } })) {
+            finalUsername = `${base}${counter}`;
+            counter++;
+          }
+        }
+
         let newReferralCode: string;
         let codeExists = true;
         do {
@@ -121,6 +145,7 @@ export async function POST(req: Request) {
         user = await prisma.user.create({
           data: {
             email: cleanEmail,
+            username: finalUsername,
             name,
             phone,
             passwordHash,

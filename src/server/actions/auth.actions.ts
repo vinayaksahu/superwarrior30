@@ -48,11 +48,11 @@ export async function loginAction(
       };
     }
 
-    const { email, password } = validated.data;
-    const cleanEmail = email.toLowerCase().trim();
+    const { email: identifier, password } = validated.data;
+    const cleanIdentifier = identifier.toLowerCase().trim();
     const deviceMeta = await getClientDeviceMetadata();
 
-    // Rate limit: 5 login attempts per minute per email AND per IP
+    // Rate limit: 20 login attempts per minute per IP
     const ipRateLimit = await checkRateLimit({
       key: `login_ip:${deviceMeta.ipAddress}`,
       limit: 20,
@@ -67,7 +67,7 @@ export async function loginAction(
     }
 
     const rateLimit = await checkRateLimit({
-      key: `login:${cleanEmail}`,
+      key: `login:${cleanIdentifier}`,
       limit: 5,
       windowSeconds: 60,
     });
@@ -79,13 +79,20 @@ export async function loginAction(
       };
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: cleanEmail },
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: cleanIdentifier, mode: "insensitive" } },
+          { username: { equals: cleanIdentifier, mode: "insensitive" } },
+        ],
+      },
     });
 
     if (!user) {
-      return { success: false, message: "Invalid email or password." };
+      return { success: false, message: "Invalid email, username, or password." };
     }
+
+    const cleanEmail = user.email.toLowerCase().trim();
 
     // 1. Check if user is already blocked or suspended
     if (user.status === "BLOCKED" || user.status === "SUSPENDED") {
@@ -843,8 +850,9 @@ export async function registerAction(
     };
   }
 
-  const { name, email, password, referralCode } = validated.data;
+  const { name, username, email, password, referralCode } = validated.data;
   const cleanEmail = email.toLowerCase().trim();
+  const cleanUsername = username.toLowerCase().trim();
   const deviceMeta = await getClientDeviceMetadata();
 
   // Rate limit: 10 registration attempts per 10 minutes per IP
@@ -875,6 +883,19 @@ export async function registerAction(
     };
   }
 
+  // Check if username already exists
+  const existingUsername = await prisma.user.findFirst({
+    where: { username: { equals: cleanUsername, mode: "insensitive" } },
+  });
+
+  if (existingUsername) {
+    return {
+      success: false,
+      message: "This username is already taken. Please choose another username.",
+      errors: { username: ["Username is already taken."] },
+    };
+  }
+
   // Check if email already exists
   const existingUser = await prisma.user.findUnique({
     where: { email: cleanEmail },
@@ -884,6 +905,7 @@ export async function registerAction(
     return {
       success: false,
       message: "An account with this email already exists.",
+      errors: { email: ["An account with this email already exists."] },
     };
   }
 
@@ -919,6 +941,7 @@ export async function registerAction(
   if (isOtpRequired) {
     const otpDispatch = await createAndSendRegistrationOtp({
       name,
+      username: cleanUsername,
       email: cleanEmail,
       passwordHash,
       referralCode: referralCode?.trim(),
@@ -949,6 +972,7 @@ export async function registerAction(
   // Direct registration when OTP is OFF
   await finalizeUserRegistration({
     name,
+    username: cleanUsername,
     email: cleanEmail,
     passwordHash,
     referralCode: referralCode?.trim(),
@@ -960,18 +984,32 @@ export async function registerAction(
 
 async function finalizeUserRegistration({
   name,
+  username,
   email,
   passwordHash,
   referralCode,
   isTestData,
 }: {
   name: string;
+  username?: string;
   email: string;
   passwordHash: string;
   referralCode?: string;
   isTestData?: boolean;
 }): Promise<void> {
   const cleanEmail = email.toLowerCase().trim();
+  let cleanUsername = username?.toLowerCase().trim();
+
+  if (!cleanUsername) {
+    let base = (cleanEmail.split("@")[0] || "user").replace(/[^a-z0-9_]/g, "");
+    if (base.length < 3) base = `user_${base}`;
+    cleanUsername = base;
+    let counter = 1;
+    while (await prisma.user.findFirst({ where: { username: cleanUsername } })) {
+      cleanUsername = `${base}${counter}`;
+      counter++;
+    }
+  }
 
   // Validate referral code if provided and resolve authoritative environment
   const currentEnv = await resolveCurrentEnvironment();
@@ -1010,6 +1048,7 @@ async function finalizeUserRegistration({
     const user = await tx.user.create({
       data: {
         email: cleanEmail,
+        username: cleanUsername,
         name,
         passwordHash,
         referralCode: newReferralCode,
@@ -1120,6 +1159,7 @@ export async function verifyRegistrationOtpAction(
 
   await finalizeUserRegistration({
     name: verifyResult.name,
+    username: verifyResult.username,
     email: verifyResult.email,
     passwordHash: verifyResult.passwordHash,
     referralCode: verifyResult.referralCode,
@@ -1147,6 +1187,7 @@ export async function resendRegistrationOtpAction(
   const deviceMeta = await getClientDeviceMetadata();
   const dispatch = await createAndSendRegistrationOtp({
     name: payload.name,
+    username: payload.username,
     email: payload.email,
     passwordHash: payload.passwordHash,
     referralCode: payload.referralCode,

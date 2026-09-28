@@ -291,6 +291,30 @@ export function RegisterForm({
           </div>
 
           <div className="space-y-2">
+            <label htmlFor="username" className="text-sm font-medium leading-none flex items-center justify-between">
+              <span>Username</span>
+              <span className="text-[11px] text-muted-foreground font-normal">Permanent • Used to login</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono font-bold">
+                @
+              </span>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="johndoe"
+                autoComplete="username"
+                required
+                className="flex h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+            </div>
+            {state?.errors?.username && (
+              <p className="text-xs text-destructive">{state.errors.username[0]}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium leading-none">
               Email
             </label>

@@ -52,7 +52,12 @@ export async function getCoursesAction({
           _count: {
             select: {
               modules: true,
-              enrollments: true,
+              enrollments: {
+                where: {
+                  status: "ACTIVE",
+                  user: { role: "STUDENT" },
+                },
+              },
             },
           },
         },
@@ -90,7 +95,12 @@ export async function getCoursesAction({
               _count: {
                 select: {
                   modules: true,
-                  enrollments: true,
+                  enrollments: {
+                    where: {
+                      status: "ACTIVE",
+                      user: { role: "STUDENT" },
+                    },
+                  },
                 },
               },
             },

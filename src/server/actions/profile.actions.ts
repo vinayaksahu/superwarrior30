@@ -9,6 +9,7 @@ import type { ActionState } from "@/types";
 
 const updateProfileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  email: z.string().email("Invalid email address").toLowerCase().trim(),
   phone: z.string().max(20).optional().or(z.literal("")),
 });
 
@@ -31,6 +32,7 @@ export async function updateProfileAction(
 
   const validated = updateProfileSchema.safeParse({
     name: formData.get("name"),
+    email: formData.get("email"),
     phone: formData.get("phone"),
   });
 
@@ -42,13 +44,45 @@ export async function updateProfileAction(
     };
   }
 
-  await prisma.user.update({
+  const newEmail = validated.data.email;
+  const currentEmail = (user.email || "").toLowerCase().trim();
+
+  if (newEmail !== currentEmail) {
+    const existing = await prisma.user.findFirst({
+      where: {
+        email: { equals: newEmail, mode: "insensitive" },
+        id: { not: user.id },
+      },
+    });
+
+    if (existing) {
+      return {
+        success: false,
+        message: "This email address is already in use by another account.",
+        errors: { email: ["This email is already in use."] },
+      };
+    }
+  }
+
+  const updatedUser = await prisma.user.update({
     where: { id: user.id },
     data: {
       name: validated.data.name.trim(),
+      email: newEmail,
       phone: validated.data.phone?.trim() || null,
     },
+    select: { id: true, email: true, role: true, tokenVersion: true },
   });
+
+  if (newEmail !== currentEmail) {
+    const { createSession } = await import("@/lib/auth/session");
+    await createSession(
+      updatedUser.id,
+      updatedUser.email,
+      updatedUser.role,
+      updatedUser.tokenVersion
+    );
+  }
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");

@@ -20,6 +20,7 @@ export default async function StudentProfilePage() {
     select: {
       id: true,
       name: true,
+      username: true,
       email: true,
       phone: true,
       role: true,
@@ -52,6 +53,11 @@ export default async function StudentProfilePage() {
             <div>
               <div className="flex items-center gap-1.5">
                 <h2 className="text-base font-bold text-foreground">{user.name || "Student"}</h2>
+                {user.username && (
+                  <span className="text-xs font-mono text-primary font-semibold">
+                    @{user.username}
+                  </span>
+                )}
                 <TestUserBadge isTestData={user.isTestData} />
               </div>
               <p className="text-xs text-muted-foreground">{user.email}</p>
@@ -95,6 +101,7 @@ export default async function StudentProfilePage() {
         initialName={user.name || ""}
         initialPhone={user.phone || ""}
         email={user.email}
+        username={user.username}
       />
 
       {/* Login Devices & Device Limit Card */}

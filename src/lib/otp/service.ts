@@ -49,6 +49,7 @@ export interface PendingOtpPayload {
   purpose: "LOGIN_VERIFICATION" | "EMAIL_VERIFICATION" | "PASSWORD_RESET";
   deviceId?: string;
   name?: string;
+  username?: string;
   passwordHash?: string;
   referralCode?: string;
   isTestData?: boolean;
@@ -74,6 +75,7 @@ export async function createPendingOtpToken(payload: PendingOtpPayload): Promise
     purpose: payload.purpose,
     deviceId: payload.deviceId,
     name: payload.name,
+    username: payload.username,
     passwordHash: payload.passwordHash,
     referralCode: payload.referralCode,
     isTestData: payload.isTestData,
@@ -99,6 +101,7 @@ export async function verifyPendingOtpToken(token: string): Promise<PendingOtpPa
       purpose: payload.purpose as "LOGIN_VERIFICATION" | "EMAIL_VERIFICATION" | "PASSWORD_RESET",
       deviceId: payload.deviceId as string | undefined,
       name: payload.name as string | undefined,
+      username: payload.username as string | undefined,
       passwordHash: payload.passwordHash as string | undefined,
       referralCode: payload.referralCode as string | undefined,
       isTestData: payload.isTestData as boolean | undefined,
@@ -532,6 +535,7 @@ export async function verifyLoginOtp({
  */
 export async function createAndSendRegistrationOtp({
   name,
+  username,
   email,
   passwordHash,
   referralCode,
@@ -540,6 +544,7 @@ export async function createAndSendRegistrationOtp({
   userAgent,
 }: {
   name: string;
+  username?: string;
   email: string;
   passwordHash: string;
   referralCode?: string;
@@ -641,6 +646,7 @@ export async function createAndSendRegistrationOtp({
   const pendingToken = await createPendingOtpToken({
     email: cleanEmail,
     name,
+    username,
     passwordHash,
     referralCode,
     isTestData,
@@ -673,6 +679,7 @@ export async function verifyRegistrationOtp({
   message?: string;
   email?: string;
   name?: string;
+  username?: string;
   passwordHash?: string;
   referralCode?: string;
   isTestData?: boolean;
@@ -758,6 +765,7 @@ export async function verifyRegistrationOtp({
     success: true,
     email: cleanEmail,
     name: payload.name,
+    username: payload.username,
     passwordHash: payload.passwordHash,
     referralCode: payload.referralCode,
     isTestData: payload.isTestData,

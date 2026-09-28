@@ -129,6 +129,10 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
   }
 
   const alterStatements = [
+    // users columns
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "username" TEXT;`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "users_username_key" ON "users"("username");`,
+
     // orders columns
     `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "idempotencyKey" TEXT;`,
     `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentProvider" TEXT;`,
