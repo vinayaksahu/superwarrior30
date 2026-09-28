@@ -1065,9 +1065,10 @@ export async function updateLessonAction(
   if (!lesson) return { success: false, message: "Lesson not found." };
 
   let finalDurationSec = validated.data.durationSec;
-  // If editing a video lesson that already has a real video file, preserve the full video duration
-  if (validated.data.contentType === "VIDEO") {
-    if (lesson.durationSec > 600 && validated.data.durationSec <= 600) {
+  // Only auto-populate / preserve full video duration if this is NOT a Free Preview lesson
+  // If isFreePreview is true, the admin explicitly configured the preview limit in seconds!
+  if (validated.data.contentType === "VIDEO" && !validated.data.isFreePreview) {
+    if (lesson.durationSec > 0) {
       finalDurationSec = lesson.durationSec;
     } else if (lesson.bunnyVideoId) {
       const asset = await prisma.mediaAsset.findFirst({
@@ -1162,7 +1163,7 @@ export async function updateLessonFileAction(
         where: { bunnyVideoId },
         select: { duration: true },
       });
-      if (asset?.duration && asset.duration > 0) {
+      if (!lesson.isFreePreview && asset?.duration && asset.duration > 0) {
         updateData.durationSec = asset.duration;
       }
     }

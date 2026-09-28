@@ -424,9 +424,9 @@ export function LessonEditModal({
                         name="durationSec"
                         type="number"
                         min="5"
-                        max="600"
+                        max="3600"
                         defaultValue={
-                          lesson.durationSec > 0 && lesson.durationSec <= 600
+                          lesson.durationSec > 0 && lesson.durationSec <= 3600
                             ? lesson.durationSec
                             : 120
                         }
@@ -449,7 +449,7 @@ export function LessonEditModal({
                         name="durationSec"
                         type="number"
                         min="1"
-                        max="50"
+                        max="500"
                         defaultValue={lesson.durationSec > 0 ? lesson.durationSec : 1}
                         placeholder="e.g. 1, 2 or 3"
                         className="flex h-10 w-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

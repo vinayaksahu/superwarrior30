@@ -56,15 +56,15 @@ export function FreePreviewButton({
 
   const previewLimit =
     contentType === "VIDEO"
-      ? rawSec > 0 && rawSec <= 300
+      ? rawSec > 0
         ? rawSec
         : 120
       : contentType === "PDF"
-      ? rawSec > 0 && rawSec <= 20
+      ? rawSec > 0
         ? rawSec
         : 1
       : contentType === "TEXT"
-      ? rawSec > 0 && rawSec <= 1000
+      ? rawSec > 0
         ? rawSec
         : 150
       : 120;
@@ -94,9 +94,7 @@ export function FreePreviewButton({
             const resDur = res.lesson.durationSec;
             const effLimit =
               contentType === "VIDEO"
-                ? resDur <= 300
-                  ? resDur
-                  : 120
+                ? resDur
                 : resDur;
             setTimeLeft(effLimit);
           }

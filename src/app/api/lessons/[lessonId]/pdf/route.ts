@@ -92,10 +92,8 @@ export async function GET(
     const getResponseHeaders = (isLimited: boolean) => ({
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${encodeURIComponent(lesson.title)}.pdf"`,
-      "Cache-Control": isLimited
-        ? "public, max-age=1800"
-        : "private, no-cache, no-store, must-revalidate",
-      "Pragma": isLimited ? "auto" : "no-cache",
+      "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      "Pragma": "no-cache",
       "X-Content-Type-Options": "nosniff",
     });
 
