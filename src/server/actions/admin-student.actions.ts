@@ -41,6 +41,53 @@ export async function getAdminAvailableCoursesAction() {
   }));
 }
 
+// 1.5 Validate Referrer by code or email
+export async function adminValidateReferrerAction(query: string) {
+  await requireAdmin();
+
+  const clean = query.trim();
+  if (!clean) return { success: false, error: "Please enter a referral code or email." };
+
+  let user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { referralCode: { equals: clean, mode: "insensitive" } },
+        { email: { equals: clean.toLowerCase(), mode: "insensitive" } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      referralCode: true,
+      role: true,
+    },
+  });
+
+  // If query is "SW30" or "SUPERADMIN" and not matched directly, find Super Admin
+  if (!user && (clean.toUpperCase() === "SW30" || clean.toUpperCase() === "SUPERADMIN")) {
+    user = await prisma.user.findFirst({
+      where: { role: "SUPER_ADMIN" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        referralCode: true,
+        role: true,
+      },
+    });
+  }
+
+  if (!user) {
+    return { success: false, error: `No user found matching "${clean}".` };
+  }
+
+  return {
+    success: true,
+    referrer: user,
+  };
+}
+
 // 2. Create a new Student account manually by Admin
 export async function adminCreateStudentAction(data: {
   name: string;
@@ -48,12 +95,15 @@ export async function adminCreateStudentAction(data: {
   phone?: string;
   password?: string;
   assignedCourseIds?: string[];
+  referralType?: "DIRECT_ADMIN" | "OTHER_STUDENT" | "NONE";
+  referrerCodeOrEmail?: string;
 }) {
   const admin = await requireAdmin();
 
   const cleanName = data.name.trim();
   const cleanEmail = data.email.toLowerCase().trim();
   const cleanPhone = data.phone ? data.phone.trim() : null;
+  const referralType = data.referralType || "DIRECT_ADMIN";
 
   if (!cleanName) {
     return { success: false, error: "Student name is required." };
@@ -73,6 +123,44 @@ export async function adminCreateStudentAction(data: {
       success: false,
       error: `An account with email "${cleanEmail}" already exists (${existing.role}).`,
     };
+  }
+
+  // Resolve referrer
+  let resolvedReferrer: { id: string; name: string | null; email: string; referralCode: string } | null = null;
+
+  if (referralType === "DIRECT_ADMIN") {
+    // Direct Admin / Super Warrior 30 (SW30)
+    const adminUser =
+      (await prisma.user.findFirst({
+        where: { role: "SUPER_ADMIN" },
+        select: { id: true, name: true, email: true, referralCode: true },
+      })) ||
+      (await prisma.user.findFirst({
+        where: { role: "ADMIN" },
+        select: { id: true, name: true, email: true, referralCode: true },
+      }));
+    if (adminUser) {
+      resolvedReferrer = adminUser;
+    }
+  } else if (referralType === "OTHER_STUDENT") {
+    const q = (data.referrerCodeOrEmail || "").trim();
+    if (!q) {
+      return { success: false, error: "Please enter the referrer code or student email." };
+    }
+    const refUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { referralCode: { equals: q, mode: "insensitive" } },
+          { email: { equals: q.toLowerCase(), mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, name: true, email: true, referralCode: true },
+    });
+
+    if (!refUser) {
+      return { success: false, error: `Referrer with code or email "${q}" not found.` };
+    }
+    resolvedReferrer = refUser;
   }
 
   // Determine password
@@ -139,7 +227,42 @@ export async function adminCreateStudentAction(data: {
         }
       }
 
-      // 4. Audit Log
+      // 4. Create referral relationship and closure
+      if (resolvedReferrer && resolvedReferrer.id !== user.id) {
+        await tx.referralRelationship.create({
+          data: {
+            referrerId: resolvedReferrer.id,
+            referredId: user.id,
+            isTestData: false,
+          },
+        });
+
+        await tx.referralClosure.create({
+          data: {
+            ancestorId: resolvedReferrer.id,
+            descendantId: user.id,
+            depth: 1,
+            isTestData: false,
+          },
+        });
+
+        const uplineAncestors = await tx.referralClosure.findMany({
+          where: { descendantId: resolvedReferrer.id },
+        });
+
+        if (uplineAncestors.length > 0) {
+          await tx.referralClosure.createMany({
+            data: uplineAncestors.map((anc) => ({
+              ancestorId: anc.ancestorId,
+              descendantId: user.id,
+              depth: anc.depth + 1,
+              isTestData: false,
+            })),
+          });
+        }
+      }
+
+      // 5. Audit Log
       await tx.auditLog.create({
         data: {
           actorId: admin.id,
@@ -152,6 +275,10 @@ export async function adminCreateStudentAction(data: {
             name: cleanName,
             email: cleanEmail,
             assignedCourseIds: assignedIds,
+            referralType,
+            referrerInfo: resolvedReferrer
+              ? `${resolvedReferrer.name || resolvedReferrer.email} (${resolvedReferrer.referralCode})`
+              : "None",
           },
         },
       });
@@ -171,6 +298,13 @@ export async function adminCreateStudentAction(data: {
         referralCode: student.referralCode,
         plainPassword,
         assignedCoursesCount: (data.assignedCourseIds || []).length,
+        referrer: resolvedReferrer
+          ? {
+              name: resolvedReferrer.name,
+              email: resolvedReferrer.email,
+              referralCode: resolvedReferrer.referralCode,
+            }
+          : null,
       },
       message: "Student account created successfully!",
     };

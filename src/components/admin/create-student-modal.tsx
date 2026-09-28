@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { adminCreateStudentAction } from "@/server/actions/admin-student.actions";
+import {
+  adminCreateStudentAction,
+  adminValidateReferrerAction,
+} from "@/server/actions/admin-student.actions";
 import {
   UserPlus,
   X,
@@ -18,6 +21,8 @@ import {
   Eye,
   EyeOff,
   Sparkles,
+  GitBranch,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +48,20 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+
+  // Referral / Sponsor Placement State
+  const [referralType, setReferralType] = useState<"DIRECT_ADMIN" | "OTHER_STUDENT">("DIRECT_ADMIN");
+  const [referrerInput, setReferrerInput] = useState("");
+  const [verifiedReferrer, setVerifiedReferrer] = useState<{
+    id: string;
+    name: string | null;
+    email: string;
+    referralCode: string;
+    role: string;
+  } | null>(null);
+  const [isValidatingReferrer, setIsValidatingReferrer] = useState(false);
+  const [referrerError, setReferrerError] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
 
   // Success State
@@ -53,6 +72,11 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
     plainPassword: string;
     referralCode: string;
     assignedCoursesCount: number;
+    referrer: {
+      name: string | null;
+      email: string;
+      referralCode: string;
+    } | null;
   } | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -62,6 +86,10 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
     setPhone("");
     setPassword("");
     setSelectedCourses([]);
+    setReferralType("DIRECT_ADMIN");
+    setReferrerInput("");
+    setVerifiedReferrer(null);
+    setReferrerError(null);
     setError(null);
     setCreatedStudent(null);
     setIsCopied(false);
@@ -88,6 +116,35 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
     );
   };
 
+  const handleVerifyReferrer = async () => {
+    const q = referrerInput.trim();
+    if (!q) {
+      setReferrerError("Please enter a referral code or email to verify.");
+      return;
+    }
+
+    setIsValidatingReferrer(true);
+    setReferrerError(null);
+    setVerifiedReferrer(null);
+
+    try {
+      const res = await adminValidateReferrerAction(q);
+      if (res.success && res.referrer) {
+        setVerifiedReferrer(res.referrer);
+        toast.success(`Verified: ${res.referrer.name || "User"} (${res.referrer.referralCode})`);
+      } else {
+        setReferrerError(res.error || "Referrer not found.");
+        toast.error(res.error || "Referrer not found.");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to verify referrer";
+      setReferrerError(msg);
+      toast.error(msg);
+    } finally {
+      setIsValidatingReferrer(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -105,6 +162,11 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
       return;
     }
 
+    if (referralType === "OTHER_STUDENT" && !referrerInput.trim()) {
+      setError("Please specify a referrer student code or email, or select Direct Admin (SW30).");
+      return;
+    }
+
     startTransition(async () => {
       const res = await adminCreateStudentAction({
         name: name.trim(),
@@ -112,6 +174,11 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
         phone: phone.trim() || undefined,
         password: password.trim() || undefined,
         assignedCourseIds: selectedCourses,
+        referralType,
+        referrerCodeOrEmail:
+          referralType === "OTHER_STUDENT"
+            ? verifiedReferrer?.referralCode || referrerInput.trim()
+            : undefined,
       });
 
       if (res.success && res.student) {
@@ -128,7 +195,11 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
   const copyCredentials = () => {
     if (!createdStudent) return;
     const origin = typeof window !== "undefined" ? window.location.origin : "https://superwarrior30.com";
-    const text = `🎓 Welcome to Trade Warrior Academy!\n\nHere are your Student Account Login details:\n\n👤 Name: ${createdStudent.name || "Student"}\n📧 Email: ${createdStudent.email}\n🔑 Password: ${createdStudent.plainPassword}\n🏷️ Referral Code: ${createdStudent.referralCode}\n\n🔗 Login Link: ${origin}/login\n\nPlease keep your credentials safe and do not share them.`;
+    const sponsorName = createdStudent.referrer
+      ? `${createdStudent.referrer.name || "Student"} (${createdStudent.referrer.referralCode})`
+      : "Direct Admin (SW30)";
+
+    const text = `🎓 Welcome to Trade Warrior Academy!\n\nHere are your Student Account Login details:\n\n👤 Name: ${createdStudent.name || "Student"}\n📧 Email: ${createdStudent.email}\n🔑 Password: ${createdStudent.plainPassword}\n🏷️ Referral Code: ${createdStudent.referralCode}\n👥 Sponsor / Referral: ${sponsorName}\n\n🔗 Login Link: ${origin}/login\n\nPlease keep your credentials safe and do not share them.`;
 
     navigator.clipboard.writeText(text);
     setIsCopied(true);
@@ -171,7 +242,7 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                 <p className="text-xs text-muted-foreground">
                   {createdStudent
                     ? "Copy student login credentials and share them with the student."
-                    : "Manually register student and instantly assign courses."}
+                    : "Manually register student, choose referral placement, and assign courses."}
                 </p>
               </div>
             </div>
@@ -203,6 +274,14 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                     <div className="flex justify-between items-center py-0.5 border-b border-border/50">
                       <span className="text-muted-foreground font-sans">Referral Code:</span>
                       <span className="text-foreground">{createdStudent.referralCode}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5 border-b border-border/50">
+                      <span className="text-muted-foreground font-sans">Sponsor / Referrer:</span>
+                      <span className="font-semibold text-emerald-400">
+                        {createdStudent.referrer
+                          ? `${createdStudent.referrer.name || "Student"} (${createdStudent.referrer.referralCode})`
+                          : "Direct Admin (SW30)"}
+                      </span>
                     </div>
                     <div className="flex justify-between items-center py-0.5">
                       <span className="text-muted-foreground font-sans">Assigned Courses:</span>
@@ -242,6 +321,7 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                 )}
 
                 <div className="space-y-3">
+                  {/* Name */}
                   <div>
                     <label className="block text-xs font-semibold text-foreground mb-1">
                       Student Full Name *
@@ -253,12 +333,13 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                         required
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="e.g. Rahul Sharma"
+                        placeholder="e.g. Vinayak Sahu"
                         className="flex h-9 w-full rounded-xl border border-input bg-background pl-9 pr-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       />
                     </div>
                   </div>
 
+                  {/* Email & Phone */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-foreground mb-1">
@@ -287,13 +368,14 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                           type="tel"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          placeholder="+91 9876543210"
+                          placeholder="8827665788"
                           className="flex h-9 w-full rounded-xl border border-input bg-background pl-9 pr-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         />
                       </div>
                     </div>
                   </div>
 
+                  {/* Password */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-foreground">
@@ -320,6 +402,118 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                         {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Referral / Sponsor Selection */}
+                  <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3">
+                    <label className="block text-xs font-semibold text-foreground flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <GitBranch className="h-3.5 w-3.5 text-primary" />
+                        Referral / Sponsor Placement
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        Where does this student join?
+                      </span>
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <label
+                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          referralType === "DIRECT_ADMIN"
+                            ? "border-primary/50 bg-primary/10 text-foreground font-medium"
+                            : "border-border/60 hover:bg-muted/30 text-muted-foreground"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="referralType"
+                          value="DIRECT_ADMIN"
+                          checked={referralType === "DIRECT_ADMIN"}
+                          onChange={() => {
+                            setReferralType("DIRECT_ADMIN");
+                            setReferrerInput("");
+                            setVerifiedReferrer(null);
+                            setReferrerError(null);
+                          }}
+                          className="mt-0.5 text-primary focus:ring-primary h-3.5 w-3.5"
+                        />
+                        <div>
+                          <p className="font-semibold text-xs text-foreground">Direct Admin (SW30)</p>
+                          <p className="text-[10px] text-muted-foreground">Trade Warrior Academy Root</p>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          referralType === "OTHER_STUDENT"
+                            ? "border-primary/50 bg-primary/10 text-foreground font-medium"
+                            : "border-border/60 hover:bg-muted/30 text-muted-foreground"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="referralType"
+                          value="OTHER_STUDENT"
+                          checked={referralType === "OTHER_STUDENT"}
+                          onChange={() => setReferralType("OTHER_STUDENT")}
+                          className="mt-0.5 text-primary focus:ring-primary h-3.5 w-3.5"
+                        />
+                        <div>
+                          <p className="font-semibold text-xs text-foreground">Other Student / Affiliate</p>
+                          <p className="text-[10px] text-muted-foreground">Assign to another student's downline</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    {referralType === "OTHER_STUDENT" && (
+                      <div className="pt-2 space-y-1.5 animate-in fade-in duration-150">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <input
+                              type="text"
+                              value={referrerInput}
+                              onChange={(e) => {
+                                setReferrerInput(e.target.value);
+                                setVerifiedReferrer(null);
+                                setReferrerError(null);
+                              }}
+                              placeholder="Enter Student Referral Code or Email..."
+                              className="flex h-9 w-full rounded-xl border border-input bg-background pl-9 pr-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isValidatingReferrer || !referrerInput.trim()}
+                            onClick={handleVerifyReferrer}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            {isValidatingReferrer ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                            <span>Verify</span>
+                          </button>
+                        </div>
+
+                        {verifiedReferrer && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">
+                              Verified: <strong>{verifiedReferrer.name || "Student"}</strong> ({verifiedReferrer.email}) • Code:{" "}
+                              <code className="font-mono bg-emerald-500/20 px-1 py-0.5 rounded font-bold">
+                                {verifiedReferrer.referralCode}
+                              </code>
+                            </span>
+                          </div>
+                        )}
+
+                        {referrerError && (
+                          <p className="text-[11px] text-destructive pl-1">{referrerError}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Immediate Course Assignment */}
