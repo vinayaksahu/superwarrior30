@@ -113,7 +113,7 @@ export default async function CheckoutPage({
               where: { referredId: user.id },
               include: {
                 referrer: {
-                  select: { id: true, name: true, referralCode: true, status: true },
+                  select: { id: true, name: true, referralCode: true, status: true, role: true },
                 },
               },
             })
@@ -139,8 +139,8 @@ export default async function CheckoutPage({
         discountValue?: number;
       } | null = null;
 
-      const defaultReferralCode = "SUPERWARRIOR30";
-      const defaultReferrerName = "Vinayak Sahu";
+      const defaultReferralCode = "SW30";
+      const defaultReferrerName = "Admin";
       const referralPct = Number(config?.referralDiscountPercentage) || 25;
       const refType = config?.referralDiscountType || "PERCENTAGE";
       const refVal = config?.referralDiscountValue !== undefined ? config?.referralDiscountValue : referralPct;
@@ -150,15 +150,22 @@ export default async function CheckoutPage({
         referralRel.referrer &&
         referralRel.referrer.status === "ACTIVE"
       ) {
+        const isAdminRef =
+          referralRel.referrer.referralCode === "SW30" ||
+          referralRel.referrer.referralCode === "SUPERWARRIOR30" ||
+          referralRel.referrer.role === "SUPER_ADMIN" ||
+          referralRel.referrer.role === "ADMIN" ||
+          referralRel.referrer.name === "Vinayak Sahu";
+
         refCoupon = {
           code: referralRel.referrer.referralCode,
-          referrerName: referralRel.referrer.name || "Mentor / Friend",
+          referrerName: isAdminRef ? "Admin" : (referralRel.referrer.name || "Mentor / Friend"),
           discountPercentage: referralPct,
           discountType: refType,
           discountValue: refVal,
         };
       } else if (config?.isReferralDiscountEnabled !== false) {
-        // Direct / New student without a referrer gets default Welcome Coupon "SUPERWARRIOR30"
+        // Direct / New student without a referrer gets default Welcome Coupon "SW30"
         const isSelf = user?.referralCode === defaultReferralCode;
         if (!isSelf) {
           refCoupon = {

@@ -21,7 +21,7 @@ export default async function StudentCashbacksPage() {
       where: { referredId: user.id },
       include: {
         referrer: {
-          select: { id: true, name: true, referralCode: true, status: true },
+          select: { id: true, name: true, referralCode: true, status: true, role: true },
         },
       },
     }),
@@ -34,16 +34,27 @@ export default async function StudentCashbacksPage() {
   const referralDiscountPercentage = Number(brokerSettings.referralDiscountPercentage) || 25;
   const isReferralDiscountEnabled = brokerSettings.isReferralDiscountEnabled !== false;
 
-  const defaultReferralCode = "SUPERWARRIOR30";
-  const defaultReferrerName = "Vinayak Sahu";
+  const defaultReferralCode = "SW30";
+  const defaultReferrerName = "Admin";
   const isSelf = user.referralCode === defaultReferralCode;
+
+  const isAdminReferrer =
+    referralRel?.referrer?.referralCode === "SW30" ||
+    referralRel?.referrer?.referralCode === "SUPERWARRIOR30" ||
+    referralRel?.referrer?.role === "SUPER_ADMIN" ||
+    referralRel?.referrer?.role === "ADMIN" ||
+    referralRel?.referrer?.name === "Vinayak Sahu";
+
+  const resolvedReferrerName = isAdminReferrer
+    ? "Admin"
+    : referralRel?.referrer?.name || "Mentor / Friend";
 
   const referralReward =
     referralRel && referralRel.referrer
       ? {
           hasReferrer: true,
           referrerCode: referralRel.referrer.referralCode,
-          referrerName: referralRel.referrer.name || "Mentor / Friend",
+          referrerName: resolvedReferrerName,
           discountPercentage: referralDiscountPercentage,
           isReferralDiscountEnabled,
           hasPurchased: activeEnrollmentCount > 0,

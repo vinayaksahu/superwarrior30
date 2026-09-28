@@ -256,7 +256,15 @@ export function StudentCashbacksClient({
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Unlocked by registering with mentor <strong className="text-foreground">{referralReward.referrerName}</strong>&apos;s referral code
+                  Unlocked by registering with mentor{" "}
+                  <strong className="text-foreground">
+                    {referralReward.referrerCode === "SW30" ||
+                    referralReward.referrerCode === "SUPERWARRIOR30" ||
+                    referralReward.referrerName === "Vinayak Sahu"
+                      ? "Admin"
+                      : referralReward.referrerName}
+                  </strong>
+                  &apos;s referral code
                 </p>
               </div>
             </div>

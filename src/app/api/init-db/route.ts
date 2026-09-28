@@ -624,7 +624,7 @@ export async function GET(req: Request) {
         ('stg_003', 'currency', 'INR', 'string', NOW(), NOW()),
         ('stg_004', 'referral_enabled', 'true', 'boolean', NOW(), NOW()),
         ('stg_005', 'min_withdrawal_amount', '500', 'number', NOW(), NOW()),
-        ('stg_006', 'instructor_name', 'Vinayak Sahu', 'string', NOW(), NOW())
+        ('stg_006', 'instructor_name', 'Admin', 'string', NOW(), NOW())
       ON CONFLICT ("key") DO NOTHING;
     `);
 

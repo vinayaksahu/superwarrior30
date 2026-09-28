@@ -222,10 +222,15 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
 
   const copyCredentials = () => {
     if (!createdStudent) return;
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://superwarrior30.com";
-    const sponsorName = createdStudent.referrer
-      ? `${createdStudent.referrer.name || "Student"} (${createdStudent.referrer.referralCode})`
-      : "Direct Admin (SW30)";
+    const isDirectAdmin =
+      !createdStudent.referrer ||
+      createdStudent.referrer.referralCode === "SW30" ||
+      createdStudent.referrer.referralCode === "SUPERWARRIOR30" ||
+      createdStudent.referrer.name === "Vinayak Sahu";
+
+    const sponsorName = isDirectAdmin
+      ? "Admin (SW30)"
+      : `${createdStudent.referrer?.name || "Student"} (${createdStudent.referrer?.referralCode})`;
     const feeText = createdStudent.feeCollected && createdStudent.feeCollected > 0
       ? `\n💰 Course Fee: ₹${createdStudent.feeCollected.toLocaleString("en-IN")} (${createdStudent.paymentMode || "Paid"})`
       : "";
@@ -309,9 +314,12 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                     <div className="flex justify-between items-center py-0.5 border-b border-border/50">
                       <span className="text-muted-foreground font-sans">Sponsor / Referrer:</span>
                       <span className="font-semibold text-emerald-400">
-                        {createdStudent.referrer
-                          ? `${createdStudent.referrer.name || "Student"} (${createdStudent.referrer.referralCode})`
-                          : "Direct Admin (SW30)"}
+                        {!createdStudent.referrer ||
+                        createdStudent.referrer.referralCode === "SW30" ||
+                        createdStudent.referrer.referralCode === "SUPERWARRIOR30" ||
+                        createdStudent.referrer.name === "Vinayak Sahu"
+                          ? "Admin (SW30)"
+                          : `${createdStudent.referrer.name || "Student"} (${createdStudent.referrer.referralCode})`}
                       </span>
                     </div>
                     {createdStudent.feeCollected && createdStudent.feeCollected > 0 ? (
@@ -540,7 +548,15 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400">
                             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                             <span className="truncate">
-                              Verified: <strong>{verifiedReferrer.name || "Student"}</strong> ({verifiedReferrer.email}) • Code:{" "}
+                              Verified:{" "}
+                              <strong>
+                                {verifiedReferrer.referralCode === "SW30" ||
+                                verifiedReferrer.referralCode === "SUPERWARRIOR30" ||
+                                verifiedReferrer.name === "Vinayak Sahu"
+                                  ? "Admin"
+                                  : verifiedReferrer.name || "Student"}
+                              </strong>{" "}
+                              ({verifiedReferrer.email}) • Code:{" "}
                               <code className="font-mono bg-emerald-500/20 px-1 py-0.5 rounded font-bold">
                                 {verifiedReferrer.referralCode}
                               </code>

@@ -82,9 +82,18 @@ export async function adminValidateReferrerAction(query: string) {
     return { success: false, error: `No user found matching "${clean}".` };
   }
 
+  const isRefAdmin =
+    user.referralCode === "SW30" ||
+    user.role === "SUPER_ADMIN" ||
+    user.role === "ADMIN" ||
+    user.name === "Vinayak Sahu";
+
   return {
     success: true,
-    referrer: user,
+    referrer: {
+      ...user,
+      name: isRefAdmin ? "Admin" : user.name,
+    },
   };
 }
 
@@ -136,6 +145,10 @@ export async function adminCreateStudentAction(data: {
     // Direct Admin / Super Warrior 30 (SW30)
     const adminUser =
       (await prisma.user.findFirst({
+        where: { referralCode: "SW30" },
+        select: { id: true, name: true, email: true, referralCode: true },
+      })) ||
+      (await prisma.user.findFirst({
         where: { role: "SUPER_ADMIN" },
         select: { id: true, name: true, email: true, referralCode: true },
       })) ||
@@ -144,7 +157,10 @@ export async function adminCreateStudentAction(data: {
         select: { id: true, name: true, email: true, referralCode: true },
       }));
     if (adminUser) {
-      resolvedReferrer = adminUser;
+      resolvedReferrer = {
+        ...adminUser,
+        name: "Admin",
+      };
     }
   } else if (referralType === "OTHER_STUDENT") {
     const q = (data.referrerCodeOrEmail || "").trim();
@@ -164,7 +180,15 @@ export async function adminCreateStudentAction(data: {
     if (!refUser) {
       return { success: false, error: `Referrer with code or email "${q}" not found.` };
     }
-    resolvedReferrer = refUser;
+    const isRefAdmin =
+      refUser.referralCode === "SW30" ||
+      refUser.referralCode === "SUPERWARRIOR30" ||
+      refUser.name === "Vinayak Sahu";
+
+    resolvedReferrer = {
+      ...refUser,
+      name: isRefAdmin ? "Admin" : refUser.name,
+    };
   }
 
   // Determine password
@@ -375,7 +399,12 @@ export async function adminCreateStudentAction(data: {
         orderNumber: createdOrder?.orderNumber || null,
         referrer: resolvedReferrer
           ? {
-              name: resolvedReferrer.name,
+              name:
+                resolvedReferrer.referralCode === "SW30" ||
+                resolvedReferrer.referralCode === "SUPERWARRIOR30" ||
+                resolvedReferrer.name === "Vinayak Sahu"
+                  ? "Admin"
+                  : resolvedReferrer.name,
               email: resolvedReferrer.email,
               referralCode: resolvedReferrer.referralCode,
             }
