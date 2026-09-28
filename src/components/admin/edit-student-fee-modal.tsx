@@ -229,6 +229,7 @@ export function EditStudentFeeModal({
                     className="flex h-9 w-full rounded-xl border border-input bg-background px-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
                   >
                     <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe / Paytm</option>
+                    <option value="Crypto USDT (BEP20)">Crypto USDT (BEP20)</option>
                     <option value="Cash Payment">Cash Payment (Offline / In-Hand)</option>
                     <option value="Bank Transfer (NEFT/IMPS)">Bank Transfer (NEFT / IMPS / RTGS)</option>
                     <option value="Debit / Credit Card">Debit / Credit Card</option>

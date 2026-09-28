@@ -645,11 +645,13 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                           onChange={(e) => setPaymentMode(e.target.value)}
                           className="flex h-9 w-full rounded-xl border border-input bg-background px-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
                         >
-                          <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe</option>
-                          <option value="Cash Payment">Cash Payment (In-Hand)</option>
-                          <option value="Bank Transfer (NEFT/IMPS)">Bank Transfer (NEFT/IMPS)</option>
+                          <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe / Paytm</option>
+                          <option value="Crypto USDT (BEP20)">Crypto USDT (BEP20)</option>
+                          <option value="Cash Payment">Cash Payment (Offline / In-Hand)</option>
+                          <option value="Bank Transfer (NEFT/IMPS)">Bank Transfer (NEFT / IMPS / RTGS)</option>
                           <option value="Debit / Credit Card">Debit / Credit Card</option>
-                          <option value="Scholarship / Free Access">Scholarship / Free Access (₹0)</option>
+                          <option value="Scholarship / Free Access">Scholarship / Fee Waived (₹0)</option>
+                          <option value="Other Method">Other Payment Gateway / Method</option>
                         </select>
                       </div>
                     </div>
