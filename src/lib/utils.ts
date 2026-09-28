@@ -35,12 +35,9 @@ export function generateSlug(text: string): string {
 }
 
 export function generateReferralCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  // Generates SW followed by 5 random digits (e.g. SW23456)
+  const randomNum = Math.floor(10000 + Math.random() * 90000);
+  return `SW${randomNum}`;
 }
 
 export function formatDate(date: Date | string | number): string {
