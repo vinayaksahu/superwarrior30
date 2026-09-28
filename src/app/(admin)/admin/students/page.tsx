@@ -9,7 +9,8 @@ import { EditUserEmailButton } from "@/components/admin/edit-user-email-modal";
 import { CreateStudentModal } from "@/components/admin/create-student-modal";
 import { ManageStudentCoursesModal } from "@/components/admin/manage-student-courses-modal";
 import { ResetStudentPasswordModal } from "@/components/admin/reset-student-password-modal";
-import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2 } from "lucide-react";
+import { EditStudentFeeModal } from "@/components/admin/edit-student-fee-modal";
+import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2, IndianRupee } from "lucide-react";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export default async function AdminStudentsPage({
             Students Directory
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            View and manage registered student accounts, course enrollments, and referral performance
+            View and manage registered student accounts, course fee collection, enrollments, and referral performance
           </p>
         </div>
 
@@ -115,10 +116,25 @@ export default async function AdminStudentsPage({
 
                   <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
                     <div>
-                      <span className="text-muted-foreground text-[10px] block">Enrollments</span>
+                      <span className="text-muted-foreground text-[10px] block">Course Access</span>
                       <span className="font-semibold text-foreground">
                         {student.enrollmentsCount} Course{student.enrollmentsCount !== 1 ? "s" : ""}
                       </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-[10px] block">Fee Collected</span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className={`font-bold font-mono ${student.totalFeePaid > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                          {formatCurrency(student.totalFeePaid)}
+                        </span>
+                        <EditStudentFeeModal
+                          studentId={student.id}
+                          studentName={student.name}
+                          studentEmail={student.email}
+                          currentTotalFee={student.totalFeePaid}
+                          size="xs"
+                        />
+                      </div>
                     </div>
                     <div>
                       <span className="text-muted-foreground text-[10px] block">Direct Referrals</span>
@@ -130,12 +146,6 @@ export default async function AdminStudentsPage({
                       <span className="text-muted-foreground text-[10px] block">Wallet Balance</span>
                       <span className="font-bold text-foreground">
                         {formatCurrency(student.walletBalance)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground text-[10px] block">Total Earned</span>
-                      <span className="font-bold text-emerald-500">
-                        {formatCurrency(student.totalEarned)}
                       </span>
                     </div>
                   </div>
@@ -154,6 +164,13 @@ export default async function AdminStudentsPage({
                         studentName={student.name}
                         studentEmail={student.email}
                         enrollmentsCount={student.enrollmentsCount}
+                        size="xs"
+                      />
+                      <EditStudentFeeModal
+                        studentId={student.id}
+                        studentName={student.name}
+                        studentEmail={student.email}
+                        currentTotalFee={student.totalFeePaid}
                         size="xs"
                       />
                       <ResetStudentPasswordModal
@@ -197,6 +214,7 @@ export default async function AdminStudentsPage({
                     <th className="px-4 py-3 font-medium">Student</th>
                     <th className="px-4 py-3 font-medium">Referral Code</th>
                     <th className="px-4 py-3 font-medium">Course Access</th>
+                    <th className="px-4 py-3 font-medium">Fee Collected</th>
                     <th className="px-4 py-3 font-medium">Direct Referrals</th>
                     <th className="px-4 py-3 font-medium text-right">Wallet Balance</th>
                     <th className="px-4 py-3 font-medium text-right">Total Earned</th>
@@ -234,6 +252,20 @@ export default async function AdminStudentsPage({
                           />
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`font-mono font-bold ${student.totalFeePaid > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                            {formatCurrency(student.totalFeePaid)}
+                          </span>
+                          <EditStudentFeeModal
+                            studentId={student.id}
+                            studentName={student.name}
+                            studentEmail={student.email}
+                            currentTotalFee={student.totalFeePaid}
+                            size="xs"
+                          />
+                        </div>
+                      </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {student.directReferralsCount} Referrals
                       </td>
@@ -257,6 +289,13 @@ export default async function AdminStudentsPage({
                             studentName={student.name}
                             studentEmail={student.email}
                             enrollmentsCount={student.enrollmentsCount}
+                            size="xs"
+                          />
+                          <EditStudentFeeModal
+                            studentId={student.id}
+                            studentName={student.name}
+                            studentEmail={student.email}
+                            currentTotalFee={student.totalFeePaid}
                             size="xs"
                           />
                           <ResetStudentPasswordModal

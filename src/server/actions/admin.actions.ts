@@ -160,6 +160,10 @@ export async function getAdminStudentsAction({
             totalEarned: true,
           },
         },
+        orders: {
+          where: { status: "PAID" },
+          select: { totalAmount: true },
+        },
       },
     }),
     prisma.user.count({ where }),
@@ -178,6 +182,10 @@ export async function getAdminStudentsAction({
       ordersCount: s._count.orders,
       walletBalance: Number(s.wallet?.availableBalance || 0),
       totalEarned: Number(s.wallet?.totalEarned || 0),
+      totalFeePaid: (s.orders || []).reduce(
+        (sum, o) => sum + Number(o.totalAmount || 0),
+        0
+      ),
       isTestData: s.isTestData,
       createdAt: s.createdAt,
     })),

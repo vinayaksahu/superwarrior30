@@ -23,8 +23,11 @@ import {
   Sparkles,
   GitBranch,
   Search,
+  IndianRupee,
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/utils";
 
 interface CourseOption {
   id: string;
@@ -49,6 +52,11 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
   const [showPassword, setShowPassword] = useState(false);
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
 
+  // Fee Collection State
+  const [courseFee, setCourseFee] = useState<string>("0");
+  const [paymentMode, setPaymentMode] = useState<string>("UPI / GPay / PhonePe");
+  const [paymentNotes, setPaymentNotes] = useState<string>("");
+
   // Referral / Sponsor Placement State
   const [referralType, setReferralType] = useState<"DIRECT_ADMIN" | "OTHER_STUDENT">("DIRECT_ADMIN");
   const [referrerInput, setReferrerInput] = useState("");
@@ -72,6 +80,9 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
     plainPassword: string;
     referralCode: string;
     assignedCoursesCount: number;
+    feeCollected?: number;
+    paymentMode?: string;
+    orderNumber?: string | null;
     referrer: {
       name: string | null;
       email: string;
@@ -86,6 +97,9 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
     setPhone("");
     setPassword("");
     setSelectedCourses([]);
+    setCourseFee("0");
+    setPaymentMode("UPI / GPay / PhonePe");
+    setPaymentNotes("");
     setReferralType("DIRECT_ADMIN");
     setReferrerInput("");
     setVerifiedReferrer(null);
@@ -109,11 +123,20 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
   };
 
   const toggleCourse = (courseId: string) => {
-    setSelectedCourses((prev) =>
-      prev.includes(courseId)
+    setSelectedCourses((prev) => {
+      const next = prev.includes(courseId)
         ? prev.filter((id) => id !== courseId)
-        : [...prev, courseId]
-    );
+        : [...prev, courseId];
+
+      // Auto update suggested fee
+      const sum = next.reduce((acc, id) => {
+        const c = availableCourses.find((item) => item.id === id);
+        return acc + (c?.price || 0);
+      }, 0);
+      setCourseFee(String(sum));
+
+      return next;
+    });
   };
 
   const handleVerifyReferrer = async () => {
@@ -167,6 +190,8 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
       return;
     }
 
+    const feeAmount = parseFloat(courseFee) || 0;
+
     startTransition(async () => {
       const res = await adminCreateStudentAction({
         name: name.trim(),
@@ -179,11 +204,14 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
           referralType === "OTHER_STUDENT"
             ? verifiedReferrer?.referralCode || referrerInput.trim()
             : undefined,
+        courseFeeCollected: feeAmount,
+        paymentMode: feeAmount > 0 ? paymentMode : undefined,
+        paymentNotes: feeAmount > 0 ? paymentNotes.trim() || undefined : undefined,
       });
 
       if (res.success && res.student) {
         setCreatedStudent(res.student);
-        toast.success("Student account created successfully!");
+        toast.success("Student account created & fee recorded!");
         router.refresh();
       } else {
         setError(res.error || "Failed to create student account.");
@@ -198,8 +226,11 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
     const sponsorName = createdStudent.referrer
       ? `${createdStudent.referrer.name || "Student"} (${createdStudent.referrer.referralCode})`
       : "Direct Admin (SW30)";
+    const feeText = createdStudent.feeCollected && createdStudent.feeCollected > 0
+      ? `\n💰 Course Fee: ₹${createdStudent.feeCollected.toLocaleString("en-IN")} (${createdStudent.paymentMode || "Paid"})`
+      : "";
 
-    const text = `🎓 Welcome to Trade Warrior Academy!\n\nHere are your Student Account Login details:\n\n👤 Name: ${createdStudent.name || "Student"}\n📧 Email: ${createdStudent.email}\n🔑 Password: ${createdStudent.plainPassword}\n🏷️ Referral Code: ${createdStudent.referralCode}\n👥 Sponsor / Referral: ${sponsorName}\n\n🔗 Login Link: ${origin}/login\n\nPlease keep your credentials safe and do not share them.`;
+    const text = `🎓 Welcome to Trade Warrior Academy!\n\nHere are your Student Account Login details:\n\n👤 Name: ${createdStudent.name || "Student"}\n📧 Email: ${createdStudent.email}\n🔑 Password: ${createdStudent.plainPassword}\n🏷️ Referral Code: ${createdStudent.referralCode}\n👥 Sponsor / Referral: ${sponsorName}${feeText}\n\n🔗 Login Link: ${origin}/login\n\nPlease keep your credentials safe and do not share them.`;
 
     navigator.clipboard.writeText(text);
     setIsCopied(true);
@@ -242,7 +273,7 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                 <p className="text-xs text-muted-foreground">
                   {createdStudent
                     ? "Copy student login credentials and share them with the student."
-                    : "Manually register student, choose referral placement, and assign courses."}
+                    : "Register student, collect fee, assign courses, and set referral."}
                 </p>
               </div>
             </div>
@@ -283,6 +314,14 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                           : "Direct Admin (SW30)"}
                       </span>
                     </div>
+                    {createdStudent.feeCollected && createdStudent.feeCollected > 0 ? (
+                      <div className="flex justify-between items-center py-0.5 border-b border-border/50">
+                        <span className="text-muted-foreground font-sans">Course Fee Collected:</span>
+                        <span className="font-bold text-emerald-400">
+                          {formatCurrency(createdStudent.feeCollected)} ({createdStudent.paymentMode})
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="flex justify-between items-center py-0.5">
                       <span className="text-muted-foreground font-sans">Assigned Courses:</span>
                       <span className="font-semibold text-emerald-400">
@@ -521,7 +560,7 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                     <label className="block text-xs font-semibold text-foreground mb-1.5 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <BookOpen className="h-3.5 w-3.5 text-primary" />
-                        Assign Courses Immediately (Optional)
+                        Assign Courses (Select to auto-calculate fee)
                       </span>
                       <span className="text-[10px] text-muted-foreground font-normal">
                         {selectedCourses.length} selected
@@ -563,6 +602,71 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                       </div>
                     )}
                   </div>
+
+                  {/* Course Fee Collection Section */}
+                  <div className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <IndianRupee className="h-4 w-4 text-emerald-400" />
+                        Course Fee Collected (Orders & Revenue)
+                      </label>
+                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        Syncs to Dashboard
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Fee Collected Amount (₹)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-xs">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={courseFee}
+                            onChange={(e) => setCourseFee(e.target.value)}
+                            placeholder="e.g. 14999"
+                            className="flex h-9 w-full rounded-xl border border-input bg-background pl-7 pr-3 text-xs font-mono font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Payment Method
+                        </label>
+                        <select
+                          value={paymentMode}
+                          onChange={(e) => setPaymentMode(e.target.value)}
+                          className="flex h-9 w-full rounded-xl border border-input bg-background px-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                        >
+                          <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe</option>
+                          <option value="Cash Payment">Cash Payment (In-Hand)</option>
+                          <option value="Bank Transfer (NEFT/IMPS)">Bank Transfer (NEFT/IMPS)</option>
+                          <option value="Debit / Credit Card">Debit / Credit Card</option>
+                          <option value="Scholarship / Free Access">Scholarship / Free Access (₹0)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                        Transaction UTR / Note (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={paymentNotes}
+                        onChange={(e) => setPaymentNotes(e.target.value)}
+                        placeholder="e.g. UTR: 82910482014 or Cash received by Admin"
+                        className="flex h-9 w-full rounded-xl border border-input bg-background px-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
@@ -588,7 +692,7 @@ export function CreateStudentModal({ availableCourses }: CreateStudentModalProps
                     ) : (
                       <>
                         <Sparkles className="h-3.5 w-3.5" />
-                        <span>Create & Assign</span>
+                        <span>Create & Record Fee</span>
                       </>
                     )}
                   </button>

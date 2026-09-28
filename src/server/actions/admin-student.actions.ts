@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/server/dal/auth";
 import { hashPassword } from "@/lib/auth/password";
-import { generateReferralCode } from "@/lib/utils";
+import { generateReferralCode, generateOrderNumber } from "@/lib/utils";
 import crypto from "crypto";
 
 function generateSecureRandomPassword(length = 10): string {
@@ -97,6 +97,9 @@ export async function adminCreateStudentAction(data: {
   assignedCourseIds?: string[];
   referralType?: "DIRECT_ADMIN" | "OTHER_STUDENT" | "NONE";
   referrerCodeOrEmail?: string;
+  courseFeeCollected?: number;
+  paymentMode?: string;
+  paymentNotes?: string;
 }) {
   const admin = await requireAdmin();
 
@@ -104,6 +107,7 @@ export async function adminCreateStudentAction(data: {
   const cleanEmail = data.email.toLowerCase().trim();
   const cleanPhone = data.phone ? data.phone.trim() : null;
   const referralType = data.referralType || "DIRECT_ADMIN";
+  const feeAmount = Math.max(0, Number(data.courseFeeCollected || 0));
 
   if (!cleanName) {
     return { success: false, error: "Student name is required." };
@@ -183,7 +187,7 @@ export async function adminCreateStudentAction(data: {
   } while (codeExists);
 
   try {
-    const student = await prisma.$transaction(async (tx) => {
+    const { user: student, order: createdOrder } = await prisma.$transaction(async (tx) => {
       // 1. Create student user
       const user = await tx.user.create({
         data: {
@@ -210,14 +214,77 @@ export async function adminCreateStudentAction(data: {
         },
       });
 
-      // 3. Assign initial courses if selected
+      // 3. Optional: Create Paid Order if course fee was collected
+      let orderRecord: any = null;
       const assignedIds = data.assignedCourseIds || [];
+
+      if (feeAmount > 0) {
+        const orderNumber = generateOrderNumber();
+        const paymentModeStr = data.paymentMode || "Cash/UPI";
+        const paymentRef = `${paymentModeStr}${data.paymentNotes ? ` - ${data.paymentNotes.trim()}` : ""}`;
+
+        orderRecord = await tx.order.create({
+          data: {
+            orderNumber,
+            userId: user.id,
+            status: "PAID",
+            currency: "INR",
+            subtotalAmount: feeAmount,
+            discountAmount: 0,
+            taxAmount: 0,
+            totalAmount: feeAmount,
+            paymentProvider: "MANUAL_ADMIN",
+            manualPaymentRef: paymentRef,
+            paidAt: new Date(),
+            approvedAt: new Date(),
+            approvedBy: admin.email,
+            isTestData: false,
+          },
+        });
+
+        // Create Order Items
+        if (assignedIds.length > 0) {
+          const courses = await tx.course.findMany({
+            where: { id: { in: assignedIds } },
+            select: { id: true, title: true },
+          });
+          const splitPrice = Number((feeAmount / (courses.length || 1)).toFixed(2));
+          for (const c of courses) {
+            await tx.orderItem.create({
+              data: {
+                orderId: orderRecord.id,
+                courseId: c.id,
+                itemTitle: c.title,
+                unitPrice: splitPrice,
+                quantity: 1,
+                totalPrice: splitPrice,
+                isTestData: false,
+              },
+            });
+          }
+        } else {
+          await tx.orderItem.create({
+            data: {
+              orderId: orderRecord.id,
+              courseId: null,
+              itemTitle: "Super Warrior 30 Admission / Course Fee",
+              unitPrice: feeAmount,
+              quantity: 1,
+              totalPrice: feeAmount,
+              isTestData: false,
+            },
+          });
+        }
+      }
+
+      // 4. Assign initial courses if selected
       if (assignedIds.length > 0) {
         for (const courseId of assignedIds) {
           await tx.courseEnrollment.create({
             data: {
               userId: user.id,
               courseId,
+              orderId: orderRecord?.id || null,
               status: "ACTIVE",
               progressPercentage: 0,
               isTestData: false,
@@ -276,6 +343,9 @@ export async function adminCreateStudentAction(data: {
             email: cleanEmail,
             assignedCourseIds: assignedIds,
             referralType,
+            feeAmount,
+            paymentMode: data.paymentMode || null,
+            orderNumber: orderRecord?.orderNumber || null,
             referrerInfo: resolvedReferrer
               ? `${resolvedReferrer.name || resolvedReferrer.email} (${resolvedReferrer.referralCode})`
               : "None",
@@ -283,10 +353,12 @@ export async function adminCreateStudentAction(data: {
         },
       });
 
-      return user;
+      return { user, order: orderRecord };
     });
 
     revalidatePath("/admin/students");
+    revalidatePath("/admin");
+    revalidatePath("/admin/orders");
 
     return {
       success: true,
@@ -298,6 +370,9 @@ export async function adminCreateStudentAction(data: {
         referralCode: student.referralCode,
         plainPassword,
         assignedCoursesCount: (data.assignedCourseIds || []).length,
+        feeCollected: feeAmount,
+        paymentMode: data.paymentMode || "Cash/UPI",
+        orderNumber: createdOrder?.orderNumber || null,
         referrer: resolvedReferrer
           ? {
               name: resolvedReferrer.name,
@@ -546,6 +621,240 @@ export async function adminResetStudentPasswordAction(studentId: string, newPass
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to reset password.",
+    };
+  }
+}
+
+// 7. Get Student Course Fee & Payment Details
+export async function adminGetStudentFeeDetailsAction(studentId: string) {
+  await requireAdmin();
+
+  const [student, orders, enrollments] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, name: true, email: true },
+    }),
+    prisma.order.findMany({
+      where: { userId: studentId, status: "PAID" },
+      select: {
+        id: true,
+        orderNumber: true,
+        totalAmount: true,
+        paymentProvider: true,
+        manualPaymentRef: true,
+        paidAt: true,
+        createdAt: true,
+        items: { select: { itemTitle: true, totalPrice: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.courseEnrollment.findMany({
+      where: { userId: studentId, status: "ACTIVE" },
+      include: { course: { select: { id: true, title: true, price: true } } },
+    }),
+  ]);
+
+  if (!student) throw new Error("Student not found.");
+
+  const totalFeeCollected = orders.reduce(
+    (sum, o) => sum + Number(o.totalAmount || 0),
+    0
+  );
+
+  return {
+    student,
+    totalFeeCollected,
+    orders: orders.map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      totalAmount: Number(o.totalAmount || 0),
+      paymentProvider: o.paymentProvider || "MANUAL_ADMIN",
+      paymentRef: o.manualPaymentRef || "",
+      paidAt: o.paidAt || o.createdAt,
+      items: o.items.map((i) => ({
+        title: i.itemTitle,
+        price: Number(i.totalPrice || 0),
+      })),
+    })),
+    enrolledCourses: enrollments.map((e) => ({
+      id: e.course.id,
+      title: e.course.title,
+      catalogPrice: Number(e.course.price || 0),
+    })),
+  };
+}
+
+// 8. Update or Record Student Course Fee Collected
+export async function adminUpdateStudentFeeAction(data: {
+  studentId: string;
+  amount: number;
+  paymentMode?: string;
+  notes?: string;
+}) {
+  const admin = await requireAdmin();
+
+  const student = await prisma.user.findUnique({
+    where: { id: data.studentId },
+    include: {
+      enrollments: {
+        where: { status: "ACTIVE" },
+        include: { course: true },
+      },
+      orders: {
+        where: { status: "PAID" },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  if (!student) return { success: false, error: "Student not found." };
+
+  const targetAmount = Math.max(0, Number(data.amount || 0));
+  const paymentMode = data.paymentMode || "Cash/UPI";
+  const paymentRef = `${paymentMode}${data.notes ? ` - ${data.notes.trim()}` : ""}`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Find latest manual order or any paid order
+      const manualOrder =
+        student.orders.find(
+          (o) =>
+            o.paymentProvider === "MANUAL_ADMIN" ||
+            o.paymentProvider?.includes("Cash") ||
+            o.paymentProvider?.includes("UPI")
+        ) || student.orders[0];
+
+      if (manualOrder) {
+        // Update existing order amount & reference
+        await tx.order.update({
+          where: { id: manualOrder.id },
+          data: {
+            subtotalAmount: targetAmount,
+            totalAmount: targetAmount,
+            paymentProvider: "MANUAL_ADMIN",
+            manualPaymentRef: paymentRef,
+            approvedBy: admin.email,
+            updatedAt: new Date(),
+          },
+        });
+
+        // Refresh items snapshot
+        await tx.orderItem.deleteMany({ where: { orderId: manualOrder.id } });
+        if (student.enrollments.length > 0) {
+          const split = Number((targetAmount / student.enrollments.length).toFixed(2));
+          for (const en of student.enrollments) {
+            await tx.orderItem.create({
+              data: {
+                orderId: manualOrder.id,
+                courseId: en.courseId,
+                itemTitle: en.course.title,
+                unitPrice: split,
+                quantity: 1,
+                totalPrice: split,
+                isTestData: false,
+              },
+            });
+          }
+        } else {
+          await tx.orderItem.create({
+            data: {
+              orderId: manualOrder.id,
+              courseId: null,
+              itemTitle: "Super Warrior 30 Course Fee",
+              unitPrice: targetAmount,
+              quantity: 1,
+              totalPrice: targetAmount,
+              isTestData: false,
+            },
+          });
+        }
+      } else if (targetAmount > 0) {
+        // Create new paid order for the student
+        const orderNumber = generateOrderNumber();
+        const newOrder = await tx.order.create({
+          data: {
+            orderNumber,
+            userId: student.id,
+            status: "PAID",
+            currency: "INR",
+            subtotalAmount: targetAmount,
+            discountAmount: 0,
+            taxAmount: 0,
+            totalAmount: targetAmount,
+            paymentProvider: "MANUAL_ADMIN",
+            manualPaymentRef: paymentRef,
+            paidAt: new Date(),
+            approvedAt: new Date(),
+            approvedBy: admin.email,
+            isTestData: false,
+          },
+        });
+
+        if (student.enrollments.length > 0) {
+          const split = Number((targetAmount / student.enrollments.length).toFixed(2));
+          for (const en of student.enrollments) {
+            await tx.orderItem.create({
+              data: {
+                orderId: newOrder.id,
+                courseId: en.courseId,
+                itemTitle: en.course.title,
+                unitPrice: split,
+                quantity: 1,
+                totalPrice: split,
+                isTestData: false,
+              },
+            });
+            await tx.courseEnrollment.update({
+              where: { id: en.id },
+              data: { orderId: newOrder.id },
+            });
+          }
+        } else {
+          await tx.orderItem.create({
+            data: {
+              orderId: newOrder.id,
+              courseId: null,
+              itemTitle: "Super Warrior 30 Course Fee",
+              unitPrice: targetAmount,
+              quantity: 1,
+              totalPrice: targetAmount,
+              isTestData: false,
+            },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: admin.id,
+          actorEmail: admin.email,
+          actorRole: admin.role,
+          action: "STUDENT_FEE_COLLECTION_UPDATED",
+          entityType: "Order",
+          entityId: manualOrder?.id || student.id,
+          newValues: {
+            studentEmail: student.email,
+            feeAmount: targetAmount,
+            paymentMode,
+            notes: data.notes || null,
+          },
+        },
+      });
+    });
+
+    revalidatePath("/admin/students");
+    revalidatePath("/admin");
+    revalidatePath("/admin/orders");
+
+    return {
+      success: true,
+      message: `Course fee collection updated to ₹${targetAmount.toLocaleString("en-IN")} for ${student.name || student.email}.`,
+    };
+  } catch (error) {
+    console.error("[adminUpdateStudentFeeAction] Error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update course fee.",
     };
   }
 }
