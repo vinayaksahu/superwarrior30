@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminStudentsAction } from "@/server/actions/admin.actions";
+import { getAdminAvailableCoursesAction } from "@/server/actions/admin-student.actions";
 import { formatCurrency } from "@/lib/utils";
 import { requireAdmin, isSuperAdminUser } from "@/server/dal/auth";
 import { ForceLogoutButton } from "@/components/admin/admin-device-actions";
 import { EditUserEmailButton } from "@/components/admin/edit-user-email-modal";
+import { CreateStudentModal } from "@/components/admin/create-student-modal";
+import { ManageStudentCoursesModal } from "@/components/admin/manage-student-courses-modal";
+import { ResetStudentPasswordModal } from "@/components/admin/reset-student-password-modal";
 import { Users, Search, BookOpen, GitBranch, Wallet, CheckCircle2 } from "lucide-react";
 import { TestUserBadge } from "@/components/shared/test-user-badge";
 
@@ -27,20 +31,30 @@ export default async function AdminStudentsPage({
   const page = parseInt(params.page || "1");
   const search = params.search || "";
 
-  const data = await getAdminStudentsAction({
-    page,
-    search,
-  });
+  const [data, availableCourses] = await Promise.all([
+    getAdminStudentsAction({
+      page,
+      search,
+    }),
+    getAdminAvailableCoursesAction(),
+  ]);
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          Students Directory
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          View and manage registered student accounts, course enrollments, and referral performance
-        </p>
+      {/* Top Header with Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            Students Directory
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            View and manage registered student accounts, course enrollments, and referral performance
+          </p>
+        </div>
+
+        <div>
+          <CreateStudentModal availableCourses={availableCourses} />
+        </div>
       </div>
 
       <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden space-y-4 p-4 sm:p-6">
@@ -52,21 +66,26 @@ export default async function AdminStudentsPage({
             </p>
           </div>
 
-          <form className="relative w-full sm:w-auto">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              name="search"
-              type="text"
-              placeholder="Search name, email, or code..."
-              defaultValue={search}
-              className="flex h-9 w-full sm:w-64 rounded-xl border border-input bg-background pl-9 pr-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
-          </form>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <form className="relative w-full sm:w-auto flex-1">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                name="search"
+                type="text"
+                placeholder="Search name, email, or code..."
+                defaultValue={search}
+                className="flex h-9 w-full sm:w-64 rounded-xl border border-input bg-background pl-9 pr-3 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+            </form>
+          </div>
         </div>
 
         {data.data.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-12 text-center text-xs text-muted-foreground">
-            No students found matching your search.
+          <div className="rounded-xl border border-dashed border-border p-12 text-center text-xs text-muted-foreground space-y-4">
+            <p>No students found matching your search.</p>
+            <div>
+              <CreateStudentModal availableCourses={availableCourses} />
+            </div>
           </div>
         ) : (
           <>
@@ -129,7 +148,20 @@ export default async function AdminStudentsPage({
                         year: "numeric",
                       })}
                     </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                      <ManageStudentCoursesModal
+                        studentId={student.id}
+                        studentName={student.name}
+                        studentEmail={student.email}
+                        enrollmentsCount={student.enrollmentsCount}
+                        size="xs"
+                      />
+                      <ResetStudentPasswordModal
+                        studentId={student.id}
+                        studentName={student.name}
+                        studentEmail={student.email}
+                        size="xs"
+                      />
                       {isSuper && (
                         <EditUserEmailButton
                           userId={student.id}
@@ -164,7 +196,7 @@ export default async function AdminStudentsPage({
                   <tr className="border-b border-border bg-muted/20 text-muted-foreground text-left">
                     <th className="px-4 py-3 font-medium">Student</th>
                     <th className="px-4 py-3 font-medium">Referral Code</th>
-                    <th className="px-4 py-3 font-medium">Courses</th>
+                    <th className="px-4 py-3 font-medium">Course Access</th>
                     <th className="px-4 py-3 font-medium">Direct Referrals</th>
                     <th className="px-4 py-3 font-medium text-right">Wallet Balance</th>
                     <th className="px-4 py-3 font-medium text-right">Total Earned</th>
@@ -181,12 +213,26 @@ export default async function AdminStudentsPage({
                           <TestUserBadge isTestData={student.isTestData} />
                         </div>
                         <p className="text-[10px] text-muted-foreground font-mono">{student.email}</p>
+                        {student.phone && (
+                          <p className="text-[10px] text-muted-foreground">{student.phone}</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-mono font-bold text-primary">
                         {student.referralCode}
                       </td>
-                      <td className="px-4 py-3 font-semibold text-foreground">
-                        {student.enrollmentsCount} Enrolled
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-foreground">
+                            {student.enrollmentsCount} Enrolled
+                          </span>
+                          <ManageStudentCoursesModal
+                            studentId={student.id}
+                            studentName={student.name}
+                            studentEmail={student.email}
+                            enrollmentsCount={student.enrollmentsCount}
+                            size="xs"
+                          />
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {student.directReferralsCount} Referrals
@@ -205,7 +251,20 @@ export default async function AdminStudentsPage({
                         })}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <ManageStudentCoursesModal
+                            studentId={student.id}
+                            studentName={student.name}
+                            studentEmail={student.email}
+                            enrollmentsCount={student.enrollmentsCount}
+                            size="xs"
+                          />
+                          <ResetStudentPasswordModal
+                            studentId={student.id}
+                            studentName={student.name}
+                            studentEmail={student.email}
+                            size="xs"
+                          />
                           {isSuper && (
                             <EditUserEmailButton
                               userId={student.id}
@@ -224,7 +283,7 @@ export default async function AdminStudentsPage({
                           <ForceLogoutButton
                             userId={student.id}
                             userEmail={student.email}
-                            label="Session Out"
+                            label="Out"
                             size="xs"
                           />
                         </div>
