@@ -78,6 +78,7 @@ const mobileNavLinks: MobileNavLink[] = [
   { href: "/admin/support", label: "Support Desk", icon: LifeBuoy, requiredPermission: "support.view" },
   { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowDownToLine, requiredPermission: "withdrawals.view" },
   { href: "/admin/wallet", label: "Wallet", icon: Wallet, requiredPermission: "wallet.view" },
+  { href: "/admin/community", label: "Join Community Requests", icon: Users, requiredPermission: "offers.view" },
   { href: "/admin/broker-offers", label: "Offers & Discounts", icon: Sparkles, requiredPermission: "offers.view" },
   { href: "/admin/payment-methods", label: "Payment Methods", icon: CreditCard, requiredPermission: "payment_methods.view" },
   { href: "/admin/leads", label: "Leads", icon: ContactRound, requiredPermission: "leads.view" },

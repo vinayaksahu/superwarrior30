@@ -148,6 +148,12 @@ export const allSidebarLinks: SidebarLink[] = [
     requiredPermission: "wallet.view",
   },
   {
+    href: "/admin/community",
+    label: "Join Community Requests",
+    icon: Users,
+    requiredPermission: "offers.view",
+  },
+  {
     href: "/admin/broker-offers",
     label: "Offers & Discounts",
     icon: Sparkles,
