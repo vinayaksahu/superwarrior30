@@ -35,8 +35,8 @@ export const PAGINATION = {
 } as const;
 
 export const SIGNED_URL_EXPIRY = {
-  VIDEO: 3600,    // 1 hour
-  PDF: 1800,      // 30 minutes
+  VIDEO: 28800,   // 8 hours (prevents token expiring during long lectures and multi-hour study sessions)
+  PDF: 14400,     // 4 hours
   UPLOAD: 300,    // 5 minutes
   THUMBNAIL: 86400, // 24 hours
 } as const;

@@ -95,7 +95,14 @@ export function ProtectedVideoPlayer({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [qualities, setQualities] = useState<
+    { index: number; height: number; bitrate: number; label: string }[]
+  >([]);
+  const [selectedQuality, setSelectedQuality] = useState<number>(-1); // -1 = Auto
+  const [activeQualityLabel, setActiveQualityLabel] = useState<string>("Auto");
   const [isBuffering, setIsBuffering] = useState(false);
+  const [bufferingSeconds, setBufferingSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [feedbackOverlay, setFeedbackOverlay] = useState<string | null>(null);
@@ -103,6 +110,22 @@ export function ProtectedVideoPlayer({
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
+  const lastTimeRef = useRef(0);
+
+  // Monitor buffering duration to show helpful tips during slow connection
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isBuffering) {
+      interval = setInterval(() => {
+        setBufferingSeconds((s) => s + 1);
+      }, 1000);
+    } else {
+      setBufferingSeconds(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isBuffering]);
 
   // Reset resume state when src or lessonId changes
   useEffect(() => {
@@ -192,8 +215,22 @@ export function ProtectedVideoPlayer({
         lowLatencyMode: false,
         backBufferLength: 90,
         startFragPrefetch: true,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 120,
+        // High-performance smooth buffering: buffer ahead up to 60s and up to 10 mins when idle
+        maxBufferLength: 60,
+        maxMaxBufferLength: 600,
+        maxBufferSize: 100 * 1000 * 1000, // 100MB buffer memory
+        maxBufferHole: 0.5,
+        highBufferWatchdogPeriod: 2,
+        nudgeOffset: 0.2,
+        nudgeMaxRetry: 5,
+        capLevelToPlayerSize: true, // Prevents loading oversized bitrates on smaller viewports
+        // Network timeout and retry resilience for fluctuating connections
+        fragLoadingTimeOut: 30000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        fragLoadingMaxRetryTimeout: 64000,
+        levelLoadingTimeOut: 30000,
+        levelLoadingMaxRetry: 4,
       });
 
       hlsRef.current = hls;
@@ -206,23 +243,70 @@ export function ProtectedVideoPlayer({
         }
       });
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
         setIsBuffering(false);
         updateDuration();
         applyResume();
+
+        if (data.levels && data.levels.length > 0) {
+          const uniqueQualities: { index: number; height: number; bitrate: number; label: string }[] = [];
+          const seenHeights = new Set<number>();
+          data.levels.forEach((lvl, idx) => {
+            if (lvl.height && !seenHeights.has(lvl.height)) {
+              seenHeights.add(lvl.height);
+              uniqueQualities.push({
+                index: idx,
+                height: lvl.height,
+                bitrate: lvl.bitrate,
+                label: `${lvl.height}p`,
+              });
+            }
+          });
+          uniqueQualities.sort((a, b) => b.height - a.height);
+          setQualities(uniqueQualities);
+        }
+
         if (autoPlay && video) {
           video.play().catch(() => {});
         }
       });
 
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+        if (hls.levels && hls.levels[data.level]) {
+          const lvl = hls.levels[data.level];
+          if (hls.autoLevelEnabled) {
+            setActiveQualityLabel(`Auto (${lvl.height}p)`);
+          } else {
+            setActiveQualityLabel(`${lvl.height}p`);
+          }
+        }
+      });
+
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        if (video && video.readyState >= 3) {
+          setIsBuffering(false);
+        }
+      });
+
       hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          if (video && !video.paused && video.readyState >= 2) {
+            try {
+              video.currentTime += 0.05;
+            } catch {}
+          }
+          return;
+        }
+
         if (data.fatal) {
           console.error("HLS Fatal Error:", data);
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn("HLS Network error: attempting reconnect...", data);
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("HLS Media error: recovering...", data);
               hls.recoverMediaError();
               break;
             default:
@@ -379,6 +463,12 @@ export function ProtectedVideoPlayer({
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       const cur = videoRef.current.currentTime;
+      // If video is advancing and buffering spinner is stuck, clear it immediately
+      if (Math.abs(cur - lastTimeRef.current) > 0.05 && isBuffering) {
+        setIsBuffering(false);
+      }
+      lastTimeRef.current = cur;
+
       setCurrentTime(cur);
       updateDuration(videoRef.current.duration);
 
@@ -423,6 +513,24 @@ export function ProtectedVideoPlayer({
   const handlePause = () => {
     setIsPlaying(false);
     persistProgressNow();
+  };
+
+  const handleQualityChange = (levelIndex: number) => {
+    setSelectedQuality(levelIndex);
+    if (hlsRef.current) {
+      hlsRef.current.currentLevel = levelIndex;
+      if (levelIndex === -1) {
+        setActiveQualityLabel("Auto");
+        triggerFeedback("Quality: Auto");
+      } else {
+        const q = qualities.find((item) => item.index === levelIndex);
+        const lbl = q?.label || "Manual";
+        setActiveQualityLabel(lbl);
+        triggerFeedback(`Quality: ${lbl}`);
+      }
+    }
+    setShowQualityMenu(false);
+    setShowSettings(false);
   };
 
   // Sync on tab blur or close
@@ -631,6 +739,7 @@ export function ProtectedVideoPlayer({
       if (isPlaying) {
         setShowControls(false);
         setShowSettings(false);
+        setShowQualityMenu(false);
       }
     }, 3500);
   }, [isPlaying]);
@@ -699,8 +808,15 @@ export function ProtectedVideoPlayer({
           applyResume();
         }}
         onCanPlay={() => {
+          setIsBuffering(false);
           updateDuration();
           applyResume();
+        }}
+        onCanPlayThrough={() => {
+          setIsBuffering(false);
+        }}
+        onSeeked={() => {
+          setIsBuffering(false);
         }}
         onDurationChange={() => updateDuration()}
         className="h-full w-full object-contain cursor-pointer"
@@ -720,12 +836,21 @@ export function ProtectedVideoPlayer({
         </div>
       )}
 
-      {/* Buffering Indicator */}
+      {/* Buffering Indicator with Slow Network Awareness */}
       {isBuffering && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/40">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-10 w-10 animate-spin text-amber-400" />
-            <span className="text-[11px] font-medium text-white/80">Loading stream...</span>
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/45 backdrop-blur-xs">
+          <div className="flex flex-col items-center gap-2.5 px-4 py-3 rounded-2xl bg-black/75 border border-white/10 shadow-2xl text-center max-w-[280px]">
+            <Loader2 className="h-9 w-9 animate-spin text-amber-400" />
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-white/90">
+                {bufferingSeconds >= 4 ? "Optimizing stream for your network..." : "Loading stream..."}
+              </span>
+              {bufferingSeconds >= 4 && (
+                <p className="text-[10px] text-amber-300/90 leading-tight">
+                  Slow internet detected. Try selecting 480p or 720p in Quality settings below.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -898,13 +1023,72 @@ export function ProtectedVideoPlayer({
               </div>
             </div>
 
-            {/* Right Controls: Speed, Mobile Landscape, Desktop Fullscreen */}
+            {/* Right Controls: Quality, Speed, Mobile Landscape, Desktop Fullscreen */}
             <div className="flex items-center gap-1.5 sm:gap-2 relative">
+              {/* Quality Selection Menu (Auto, 1080p, 720p, 480p, 360p) */}
+              {qualities.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQualityMenu(!showQualityMenu);
+                      setShowSettings(false);
+                    }}
+                    className="rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold bg-white/15 hover:bg-white/25 active:bg-white/30 transition text-white cursor-pointer border border-white/10 flex items-center gap-1"
+                    title="Video Quality"
+                  >
+                    <span>
+                      {selectedQuality === -1
+                        ? activeQualityLabel
+                        : qualities.find((q) => q.index === selectedQuality)?.label || "Quality"}
+                    </span>
+                  </button>
+
+                  {showQualityMenu && (
+                    <div className="absolute bottom-9 right-0 rounded-xl bg-neutral-900/95 border border-border p-1 shadow-2xl text-white space-y-0.5 z-50 min-w-[120px] backdrop-blur-md">
+                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Quality
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleQualityChange(-1)}
+                        className={`flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          selectedQuality === -1
+                            ? "bg-amber-500 text-black font-extrabold"
+                            : "hover:bg-white/10 text-white/90"
+                        }`}
+                      >
+                        <span>Auto</span>
+                        {selectedQuality === -1 && <Check className="h-3.5 w-3.5" />}
+                      </button>
+                      {qualities.map((q) => (
+                        <button
+                          key={q.index}
+                          type="button"
+                          onClick={() => handleQualityChange(q.index)}
+                          className={`flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                            selectedQuality === q.index
+                              ? "bg-amber-500 text-black font-extrabold"
+                              : "hover:bg-white/10 text-white/90"
+                          }`}
+                        >
+                          <span>{q.label}</span>
+                          {selectedQuality === q.index && <Check className="h-3.5 w-3.5" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Playback Speed Menu */}
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setShowSettings(!showSettings)}
+                  onClick={() => {
+                    setShowSettings(!showSettings);
+                    setShowQualityMenu(false);
+                  }}
                   className="rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold bg-white/15 hover:bg-white/25 active:bg-white/30 transition text-white cursor-pointer border border-white/10"
                   title="Playback Speed"
                 >
