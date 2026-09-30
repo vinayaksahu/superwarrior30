@@ -316,15 +316,23 @@ export async function adminVerifyMemberIdAction(input: {
 
   revalidatePath("/admin/broker-offers");
   revalidatePath("/dashboard/cashbacks");
+  revalidatePath("/dashboard/join-community");
+  revalidatePath("/dashboard");
 
-    return {
-      success: true,
-      message: isVerified
-        ? "Broker Member ID successfully verified!"
-        : "Broker Member ID verification rejected.",
-      claim: updated,
-    };
-  }
+  const isCommunity =
+    existingClaim.order?.paymentProvider === "FREE_COMMUNITY_JOIN" ||
+    existingClaim.order?.orderNumber?.startsWith("COMMUNITY-") ||
+    Boolean((existingClaim.payoutDetails as any)?.telegramUsername) ||
+    Boolean((existingClaim.order?.metadata as any)?.telegramUsername);
+
+  return {
+    success: true,
+    message: isVerified
+      ? (isCommunity ? "Student community access approved successfully!" : "Broker Member ID successfully verified!")
+      : (isCommunity ? "Student community access revoked / removed." : "Broker Member ID verification rejected."),
+    claim: updated,
+  };
+}
 
 /**
  * Student submits Payout details (UPI ID / Bank) to claim available cashback
@@ -670,16 +678,16 @@ export async function submitJoinCommunityAction(input: {
     }
   }
 
-  // Check if user already has a pending/verified community claim
+  // Check if user already has a community join claim
   const existingClaim = await prisma.brokerOfferClaim.findFirst({
     where: {
       userId: user.id,
-      mode: "CASHBACK",
       OR: [
-        { verificationStatus: "PENDING" },
-        { verificationStatus: "VERIFIED" },
+        { order: { paymentProvider: "FREE_COMMUNITY_JOIN" } },
+        { order: { orderNumber: { startsWith: "COMMUNITY-" } } },
       ],
     },
+    orderBy: { createdAt: "desc" },
   });
 
   if (existingClaim) {
@@ -689,10 +697,75 @@ export async function submitJoinCommunityAction(input: {
         message: "Your community access is already verified! You should have access to the Premium Telegram Community.",
       };
     }
-    return {
-      success: false,
-      message: "You already have a pending submission. Please wait for admin verification.",
-    };
+    if (existingClaim.verificationStatus === "PENDING") {
+      return {
+        success: false,
+        message: "You already have a pending submission. Please wait for admin verification.",
+      };
+    }
+    // If REJECTED, user is allowed to re-apply!
+    if (existingClaim.verificationStatus === "REJECTED") {
+      const finalBrokerName =
+        input.brokerName?.trim() ||
+        (hasPurchasedCourse ? "Enrolled Course Student (Direct Access)" : "Direct Community Member");
+      const finalMemberId =
+        input.memberId?.trim() ||
+        (hasPurchasedCourse ? "COURSE_STUDENT" : "DIRECT_FREE");
+
+      if (cleanPhone) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { phone: cleanPhone },
+        }).catch(() => {});
+      }
+
+      await prisma.brokerOfferClaim.update({
+        where: { id: existingClaim.id },
+        data: {
+          brokerName: finalBrokerName,
+          brokerMemberId: finalMemberId,
+          proofUrl: input.proofUrl || null,
+          verificationStatus: "PENDING",
+          rejectionReason: null,
+          verifiedAt: null,
+          verifiedById: null,
+          payoutDetails: {
+            telegramUsername: `@${cleanTelegram}`,
+            phone: cleanPhone,
+            hasPurchasedCourse,
+            reappliedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      if (existingClaim.orderId) {
+        await prisma.order.update({
+          where: { id: existingClaim.orderId },
+          data: {
+            metadata: {
+              type: "COMMUNITY_JOIN",
+              telegramUsername: `@${cleanTelegram}`,
+              phone: cleanPhone,
+              hasPurchasedCourse,
+              brokerId: input.brokerId || null,
+              brokerName: finalBrokerName,
+              brokerMemberId: finalMemberId,
+              reappliedAt: new Date().toISOString(),
+            },
+          },
+        }).catch(() => {});
+      }
+
+      revalidatePath("/dashboard/join-community");
+      revalidatePath("/dashboard");
+      revalidatePath("/admin/broker-offers");
+
+      return {
+        success: true,
+        message:
+          "Your details have been re-submitted successfully! Admin will verify and add you to the Premium Telegram Community.",
+      };
+    }
   }
 
   const { resolveCurrentEnvironment } = await import("@/lib/env-context");

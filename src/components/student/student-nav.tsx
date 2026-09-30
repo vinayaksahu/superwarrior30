@@ -36,7 +36,11 @@ const navLinks = [
   { href: "/profile", label: "Profile", icon: User },
 ];
 
-export function StudentNav() {
+interface StudentNavProps {
+  isCommunityMember?: boolean;
+}
+
+export function StudentNav({ isCommunityMember = false }: StudentNavProps) {
   const pathname = usePathname();
 
   return (
@@ -45,6 +49,10 @@ export function StudentNav() {
         const isActive =
           pathname === link.href ||
           (link.href !== "/dashboard" && pathname.startsWith(`${link.href}/`));
+        const label =
+          link.href === "/dashboard/join-community" && isCommunityMember
+            ? "Community"
+            : link.label;
         return (
           <Link
             key={link.href}
@@ -57,7 +65,7 @@ export function StudentNav() {
             )}
           >
             <link.icon className="h-4 w-4" />
-            {link.label}
+            {label}
           </Link>
         );
       })}

@@ -61,11 +61,26 @@ export function JoinCommunityClient({
     ? Boolean(brokerConfig.isBrokerMandatoryForPaidUsers)
     : brokerConfig.isBrokerMandatoryForFreeUsers !== false;
 
-  const [telegramUsername, setTelegramUsername] = useState("");
-  const [phone, setPhone] = useState(userPhone);
-  const [showBrokerOptional, setShowBrokerOptional] = useState(isBrokerRequired);
-  const [selectedBroker, setSelectedBroker] = useState<string | null>(null);
-  const [memberId, setMemberId] = useState("");
+  const isRejected = existingClaim?.verificationStatus === "REJECTED";
+  const matchedBroker = existingClaim?.brokerName
+    ? (brokerConfig.brokers || []).find((b) => b.name.toLowerCase() === existingClaim.brokerName.toLowerCase())?.id || null
+    : null;
+
+  const [telegramUsername, setTelegramUsername] = useState(
+    existingClaim?.telegramUsername?.replace(/^@/, "") || ""
+  );
+  const [phone, setPhone] = useState(existingClaim?.phone || userPhone);
+  const [showBrokerOptional, setShowBrokerOptional] = useState(
+    isBrokerRequired || Boolean(existingClaim?.brokerMemberId)
+  );
+  const [selectedBroker, setSelectedBroker] = useState<string | null>(matchedBroker);
+  const [memberId, setMemberId] = useState(
+    existingClaim?.brokerMemberId &&
+    existingClaim.brokerMemberId !== "COURSE_STUDENT" &&
+    existingClaim.brokerMemberId !== "DIRECT_FREE"
+      ? existingClaim.brokerMemberId
+      : ""
+  );
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -75,17 +90,20 @@ export function JoinCommunityClient({
   const activeBrokers = (brokerConfig.brokers || []).filter((b) => b.isActive);
   const currentBroker = activeBrokers.find((b) => b.id === selectedBroker);
 
-  // If already submitted / existing claim
-  if (existingClaim) {
+  // If already submitted and VERIFIED or PENDING
+  if (existingClaim && (existingClaim.verificationStatus === "VERIFIED" || existingClaim.verificationStatus === "PENDING")) {
+    const isVerified = existingClaim.verificationStatus === "VERIFIED";
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
             <Users className="h-6 w-6 text-amber-400" />
-            Join Community
+            {isVerified ? "Community" : "Join Community"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Premium Telegram Community Access Status
+            {isVerified
+              ? "Super Warrior 30 Premium Community Access"
+              : "Premium Telegram Community Access Status"}
           </p>
         </div>
 
@@ -129,18 +147,6 @@ export function JoinCommunityClient({
                 <p className="font-bold text-amber-400">Verification Pending ⏳</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Your Telegram and account details have been submitted and are under review by our admin team. Once verified, you will receive access to the Premium Telegram Community.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {existingClaim.verificationStatus === "REJECTED" && (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30">
-              <XCircle className="h-6 w-6 text-red-400 mt-0.5 shrink-0" />
-              <div>
-                <p className="font-bold text-red-400">Submission Rejected</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {existingClaim.rejectionReason || "Your submission was rejected. Please contact support or resubmit with valid details."}
                 </p>
               </div>
             </div>
@@ -287,6 +293,29 @@ export function JoinCommunityClient({
           Get access to our Super Warrior 30 Premium Telegram Community
         </p>
       </div>
+
+      {/* Rejection / Revocation Notice Banner */}
+      {isRejected && (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-5 space-y-2">
+          <div className="flex items-start gap-3">
+            <XCircle className="h-6 w-6 text-red-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-red-400 text-sm">
+                Community Access Revoked / Verification Rejected
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Reason:{" "}
+                <span className="font-semibold text-foreground">
+                  {existingClaim?.rejectionReason || "Details did not match verification criteria."}
+                </span>
+              </p>
+              <p className="text-xs text-muted-foreground pt-1">
+                Aap niche diye gaye form me apni Telegram details aur Broker account information update karke <strong>Re-apply</strong> kar sakte hain. Submit karne par admin aapko fir se verify karke access provide kar dega.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Special Notice for Enrolled Students */}
       {hasPurchasedCourse && !isBrokerRequired ? (
@@ -565,6 +594,12 @@ export function JoinCommunityClient({
             <>Uploading Screenshot...</>
           ) : isSubmitting ? (
             <>Submitting Your Details...</>
+          ) : isRejected ? (
+            <>
+              <MessageCircle className="h-4 w-4" />
+              Re-apply &amp; Request Community Access
+              <ArrowRight className="h-4 w-4" />
+            </>
           ) : (
             <>
               <MessageCircle className="h-4 w-4" />

@@ -1701,35 +1701,59 @@ export function AdminBrokerOffersClient({
                                     type="button"
                                     onClick={() => handleApproveMemberId(claim)}
                                     disabled={isUpdatingClaim}
-                                    className="rounded bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-500 hover:bg-emerald-500/20 transition-colors"
-                                    title="Verify student's broker account"
+                                    className="rounded bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-500 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                                    title={isCommunityRequest ? "Grant Telegram Community access" : "Verify student's broker account"}
                                   >
-                                    Approve ID
+                                    {isCommunityRequest ? "Grant Access" : "Approve ID"}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setRejectModalClaim(claim)}
                                     disabled={isUpdatingClaim}
-                                    className="rounded bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive hover:bg-destructive/20 transition-colors"
-                                    title="Reject if ID is fake or invalid"
+                                    className="rounded bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                                    title={isCommunityRequest ? "Reject community request" : "Reject if ID is fake or invalid"}
                                   >
-                                    Reject ID
+                                    {isCommunityRequest ? "Reject" : "Reject ID"}
                                   </button>
                                 </>
                               )}
 
-                            {claim.cashbackStatus === "CLAIM_REQUESTED" && (
-                              <button
-                                type="button"
-                                onClick={() => setPayoutModalClaim(claim)}
-                                disabled={isUpdatingClaim}
-                                className="rounded bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow"
-                              >
-                                Release Payout
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                              {claim.verificationStatus === "VERIFIED" && (
+                                <button
+                                  type="button"
+                                  onClick={() => setRejectModalClaim(claim)}
+                                  disabled={isUpdatingClaim}
+                                  className="rounded bg-destructive/10 px-2.5 py-1 text-[11px] font-bold text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                                  title={isCommunityRequest ? "Remove / revoke student's Community access" : "Revoke verification"}
+                                >
+                                  {isCommunityRequest ? "Remove Access" : "Revoke"}
+                                </button>
+                              )}
+
+                              {claim.verificationStatus === "REJECTED" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveMemberId(claim)}
+                                  disabled={isUpdatingClaim}
+                                  className="rounded bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-500 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                                  title={isCommunityRequest ? "Re-grant Community access" : "Re-approve"}
+                                >
+                                  {isCommunityRequest ? "Re-grant Access" : "Re-approve"}
+                                </button>
+                              )}
+
+                              {claim.cashbackStatus === "CLAIM_REQUESTED" && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPayoutModalClaim(claim)}
+                                  disabled={isUpdatingClaim}
+                                  className="rounded bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow cursor-pointer"
+                                >
+                                  Release Payout
+                                </button>
+                              )}
+                            </div>
+                          </td>
                       </tr>
                     );
                   })}
@@ -1741,36 +1765,48 @@ export function AdminBrokerOffersClient({
         </div>
       )}
 
-      {/* Reject Modal */}
+      {/* Reject / Revoke Modal */}
       {rejectModalClaim && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl space-y-4">
-            <h3 className="text-sm font-bold text-foreground">Reject Broker Claim</h3>
+            <h3 className="text-sm font-bold text-foreground">
+              {rejectModalClaim.verificationStatus === "VERIFIED"
+                ? "Remove / Revoke Community Access"
+                : "Reject Claim / Access Request"}
+            </h3>
             <p className="text-xs text-muted-foreground">
-              Please provide a reason for rejecting Member ID {rejectModalClaim.brokerMemberId}.
+              {rejectModalClaim.verificationStatus === "VERIFIED"
+                ? `Provide a reason for removing ${rejectModalClaim.user?.name || "the student"} from the Community. They will be notified and can re-apply if needed.`
+                : `Please provide a reason for rejecting Member ID ${rejectModalClaim.brokerMemberId}.`}
             </p>
             <form onSubmit={handleConfirmReject} className="space-y-4">
               <textarea
                 required
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="e.g. Account not registered under partner referral link"
+                placeholder={
+                  rejectModalClaim.verificationStatus === "VERIFIED"
+                    ? "e.g. Account inactive, left broker group, or rules violated"
+                    : "e.g. Account not registered under partner referral link"
+                }
                 className="w-full h-24 rounded-xl border border-input bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-none"
               />
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setRejectModalClaim(null)}
-                  className="rounded-xl border border-input px-3.5 py-2 text-xs font-semibold hover:bg-accent"
+                  className="rounded-xl border border-input px-3.5 py-2 text-xs font-semibold hover:bg-accent cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUpdatingClaim || !rejectionReason.trim()}
-                  className="rounded-xl bg-destructive px-3.5 py-2 text-xs font-bold text-destructive-foreground shadow hover:bg-destructive/90"
+                  className="rounded-xl bg-destructive px-3.5 py-2 text-xs font-bold text-destructive-foreground shadow hover:bg-destructive/90 cursor-pointer"
                 >
-                  Confirm Reject
+                  {rejectModalClaim.verificationStatus === "VERIFIED"
+                    ? "Confirm Remove Access"
+                    : "Confirm Reject"}
                 </button>
               </div>
             </form>

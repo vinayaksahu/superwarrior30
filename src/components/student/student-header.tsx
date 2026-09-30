@@ -36,6 +36,7 @@ interface StudentHeaderProps {
     email: string;
     isTestData?: boolean;
   };
+  isCommunityMember?: boolean;
 }
 
 const navLinks = [
@@ -54,7 +55,7 @@ const navLinks = [
   { href: "/profile", label: "Profile", icon: User },
 ];
 
-export function StudentHeader({ user }: StudentHeaderProps) {
+export function StudentHeader({ user, isCommunityMember = false }: StudentHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const { t } = useLanguage();
@@ -197,6 +198,10 @@ export function StudentHeader({ user }: StudentHeaderProps) {
                 const isActive =
                   pathname === link.href ||
                   (link.href !== "/dashboard" && pathname.startsWith(`${link.href}/`));
+                const label =
+                  link.href === "/dashboard/join-community" && isCommunityMember
+                    ? "Community"
+                    : link.label;
                 return (
                   <Link
                     key={link.href}
@@ -210,7 +215,7 @@ export function StudentHeader({ user }: StudentHeaderProps) {
                     )}
                   >
                     <link.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary-foreground" : "text-muted-foreground")} />
-                    <span>{link.label}</span>
+                    <span>{label}</span>
                   </Link>
                 );
               })}
