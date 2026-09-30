@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { useLanguage } from "@/components/shared/language-provider";
 import { useState, useEffect, useCallback } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Users } from "lucide-react";
 
 interface PublicNavbarProps {
   isTestMode?: boolean;
@@ -168,6 +168,16 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
           >
             {t("nav_contact", "Contact")}
           </Link>
+          <Link
+            href="/premium-group"
+            className="group flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-400 hover:bg-amber-500/20 hover:border-amber-400 hover:text-amber-300 transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+          >
+            <Users className="h-3.5 w-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <span>Join Community</span>
+            <span className="rounded-full bg-amber-400/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-amber-300">
+              Free
+            </span>
+          </Link>
         </nav>
 
         {/* Actions & Theme Toggle */}
@@ -236,6 +246,19 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
             className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
           >
             {t("nav_contact", "Contact")}
+          </Link>
+          <Link
+            href="/premium-group"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Join Community (Telegram)
+            </span>
+            <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300">
+              Free
+            </span>
           </Link>
           <div className="border-t border-border pt-3 space-y-3">
             <LanguageSwitcher variant="mobile" />

@@ -18,6 +18,7 @@ import {
   BarChart3,
   Flame,
   Zap,
+  Users,
 } from "lucide-react";
 import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { getApprovedTestimonialsAction } from "@/server/actions/testimonial.actions";
@@ -85,6 +86,14 @@ export default async function HomePage() {
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Professional Trading Mentorship & Masterclasses</span>
               </div>
+              <Link
+                href="/premium-group"
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500/20 hover:border-amber-400 transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>Free Premium Telegram Access — Join Now</span>
+                <ArrowRight className="h-3 w-3" />
+              </Link>
               {homepageEnv === "TEST" && (
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/50 bg-amber-500/20 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
                   <span className="relative flex h-2 w-2">
@@ -115,6 +124,13 @@ export default async function HomePage() {
               >
                 <BookOpen className="h-4 w-4" />
                 Explore Courses
+              </Link>
+              <Link
+                href="/premium-group"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-8 text-sm font-bold text-amber-400 shadow-lg shadow-amber-500/5 transition-all hover:bg-amber-500/20 hover:border-amber-400 hover:text-amber-300"
+              >
+                <Users className="h-4 w-4" />
+                Join Community
               </Link>
               <Link
                 href="/register"

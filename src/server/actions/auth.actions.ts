@@ -526,7 +526,12 @@ export async function loginAction(
       user.role === "SUPPORT" ||
       Boolean(user.adminRole);
 
-    const destination = isStaffOrAdminDest ? "/admin" : "/dashboard";
+    const redirectParam = formData.get("redirectTo")?.toString();
+    const destination = isStaffOrAdminDest
+      ? "/admin"
+      : redirectParam && redirectParam.startsWith("/")
+      ? redirectParam
+      : "/dashboard";
     redirect(destination);
   } catch (error: any) {
     if (error?.digest?.startsWith("NEXT_REDIRECT") || error?.message === "NEXT_REDIRECT") {
@@ -936,6 +941,9 @@ export async function registerAction(
 
   const passwordHash = await hashPassword(password);
 
+  const rawRedirect = formData.get("redirectTo")?.toString();
+  const redirectTo = rawRedirect && rawRedirect.startsWith("/") ? rawRedirect : "/dashboard";
+
   // Check if Registration OTP verification is enabled
   const isOtpRequired = await isRegistrationOtpEnabled();
   if (isOtpRequired) {
@@ -946,6 +954,7 @@ export async function registerAction(
       passwordHash,
       referralCode: referralCode?.trim(),
       isTestData: targetIsTestData,
+      redirectTo,
       ipAddress: (await getClientDeviceMetadata()).ipAddress,
       userAgent: (await getClientDeviceMetadata()).userAgent,
     });
@@ -979,7 +988,7 @@ export async function registerAction(
     isTestData: targetIsTestData,
   });
 
-  redirect("/dashboard");
+  redirect(redirectTo);
 }
 
 async function finalizeUserRegistration({
@@ -1169,7 +1178,7 @@ export async function verifyRegistrationOtpAction(
   return {
     success: true,
     message: "Registration successful!",
-    data: { destination: "/dashboard" },
+    data: { destination: verifyResult.redirectTo || "/dashboard" },
   };
 }
 
@@ -1191,6 +1200,8 @@ export async function resendRegistrationOtpAction(
     email: payload.email,
     passwordHash: payload.passwordHash,
     referralCode: payload.referralCode,
+    isTestData: payload.isTestData,
+    redirectTo: payload.redirectTo,
     ipAddress: deviceMeta.ipAddress,
     userAgent: deviceMeta.userAgent,
   });

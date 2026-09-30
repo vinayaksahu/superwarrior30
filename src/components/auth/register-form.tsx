@@ -29,6 +29,8 @@ interface RegisterFormProps {
   referralDiscountType?: "PERCENTAGE" | "FIXED_AMOUNT";
   referralDiscountValue?: number;
   isReferralDiscountEnabled?: boolean;
+  redirectTo?: string;
+  submitButtonText?: string;
 }
 
 export function RegisterForm({
@@ -37,6 +39,8 @@ export function RegisterForm({
   referralDiscountType = "PERCENTAGE",
   referralDiscountValue,
   isReferralDiscountEnabled = true,
+  redirectTo = "/dashboard",
+  submitButtonText = "Create Account",
 }: RegisterFormProps) {
   const router = useRouter();
   const { ref: initialRef } = use(searchParams);
@@ -249,6 +253,7 @@ export function RegisterForm({
 
   return (
     <form action={formAction} className="space-y-4">
+      <input type="hidden" name="redirectTo" value={redirectTo} />
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         {state?.message && !state.success && (
           <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
@@ -500,7 +505,7 @@ export function RegisterForm({
               Creating account...
             </>
           ) : (
-            "Create Account"
+            submitButtonText
           )}
         </button>
       </div>

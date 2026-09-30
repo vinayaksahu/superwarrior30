@@ -25,15 +25,17 @@ import {
 
 interface LoginFormProps {
   portal?: "SUPER_ADMIN" | "ADMIN" | "STUDENT";
+  redirectTo?: string;
 }
 
-export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
+export function LoginForm({ portal = "STUDENT", redirectTo }: LoginFormProps) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState<ActionState | null, FormData>(
     loginAction,
     null
   );
 
+  const [redirectToVal, setRedirectToVal] = useState(redirectTo || "");
   const [urlNotice, setUrlNotice] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -59,6 +61,10 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
+      const target = params.get("redirectTo");
+      if (target && !redirectToVal) {
+        setRedirectToVal(target);
+      }
       const reason = params.get("reason");
       if (reason === "displaced") {
         setUrlNotice(
@@ -74,7 +80,7 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
         );
       }
     }
-  }, []);
+  }, [redirectToVal]);
 
   // When loginAction succeeds with requiresMfa or requiresOtp, transition step
   useEffect(() => {
@@ -460,6 +466,7 @@ export function LoginForm({ portal = "STUDENT" }: LoginFormProps) {
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="loginPortal" value={portal} />
+      <input type="hidden" name="redirectTo" value={redirectToVal} />
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         {urlNotice && !state?.message && (
           <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-500">
