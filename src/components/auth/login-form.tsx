@@ -61,7 +61,7 @@ export function LoginForm({ portal = "STUDENT", redirectTo }: LoginFormProps) {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      const target = params.get("redirectTo");
+      const target = params.get("redirectTo") || params.get("from");
       if (target && !redirectToVal) {
         setRedirectToVal(target);
       }

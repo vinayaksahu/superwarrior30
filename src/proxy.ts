@@ -12,6 +12,7 @@ const PUBLIC_ROUTES = [
   "/terms",
   "/privacy",
   "/refund-policy",
+  "/premium-group",
   "/sitemap.xml",
   "/robots.txt",
   "/pdf.min.js",
@@ -89,11 +90,16 @@ export async function proxy(request: NextRequest) {
   const isPublic = isPublicRoute(pathname);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
-  // Only decrypt session if the route needs authentication
+  // Only decrypt session if the route needs authentication or is /premium-group
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = (!isPublic || isAuthRoute) && sessionCookie
+  const session = (!isPublic || isAuthRoute || pathname === "/premium-group") && sessionCookie
     ? await decrypt(sessionCookie)
     : null;
+
+  // Authenticated user accessing /premium-group -> direct to community dashboard
+  if (session && pathname === "/premium-group") {
+    return NextResponse.redirect(new URL("/dashboard/join-community", request.nextUrl));
+  }
 
   // 1. Unauthenticated user trying to access protected route
   if (!session && !isPublic && !isAuthRoute) {
