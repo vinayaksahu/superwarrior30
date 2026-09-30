@@ -310,7 +310,7 @@ export function JoinCommunityClient({
                 </span>
               </p>
               <p className="text-xs text-muted-foreground pt-1">
-                Aap niche diye gaye form me apni Telegram details aur Broker account information update karke <strong>Re-apply</strong> kar sakte hain. Submit karne par admin aapko fir se verify karke access provide kar dega.
+                You can update your Telegram details and broker account information below to <strong>re-apply</strong>. Once submitted, the admin will re-verify your submission and grant community access.
               </p>
             </div>
           </div>
@@ -325,8 +325,8 @@ export function JoinCommunityClient({
             <span>Enrolled Student Privilege Active</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Aapne Super Warrior 30 Course purchase kiya hua hai, isliye aapke liye <strong>Partner Broker me account open karna mandatory nahi hai</strong>. 
-            Bas apna Telegram Username aur Phone Number enter karke submit karein, admin aapko verify karke Premium Community me add kar dega.
+            As an enrolled Super Warrior 30 student, <strong>opening a partner broker account is optional for you</strong>. 
+            Simply enter your Telegram Username and phone number below to submit. The admin will verify your enrollment and grant you direct community access.
           </p>
         </div>
       ) : (
@@ -379,7 +379,7 @@ export function JoinCommunityClient({
             </h3>
           </div>
           <p className="text-xs text-muted-foreground mb-4">
-            Isi Telegram username par admin aapko Premium Community group me invite karega.
+            The administrator will use this Telegram username to invite you to the Premium Community group.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -400,7 +400,7 @@ export function JoinCommunityClient({
                 />
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Apna Telegram username enter karein (Telegram App &rarr; Settings &rarr; Username).
+                Enter your Telegram username (Telegram App &rarr; Settings &rarr; Username).
               </p>
             </div>
 
@@ -419,7 +419,7 @@ export function JoinCommunityClient({
                 />
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Account verification aur direct assistance ke liye.
+                For account verification and direct onboarding assistance.
               </p>
             </div>
           </div>
@@ -439,7 +439,7 @@ export function JoinCommunityClient({
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isBrokerRequired
                   ? "Select an available partner broker and open an account via the partner link below."
-                  : "Agar aap chahein to apna Partner Broker account bhi add kar sakte hain (Optional)."}
+                  : "You can optionally link your partner broker account for additional benefits (Optional)."}
               </p>
             </div>
 
