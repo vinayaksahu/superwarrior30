@@ -273,9 +273,11 @@ export function JoinCommunityClient({ brokerConfig, existingClaim }: JoinCommuni
                 )}
               >
                 <p className="text-sm font-black text-foreground">{broker.name}</p>
-                {broker.discountType === "PERCENTAGE" && broker.discountValue > 0 && (
-                  <p className="text-xs font-bold text-amber-400 mt-1">{broker.discountValue}% OFF</p>
-                )}
+                {broker.discountType === "PERCENTAGE" &&
+                  typeof broker.discountValue === "number" &&
+                  broker.discountValue > 0 && (
+                    <p className="text-xs font-bold text-amber-400 mt-1">{broker.discountValue}% OFF</p>
+                  )}
               </button>
             ))}
           </div>
