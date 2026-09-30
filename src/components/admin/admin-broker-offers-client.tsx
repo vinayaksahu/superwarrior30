@@ -34,6 +34,7 @@ import {
   Edit2,
   Trash2,
   Globe,
+  Phone,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { BrokerOfferSettings, BrokerItem } from "@/lib/broker/config";
@@ -91,6 +92,7 @@ interface ClaimItem {
     createdAt: Date;
     paidAt: Date | null;
     items?: { itemTitle: string }[];
+    metadata?: any;
   };
   verifiedBy?: { id: string; email: string; name: string | null } | null;
   paidBy?: { id: string; email: string; name: string | null } | null;
@@ -902,6 +904,76 @@ export function AdminBrokerOffersClient({
               </div>
             </div>
 
+            {/* Telegram Community Access Rules */}
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5 space-y-4">
+              <div>
+                <h3 className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4 text-amber-500" />
+                  Telegram Community Access Rules
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Configure who must open a partner broker account to get access to the Premium Telegram Community.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex items-start gap-3 rounded-xl bg-card p-3.5 border border-border cursor-pointer hover:border-amber-500/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.isBrokerMandatoryForFreeUsers !== false}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        isBrokerMandatoryForFreeUsers: e.target.checked,
+                      })
+                    }
+                    className="h-4 w-4 rounded text-amber-500 focus:ring-amber-500 cursor-pointer mt-0.5"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Broker Account Mandatory for Free Signup Users</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Free users must open an account with an available partner broker and submit Member ID &amp; screenshot.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-xl bg-card p-3.5 border border-border cursor-pointer hover:border-amber-500/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(settings.isBrokerMandatoryForPaidUsers)}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        isBrokerMandatoryForPaidUsers: e.target.checked,
+                      })
+                    }
+                    className="h-4 w-4 rounded text-amber-500 focus:ring-amber-500 cursor-pointer mt-0.5"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Broker Account Mandatory for Paid Course Students</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      When unchecked (recommended), students who bought a course do NOT need to open a broker account — they get Telegram access directly!
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Telegram Community Direct Join Link (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={settings.telegramCommunityLink || ""}
+                  onChange={(e) =>
+                    setSettings({ ...settings, telegramCommunityLink: e.target.value })
+                  }
+                  placeholder="https://t.me/+xxxxxx (Shown on student dashboard once their Telegram access request is verified)"
+                  className="flex h-9 w-full rounded-xl border border-input bg-background px-3 text-xs text-foreground focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
             {/* Save Action */}
             <div className="flex justify-end pt-2">
               <button
@@ -1442,49 +1514,121 @@ export function AdminBrokerOffersClient({
                   <tbody className="divide-y divide-border/60">
                     {filteredClaims.map((claim) => {
                       const isInstant = claim.mode === "INSTANT_DISCOUNT";
+                      const isCommunityRequest =
+                        claim.order?.orderNumber?.startsWith("COMMUNITY-") ||
+                        Boolean(claim.payoutDetails?.telegramUsername) ||
+                        Boolean(claim.order?.metadata?.telegramUsername);
+                      const telegramUser =
+                        claim.payoutDetails?.telegramUsername ||
+                        claim.order?.metadata?.telegramUsername;
+                      const contactPhone =
+                        claim.payoutDetails?.phone ||
+                        claim.order?.metadata?.phone ||
+                        claim.user?.phone;
+                      const isEnrolledStudent =
+                        Boolean(claim.payoutDetails?.hasPurchasedCourse) ||
+                        Boolean(claim.order?.metadata?.hasPurchasedCourse);
+
                       return (
                         <tr key={claim.id} className="hover:bg-muted/10">
                           <td className="px-4 py-3">
                             <p className="font-bold text-foreground">{claim.user?.name || "Student"}</p>
                             <p className="text-[11px] text-muted-foreground">{claim.user?.email || "N/A"}</p>
+                            {telegramUser && (
+                              <div className="mt-1 flex flex-col gap-0.5">
+                                <a
+                                  href={`https://t.me/${String(telegramUser).replace(/^@/, "")}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-bold text-sky-400 hover:underline flex items-center gap-1"
+                                >
+                                  <Send className="h-3 w-3" />
+                                  {telegramUser}
+                                </a>
+                                {contactPhone && (
+                                  <a
+                                    href={`https://wa.me/${String(contactPhone).replace(/[^0-9]/g, "")}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1"
+                                  >
+                                    <Phone className="h-2.5 w-2.5" />
+                                    {contactPhone}
+                                  </a>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
-                            <p className="font-mono font-bold text-foreground">{claim.brokerMemberId}</p>
+                            <p className="font-mono font-bold text-foreground">
+                              {claim.brokerMemberId === "COURSE_STUDENT"
+                                ? "Course Enrolled"
+                                : claim.brokerMemberId}
+                            </p>
                             <p className="text-[11px] text-muted-foreground">{claim.brokerName}</p>
                             {claim.proofUrl && (
                               <button
                                 type="button"
                                 onClick={() => setProofModalUrl(claim.proofUrl!)}
-                                className="text-[10px] text-primary hover:underline flex items-center gap-0.5 mt-0.5"
+                                className="text-[10px] text-primary hover:underline flex items-center gap-0.5 mt-0.5 cursor-pointer"
                               >
                                 <ImageIcon className="h-3 w-3" /> View Proof
                               </button>
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <p className="font-mono font-bold text-foreground">{claim.order?.orderNumber || "N/A"}</p>
-                            <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">
-                              {claim.order?.items?.[0]?.itemTitle || "Course"}
-                            </p>
+                            {isCommunityRequest ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                                  👥 Telegram Community
+                                </span>
+                                {isEnrolledStudent && (
+                                  <p className="text-[10px] font-bold text-emerald-400">
+                                    🎓 Course Enrolled
+                                  </p>
+                                )}
+                                <p className="font-mono text-[9px] text-muted-foreground">
+                                  {claim.order?.orderNumber}
+                                </p>
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="font-mono font-bold text-foreground">{claim.order?.orderNumber || "N/A"}</p>
+                                <p className="text-[11px] text-muted-foreground truncate max-w-[150px]">
+                                  {claim.order?.items?.[0]?.itemTitle || "Course"}
+                                </p>
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="space-y-1">
-                              {isInstant ? (
-                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400">
-                                  ⚡ Instant Discount
+                            {isCommunityRequest ? (
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/15 border border-sky-500/30 px-2 py-0.5 text-[10px] font-bold text-sky-400">
+                                  🚀 Community Access
                                 </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                                  💰 Cashback Mode
-                                </span>
-                              )}
-                              <p className="font-bold text-foreground text-sm">
-                                {formatCurrency(claim.calculatedAmount)}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                ({claim.offerPercentage}% of {formatCurrency(claim.coursePrice)})
-                              </p>
-                            </div>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {isEnrolledStudent ? "Paid Student Access" : "Free Broker Verification"}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                {isInstant ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                                    ⚡ Instant Discount
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                                    💰 Cashback Mode
+                                  </span>
+                                )}
+                                <p className="font-bold text-foreground text-sm">
+                                  {formatCurrency(claim.calculatedAmount)}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  ({claim.offerPercentage}% of {formatCurrency(claim.coursePrice)})
+                                </p>
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <span
@@ -1497,14 +1641,30 @@ export function AdminBrokerOffersClient({
                               }`}
                             >
                               {claim.verificationStatus === "VERIFIED"
-                                ? "✓ ID Verified"
+                                ? "✓ Approved"
                                 : claim.verificationStatus === "REJECTED"
-                                ? "✕ ID Rejected"
+                                ? "✕ Rejected"
                                 : "● Pending Review"}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            {isInstant ? (
+                            {isCommunityRequest ? (
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                  claim.verificationStatus === "VERIFIED"
+                                    ? "bg-emerald-500/10 text-emerald-400"
+                                    : claim.verificationStatus === "REJECTED"
+                                    ? "bg-destructive/10 text-destructive"
+                                    : "bg-amber-500/10 text-amber-400"
+                                }`}
+                              >
+                                {claim.verificationStatus === "VERIFIED"
+                                  ? "✓ Access Granted"
+                                  : claim.verificationStatus === "REJECTED"
+                                  ? "✕ Access Denied"
+                                  : "⏳ Awaiting Review"}
+                              </span>
+                            ) : isInstant ? (
                               <div className="space-y-0.5">
                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
                                   ✓ Deducted at Checkout

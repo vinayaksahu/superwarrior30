@@ -52,6 +52,11 @@ export interface PublicBrokerConfig {
 
   // Multi-broker items
   brokers: BrokerItem[];
+
+  // Community Telegram Access Settings
+  isBrokerMandatoryForFreeUsers: boolean;
+  isBrokerMandatoryForPaidUsers: boolean;
+  telegramCommunityLink?: string;
 }
 
 /**
@@ -95,6 +100,9 @@ export async function getBrokerPublicConfigAction(): Promise<PublicBrokerConfig>
     description: settings.description || "Open your broker account using our partner link and unlock a special course benefit.",
     isAutoVerificationActive: Boolean(settings.isAutoVerificationActive),
     brokers: settings.brokers || [],
+    isBrokerMandatoryForFreeUsers: settings.isBrokerMandatoryForFreeUsers !== false,
+    isBrokerMandatoryForPaidUsers: Boolean(settings.isBrokerMandatoryForPaidUsers),
+    telegramCommunityLink: settings.telegramCommunityLink || "",
   };
 }
 
@@ -215,6 +223,7 @@ export async function listBrokerClaimsAction(params?: {
           id: true,
           name: true,
           email: true,
+          phone: true,
         },
       },
       order: {
@@ -223,6 +232,7 @@ export async function listBrokerClaimsAction(params?: {
           orderNumber: true,
           status: true,
           totalAmount: true,
+          metadata: true,
         },
       },
     },
@@ -614,27 +624,51 @@ export async function claimReferralCodeAction(code: string): Promise<ActionState
 }
 
 /**
- * Free Signup: Student submits broker account details from Join Community page
- * to get free Premium Telegram Community access.
- * Creates a BrokerOfferClaim without requiring an existing order.
+ * Student submits community join details (Telegram Username, Phone Number, optional Broker info)
+ * to get Premium Telegram Community access.
+ * If user purchased a course, broker is optional unless admin settings require it.
  */
 export async function submitJoinCommunityAction(input: {
-  brokerId: string;
-  brokerName: string;
-  memberId: string;
+  telegramUsername: string;
+  phone: string;
+  brokerId?: string;
+  brokerName?: string;
+  memberId?: string;
   proofUrl?: string;
 }): Promise<ActionState> {
   const user = await requireAuth();
 
-  if (!input.memberId?.trim()) {
-    return { success: false, message: "Please enter your Broker Member / User ID." };
+  const cleanTelegram = (input.telegramUsername || "").trim().replace(/^@/, "");
+  if (!cleanTelegram) {
+    return { success: false, message: "Please enter your Telegram Username (e.g. @yourusername)." };
   }
 
-  if (!input.brokerName?.trim()) {
-    return { success: false, message: "Please select a broker." };
+  const cleanPhone = (input.phone || "").trim();
+  if (!cleanPhone || cleanPhone.length < 8) {
+    return { success: false, message: "Please enter a valid Phone / WhatsApp Number." };
   }
 
   await ensureDatabaseSchemaSync();
+
+  // Check if user has active course enrollment
+  const activeEnrollmentsCount = await prisma.courseEnrollment.count({
+    where: { userId: user.id, status: "ACTIVE" },
+  });
+  const hasPurchasedCourse = activeEnrollmentsCount > 0;
+
+  const settings = await getBrokerSettings();
+  const isBrokerMandatory = hasPurchasedCourse
+    ? Boolean(settings.isBrokerMandatoryForPaidUsers)
+    : (settings.isBrokerMandatoryForFreeUsers !== false);
+
+  if (isBrokerMandatory) {
+    if (!input.brokerName?.trim()) {
+      return { success: false, message: "Please select an available partner broker." };
+    }
+    if (!input.memberId?.trim()) {
+      return { success: false, message: "Please enter your Partner Broker Member / User ID." };
+    }
+  }
 
   // Check if user already has a pending/verified community claim
   const existingClaim = await prisma.brokerOfferClaim.findFirst({
@@ -650,14 +684,35 @@ export async function submitJoinCommunityAction(input: {
 
   if (existingClaim) {
     if (existingClaim.verificationStatus === "VERIFIED") {
-      return { success: false, message: "Your broker account is already verified! You should have access to the Premium Telegram Community." };
+      return {
+        success: false,
+        message: "Your community access is already verified! You should have access to the Premium Telegram Community.",
+      };
     }
-    return { success: false, message: "You already have a pending submission. Please wait for admin verification." };
+    return {
+      success: false,
+      message: "You already have a pending submission. Please wait for admin verification.",
+    };
   }
 
   const { resolveCurrentEnvironment } = await import("@/lib/env-context");
   const currentEnv = await resolveCurrentEnvironment();
   const isTestData = currentEnv === "TEST";
+
+  // Update user's phone if missing or provided
+  if (cleanPhone) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { phone: cleanPhone },
+    }).catch(() => {});
+  }
+
+  const finalBrokerName =
+    input.brokerName?.trim() ||
+    (hasPurchasedCourse ? "Enrolled Course Student (Direct Access)" : "Direct Community Member");
+  const finalMemberId =
+    input.memberId?.trim() ||
+    (hasPurchasedCourse ? "COURSE_STUDENT" : "DIRECT_FREE");
 
   // Create a free community join order (zero amount)
   const orderNumber = `COMMUNITY-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
@@ -677,8 +732,12 @@ export async function submitJoinCommunityAction(input: {
       isTestData,
       metadata: {
         type: "COMMUNITY_JOIN",
-        brokerId: input.brokerId,
-        brokerName: input.brokerName,
+        telegramUsername: `@${cleanTelegram}`,
+        phone: cleanPhone,
+        hasPurchasedCourse,
+        brokerId: input.brokerId || null,
+        brokerName: finalBrokerName,
+        brokerMemberId: finalMemberId,
       },
     },
   });
@@ -687,8 +746,8 @@ export async function submitJoinCommunityAction(input: {
     data: {
       userId: user.id,
       orderId: order.id,
-      brokerName: input.brokerName,
-      brokerMemberId: input.memberId.trim(),
+      brokerName: finalBrokerName,
+      brokerMemberId: finalMemberId,
       proofUrl: input.proofUrl || null,
       mode: "CASHBACK",
       verificationStatus: "PENDING",
@@ -696,6 +755,11 @@ export async function submitJoinCommunityAction(input: {
       coursePrice: 0,
       offerPercentage: 0,
       calculatedAmount: 0,
+      payoutDetails: {
+        telegramUsername: `@${cleanTelegram}`,
+        phone: cleanPhone,
+        hasPurchasedCourse,
+      },
       isTestData,
     },
   });
@@ -705,7 +769,8 @@ export async function submitJoinCommunityAction(input: {
 
   return {
     success: true,
-    message: "Your broker account details have been submitted successfully! Our team will verify your details and add you to the Premium Telegram Community within 24 hours.",
+    message:
+      "Your details have been submitted successfully! Admin will verify and add you to the Premium Telegram Community.",
   };
 }
 
@@ -717,6 +782,8 @@ export async function getJoinCommunityStatusAction() {
   if (!user) return null;
 
   await ensureDatabaseSchemaSync();
+
+  const settings = await getBrokerSettings();
 
   const claim = await prisma.brokerOfferClaim.findFirst({
     where: {
@@ -735,8 +802,19 @@ export async function getJoinCommunityStatusAction() {
       rejectionReason: true,
       verifiedAt: true,
       createdAt: true,
+      payoutDetails: true,
     },
   });
 
-  return claim;
+  if (!claim) return null;
+
+  const payoutDetails = (claim.payoutDetails as any) || {};
+
+  return {
+    ...claim,
+    telegramUsername: (payoutDetails.telegramUsername as string) || null,
+    phone: (payoutDetails.phone as string) || null,
+    hasPurchasedCourse: Boolean(payoutDetails.hasPurchasedCourse),
+    telegramCommunityLink: settings.telegramCommunityLink || "",
+  };
 }

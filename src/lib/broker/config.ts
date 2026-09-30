@@ -62,6 +62,11 @@ export interface BrokerOfferSettings {
 
   // 4. Multi-Broker Support
   brokers: BrokerItem[];
+
+  // 5. Community Telegram Access Settings
+  isBrokerMandatoryForFreeUsers?: boolean;
+  isBrokerMandatoryForPaidUsers?: boolean;
+  telegramCommunityLink?: string;
 }
 
 export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
@@ -110,6 +115,9 @@ export const DEFAULT_BROKER_SETTINGS: BrokerOfferSettings = {
       requiresProof: false,
     },
   ],
+  isBrokerMandatoryForFreeUsers: true,
+  isBrokerMandatoryForPaidUsers: false,
+  telegramCommunityLink: "",
 };
 
 const SITE_SETTING_KEY = "BROKER_OFFER_SETTINGS";
@@ -215,6 +223,15 @@ export async function getBrokerSettings(): Promise<BrokerOfferSettings> {
         (primaryBroker?.discountType || discountType) === "PERCENTAGE"
           ? (primaryBroker?.discountValue ?? discountValue)
           : (primaryBroker?.offerPercentage ?? (Number(parsed.offerPercentage) || 25)),
+      isBrokerMandatoryForFreeUsers:
+        parsed.isBrokerMandatoryForFreeUsers !== undefined
+          ? Boolean(parsed.isBrokerMandatoryForFreeUsers)
+          : true,
+      isBrokerMandatoryForPaidUsers:
+        parsed.isBrokerMandatoryForPaidUsers !== undefined
+          ? Boolean(parsed.isBrokerMandatoryForPaidUsers)
+          : false,
+      telegramCommunityLink: parsed.telegramCommunityLink || "",
     };
   } catch (error) {
     console.error("Failed to load broker settings:", error);
