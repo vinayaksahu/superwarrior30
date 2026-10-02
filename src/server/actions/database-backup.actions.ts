@@ -183,35 +183,190 @@ export async function exportFullDatabaseBackupAction() {
 }
 
 /**
+ * Normalizes backup data whether it came from full JSON or multi-sheet Excel
+ */
+function normalizeBackupPayload(raw: any): any {
+  if (!raw) return {};
+  const d = raw.data || raw;
+  const res: Record<string, any> = { ...d };
+
+  if (!res.users && Array.isArray(d.Users)) {
+    res.users = d.Users.map((u: any) => ({
+      id: u.ID || u.id,
+      name: u.Name || u.name,
+      email: u.Email || u.email,
+      phone: u.Phone || u.phone,
+      role: u.Role || u.role,
+      adminRole: u.AdminRole || u.adminRole,
+      status: u.Status || u.status,
+      referralCode: u.ReferralCode || u.referralCode,
+      passwordHash: u.PasswordHash || u.passwordHash,
+      createdAt: u.CreatedAt || u.createdAt,
+    }));
+  }
+
+  if (!res.courses && Array.isArray(d.Courses)) {
+    res.courses = d.Courses.map((c: any) => ({
+      id: c.ID || c.id,
+      title: c.Title || c.title,
+      slug: c.Slug || c.slug,
+      price: c.Price || c.price,
+      compareAtPrice: c.CompareAtPrice || c.compareAtPrice,
+      status: c.Status || c.status,
+      isFeatured: c.Featured === "YES" || c.isFeatured === true,
+      difficulty: c.Difficulty || c.difficulty,
+      totalDuration: c.DurationSec || c.totalDuration,
+      createdAt: c.CreatedAt || c.createdAt,
+    }));
+  }
+
+  if (Array.isArray(d.Curriculum)) {
+    if (!res.modules) {
+      res.modules = d.Curriculum
+        .filter((item: any) => item.Type === "MODULE")
+        .map((m: any) => ({
+          id: m.ID || m.id,
+          courseId: m.CourseID || m.courseId,
+          title: m.Title || m.title,
+          position: Number(m.Position || m.position || 1),
+          isPublished: true,
+        }));
+    }
+    if (!res.lessons) {
+      res.lessons = d.Curriculum
+        .filter((item: any) => item.Type === "LESSON")
+        .map((l: any) => ({
+          id: l.ID || l.id,
+          moduleId: l.ModuleID || l.moduleId,
+          title: l.Title || l.title,
+          slug: l.Slug || l.slug,
+          position: Number(l.Position || l.position || 1),
+          contentType: l.ContentType || l.contentType || "VIDEO",
+          durationSec: Number(l.DurationSec || l.durationSec || 0),
+          videoKey: l.VideoKey || l.videoKey,
+          bunnyVideoId: l.BunnyVideoId || l.bunnyVideoId,
+          isPublished: true,
+        }));
+    }
+  }
+
+  if (!res.orders && Array.isArray(d.Orders)) {
+    res.orders = d.Orders.map((o: any) => ({
+      id: o.ID || o.id,
+      orderNumber: o.OrderNumber || o.orderNumber,
+      userId: o.UserID || o.userId,
+      status: o.Status || o.status,
+      currency: o.Currency || o.currency,
+      subtotalAmount: o.Subtotal || o.subtotalAmount,
+      discountAmount: o.Discount || o.discountAmount,
+      totalAmount: o.Total || o.totalAmount,
+      paymentProvider: o.PaymentProvider || o.paymentProvider,
+      gatewayOrderId: o.GatewayOrderId || o.gatewayOrderId,
+      paymentId: o.PaymentID || o.paymentId,
+      manualPaymentRef: o.ManualRef || o.manualPaymentRef,
+      paidAt: o.PaidAt || o.paidAt,
+      createdAt: o.CreatedAt || o.createdAt,
+    }));
+  }
+
+  if (!res.courseEnrollments && Array.isArray(d.Enrollments)) {
+    res.courseEnrollments = d.Enrollments.map((e: any) => ({
+      id: e.ID || e.id,
+      userId: e.UserID || e.userId,
+      courseId: e.CourseID || e.courseId,
+      orderId: e.OrderID || e.orderId,
+      status: e.Status || e.status,
+      progressPercentage: e.ProgressPercent || e.progressPercentage,
+      enrolledAt: e.EnrolledAt || e.enrolledAt,
+      completedAt: e.CompletedAt || e.completedAt,
+    }));
+  }
+
+  if (!res.wallets && Array.isArray(d.Wallets)) {
+    res.wallets = d.Wallets.map((w: any) => ({
+      id: w.ID || w.id,
+      userId: w.UserID || w.userId,
+      availableBalance: w.AvailableBalance || w.availableBalance,
+      pendingBalance: w.PendingBalance || w.pendingBalance,
+      totalEarned: w.TotalEarned || w.totalEarned,
+      totalWithdrawn: w.TotalWithdrawn || w.totalWithdrawn,
+    }));
+  }
+
+  if (!res.siteSettings && Array.isArray(d.Settings)) {
+    res.siteSettings = d.Settings.map((s: any) => ({
+      id: s.ID || s.id,
+      key: s.Key || s.key,
+      value: s.Value || s.value,
+      type: s.Type || s.type || "string",
+    }));
+  }
+
+  return res;
+}
+
+/**
  * Restores a full backup into the database with 1-click.
- * Safe upsert prevents duplicate conflicts and preserves the currently active Super Admin.
+ * Supports both "clean" (wipe conflicting records) and "safe" (upsert/merge) modes.
+ * Admin account is always safely preserved.
  */
 export async function restoreFullDatabaseBackupAction({
   backupData,
   options = {
+    mode: "safe",
     preserveCurrentAdmin: true,
     includeTestData: true,
   },
 }: {
   backupData: any;
   options?: {
+    mode?: "clean" | "safe";
     preserveCurrentAdmin?: boolean;
     includeTestData?: boolean;
   };
 }) {
   const currentAdmin = await requireSuperAdminAction();
 
-  if (!backupData || !backupData.data) {
+  if (!backupData || (!backupData.data && !backupData.Users && !backupData.users)) {
     return {
       success: false,
-      error: "Invalid backup file: Missing database 'data' payload.",
+      error: "Invalid backup file: Missing database payload.",
     };
   }
 
   // 1. First trigger schema verification to make sure all tables exist on the target database (e.g. new Neon DB)
   await ensureDatabaseSchemaSync(true);
 
-  const d = backupData.data;
+  const d = normalizeBackupPayload(backupData);
+
+  // If Clean & Restore mode is chosen, wipe dependent tables safely while preserving the Super Admin
+  if (options.mode === "clean") {
+    try {
+      await prisma.lessonProgress.deleteMany({});
+      await prisma.courseEnrollment.deleteMany({});
+      await prisma.orderItem.deleteMany({});
+      await prisma.order.deleteMany({});
+      await prisma.walletTransaction.deleteMany({});
+      await prisma.withdrawal.deleteMany({});
+      await prisma.brokerOfferClaim.deleteMany({});
+      await prisma.lessonMedia.deleteMany({});
+      await prisma.lesson.deleteMany({});
+      await prisma.module.deleteMany({});
+      await prisma.course.deleteMany({});
+      await prisma.referralRelationship.deleteMany({});
+      await prisma.referralClosure.deleteMany({});
+      // Clear non-admin users
+      await prisma.user.deleteMany({
+        where: {
+          id: { not: currentAdmin.id },
+          email: { not: currentAdmin.email },
+        },
+      });
+    } catch (cleanErr) {
+      console.warn("[Clean & Restore] Non-fatal table cleanup warning:", cleanErr);
+    }
+  }
+
   const counts: Record<string, number> = {
     siteSettings: 0,
     systemPaymentMethods: 0,
@@ -379,6 +534,65 @@ export async function restoreFullDatabaseBackupAction({
           counts.users++;
         } catch (err) {
           console.warn(`[Restore] Failed user ${u.email}:`, err);
+        }
+      }
+    }
+
+    // Step 4.5: Pass 2 - Two-pass referral resolution (Re-link network trees without foreign key violations)
+    if (Array.isArray(d.referralRelationships)) {
+      for (const rr of d.referralRelationships) {
+        if (!rr.referrerId || !rr.referredId) continue;
+        try {
+          const [refExists, targetExists] = await Promise.all([
+            prisma.user.findUnique({ where: { id: rr.referrerId }, select: { id: true } }),
+            prisma.user.findUnique({ where: { id: rr.referredId }, select: { id: true } }),
+          ]);
+          if (refExists && targetExists) {
+            await prisma.referralRelationship.upsert({
+              where: { referredId: rr.referredId },
+              update: { referrerId: rr.referrerId },
+              create: {
+                id: rr.id,
+                referrerId: rr.referrerId,
+                referredId: rr.referredId,
+                isTestData: Boolean(rr.isTestData),
+              },
+            });
+          }
+        } catch (err) {
+          console.warn("[Restore] Referral relationship link warning:", err);
+        }
+      }
+    }
+
+    if (Array.isArray(d.referralClosures)) {
+      for (const rc of d.referralClosures) {
+        if (!rc.ancestorId || !rc.descendantId) continue;
+        try {
+          const [ancestorExists, descExists] = await Promise.all([
+            prisma.user.findUnique({ where: { id: rc.ancestorId }, select: { id: true } }),
+            prisma.user.findUnique({ where: { id: rc.descendantId }, select: { id: true } }),
+          ]);
+          if (ancestorExists && descExists) {
+            await prisma.referralClosure.upsert({
+              where: {
+                ancestorId_descendantId: {
+                  ancestorId: rc.ancestorId,
+                  descendantId: rc.descendantId,
+                },
+              },
+              update: { depth: Number(rc.depth || 1) },
+              create: {
+                id: rc.id,
+                ancestorId: rc.ancestorId,
+                descendantId: rc.descendantId,
+                depth: Number(rc.depth || 1),
+                isTestData: Boolean(rc.isTestData),
+              },
+            });
+          }
+        } catch (err) {
+          console.warn("[Restore] Referral closure link warning:", err);
         }
       }
     }

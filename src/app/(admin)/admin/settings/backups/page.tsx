@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getDatabaseBackupDataAction } from "@/server/actions/admin.actions";
 import { AdminBackupsClient } from "@/components/admin/admin-backups-client";
 import { SettingsNav } from "@/components/admin/settings-nav";
-import { requirePermission } from "@/server/dal/auth";
+import { requirePermission, getCurrentUser } from "@/server/dal/auth";
 
 export const metadata: Metadata = {
   title: "Database Backups & Maintenance | Settings",
@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 
 export default async function AdminBackupsSettingsPage() {
   await requirePermission("settings.backups.manage");
+  const currentUser = await getCurrentUser();
 
   const res = await getDatabaseBackupDataAction();
 
@@ -26,7 +27,7 @@ export default async function AdminBackupsSettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-6xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Settings &amp; Administration
@@ -38,7 +39,10 @@ export default async function AdminBackupsSettingsPage() {
 
       <SettingsNav />
 
-      <AdminBackupsClient stats={stats} />
+      <AdminBackupsClient
+        stats={stats}
+        operatorEmail={currentUser?.email || "admin@superwarrior30.com"}
+      />
     </div>
   );
 }
