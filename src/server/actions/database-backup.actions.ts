@@ -998,7 +998,7 @@ export async function restoreFullDatabaseBackupAction({
               coursePrice: bc.coursePrice || 0,
               calculatedAmount: bc.calculatedAmount || 0,
               verificationStatus: bc.verificationStatus || "PENDING",
-              adminNotes: bc.adminNotes || bc.notes || null,
+              rejectionReason: bc.rejectionReason || bc.adminNotes || bc.notes || null,
             },
             create: {
               id: bc.id,
@@ -1009,7 +1009,7 @@ export async function restoreFullDatabaseBackupAction({
               coursePrice: bc.coursePrice || 0,
               calculatedAmount: bc.calculatedAmount || 0,
               verificationStatus: bc.verificationStatus || "PENDING",
-              adminNotes: bc.adminNotes || bc.notes || null,
+              rejectionReason: bc.rejectionReason || bc.adminNotes || bc.notes || null,
               createdAt: bc.createdAt ? new Date(bc.createdAt) : undefined,
             },
           });
