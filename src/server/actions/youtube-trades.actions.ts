@@ -434,12 +434,15 @@ export async function submitYouTubeStreamAction(input: IngestStreamOptions) {
       },
     });
 
-    // Trigger processing asynchronously in background (no request cookie dependencies)
-    setTimeout(() => {
-      runInternalQueueJob(job.id).catch((err) => {
-        console.error("Auto queue processor error:", err);
-      });
-    }, 50);
+    // In Vercel serverless environment, avoid unawaited background timeouts that burn Fluid Active CPU.
+    // Admin can trigger processing on-demand from the queue interface.
+    if (process.env.VERCEL !== "1") {
+      setTimeout(() => {
+        runInternalQueueJob(job.id).catch((err) => {
+          console.error("Auto queue processor error:", err);
+        });
+      }, 50);
+    }
 
     revalidatePath("/admin/youtube-live-trades");
     revalidatePath("/admin/youtube-live-trades/queue");

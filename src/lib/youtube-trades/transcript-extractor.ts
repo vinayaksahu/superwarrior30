@@ -178,6 +178,11 @@ export function parseVtt(vttContent: string): TranscriptSegment[] {
  * Extremely fast (1-4 seconds) and reliable when direct TimedText HTTP is blocked or rate-limited.
  */
 export async function extractSubtitlesViaYtDlp(videoId: string): Promise<TranscriptSegment[]> {
+  if (process.env.VERCEL === "1") {
+    // yt-dlp binary is not supported in Vercel serverless environment; return early to prevent CPU timeout
+    return [];
+  }
+
   const tmpDir = path.join(os.tmpdir(), "trade_clips", "transcripts");
   if (!fs.existsSync(tmpDir)) {
     fs.mkdirSync(tmpDir, { recursive: true });

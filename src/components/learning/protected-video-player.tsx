@@ -497,8 +497,8 @@ export function ProtectedVideoPlayer({
         }
       }
 
-      // Sync to database progress API every ~6s
-      if (now - lastPersistTimeRef.current >= 6000 && onProgressSave) {
+      // Sync to database progress API every ~30s (saves 80% serverless invocations vs 6s)
+      if (now - lastPersistTimeRef.current >= 30000 && onProgressSave) {
         lastPersistTimeRef.current = now;
         onProgressSave(Math.floor(cur), Math.floor(Math.max(cur, maxWatchedTime)));
       }

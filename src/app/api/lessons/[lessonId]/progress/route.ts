@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
-import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ lessonId: string }> }
 ) {
   try {
-    await ensureDatabaseSchemaSync();
     const { lessonId } = await params;
     const user = await getCurrentUser();
 
@@ -152,58 +150,60 @@ export async function POST(
       throw new Error("Unable to save lesson progress to database.");
     }
 
-    // 2. Recalculate Course Enrollment progress percentage scoped strictly to this course
+    // 2. Only recalculate Course Enrollment progress percentage & revalidate cache when lesson is COMPLETED
     let progressPercentage = 0;
     let totalLessons = 0;
     let completedLessons = 0;
-    try {
-      const [totalCount, completedCount] = await Promise.all([
-        prisma.lesson.count({
-          where: {
-            module: { courseId },
-            isPublished: true,
-          },
-        }),
-        prisma.lessonProgress.count({
-          where: {
-            userId: user.id,
-            status: "COMPLETED",
-            lesson: {
+    if (status === "COMPLETED") {
+      try {
+        const [totalCount, completedCount] = await Promise.all([
+          prisma.lesson.count({
+            where: {
               module: { courseId },
               isPublished: true,
             },
+          }),
+          prisma.lessonProgress.count({
+            where: {
+              userId: user.id,
+              status: "COMPLETED",
+              lesson: {
+                module: { courseId },
+                isPublished: true,
+              },
+            },
+          }),
+        ]);
+
+        totalLessons = totalCount;
+        completedLessons = completedCount;
+        progressPercentage =
+          totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+
+        await prisma.courseEnrollment.updateMany({
+          where: {
+            userId: user.id,
+            courseId,
           },
-        }),
-      ]);
+          data: {
+            progressPercentage,
+            completedAt: progressPercentage >= 100 ? new Date() : null,
+          },
+        });
+      } catch (calcErr) {
+        console.warn("Progress calculation warning:", calcErr);
+      }
 
-      totalLessons = totalCount;
-      completedLessons = completedCount;
-      progressPercentage =
-        totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-
-      await prisma.courseEnrollment.updateMany({
-        where: {
-          userId: user.id,
-          courseId,
-        },
-        data: {
-          progressPercentage,
-          completedAt: progressPercentage >= 100 ? new Date() : null,
-        },
-      });
-    } catch (calcErr) {
-      console.warn("Progress calculation warning:", calcErr);
-    }
-
-    // 3. Invalidate/revalidate relevant Next.js cache paths
-    try {
-      revalidatePath(`/learn/${courseSlug}`);
-      revalidatePath(`/learn/${courseSlug}/${lessonId}`);
-      revalidatePath(`/courses/${courseSlug}`);
-      revalidatePath(`/dashboard`);
-      revalidatePath(`/dashboard/courses`);
-    } catch (revErr) {
-      console.warn("Revalidation warning:", revErr);
+      // 3. Invalidate/revalidate relevant Next.js cache paths ONLY on completion
+      try {
+        revalidatePath(`/learn/${courseSlug}`);
+        revalidatePath(`/learn/${courseSlug}/${lessonId}`);
+        revalidatePath(`/courses/${courseSlug}`);
+        revalidatePath(`/dashboard`);
+        revalidatePath(`/dashboard/courses`);
+      } catch (revErr) {
+        console.warn("Revalidation warning:", revErr);
+      }
     }
 
     return NextResponse.json({

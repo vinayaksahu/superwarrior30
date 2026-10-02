@@ -81,8 +81,18 @@ export async function downloadTradeSegment(
       outputPath,
     ];
 
-    if (forceMock) {
-      args.push("--mock-generate");
+    if (forceMock || process.env.VERCEL === "1") {
+      // In cloud serverless environment, immediately use fallback without burning CPU on unavailable Python
+      if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
+        fs.writeFileSync(outputPath, Buffer.from(MINIMAL_MP4_BASE64, "base64"));
+      }
+      return {
+        success: true,
+        filePath: outputPath,
+        durationSec: Math.max(1, Math.round(clipEnd - clipStart)),
+        fileSizeBytes: fs.statSync(outputPath).size,
+        method: "SYNTHETIC_FALLBACK",
+      };
     } else {
       args.push("--url", streamUrl);
     }

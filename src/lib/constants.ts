@@ -42,5 +42,5 @@ export const SIGNED_URL_EXPIRY = {
 } as const;
 
 // Bunny Media Infrastructure
-export const BUNNY_VIDEO_POLL_INTERVAL = 5000; // 5 seconds
+export const BUNNY_VIDEO_POLL_INTERVAL = 15000; // 15 seconds (optimized for serverless quota)
 export const BUNNY_MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024; // 2GB (Bunny Stream limit)

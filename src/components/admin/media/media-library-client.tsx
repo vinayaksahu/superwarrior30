@@ -127,8 +127,9 @@ export function MediaLibraryClient({
     if (!hasPending) return;
 
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       fetchAssets(true);
-    }, 3000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [hasPending, fetchAssets]);

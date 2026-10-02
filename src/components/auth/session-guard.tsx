@@ -46,6 +46,7 @@ export function SessionGuard() {
 
   const checkSessionStatus = useCallback(async () => {
     if (modalState.isOpen || isCheckingRef.current || isPublicPage) return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
 
     try {
       isCheckingRef.current = true;
@@ -72,12 +73,13 @@ export function SessionGuard() {
     }
   }, [isPublicPage, modalState.isOpen]);
 
-  // Periodic heartbeat polling and window focus listeners
+  // Periodic heartbeat polling (60s) and window focus/visibility listeners
   useEffect(() => {
     if (modalState.isOpen) return;
 
     checkSessionStatus();
-    const interval = setInterval(checkSessionStatus, 4000);
+    // 60-second heartbeat interval (saves 93% serverless invocations vs 4s)
+    const interval = setInterval(checkSessionStatus, 60000);
 
     const handleFocus = () => checkSessionStatus();
     const handleVisibilityChange = () => {

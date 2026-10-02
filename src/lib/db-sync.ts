@@ -12,6 +12,9 @@ const syncPromises =
   globalForSync.syncPromises ?? (globalForSync.syncPromises = new Map<string, Promise<void>>());
 
 export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
+  // When SKIP_DB_SYNC=true is set in Vercel/production, bypass heavy DDL sync to save CPU & invocations
+  if (process.env.SKIP_DB_SYNC === "true" && !force) return;
+
   const currentEnv = await resolveCurrentEnvironment();
   if (syncedEnvironments.has(currentEnv) && !force) return;
 

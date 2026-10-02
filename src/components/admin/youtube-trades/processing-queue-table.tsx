@@ -109,7 +109,7 @@ export function ProcessingQueueTable({ initialJobs }: ProcessingQueueTableProps)
     }
   };
 
-  // Auto-poll active jobs every 4 seconds
+  // Auto-poll active jobs every 15 seconds (when tab is active)
   useEffect(() => {
     const hasActive = jobs.some((j) =>
       ["QUEUED", "DOWNLOADING", "TRANSCRIBING", "ANALYZING", "DETECTING_TRADES", "VISUAL_ANALYSIS", "GENERATING_CLIP", "RENDERING"].includes(
@@ -120,8 +120,9 @@ export function ProcessingQueueTable({ initialJobs }: ProcessingQueueTableProps)
     if (!hasActive) return;
 
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       refreshJobs();
-    }, 4000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [jobs]);
