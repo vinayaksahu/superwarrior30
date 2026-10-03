@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useTransition, useCallback, useRef } from "react";
+import React, { useState, useEffect, useTransition, useCallback, useRef, useMemo } from "react";
 import {
   getLessonHomeworkAction,
   submitHomeworkAction,
   type SubmittedFileInput,
 } from "@/server/actions/homework.actions";
+import { extractHomeworkTasks } from "@/app/homework/[id]/homework-workspace";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import {
   X,
@@ -29,6 +30,7 @@ import {
   Paperclip,
   Trash2,
   ClipboardPaste,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,7 +52,22 @@ export function StudentHomeworkDrawer({
 
   // Form State
   const [notes, setNotes] = useState("");
-  const [uploadedScreenshots, setUploadedScreenshots] = useState<SubmittedFileInput[]>([]);
+
+  const cleanInstructions = useMemo(() => {
+    if (!data?.homework?.instructions) return "";
+    return data.homework.instructions.replace(/\s*\([^\)]*screenshot[^\)]*\)\.?/gi, "");
+  }, [data?.homework?.instructions]);
+
+  const parsedTasks = useMemo(
+    () => extractHomeworkTasks(data?.homework?.instructions),
+    [data?.homework?.instructions]
+  );
+
+  // Task-specific upload slots (indexed by task index 0..N-1)
+  const [taskScreenshots, setTaskScreenshots] = useState<Record<number, SubmittedFileInput | null>>({});
+  const [extraScreenshots, setExtraScreenshots] = useState<SubmittedFileInput[]>([]);
+  const [uploadingSlot, setUploadingSlot] = useState<number | "extra" | null>(null);
+
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
@@ -79,7 +96,8 @@ export function StudentHomeworkDrawer({
   useEffect(() => {
     if (isOpen && lessonId) {
       loadData();
-      setUploadedScreenshots([]);
+      setTaskScreenshots({});
+      setExtraScreenshots([]);
       setNotes("");
     }
   }, [isOpen, lessonId, loadData]);
@@ -109,8 +127,56 @@ export function StudentHomeworkDrawer({
     };
   };
 
-  // Handle Input File Upload
-  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTaskFileInput = async (taskIdx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingSlot(taskIdx);
+    setIsUploading(true);
+    try {
+      const item = await uploadSingleFile(file);
+      const labeledItem: SubmittedFileInput = {
+        ...item,
+        originalFilename: `${taskIdx + 1}. ${parsedTasks[taskIdx]}`,
+      };
+      setTaskScreenshots((prev) => ({
+        ...prev,
+        [taskIdx]: labeledItem,
+      }));
+      toast.success(`Task ${taskIdx + 1} screenshot uploaded to Bunny CDN!`);
+    } catch (err: any) {
+      toast.error(err.message || `Failed to upload screenshot for Task ${taskIdx + 1}`);
+    } finally {
+      setUploadingSlot(null);
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleExtraFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingSlot("extra");
+    setIsUploading(true);
+    try {
+      const newItems: SubmittedFileInput[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const item = await uploadSingleFile(files[i]);
+        newItems.push(item);
+      }
+      setExtraScreenshots((prev) => [...prev, ...newItems]);
+      toast.success(`${newItems.length} extra screenshot(s) uploaded to Bunny CDN!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload extra screenshot");
+    } finally {
+      setUploadingSlot(null);
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleGenericFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -124,7 +190,7 @@ export function StudentHomeworkDrawer({
         results.push(item);
         setUploadProgress(Math.round(((i + 1) / files.length) * 100));
       }
-      setUploadedScreenshots((prev) => [...prev, ...results]);
+      setExtraScreenshots((prev) => [...prev, ...results]);
       toast.success(`${results.length} screenshot(s) uploaded to Bunny CDN!`);
     } catch (err: any) {
       toast.error(err.message || "Upload failed");
@@ -148,7 +214,6 @@ export function StudentHomeworkDrawer({
         if (items[i].type.startsWith("image/")) {
           const file = items[i].getAsFile();
           if (file) {
-            // Rename pasted image with timestamp
             const ext = file.type.split("/")[1] || "png";
             const renamedFile = new File(
               [file],
@@ -167,13 +232,39 @@ export function StudentHomeworkDrawer({
       toast.info("Uploading pasted screenshot to Bunny CDN...");
 
       try {
-        const results: SubmittedFileInput[] = [];
         for (const file of imageFiles) {
-          const item = await uploadSingleFile(file);
-          results.push(item);
+          const uploaded = await uploadSingleFile(file);
+
+          if (parsedTasks.length > 0) {
+            setTaskScreenshots((prev) => {
+              let nextEmpty = -1;
+              for (let i = 0; i < parsedTasks.length; i++) {
+                if (!prev[i]) {
+                  nextEmpty = i;
+                  break;
+                }
+              }
+
+              if (nextEmpty !== -1) {
+                toast.success(`🎯 Screenshot placed in Task ${nextEmpty + 1}: ${parsedTasks[nextEmpty]}!`);
+                return {
+                  ...prev,
+                  [nextEmpty]: {
+                    ...uploaded,
+                    originalFilename: `${nextEmpty + 1}. ${parsedTasks[nextEmpty]}`,
+                  },
+                };
+              } else {
+                setExtraScreenshots((ex) => [...ex, uploaded]);
+                toast.success("🎯 Additional screenshot pasted to Bunny CDN!");
+                return prev;
+              }
+            });
+          } else {
+            setExtraScreenshots((prev) => [...prev, uploaded]);
+            toast.success("🎯 Chart screenshot pasted and uploaded to Bunny CDN!");
+          }
         }
-        setUploadedScreenshots((prev) => [...prev, ...results]);
-        toast.success("🎯 Chart screenshot pasted and uploaded to Bunny CDN!");
       } catch (err: any) {
         toast.error(err.message || "Failed to upload pasted screenshot");
       } finally {
@@ -183,15 +274,18 @@ export function StudentHomeworkDrawer({
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [isOpen]);
-
-  const handleRemoveScreenshot = (idx: number) => {
-    setUploadedScreenshots((prev) => prev.filter((_, i) => i !== idx));
-  };
+  }, [isOpen, parsedTasks]);
 
   const handleSubmit = () => {
     if (!data?.homework?.id) return;
-    if (!notes.trim() && uploadedScreenshots.length === 0) {
+    const allFiles: SubmittedFileInput[] = [
+      ...Object.entries(taskScreenshots)
+        .filter(([_, file]) => Boolean(file))
+        .map(([_, file]) => file!),
+      ...extraScreenshots,
+    ];
+
+    if (!notes.trim() && allFiles.length === 0) {
       toast.error("Please write your notes or upload at least one chart screenshot.");
       return;
     }
@@ -200,13 +294,14 @@ export function StudentHomeworkDrawer({
       try {
         const res = await submitHomeworkAction(data.homework.id, {
           textAnswer: notes,
-          files: uploadedScreenshots,
+          files: allFiles,
         });
 
         if (res.success) {
           toast.success(`🎉 Homework Attempt #${res.attemptNumber} Submitted Successfully!`);
           setNotes("");
-          setUploadedScreenshots([]);
+          setTaskScreenshots({});
+          setExtraScreenshots([]);
           await loadData();
           onSubmitted?.();
         }
@@ -344,11 +439,18 @@ export function StudentHomeworkDrawer({
 
               {/* Task Instructions */}
               <div className="space-y-2">
-                <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-                  Task Instructions & Deliverables
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+                    Task Instructions & Deliverables
+                  </h4>
+                  {parsedTasks.length > 0 && (
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/40 border border-border px-2 py-0.5 rounded-full">
+                      📸 {parsedTasks.length} Screenshot{parsedTasks.length > 1 ? "s" : ""} Required
+                    </span>
+                  )}
+                </div>
                 <div className="rounded-xl border border-border bg-background/70 p-4 text-xs leading-relaxed text-foreground">
-                  <MarkdownContent content={homework.instructions} />
+                  <MarkdownContent content={cleanInstructions} />
                 </div>
               </div>
 
@@ -433,112 +535,348 @@ export function StudentHomeworkDrawer({
                     />
                   </div>
 
-                  {/* Chart Screenshots Uploader with Bunny CDN Storage */}
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
-                        Chart Screenshots (Bunny CDN)
-                      </label>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full">
-                        <ClipboardPaste className="h-2.5 w-2.5" />
-                        Tip: Press Ctrl+V to paste chart
-                      </span>
-                    </div>
-
-                    {/* Drag and Drop Zone */}
-                    <div className="relative rounded-xl border-2 border-dashed border-border p-4 text-center hover:border-primary/50 transition-colors bg-background/50">
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/png,image/jpeg,image/webp,image/jpg"
-                        onChange={handleFileInput}
-                        disabled={isUploading}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <div className="flex flex-col items-center justify-center gap-1.5">
-                        {isUploading ? (
-                          <>
-                            <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
-                            <p className="text-xs font-bold text-foreground">
-                              Uploading screenshot to Bunny CDN ({uploadProgress}%)...
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <UploadCloud className="h-6 w-6 text-amber-400" />
-                            <p className="text-xs font-bold text-foreground">
-                              Click or drag screenshots here (or paste with Ctrl+V)
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              Supports PNG, JPG, WEBP. Fast storage on Bunny CDN.
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Uploaded Screenshots Preview */}
-                    {uploadedScreenshots.length > 0 && (
-                      <div className="space-y-2 pt-1">
-                        <span className="text-[11px] font-bold text-muted-foreground">
-                          Screenshots ready to submit ({uploadedScreenshots.length}):
+                  {/* Screenshot Upload Slots (Stored directly on Bunny CDN) */}
+                  {parsedTasks.length > 0 ? (
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between border-b border-border pb-2">
+                        <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
+                          Task Screenshots ({Object.values(taskScreenshots).filter(Boolean).length}/{parsedTasks.length})
+                        </label>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full">
+                          <ClipboardPaste className="h-2.5 w-2.5" />
+                          Ctrl+V auto-fills next task
                         </span>
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {uploadedScreenshots.map((item, idx) => (
+                      </div>
+
+                      {/* Individual Task Upload Cards */}
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {parsedTasks.map((taskText, idx) => {
+                          const file = taskScreenshots[idx];
+                          const isThisUploading = uploadingSlot === idx;
+
+                          return (
                             <div
                               key={idx}
-                              className="group relative rounded-xl border border-border bg-background overflow-hidden shadow-xs flex flex-col"
+                              className={`rounded-xl border p-3 transition-all ${
+                                file
+                                  ? "border-emerald-500/40 bg-emerald-500/5"
+                                  : "border-border bg-card/60 hover:border-amber-400/40"
+                              }`}
                             >
-                              <div
-                                onClick={() =>
-                                  setActiveLightboxImg({
-                                    url: item.fileUrl,
-                                    title: item.originalFilename,
-                                  })
-                                }
-                                className="relative aspect-video w-full bg-black/70 cursor-zoom-in overflow-hidden"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={item.fileUrl}
-                                  alt={item.originalFilename}
-                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                                />
-                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <ZoomIn className="h-3.5 w-3.5 text-white" />
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className={`inline-flex items-center justify-center h-5 w-5 rounded-md text-[11px] font-black shrink-0 ${
+                                      file
+                                        ? "bg-emerald-500 text-white"
+                                        : "bg-amber-400/20 text-amber-400 border border-amber-400/30"
+                                    }`}
+                                  >
+                                    {idx + 1}
+                                  </span>
+                                  <span className="text-xs font-extrabold text-foreground truncate">
+                                    {taskText}
+                                  </span>
+                                </div>
+
+                                <div className="shrink-0">
+                                  {file ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
+                                      <Check className="h-2.5 w-2.5" /> Uploaded
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center rounded-full bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 text-[9px] font-bold text-amber-400">
+                                      Required
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
-                              <div className="p-2 flex items-center justify-between gap-1 text-[11px] bg-card">
-                                <input
-                                  type="text"
-                                  value={item.originalFilename}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setUploadedScreenshots((prev) =>
-                                      prev.map((s, i) => (i === idx ? { ...s, originalFilename: val } : s))
-                                    );
-                                  }}
-                                  placeholder="e.g. 1. Trend: HH, HL"
-                                  className="flex-1 min-w-0 bg-transparent text-[10px] font-semibold text-foreground focus:outline-none border-b border-transparent focus:border-amber-400 py-0.5 truncate"
-                                  title="Click to rename screenshot or label step"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveScreenshot(idx)}
-                                  className="text-muted-foreground hover:text-red-400 p-1 cursor-pointer shrink-0"
-                                  title="Remove screenshot"
+                              {file ? (
+                                <div className="flex flex-col sm:flex-row gap-2.5 items-start sm:items-center bg-background/90 rounded-lg p-2 border border-border">
+                                  <div
+                                    onClick={() =>
+                                      setActiveLightboxImg({
+                                        url: file.fileUrl,
+                                        title: file.originalFilename,
+                                      })
+                                    }
+                                    className="relative h-20 aspect-video rounded-md overflow-hidden bg-black/80 cursor-zoom-in group shrink-0 border border-border"
+                                  >
+                                    <img
+                                      src={file.fileUrl}
+                                      alt={file.originalFilename}
+                                      className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                      <ZoomIn className="h-3 w-3 text-white" />
+                                    </div>
+                                    <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.2 text-[8px] font-bold text-sky-400">
+                                      Bunny CDN
+                                    </span>
+                                  </div>
+
+                                  <div className="flex-1 min-w-0 space-y-1.5 w-full">
+                                    <input
+                                      type="text"
+                                      value={file.originalFilename}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setTaskScreenshots((prev) => ({
+                                          ...prev,
+                                          [idx]: prev[idx] ? { ...prev[idx]!, originalFilename: val } : null,
+                                        }));
+                                      }}
+                                      className="w-full rounded-md border border-input bg-card px-2 py-1 text-[11px] font-semibold text-foreground focus:border-amber-400 focus:outline-none"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                      <label className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-[10px] font-bold text-muted-foreground hover:text-foreground cursor-pointer">
+                                        <UploadCloud className="h-3 w-3 text-amber-400" />
+                                        Replace
+                                        <input
+                                          type="file"
+                                          accept="image/png,image/jpeg,image/webp,image/jpg"
+                                          disabled={isUploading}
+                                          onChange={(e) => handleTaskFileInput(idx, e)}
+                                          className="hidden"
+                                        />
+                                      </label>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setTaskScreenshots((prev) => ({
+                                            ...prev,
+                                            [idx]: null,
+                                          }))
+                                        }
+                                        className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-400 hover:bg-red-500/10 px-1.5 py-0.5 rounded cursor-pointer"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <label
+                                  className={`relative flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed ${
+                                    isThisUploading
+                                      ? "border-amber-400 bg-amber-400/5"
+                                      : "border-border hover:border-amber-400/60 bg-background/50"
+                                  } p-3.5 text-center cursor-pointer transition`}
                                 >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                                    disabled={isUploading}
+                                    onChange={(e) => handleTaskFileInput(idx, e)}
+                                    className="hidden"
+                                  />
+                                  {isThisUploading ? (
+                                    <>
+                                      <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+                                      <p className="text-[11px] font-bold text-foreground">
+                                        Uploading Task {idx + 1} screenshot...
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UploadCloud className="h-5 w-5 text-amber-400" />
+                                      <p className="text-xs font-bold text-foreground">
+                                        Upload Screenshot for: {taskText}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Click to browse or drag image (or Ctrl+V)
+                                      </p>
+                                    </>
+                                  )}
+                                </label>
+                              )}
                             </div>
-                          ))}
+                          );
+                        })}
+                      </div>
+
+                      {/* Extra Screenshots */}
+                      <div className="pt-2 border-t border-border space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-muted-foreground flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" /> Extra Screenshots (Optional)
+                          </span>
+                          {extraScreenshots.length > 0 && (
+                            <span className="text-[10px] font-bold text-amber-400">
+                              {extraScreenshots.length} extra
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="relative rounded-lg border-2 border-dashed border-border p-2.5 text-center bg-background/30 hover:border-primary/40">
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/png,image/jpeg,image/webp,image/jpg"
+                            onChange={handleExtraFileInput}
+                            disabled={isUploading}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+                            <UploadCloud className="h-3.5 w-3.5 text-amber-400" />
+                            <span>Click or drag to add extra screenshots</span>
+                          </div>
+                        </div>
+
+                        {extraScreenshots.length > 0 && (
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            {extraScreenshots.map((item, extraIdx) => (
+                              <div
+                                key={extraIdx}
+                                className="group relative rounded-lg border border-border bg-background overflow-hidden flex flex-col"
+                              >
+                                <div
+                                  onClick={() =>
+                                    setActiveLightboxImg({
+                                      url: item.fileUrl,
+                                      title: item.originalFilename,
+                                    })
+                                  }
+                                  className="relative aspect-video w-full bg-black/70 cursor-zoom-in overflow-hidden"
+                                >
+                                  <img
+                                    src={item.fileUrl}
+                                    alt={item.originalFilename}
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                </div>
+                                <div className="p-1.5 flex items-center justify-between gap-1 text-[10px] bg-card">
+                                  <input
+                                    type="text"
+                                    value={item.originalFilename}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setExtraScreenshots((prev) =>
+                                        prev.map((s, i) => (i === extraIdx ? { ...s, originalFilename: val } : s))
+                                      );
+                                    }}
+                                    className="flex-1 min-w-0 bg-transparent text-[10px] font-semibold text-foreground focus:outline-none truncate"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setExtraScreenshots((prev) => prev.filter((_, i) => i !== extraIdx))}
+                                    className="text-muted-foreground hover:text-red-400 p-0.5 cursor-pointer shrink-0"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Fallback to generic dropzone when no numbered tasks */
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
+                          Chart Screenshots (Bunny CDN)
+                        </label>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full">
+                          <ClipboardPaste className="h-2.5 w-2.5" />
+                          Tip: Press Ctrl+V to paste chart
+                        </span>
+                      </div>
+
+                      <div className="relative rounded-xl border-2 border-dashed border-border p-4 text-center hover:border-primary/50 transition-colors bg-background/50">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/png,image/jpeg,image/webp,image/jpg"
+                          onChange={handleGenericFileInput}
+                          disabled={isUploading}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                        />
+                        <div className="flex flex-col items-center justify-center gap-1.5">
+                          {isUploading ? (
+                            <>
+                              <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+                              <p className="text-xs font-bold text-foreground">
+                                Uploading screenshot to Bunny CDN ({uploadProgress}%)...
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <UploadCloud className="h-6 w-6 text-amber-400" />
+                              <p className="text-xs font-bold text-foreground">
+                                Click or drag screenshots here (or paste with Ctrl+V)
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Supports PNG, JPG, WEBP. Fast storage on Bunny CDN.
+                              </p>
+                            </>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
+
+                      {extraScreenshots.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <span className="text-[11px] font-bold text-muted-foreground">
+                            Screenshots ready to submit ({extraScreenshots.length}):
+                          </span>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {extraScreenshots.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className="group relative rounded-xl border border-border bg-background overflow-hidden shadow-xs flex flex-col"
+                              >
+                                <div
+                                  onClick={() =>
+                                    setActiveLightboxImg({
+                                      url: item.fileUrl,
+                                      title: item.originalFilename,
+                                    })
+                                  }
+                                  className="relative aspect-video w-full bg-black/70 cursor-zoom-in overflow-hidden"
+                                >
+                                  <img
+                                    src={item.fileUrl}
+                                    alt={item.originalFilename}
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <ZoomIn className="h-3.5 w-3.5 text-white" />
+                                  </div>
+                                </div>
+
+                                <div className="p-2 flex items-center justify-between gap-1 text-[11px] bg-card">
+                                  <input
+                                    type="text"
+                                    value={item.originalFilename}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setExtraScreenshots((prev) =>
+                                        prev.map((s, i) => (i === idx ? { ...s, originalFilename: val } : s))
+                                      );
+                                    }}
+                                    placeholder="e.g. 1. Trend: HH, HL"
+                                    className="flex-1 min-w-0 bg-transparent text-[10px] font-semibold text-foreground focus:outline-none border-b border-transparent focus:border-amber-400 py-0.5 truncate"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setExtraScreenshots((prev) => prev.filter((_, i) => i !== idx))}
+                                    className="text-muted-foreground hover:text-red-400 p-1 cursor-pointer shrink-0"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Submit Action */}
                   <div className="pt-2">

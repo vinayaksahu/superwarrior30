@@ -1463,11 +1463,11 @@ export default function AdminHomeworkPage() {
                         ...createForm,
                         title: "Open any chart any Timeframe & mark following",
                         instructions: `Open any chart any Timeframe & mark following:
-1. Identify trend : mark HH, HL & LH, LL (screenshot upload option).
-2. mark support & BSL (screenshot upload option).
-3. mark resistance & SSL (screenshot upload option).
-4. identify normal liquidtiy (screenshot upload option).
-5. identify Pure Liquidty (screenshot upload option).`,
+1. Identify trend : mark HH, HL & LH, LL
+2. mark support & BSL
+3. mark resistance & SSL
+4. identify normal liquidtiy
+5. identify Pure Liquidty`,
                       });
                       toast.info("Prefilled with 5-Point Chart Practice Template!");
                     }}

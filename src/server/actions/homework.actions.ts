@@ -266,18 +266,28 @@ export async function submitHomeworkAction(
   }
 
   // Check enrollment
-  const enrollment = await prisma.courseEnrollment.findUnique({
-    where: {
-      userId_courseId: {
-        userId: user.id,
-        courseId: homework.lesson.module.courseId,
-      },
-    },
-  });
-
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
-  if (!enrollment && !isAdmin) {
-    throw new Error("You must be enrolled in this course to submit homework.");
+  if (!isAdmin) {
+    if ((homework as any).requiresAnyEnrollment) {
+      const anyEnrollment = await prisma.courseEnrollment.findFirst({
+        where: { userId: user.id, status: "ACTIVE" },
+      });
+      if (!anyEnrollment) {
+        throw new Error("You must have purchased at least one course to submit homework.");
+      }
+    } else {
+      const enrollment = await prisma.courseEnrollment.findUnique({
+        where: {
+          userId_courseId: {
+            userId: user.id,
+            courseId: homework.lesson.module.courseId,
+          },
+        },
+      });
+      if (!enrollment || enrollment.status !== "ACTIVE") {
+        throw new Error("You must be enrolled in this course to submit homework.");
+      }
+    }
   }
 
   // Count past submissions
