@@ -71,6 +71,73 @@ export function StudentHomeworkView({
     loadHomework();
   }, [lessonId]);
 
+  // Handle Clipboard Paste (Ctrl+V) for instant screenshot upload to Bunny CDN
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const ext = file.type.split("/")[1] || "png";
+            const renamed = new File(
+              [file],
+              `chart-${new Date().toISOString().replace(/[:.]/g, "-")}.${ext}`,
+              { type: file.type }
+            );
+            imageFiles.push(renamed);
+          }
+        }
+      }
+
+      if (imageFiles.length === 0) return;
+
+      e.preventDefault();
+      setIsUploading(true);
+      toast.info("Uploading pasted screenshot to Bunny CDN...");
+
+      try {
+        const uploadedList: SubmittedFileInput[] = [];
+        for (const file of imageFiles) {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("category", "homework");
+
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok || !result.url) {
+            throw new Error(result.error || `Failed to upload ${file.name}`);
+          }
+
+          uploadedList.push({
+            fileUrl: result.url,
+            storageKey: result.key || null,
+            originalFilename: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+          });
+        }
+
+        setUploadedFiles((prev) => [...prev, ...uploadedList]);
+        toast.success("🎯 Chart screenshot pasted and uploaded to Bunny CDN!");
+      } catch (err: any) {
+        toast.error(err.message || "Failed to upload pasted screenshot");
+      } finally {
+        setIsUploading(false);
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, []);
+
   // Handle local file upload via API endpoint /api/upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -524,33 +591,83 @@ export function StudentHomeworkView({
               </div>
             </div>
 
-            {/* Uploaded Files Chips */}
+            {/* Uploaded Files & Screenshots Preview */}
             {uploadedFiles.length > 0 && (
               <div className="space-y-2 pt-2">
                 <span className="text-xs font-bold text-muted-foreground">
                   Ready to Submit ({uploadedFiles.length} file{uploadedFiles.length > 1 ? "s" : ""}):
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {uploadedFiles.map((f, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between rounded-xl border border-border bg-background p-3 text-xs"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0 mr-2">
-                        <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
-                        <span className="truncate font-semibold text-foreground">
-                          {f.originalFilename}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFile(idx)}
-                        className="p-1 text-muted-foreground hover:text-red-400"
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {uploadedFiles.map((f, idx) => {
+                    const isImg =
+                      f.mimeType?.startsWith("image/") ||
+                      f.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i);
+
+                    return isImg ? (
+                      <div
+                        key={idx}
+                        className="group relative rounded-xl border border-border bg-background overflow-hidden shadow-xs flex flex-col"
                       >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                        <div
+                          onClick={() =>
+                            setActiveLightboxImg({
+                              url: f.fileUrl,
+                              title: f.originalFilename,
+                            })
+                          }
+                          className="relative aspect-video w-full bg-black/70 cursor-zoom-in overflow-hidden"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={f.fileUrl}
+                            alt={f.originalFilename}
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-white bg-black/80 px-2 py-1 rounded">
+                              Zoom Screenshot
+                            </span>
+                          </div>
+                          <span className="absolute top-2 left-2 rounded bg-black/80 border border-white/10 px-1.5 py-0.5 text-[9px] font-bold text-sky-400">
+                            Bunny CDN
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 flex items-center justify-between gap-1 text-xs bg-card">
+                          <span className="truncate font-semibold text-foreground text-[11px]">
+                            {f.originalFilename}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(idx)}
+                            className="text-muted-foreground hover:text-red-400 p-1 cursor-pointer"
+                            title="Remove file"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between rounded-xl border border-border bg-background p-3 text-xs"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 mr-2">
+                          <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
+                          <span className="truncate font-semibold text-foreground">
+                            {f.originalFilename}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(idx)}
+                          className="p-1 text-muted-foreground hover:text-red-400"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

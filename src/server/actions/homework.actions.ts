@@ -551,6 +551,14 @@ export async function getAdminHomeworkSubmissionsAction(filters?: {
     reviewedAt: s.reviewedAt ? s.reviewedAt.toISOString() : null,
     reviewedByName: s.reviewedBy?.name || s.reviewedBy?.email || null,
     filesCount: s.files.length,
+    files: s.files.map((f) => ({
+      id: f.id,
+      fileUrl: f.fileUrl,
+      originalFilename: f.originalFilename,
+      mimeType: f.mimeType,
+      fileSize: f.fileSize,
+    })),
+    textAnswer: s.textAnswer,
     deadline: s.homework.deadline ? s.homework.deadline.toISOString() : null,
   }));
 }
@@ -721,3 +729,68 @@ export async function getStudentHomeworkDashboardListAction() {
     };
   });
 }
+
+/**
+ * Admin: Get List of All Homework Assignments with Submission Counts
+ */
+export async function getAdminHomeworkAssignmentsListAction() {
+  await requireAdmin();
+
+  const homeworks = await prisma.homework.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      lesson: {
+        include: {
+          module: {
+            include: {
+              course: {
+                select: { id: true, title: true, slug: true },
+              },
+            },
+          },
+        },
+      },
+      submissions: {
+        select: {
+          id: true,
+          status: true,
+          marksObtained: true,
+          isLate: true,
+        },
+      },
+    },
+  });
+
+  return homeworks.map((hw) => {
+    const totalSubmissions = hw.submissions.length;
+    const pendingReviews = hw.submissions.filter((s) => s.status === "SUBMITTED").length;
+    const reviewedCount = hw.submissions.filter((s) => s.status === "REVIEWED").length;
+    const returnedCount = hw.submissions.filter((s) => s.status === "RETURNED_FOR_RESUBMISSION").length;
+
+    return {
+      id: hw.id,
+      lessonId: hw.lessonId,
+      title: hw.title,
+      description: hw.description,
+      instructions: hw.instructions,
+      totalMarks: Number(hw.totalMarks),
+      passingMarks: hw.passingMarks ? Number(hw.passingMarks) : null,
+      deadline: hw.deadline ? hw.deadline.toISOString() : null,
+      allowLateSubmission: hw.allowLateSubmission,
+      maxAttempts: hw.maxAttempts,
+      status: hw.status,
+      attachedMedia: (hw.attachedMediaIds as unknown as HomeworkAttachment[]) || [],
+      courseId: hw.lesson.module.course.id,
+      courseTitle: hw.lesson.module.course.title,
+      courseSlug: hw.lesson.module.course.slug,
+      moduleTitle: hw.lesson.module.title,
+      lessonTitle: hw.lesson.title,
+      totalSubmissions,
+      pendingReviews,
+      reviewedCount,
+      returnedCount,
+      createdAt: hw.createdAt.toISOString(),
+    };
+  });
+}
+
