@@ -8,6 +8,9 @@ import {
   reviewHomeworkAction,
   returnHomeworkForResubmissionAction,
   getAdminHomeworkAssignmentsListAction,
+  createAdminHomeworkAction,
+  toggleHomeworkDashboardVisibilityAction,
+  getCoursesForHomeworkDropdownAction,
 } from "@/server/actions/homework.actions";
 import {
   Award,
@@ -17,6 +20,7 @@ import {
   Search,
   Filter,
   Eye,
+  EyeOff,
   Paperclip,
   ExternalLink,
   Send,
@@ -36,6 +40,9 @@ import {
   Download,
   Share2,
   Copy,
+  Plus,
+  PlusCircle,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +55,22 @@ export default function AdminHomeworkPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [shareModalOpen, setShareModalOpen] = useState(false);
+
+  // Create Homework Modal State
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [coursesList, setCoursesList] = useState<{ id: string; title: string; slug: string }[]>([]);
+  const [isCreatingHw, setIsCreatingHw] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    title: "",
+    instructions: "",
+    description: "",
+    courseId: "",
+    totalMarks: 100,
+    passingMarks: 50,
+    maxAttempts: 5,
+    isVisibleOnDashboard: true,
+    requiresAnyEnrollment: true,
+  });
 
   // Review Drawer / Modal State
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
@@ -187,6 +210,92 @@ export default function AdminHomeworkPage() {
     );
   };
 
+  const handleOpenCreateModal = async () => {
+    setCreateModalOpen(true);
+    if (coursesList.length === 0) {
+      try {
+        const courses = await getCoursesForHomeworkDropdownAction();
+        setCoursesList(courses);
+        if (courses.length > 0 && !createForm.courseId) {
+          setCreateForm((prev) => ({ ...prev, courseId: courses[0].id }));
+        }
+      } catch (err: any) {
+        toast.error("Failed to load courses list for homework");
+      }
+    }
+  };
+
+  const handleToggleDashboardVisibility = async (hwId: string, currentVal: boolean) => {
+    const newVal = !currentVal;
+    // Optimistic update
+    setAssignments((prev) =>
+      prev.map((hw) => (hw.id === hwId ? { ...hw, isVisibleOnDashboard: newVal } : hw))
+    );
+    try {
+      await toggleHomeworkDashboardVisibilityAction(hwId, newVal);
+      toast.success(
+        newVal
+          ? "✅ Homework is now VISIBLE on Student Dashboard!"
+          : "🔒 Homework is now HIDDEN from Student Dashboard."
+      );
+    } catch (err: any) {
+      // Revert optimistic update
+      setAssignments((prev) =>
+        prev.map((hw) => (hw.id === hwId ? { ...hw, isVisibleOnDashboard: currentVal } : hw))
+      );
+      toast.error(err.message || "Failed to update dashboard visibility");
+    }
+  };
+
+  const handleCreateHomeworkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.title.trim()) {
+      toast.error("Please enter homework title");
+      return;
+    }
+    if (!createForm.instructions.trim()) {
+      toast.error("Please enter homework instructions / tasks");
+      return;
+    }
+
+    setIsCreatingHw(true);
+    try {
+      const res = await createAdminHomeworkAction({
+        title: createForm.title.trim(),
+        instructions: createForm.instructions.trim(),
+        description: createForm.description.trim() || undefined,
+        courseId: createForm.courseId || undefined,
+        totalMarks: Number(createForm.totalMarks) || 100,
+        passingMarks: Number(createForm.passingMarks) || 50,
+        maxAttempts: Number(createForm.maxAttempts) || 5,
+        isVisibleOnDashboard: createForm.isVisibleOnDashboard,
+        requiresAnyEnrollment: createForm.requiresAnyEnrollment,
+      });
+
+      if (res.success) {
+        toast.success("🎉 Homework created successfully!");
+        setCreateModalOpen(false);
+        setCreateForm({
+          title: "",
+          instructions: "",
+          description: "",
+          courseId: coursesList[0]?.id || "",
+          totalMarks: 100,
+          passingMarks: 50,
+          maxAttempts: 5,
+          isVisibleOnDashboard: true,
+          requiresAnyEnrollment: true,
+        });
+        setActiveTab("assignments");
+        await loadAssignments();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create homework");
+    } finally {
+      setIsCreatingHw(false);
+    }
+  };
+
   // Stat Counters
   const pendingCount = submissions.filter((s) => s.status === "SUBMITTED").length;
   const reviewedCount = submissions.filter((s) => s.status === "REVIEWED").length;
@@ -225,6 +334,16 @@ export default function AdminHomeworkPage() {
 
         {/* Header Action Buttons & Tab Switcher */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start sm:self-auto">
+          {/* Create Homework Button */}
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 active:scale-95 text-black px-4 py-2 text-xs font-black transition-all shadow-md cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[3]" />
+            <span>Create Homework</span>
+          </button>
+
           <button
             type="button"
             onClick={() => {
@@ -598,21 +717,31 @@ export default function AdminHomeworkPage() {
                 </p>
               </div>
             </div>
-            {assignments.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => handleCopyShareLink(assignments[0].id, assignments[0].title)}
-                className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-4 py-2 text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
+                onClick={handleOpenCreateModal}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 active:scale-95 text-black px-3.5 py-2 text-xs font-black transition-all cursor-pointer shadow-md"
               >
-                <Copy className="h-4 w-4" />
-                Copy Main Link
+                <Plus className="h-4 w-4 stroke-[3]" />
+                Create Homework
               </button>
-            )}
+              {assignments.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleCopyShareLink(assignments[0].id, assignments[0].title)}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-3.5 py-2 text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy Main Link
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              All homework assignments configured inside course lessons.
+              All practical homework assignments configured for enrolled students.
             </p>
             <button
               type="button"
@@ -631,12 +760,22 @@ export default function AdminHomeworkPage() {
               <p className="text-xs text-muted-foreground">Loading assignments catalog...</p>
             </div>
           ) : assignments.length === 0 ? (
-            <div className="py-16 text-center space-y-2 rounded-2xl border border-border bg-card">
-              <BookOpen className="h-8 w-8 text-muted-foreground/50 mx-auto" />
-              <p className="text-sm font-semibold text-foreground">No homework assignments found</p>
-              <p className="text-xs text-muted-foreground">
-                Create assignments inside Course Lessons in Admin → Courses.
-              </p>
+            <div className="py-16 text-center space-y-4 rounded-2xl border border-border bg-card p-6">
+              <BookOpen className="h-10 w-10 text-muted-foreground/50 mx-auto" />
+              <div className="space-y-1">
+                <p className="text-base font-bold text-foreground">No homework assignments found</p>
+                <p className="text-xs text-muted-foreground">
+                  Create practical homework labs directly without opening Course Builder.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenCreateModal}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2 text-xs font-black transition shadow cursor-pointer"
+              >
+                <Plus className="h-4 w-4 stroke-[3]" />
+                Create First Homework
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -647,10 +786,10 @@ export default function AdminHomeworkPage() {
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-extrabold uppercase text-amber-400">
+                      <span className="font-extrabold uppercase text-amber-400 truncate max-w-[200px]">
                         {hw.courseTitle}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-bold text-foreground">
+                      <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-bold text-foreground shrink-0">
                         Max: {hw.totalMarks} Marks
                       </span>
                     </div>
@@ -683,6 +822,57 @@ export default function AdminHomeworkPage() {
                       ) : (
                         <span className="text-[10px] text-emerald-400 font-bold">All Graded</span>
                       )}
+                    </div>
+
+                    {/* Student Dashboard Visibility Toggle */}
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-background border border-border">
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        {hw.isVisibleOnDashboard ? (
+                          <Eye className="h-4 w-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-extrabold text-foreground flex items-center gap-1.5">
+                            <span className="truncate">
+                              {hw.isVisibleOnDashboard ? "Visible on Dashboard" : "Hidden from Dashboard"}
+                            </span>
+                            {hw.isVisibleOnDashboard ? (
+                              <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black px-1.5 py-0.2 rounded shrink-0">
+                                ACTIVE
+                              </span>
+                            ) : (
+                              <span className="text-[9px] bg-muted border border-border text-muted-foreground font-black px-1.5 py-0.2 rounded shrink-0">
+                                LINK ONLY
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {hw.isVisibleOnDashboard
+                              ? "Students who bought any course see this"
+                              : "Hidden from dashboard list"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDashboardVisibility(hw.id, hw.isVisibleOnDashboard)}
+                        className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          hw.isVisibleOnDashboard ? "bg-emerald-500" : "bg-muted-foreground/30"
+                        }`}
+                        title={
+                          hw.isVisibleOnDashboard
+                            ? "Click to hide from student dashboard"
+                            : "Click to show on student dashboard"
+                        }
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            hw.isVisibleOnDashboard ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
                     </div>
 
                     {/* Dedicated Shareable Student Link Box */}
@@ -1206,6 +1396,244 @@ export default function AdminHomeworkPage() {
                 })
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Homework Modal */}
+      {createModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto animate-in fade-in"
+          onClick={() => setCreateModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl my-6 p-5 sm:p-7 space-y-5 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <PlusCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-foreground">
+                    Create Practical Homework Assignment
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Created directly in the portal without navigating to Course Builder.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateModalOpen(false)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateHomeworkSubmit} className="space-y-4">
+              {/* Title */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-extrabold text-foreground flex items-center justify-between">
+                  <span>Assignment Title <strong className="text-red-400">*</strong></span>
+                  <span className="text-[10px] text-muted-foreground font-normal">e.g. Chart Practice Lab</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Open any chart any Timeframe & mark following"
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* Instructions & Tasks */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-foreground">
+                    Assignment Instructions &amp; Screenshot Checklist <strong className="text-red-400">*</strong>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateForm({
+                        ...createForm,
+                        title: "Open any chart any Timeframe & mark following",
+                        instructions: `Open any chart any Timeframe & mark following:
+1. Identify trend : mark HH, HL & LH, LL (screenshot upload option).
+2. mark support & BSL (screenshot upload option).
+3. mark resistance & SSL (screenshot upload option).
+4. identify normal liquidtiy (screenshot upload option).
+5. identify Pure Liquidty (screenshot upload option).`,
+                      });
+                      toast.info("Prefilled with 5-Point Chart Practice Template!");
+                    }}
+                    className="text-[11px] font-bold text-amber-400 hover:underline cursor-pointer"
+                  >
+                    ⚡ Use Chart Practice Template
+                  </button>
+                </div>
+                <textarea
+                  required
+                  rows={6}
+                  placeholder={`1. Identify trend : mark HH, HL & LH, LL (screenshot upload option).\n2. mark support & BSL (screenshot upload option).\n3. mark resistance & SSL (screenshot upload option)...`}
+                  value={createForm.instructions}
+                  onChange={(e) => setCreateForm({ ...createForm, instructions: e.target.value })}
+                  className="w-full rounded-xl border border-input bg-background p-3.5 text-xs text-foreground focus:border-primary focus:outline-none font-mono leading-relaxed"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Each numbered step guides students on what chart setups to mark and upload screenshots for.
+                </p>
+              </div>
+
+              {/* Course & Access Settings Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Course Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-foreground">
+                    Associated Course
+                  </label>
+                  <select
+                    value={createForm.courseId}
+                    onChange={(e) => setCreateForm({ ...createForm, courseId: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                  >
+                    {coursesList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Eligibility / Who can view */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-foreground">
+                    Student Eligibility
+                  </label>
+                  <select
+                    value={createForm.requiresAnyEnrollment ? "ANY_COURSE" : "SPECIFIC_COURSE"}
+                    onChange={(e) =>
+                      setCreateForm({
+                        ...createForm,
+                        requiresAnyEnrollment: e.target.value === "ANY_COURSE",
+                      })
+                    }
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="ANY_COURSE">
+                      Unlocked for ANY enrolled student (Bought any course)
+                    </option>
+                    <option value="SPECIFIC_COURSE">
+                      Only students enrolled in this specific course
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Dashboard Visibility Toggle */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
+                    <Eye className="h-4 w-4 text-amber-400" />
+                    <span>Show on Student Dashboard</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    When enabled, eligible enrolled students can see and open this homework from their student dashboard.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCreateForm({
+                      ...createForm,
+                      isVisibleOnDashboard: !createForm.isVisibleOnDashboard,
+                    })
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    createForm.isVisibleOnDashboard ? "bg-emerald-500" : "bg-muted-foreground/30"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      createForm.isVisibleOnDashboard ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Marks & Attempts Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground">
+                    Total Marks
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={createForm.totalMarks}
+                    onChange={(e) => setCreateForm({ ...createForm, totalMarks: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-bold text-foreground focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground">
+                    Passing Marks
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={createForm.passingMarks}
+                    onChange={(e) => setCreateForm({ ...createForm, passingMarks: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-bold text-foreground focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground">
+                    Max Attempts
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={createForm.maxAttempts}
+                    onChange={(e) => setCreateForm({ ...createForm, maxAttempts: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-bold text-foreground focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setCreateModalOpen(false)}
+                  className="rounded-xl border border-border bg-background px-4 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingHw}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-black px-5 py-2.5 text-xs font-black transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isCreatingHw ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Creating Homework...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 stroke-[3]" />
+                      <span>Create &amp; Publish Homework</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

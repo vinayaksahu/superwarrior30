@@ -1394,6 +1394,8 @@ model Homework {
   maxAttempts         Int                  @default(3)
   status              HomeworkStatus       @default(PUBLISHED)
   attachedMediaIds    Json?                @db.JsonB // List of media assets attached as study material
+  isVisibleOnDashboard Boolean             @default(true)
+  requiresAnyEnrollment Boolean            @default(true)
   isTestData          Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -1403,6 +1405,7 @@ model Homework {
 
   @@index([lessonId])
   @@index([isTestData, lessonId])
+  @@index([isVisibleOnDashboard])
   @@map("homework_assignments")
 }
 

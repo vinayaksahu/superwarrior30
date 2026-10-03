@@ -528,13 +528,23 @@ export function StudentHomeworkWorkspace({
                         </div>
 
                         <div className="p-2.5 flex items-center justify-between gap-1 text-xs bg-card">
-                          <span className="truncate font-semibold text-foreground text-[11px]">
-                            {item.originalFilename}
-                          </span>
+                          <input
+                            type="text"
+                            value={item.originalFilename}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setUploadedScreenshots((prev) =>
+                                prev.map((s, i) => (i === idx ? { ...s, originalFilename: val } : s))
+                              );
+                            }}
+                            placeholder="e.g. 1. Trend: HH, HL"
+                            className="flex-1 min-w-0 bg-transparent text-[11px] font-semibold text-foreground focus:outline-none border-b border-transparent focus:border-amber-400 py-0.5 truncate"
+                            title="Click to rename screenshot or label step"
+                          />
                           <button
                             type="button"
                             onClick={() => setUploadedScreenshots((prev) => prev.filter((_, i) => i !== idx))}
-                            className="text-muted-foreground hover:text-red-400 p-1 cursor-pointer"
+                            className="text-muted-foreground hover:text-red-400 p-1 cursor-pointer shrink-0"
                             title="Remove screenshot"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

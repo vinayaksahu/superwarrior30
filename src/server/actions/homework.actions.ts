@@ -662,17 +662,24 @@ export async function getStudentHomeworkDashboardListAction() {
   });
 
   const enrolledCourseIds = enrollments.map((e) => e.courseId);
-  if (enrolledCourseIds.length === 0) return [];
+  const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+  if (!isAdmin && enrolledCourseIds.length === 0) return [];
 
-  // Find all homework lessons in these courses
+  // Find all homework lessons that admin enabled for dashboard display
   const homeworks = await prisma.homework.findMany({
     where: {
       status: "PUBLISHED",
-      lesson: {
-        module: {
-          courseId: { in: enrolledCourseIds },
+      isVisibleOnDashboard: true,
+      OR: [
+        { requiresAnyEnrollment: true },
+        {
+          lesson: {
+            module: {
+              courseId: { in: enrolledCourseIds },
+            },
+          },
         },
-      },
+      ],
     },
     include: {
       lesson: {
@@ -780,6 +787,8 @@ export async function getAdminHomeworkAssignmentsListAction() {
       maxAttempts: hw.maxAttempts,
       status: hw.status,
       attachedMedia: (hw.attachedMediaIds as unknown as HomeworkAttachment[]) || [],
+      isVisibleOnDashboard: hw.isVisibleOnDashboard,
+      requiresAnyEnrollment: hw.requiresAnyEnrollment,
       courseId: hw.lesson.module.course.id,
       courseTitle: hw.lesson.module.course.title,
       courseSlug: hw.lesson.module.course.slug,
@@ -835,8 +844,9 @@ export async function getHomeworkShareableDataAction(identifier: string) {
 
   const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
 
-  // Check enrollment
-  const enrollment = await prisma.courseEnrollment.findUnique({
+  // Check enrollment:
+  // If requiresAnyEnrollment is true, ANY active course enrollment gives access!
+  const specificEnrollment = await prisma.courseEnrollment.findUnique({
     where: {
       userId_courseId: {
         userId: user.id,
@@ -845,7 +855,17 @@ export async function getHomeworkShareableDataAction(identifier: string) {
     },
   });
 
-  const isEnrolled = Boolean(enrollment && enrollment.status === "ACTIVE");
+  const anyEnrollment = await prisma.courseEnrollment.findFirst({
+    where: {
+      userId: user.id,
+      status: "ACTIVE",
+    },
+  });
+
+  const isEnrolled = Boolean(
+    (specificEnrollment && specificEnrollment.status === "ACTIVE") ||
+    (homework.requiresAnyEnrollment && anyEnrollment)
+  );
 
   if (!isAdmin && !isEnrolled) {
     return {
@@ -958,6 +978,172 @@ export async function getHomeworkShareableDataAction(identifier: string) {
     attemptsUsed: submissions.length,
     maxAttempts: homework.maxAttempts,
   };
+}
+
+/**
+ * Toggle Homework Visibility on Student Dashboard (Admin Only)
+ */
+export async function toggleHomeworkDashboardVisibilityAction(
+  homeworkId: string,
+  isVisibleOnDashboard: boolean
+) {
+  await requireAdmin();
+
+  const updated = await prisma.homework.update({
+    where: { id: homeworkId },
+    data: { isVisibleOnDashboard },
+  });
+
+  revalidatePath("/admin/homework");
+  revalidatePath("/dashboard/homework");
+
+  return { success: true, isVisibleOnDashboard: updated.isVisibleOnDashboard };
+}
+
+/**
+ * Get Courses list for homework creation modal
+ */
+export async function getCoursesForHomeworkDropdownAction() {
+  await requireAdmin();
+  return prisma.course.findMany({
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/**
+ * Create Homework Directly from Admin Homework Management
+ * (Does NOT redirect to Course Builder; attaches seamlessly to course and creates practical lab)
+ */
+export async function createAdminHomeworkAction(payload: {
+  title: string;
+  instructions: string;
+  description?: string;
+  courseId?: string;
+  totalMarks?: number;
+  passingMarks?: number;
+  deadline?: string;
+  allowLateSubmission?: boolean;
+  maxAttempts?: number;
+  isVisibleOnDashboard?: boolean;
+  requiresAnyEnrollment?: boolean;
+  attachedMedia?: HomeworkAttachment[];
+}) {
+  const admin = await requireAdmin();
+
+  if (!payload.title?.trim()) {
+    throw new Error("Homework title is required.");
+  }
+  if (!payload.instructions?.trim()) {
+    throw new Error("Homework instructions are required.");
+  }
+
+  // 1. Resolve Target Course
+  let targetCourseId = payload.courseId;
+  if (!targetCourseId) {
+    const defaultCourse = await prisma.course.findFirst({
+      where: { status: "PUBLISHED" },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!defaultCourse) {
+      const anyCourse = await prisma.course.findFirst({
+        orderBy: { createdAt: "asc" },
+      });
+      if (!anyCourse) throw new Error("Please create at least one course before creating homework.");
+      targetCourseId = anyCourse.id;
+    } else {
+      targetCourseId = defaultCourse.id;
+    }
+  }
+
+  const course = await prisma.course.findUnique({
+    where: { id: targetCourseId },
+    include: {
+      modules: {
+        orderBy: { position: "desc" },
+        include: { lessons: { orderBy: { position: "desc" } } },
+      },
+    },
+  });
+
+  if (!course) throw new Error("Course not found");
+
+  // 2. Find or Create Module for Assignments
+  let targetModule = course.modules.find(
+    (m) =>
+      m.title.toLowerCase().includes("homework") ||
+      m.title.toLowerCase().includes("assignment") ||
+      m.title.toLowerCase().includes("practice") ||
+      m.title.toLowerCase().includes("lab")
+  );
+
+  if (!targetModule) {
+    const maxModulePos = course.modules.length > 0 ? course.modules[0].position : 0;
+    targetModule = await prisma.module.create({
+      data: {
+        courseId: course.id,
+        title: "Practical Assignments & Homework Labs",
+        position: maxModulePos + 1,
+        isPublished: true,
+      },
+      include: { lessons: true },
+    });
+  }
+
+  // 3. Create Lesson with ASSIGNMENT content type
+  const maxLessonPos = targetModule.lessons.length > 0 ? targetModule.lessons[0].position : 0;
+  const slugBase = payload.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50);
+  const lessonSlug = `${slugBase}-${Date.now().toString(36)}`;
+
+  const lesson = await prisma.lesson.create({
+    data: {
+      moduleId: targetModule.id,
+      title: payload.title,
+      slug: lessonSlug,
+      position: maxLessonPos + 1,
+      contentType: "ASSIGNMENT",
+      isPublished: true,
+      isFreePreview: false,
+    },
+  });
+
+  // 4. Create Homework Record
+  const deadlineDate = payload.deadline ? new Date(payload.deadline) : null;
+  const totalMarks = payload.totalMarks || 100;
+  const passingMarks = payload.passingMarks || 50;
+
+  const homework = await prisma.homework.create({
+    data: {
+      lessonId: lesson.id,
+      title: payload.title,
+      description: payload.description || null,
+      instructions: payload.instructions,
+      totalMarks,
+      passingMarks,
+      deadline: deadlineDate,
+      allowLateSubmission: payload.allowLateSubmission ?? true,
+      maxAttempts: payload.maxAttempts ?? 5,
+      status: "PUBLISHED",
+      isVisibleOnDashboard: payload.isVisibleOnDashboard ?? true,
+      requiresAnyEnrollment: payload.requiresAnyEnrollment ?? true,
+      attachedMediaIds: payload.attachedMedia ? JSON.parse(JSON.stringify(payload.attachedMedia)) : null,
+      isTestData: admin.isTestData || false,
+    },
+  });
+
+  revalidatePath("/admin/homework");
+  revalidatePath("/dashboard/homework");
+  revalidatePath(`/homework/${homework.id}`);
+
+  return { success: true, homeworkId: homework.id };
 }
 
 
