@@ -47,6 +47,7 @@ export default function AdminHomeworkPage() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // Review Drawer / Modal State
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
@@ -87,6 +88,11 @@ export default function AdminHomeworkPage() {
       setLoadingAssignments(false);
     }
   };
+
+  useEffect(() => {
+    loadSubmissions();
+    loadAssignments();
+  }, []);
 
   useEffect(() => {
     loadSubmissions();
@@ -217,33 +223,57 @@ export default function AdminHomeworkPage() {
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center bg-card border border-border p-1 rounded-xl shrink-0 self-start sm:self-auto">
+        {/* Header Action Buttons & Tab Switcher */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start sm:self-auto">
           <button
             type="button"
-            onClick={() => setActiveTab("submissions")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              activeTab === "submissions"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
+            onClick={() => {
+              if (assignments.length === 1) {
+                handleCopyShareLink(assignments[0].id, assignments[0].title);
+              } else if (assignments.length > 1) {
+                setShareModalOpen(true);
+              } else {
+                loadAssignments().then(() => {
+                  toast.info("Opening shareable student links...");
+                  setShareModalOpen(true);
+                });
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black px-3.5 py-2 text-xs font-black transition-all shadow-sm cursor-pointer"
+            title="Copy shareable student reminder link"
           >
-            <Award className="h-3.5 w-3.5" />
-            Submissions ({submissions.length})
+            <Share2 className="h-3.5 w-3.5" />
+            <span>Copy Student Link</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("assignments")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              activeTab === "assignments"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            Course Assignments
-          </button>
+          {/* Tab Switcher */}
+          <div className="flex items-center bg-card border border-border p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setActiveTab("submissions")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                activeTab === "submissions"
+                  ? "bg-primary text-primary-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <Award className="h-3.5 w-3.5" />
+              Submissions ({submissions.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("assignments")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                activeTab === "assignments"
+                  ? "bg-primary text-primary-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Course Assignments
+            </button>
+          </div>
         </div>
       </div>
 
@@ -292,6 +322,37 @@ export default function AdminHomeworkPage() {
 
       {activeTab === "submissions" ? (
         <>
+          {/* Quick Reminder Banner */}
+          <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+                <Share2 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">
+                  Want to remind your batch of students to submit homework?
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Share the direct assignment link. Enrolled students can click and submit notes &amp; TradingView chart screenshots immediately.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (assignments.length === 1) {
+                  handleCopyShareLink(assignments[0].id, assignments[0].title);
+                } else {
+                  setShareModalOpen(true);
+                }
+              }}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black px-3.5 py-1.5 text-xs font-black transition-all shadow-sm cursor-pointer active:scale-95"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy Student Link
+            </button>
+          </div>
+
           {/* Filters & Search Toolbar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
@@ -373,7 +434,17 @@ export default function AdminHomeworkPage() {
 
                           <td className="px-5 py-4 max-w-xs">
                             <div className="space-y-0.5">
-                              <p className="font-semibold text-foreground truncate">{sub.homeworkTitle}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-semibold text-foreground truncate">{sub.homeworkTitle}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyShareLink(sub.homeworkId, sub.homeworkTitle)}
+                                  className="text-muted-foreground hover:text-amber-400 p-0.5 rounded transition-colors shrink-0 cursor-pointer"
+                                  title="Copy student shareable reminder link for this homework"
+                                >
+                                  <Share2 className="h-3 w-3" />
+                                </button>
+                              </div>
                               <p className="text-[11px] text-muted-foreground truncate">
                                 {sub.courseTitle} • {sub.moduleTitle}
                               </p>
@@ -515,6 +586,30 @@ export default function AdminHomeworkPage() {
       ) : (
         /* Assignments Catalog Tab */
         <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400">
+                <Share2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-foreground">Share Direct Homework Links With Enrolled Students</h4>
+                <p className="text-xs text-muted-foreground">
+                  Each homework card below has its dedicated shareable student URL. Click &quot;Copy Link&quot; to send it via WhatsApp, Telegram, or Email. Only students who have purchased or been assigned the course can open and submit.
+                </p>
+              </div>
+            </div>
+            {assignments.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleCopyShareLink(assignments[0].id, assignments[0].title)}
+                className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-4 py-2 text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <Copy className="h-4 w-4" />
+                Copy Main Link
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               All homework assignments configured inside course lessons.
@@ -523,7 +618,7 @@ export default function AdminHomeworkPage() {
               type="button"
               onClick={loadAssignments}
               disabled={loadingAssignments}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer"
             >
               {loadingAssignments && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Refresh List
@@ -590,23 +685,56 @@ export default function AdminHomeworkPage() {
                       )}
                     </div>
 
+                    {/* Dedicated Shareable Student Link Box */}
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-extrabold uppercase text-amber-400 flex items-center gap-1">
+                          <Share2 className="h-3 w-3" />
+                          Student Shareable Link
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          Enrolled Only
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          readOnly
+                          value={typeof window !== "undefined" ? `${window.location.origin}/homework/${hw.id}` : `https://superwarrior30.com/homework/${hw.id}`}
+                          className="flex-1 min-w-0 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-mono text-muted-foreground select-all focus:outline-none"
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCopyShareLink(hw.id, hw.title)}
+                          className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black px-2.5 py-1 text-xs font-black transition-all shadow-sm cursor-pointer active:scale-95"
+                          title="Copy student link to clipboard"
+                        >
+                          <Copy className="h-3 w-3" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/admin/courses/${hw.courseId}`}
+                        href={`/homework/${hw.id}`}
+                        target="_blank"
+                        rel="noreferrer"
                         className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2 text-xs font-bold text-foreground hover:bg-muted transition-all"
+                        title="Open student homework portal in new tab"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 text-sky-400" />
+                        Student View
+                      </Link>
+                      <Link
+                        href={`/admin/courses/${hw.courseId}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                       >
                         <BookOpen className="h-3.5 w-3.5 text-amber-400" />
                         Course Builder
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyShareLink(hw.id, hw.title)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all cursor-pointer"
-                        title="Copy shareable reminder link to send to students"
-                      >
-                        <Share2 className="h-3.5 w-3.5" />
-                        Remind Link
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -984,6 +1112,99 @@ export default function AdminHomeworkPage() {
                 alt={lightboxImage.title}
                 className="max-h-[80vh] w-auto max-w-full object-contain rounded-lg shadow-lg select-none"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Share Modal */}
+      {shareModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in"
+          onClick={() => setShareModalOpen(false)}
+        >
+          <div 
+            className="relative w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                  <Share2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-foreground">Share Homework Link With Students</h3>
+                  <p className="text-xs text-muted-foreground">Only students enrolled in the course can access the workspace.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(false)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              {assignments.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  No assignments found.
+                </div>
+              ) : (
+                assignments.map((hw) => {
+                  const origin = typeof window !== "undefined" ? window.location.origin : "https://superwarrior30.com";
+                  const shareUrl = `${origin}/homework/${hw.id}`;
+                  return (
+                    <div key={hw.id} className="rounded-xl border border-border bg-background p-4 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">
+                            {hw.courseTitle}
+                          </span>
+                          <h4 className="text-sm font-bold text-foreground leading-snug">
+                            {hw.title}
+                          </h4>
+                        </div>
+                        <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold text-foreground shrink-0">
+                          Max {hw.totalMarks} Marks
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={shareUrl}
+                          className="flex-1 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-mono text-muted-foreground select-all focus:outline-none"
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCopyShareLink(hw.id, hw.title)}
+                          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black px-3 py-1.5 text-xs font-black transition-all shadow cursor-pointer active:scale-95"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy Link
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                        <span>{hw.totalSubmissions} submissions received</span>
+                        <Link
+                          href={`/homework/${hw.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-sky-400 hover:underline font-semibold"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Test Student Link
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

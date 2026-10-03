@@ -854,7 +854,7 @@ export async function getHomeworkShareableDataAction(identifier: string) {
       courseSlug: course.slug,
       courseId: course.id,
       coursePrice: course.price ? Number(course.price) : 0,
-      courseThumbnail: course.thumbnailUrl,
+      courseThumbnail: course.thumbnailCdnUrl || null,
     };
   }
 
