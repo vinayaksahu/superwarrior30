@@ -97,7 +97,7 @@ export function StudentHomeworkView({
 
       e.preventDefault();
       setIsUploading(true);
-      toast.info("Uploading pasted screenshot to Bunny CDN...");
+      toast.info("Uploading pasted screenshot...");
 
       try {
         const uploadedList: SubmittedFileInput[] = [];
@@ -126,7 +126,7 @@ export function StudentHomeworkView({
         }
 
         setUploadedFiles((prev) => [...prev, ...uploadedList]);
-        toast.success("🎯 Chart screenshot pasted and uploaded to Bunny CDN!");
+        toast.success("🎯 Chart screenshot pasted!");
       } catch (err: any) {
         toast.error(err.message || "Failed to upload pasted screenshot");
       } finally {
@@ -628,9 +628,6 @@ export function StudentHomeworkView({
                               Zoom Screenshot
                             </span>
                           </div>
-                          <span className="absolute top-2 left-2 rounded bg-black/80 border border-white/10 px-1.5 py-0.5 text-[9px] font-bold text-sky-400">
-                            Bunny CDN
-                          </span>
                         </div>
 
                         <div className="p-2.5 flex items-center justify-between gap-1 text-xs bg-card">

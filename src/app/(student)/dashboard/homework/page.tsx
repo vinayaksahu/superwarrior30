@@ -136,7 +136,7 @@ export default function StudentHomeworkDashboardPage() {
             My Homework & Assignments
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Submit your chart analysis, trade setups, and written notes. Fast screenshot upload with Bunny CDN and direct mentor reviews.
+            Submit your chart analysis, trade setups, and written notes for personalized mentor review.
           </p>
         </div>
 
