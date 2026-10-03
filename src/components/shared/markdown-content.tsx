@@ -164,9 +164,72 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
     }
   };
 
+  let inTable = false;
+  let tableRows: string[] = [];
+
+  const flushTable = () => {
+    if (inTable && tableRows.length > 0) {
+      const parsedRows = tableRows
+        .map((r) =>
+          r
+            .trim()
+            .replace(/^\||\|$/g, "")
+            .split("|")
+            .map((c) => c.trim())
+        )
+        .filter((r) => !r.every((c) => /^[-:]+$/.test(c)));
+
+      if (parsedRows.length > 0) {
+        const headerRow = parsedRows[0];
+        const bodyRows = parsedRows.slice(1);
+
+        elements.push(
+          <div key={`table-wrapper-${index++}`} className="my-4 overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
+            <table className="w-full text-left text-xs sm:text-sm">
+              <thead className="bg-muted/60 border-b border-border font-bold text-foreground uppercase tracking-wider text-[11px]">
+                <tr>
+                  {headerRow.map((cell, cIdx) => (
+                    <th key={cIdx} className="px-3.5 py-2.5">
+                      {renderInline(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {bodyRows.map((row, rIdx) => (
+                  <tr key={rIdx} className="hover:bg-muted/20 transition-colors">
+                    {row.map((cell, cIdx) => (
+                      <td key={cIdx} className="px-3.5 py-2.5 text-foreground/90">
+                        {renderInline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+      inTable = false;
+      tableRows = [];
+    }
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const trimmed = rawLine.trim();
+
+    // Table rows: starts and ends with | or contains |
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      flushList();
+      flushBlockquote();
+      flushCodeBlock();
+      inTable = true;
+      tableRows.push(trimmed);
+      continue;
+    } else if (inTable) {
+      flushTable();
+    }
 
     // Code blocks: ```
     if (trimmed.startsWith("```")) {
@@ -175,6 +238,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
       } else {
         flushList();
         flushBlockquote();
+        flushTable();
         inCodeBlock = true;
       }
       continue;
@@ -188,6 +252,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
     // Blockquote: > text
     if (trimmed.startsWith(">")) {
       flushList();
+      flushTable();
       inBlockquote = true;
       blockquoteLines.push(trimmed.replace(/^>\s*/, ""));
       continue;
@@ -198,12 +263,14 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
     // Blank lines
     if (trimmed === "") {
       flushList();
+      flushTable();
       continue;
     }
 
     // Horizontal Rule: --- or ***
     if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
       flushList();
+      flushTable();
       elements.push(<hr key={`hr-${index++}`} className="my-6 border-border/80" />);
       continue;
     }
@@ -318,6 +385,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
   flushList();
   flushCodeBlock();
   flushBlockquote();
+  flushTable();
 
   return <div className={cn("space-y-1 min-w-0 max-w-full overflow-hidden break-words", className)}>{elements}</div>;
 }

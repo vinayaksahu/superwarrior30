@@ -424,18 +424,16 @@ Open your charting platform (TradingView / MT5). We recommend using **Gold (XAUU
 
 Before submitting or taking any live/demo trade, verify that all 10 checkpoints pass:
 
-| # | Verification Question | Required Execution Condition | Checked? |
-|---|---|---|:---:|
-| **01** | **Is the Trend Validated?** | Higher timeframe structure displays unambiguous HH/HL (Bullish) or LH/LL (Bearish). Strictly avoid counter-trend positioning. | [x] |
-| **02** | **Is Price at a Key S/R Zone?** | Price is resting directly at a pre-marked Strong Level ('Strong L') or 2X Strong zone. Never execute in No-Man's Land. | [x] |
-| **03** | **Did Obvious Liquidity Get Swept?** | Resting stop liquidity (BSL or SSL) above/below a prominent swing has been swept. No Sweep = NO ENTRY. | [x] |
-| **04** | **Did Price Reclaim the Level?** | Price rejected the sweep and closed with a solid body back inside the zone. Never trade during the sweep wick. | [x] |
-| **05** | **Is Candlestick Confirmation Present?** | Clear rejection wick and strong opposing candle body confirmed on close. | [x] |
-| **06** | **Did 'H Break' / 'L Break' (COC) Trigger?** | The confirmation candle's High (Buy) or Low (Sell) broke, confirming micro Change of Character. | [x] |
-| **07** | **Is Logical Stop Loss Placed?** | Hard SL is placed safely 2–3 pips beyond the extreme sweep wick. Never widen or move SL backward! | [x] |
-| **08** | **Is Risk:Reward at Least 1:2?** | Potential take profit target provides at least twice the monetary risk distance (1:2 or 1:3+). | [x] |
-| **09** | **Is Position Within the 2% Rule?** | Calculated lot size risks maximum 2% of total account capital. Capital preservation is priority #1. | [x] |
-| **10** | **Am I Calm, Disciplined & FOMO-Free?** | Zero revenge, zero greed, zero panic — 100% mechanical, rule-based execution. | [x] |
+1. **Trend Validation:** Higher timeframe structure displays unambiguous HH/HL (Bullish) or LH/LL (Bearish). Strictly avoid counter-trend positioning.
+2. **Key S/R Zone:** Price is resting directly at a pre-marked Strong Level ('Strong L') or 2X Strong zone. Never execute in No-Man's Land.
+3. **Liquidity Sweep:** Resting stop liquidity (BSL or SSL) above/below a prominent swing has been swept. *(Rule: No Sweep = NO ENTRY)*.
+4. **Level Reclamation:** Price rejected the sweep and closed with a solid body back inside the zone. Never trade during the sweep wick.
+5. **Candlestick Confirmation:** Clear rejection wick and strong opposing candle body confirmed on close.
+6. **Micro COC Trigger ('H Break' / 'L Break'):** The confirmation candle's High (Buy) or Low (Sell) broke, confirming micro Change of Character.
+7. **Logical Stop Loss Placement:** Hard SL is placed safely 2–3 pips beyond the extreme sweep wick. Never widen or move SL backward!
+8. **Risk:Reward Ratio:** Potential take profit target provides at least twice the monetary risk distance (minimum 1:2 or 1:3+).
+9. **2% Money Management Rule:** Calculated lot size risks maximum 2% of total account capital. Capital preservation is priority #1.
+10. **Psychological Discipline:** Zero revenge, zero greed, zero panic — 100% mechanical, rule-based execution.
 
 > ⚠️ **CRITICAL WARRIOR WARNING:**
 > If **9 out of 10** confirmations are present but even **a single rule is missing** (such as no 'H Break' or R:R is less than 1:2), **DO NOT TAKE THE TRADE!** Choosing not to trade is a profitable decision.
