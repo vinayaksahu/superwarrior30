@@ -237,8 +237,8 @@ export function StudentHomeworkDrawer({
 
   const handleSubmit = () => {
     if (!data?.homework?.id) return;
-    if (!notes.trim() && uploadedScreenshots.length === 0) {
-      toast.error("Please write your notes or upload at least one chart screenshot.");
+    if (uploadedScreenshots.length === 0) {
+      toast.error("Please upload at least 1 chart screenshot to submit homework.");
       return;
     }
 
@@ -394,11 +394,6 @@ export function StudentHomeworkDrawer({
                   <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
                     Task Instructions & Deliverables
                   </h4>
-                  {parsedTasks.length > 0 && (
-                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/40 border border-border px-2 py-0.5 rounded-full">
-                      📸 {parsedTasks.length} Screenshot{parsedTasks.length > 1 ? "s" : ""} Required
-                    </span>
-                  )}
                 </div>
                 <div className="rounded-xl border border-border bg-background/70 p-4 text-xs leading-relaxed text-foreground">
                   <MarkdownContent content={cleanInstructions} />
@@ -494,13 +489,16 @@ export function StudentHomeworkDrawer({
                           <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
                           Chart Screenshots {uploadedScreenshots.length > 0 && `(${uploadedScreenshots.length})`}
                         </label>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                          1 Required • Extra Optional
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         {uploadedScreenshots.length > 0 && (
                           <label className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 px-2.5 py-1 text-xs font-bold text-amber-400 cursor-pointer transition shadow-xs">
                             <Plus className="h-3.5 w-3.5" />
-                            <span>Add More</span>
+                            <span>Add More (Optional)</span>
                             <input
                               type="file"
                               multiple
@@ -518,38 +516,6 @@ export function StudentHomeworkDrawer({
                       </div>
                     </div>
 
-                    {/* Assignment Task Requirements Checklist (if any) */}
-                    {parsedTasks.length > 0 && (
-                      <div className="rounded-xl border border-border/80 bg-background/50 p-2.5 space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground">
-                          <span>Task Checklist ({Math.min(uploadedScreenshots.length, parsedTasks.length)}/{parsedTasks.length}):</span>
-                          {uploadedScreenshots.length >= parsedTasks.length && (
-                            <span className="text-emerald-400 font-extrabold flex items-center gap-1 text-[10px]">
-                              <Check className="h-3 w-3" /> All {parsedTasks.length} Added
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {parsedTasks.map((task, i) => {
-                            const isCovered = i < uploadedScreenshots.length;
-                            return (
-                              <span
-                                key={i}
-                                className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border ${
-                                  isCovered
-                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                                    : "bg-muted/40 border-border text-muted-foreground"
-                                }`}
-                              >
-                                {isCovered && <Check className="h-2.5 w-2.5 text-emerald-400" />}
-                                {i + 1}. {task}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
                     {/* If 0 Screenshots Uploaded: Big Initial Dropzone */}
                     {uploadedScreenshots.length === 0 ? (
                       <div className="relative rounded-xl border-2 border-dashed border-border p-5 text-center hover:border-amber-400/50 transition-colors bg-background/50">
@@ -566,7 +532,7 @@ export function StudentHomeworkDrawer({
                             <>
                               <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
                               <p className="text-xs font-bold text-foreground">
-                                Uploading screenshots ({uploadProgress}%)...
+                                Uploading screenshot ({uploadProgress}%)...
                               </p>
                             </>
                           ) : (
@@ -574,10 +540,10 @@ export function StudentHomeworkDrawer({
                               <UploadCloud className="h-7 w-7 text-amber-400" />
                               <div>
                                 <p className="text-xs font-bold text-foreground">
-                                  Click or drag screenshots here (or paste with Ctrl+V)
+                                  Click or drag chart screenshot here (or paste with Ctrl+V)
                                 </p>
                                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                                  Supports PNG, JPG, WEBP • Select multiple screenshots at once
+                                  1 chart screenshot is required • Additional charts are optional
                                 </p>
                               </div>
                               <button
@@ -585,7 +551,7 @@ export function StudentHomeworkDrawer({
                                 className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-bold text-primary pointer-events-none"
                               >
                                 <Plus className="h-3.5 w-3.5" />
-                                Select Screenshots
+                                Select Chart Screenshot (Required)
                               </button>
                             </>
                           )}
@@ -679,10 +645,10 @@ export function StudentHomeworkDrawer({
                                   <Plus className="h-4 w-4" />
                                 </div>
                                 <span className="text-xs font-extrabold text-foreground group-hover:text-amber-400">
-                                  + Add More Screenshots
+                                  + Add More (Optional)
                                 </span>
                                 <span className="text-[10px] text-muted-foreground mt-0.5">
-                                  Click to browse or paste with Ctrl+V
+                                  Add extra chart or paste Ctrl+V
                                 </span>
                               </>
                             )}
