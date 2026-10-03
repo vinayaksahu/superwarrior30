@@ -19,6 +19,7 @@ import {
   Send,
   FileText,
   ImageIcon,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +49,26 @@ export default function StudentHomeworkDashboardPage() {
     loadHomeworks();
   }, []);
 
+  // Auto-open side panel if URL has ?hw=... or ?lessonId=...
+  useEffect(() => {
+    if (typeof window !== "undefined" && homeworkList.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const lessonParam = params.get("lessonId");
+      const hwParam = params.get("hw") || params.get("homeworkId");
+
+      if (lessonParam) {
+        setSelectedLessonId(lessonParam);
+        setIsDrawerOpen(true);
+      } else if (hwParam) {
+        const match = homeworkList.find((h) => h.homeworkId === hwParam);
+        if (match) {
+          setSelectedLessonId(match.lessonId);
+          setIsDrawerOpen(true);
+        }
+      }
+    }
+  }, [homeworkList]);
+
   const handleOpenAssignment = (lessonId: string) => {
     setSelectedLessonId(lessonId);
     setIsDrawerOpen(true);
@@ -60,6 +81,12 @@ export default function StudentHomeworkDashboardPage() {
 
   const handleHomeworkSubmitted = () => {
     loadHomeworks();
+  };
+
+  const handleCopyLink = (hwId: string, title: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://superwarrior30.com";
+    navigator.clipboard.writeText(`${origin}/homework/${hwId}`);
+    toast.success(`📋 Shareable reminder link for "${title}" copied!`);
   };
 
   // Stat Counters
@@ -335,6 +362,15 @@ export default function StudentHomeworkDashboardPage() {
                       : isReturned
                       ? "Submit Revision"
                       : "Submit Homework"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyLink(hw.homeworkId, hw.title)}
+                    className="p-2 rounded-xl border border-border bg-background hover:bg-muted text-muted-foreground hover:text-amber-400 transition-colors cursor-pointer"
+                    title="Copy Shareable Homework Link"
+                  >
+                    <Share2 className="h-4 w-4" />
                   </button>
 
                   <Link

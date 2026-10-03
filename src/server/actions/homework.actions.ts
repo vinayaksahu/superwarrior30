@@ -794,3 +794,170 @@ export async function getAdminHomeworkAssignmentsListAction() {
   });
 }
 
+/**
+ * Shareable Homework Access Action
+ * Verifies enrollment: ONLY enrolled students (or admins) can access the homework.
+ */
+export async function getHomeworkShareableDataAction(identifier: string) {
+  const user = await getCurrentUser();
+
+  // Find homework by ID or by lessonId
+  const homework = await prisma.homework.findFirst({
+    where: {
+      OR: [{ id: identifier }, { lessonId: identifier }],
+    },
+    include: {
+      lesson: {
+        include: {
+          module: {
+            include: {
+              course: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!homework) {
+    return { access: "NOT_FOUND" as const };
+  }
+
+  const course = homework.lesson.module.course;
+
+  if (!user) {
+    return {
+      access: "UNAUTHENTICATED" as const,
+      homeworkId: homework.id,
+      courseTitle: course.title,
+    };
+  }
+
+  const isAdmin = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+
+  // Check enrollment
+  const enrollment = await prisma.courseEnrollment.findUnique({
+    where: {
+      userId_courseId: {
+        userId: user.id,
+        courseId: course.id,
+      },
+    },
+  });
+
+  const isEnrolled = Boolean(enrollment && enrollment.status === "ACTIVE");
+
+  if (!isAdmin && !isEnrolled) {
+    return {
+      access: "FORBIDDEN" as const,
+      courseTitle: course.title,
+      courseSlug: course.slug,
+      courseId: course.id,
+      coursePrice: course.price ? Number(course.price) : 0,
+      courseThumbnail: course.thumbnailUrl,
+    };
+  }
+
+  // User is authorized (enrolled or admin). Retrieve student submissions
+  const submissions = await prisma.homeworkSubmission.findMany({
+    where: {
+      homeworkId: homework.id,
+      userId: user.id,
+    },
+    orderBy: { attemptNumber: "desc" },
+    include: {
+      files: true,
+      history: {
+        orderBy: { attemptNumber: "asc" },
+      },
+    },
+  });
+
+  const latestSubmission = submissions[0] || null;
+  const now = new Date();
+  const deadlineDate = homework.deadline ? new Date(homework.deadline) : null;
+  const isPastDeadline = deadlineDate ? now > deadlineDate : false;
+  const isSubmissionAllowed =
+    homework.status === "PUBLISHED" &&
+    (!latestSubmission ||
+      latestSubmission.status === "RETURNED_FOR_RESUBMISSION" ||
+      latestSubmission.status === "DRAFT") &&
+    (!isPastDeadline || homework.allowLateSubmission) &&
+    submissions.length < homework.maxAttempts;
+
+  return {
+    access: "GRANTED" as const,
+    homework: {
+      id: homework.id,
+      lessonId: homework.lessonId,
+      title: homework.title,
+      description: homework.description,
+      instructions: homework.instructions,
+      totalMarks: Number(homework.totalMarks),
+      passingMarks: homework.passingMarks ? Number(homework.passingMarks) : null,
+      deadline: homework.deadline ? homework.deadline.toISOString() : null,
+      allowLateSubmission: homework.allowLateSubmission,
+      maxAttempts: homework.maxAttempts,
+      status: homework.status,
+      attachedMedia: (homework.attachedMediaIds as unknown as HomeworkAttachment[]) || [],
+      courseId: course.id,
+      courseSlug: course.slug,
+      courseTitle: course.title,
+      moduleTitle: homework.lesson.module.title,
+    },
+    submissions: submissions.map((sub) => ({
+      id: sub.id,
+      attemptNumber: sub.attemptNumber,
+      textAnswer: sub.textAnswer,
+      status: sub.status,
+      marksObtained: sub.marksObtained ? Number(sub.marksObtained) : null,
+      percentage: sub.percentage ? Number(sub.percentage) : null,
+      isPassed: sub.isPassed,
+      feedback: sub.feedback,
+      adminNote: isAdmin ? sub.adminNote : null,
+      submittedAt: sub.submittedAt.toISOString(),
+      reviewedAt: sub.reviewedAt ? sub.reviewedAt.toISOString() : null,
+      isLate: sub.isLate,
+      files: sub.files.map((f) => ({
+        id: f.id,
+        fileUrl: f.fileUrl,
+        storageKey: f.storageKey,
+        originalFilename: f.originalFilename,
+        fileSize: f.fileSize,
+        mimeType: f.mimeType,
+      })),
+      history: sub.history.map((h) => ({
+        id: h.id,
+        attemptNumber: h.attemptNumber,
+        status: h.status,
+        marksObtained: h.marksObtained ? Number(h.marksObtained) : null,
+        feedback: h.feedback,
+        submittedAt: h.submittedAt.toISOString(),
+        isLate: h.isLate,
+      })),
+    })),
+    latestSubmission: latestSubmission
+      ? {
+          id: latestSubmission.id,
+          attemptNumber: latestSubmission.attemptNumber,
+          textAnswer: latestSubmission.textAnswer,
+          status: latestSubmission.status,
+          marksObtained: latestSubmission.marksObtained ? Number(latestSubmission.marksObtained) : null,
+          percentage: latestSubmission.percentage ? Number(latestSubmission.percentage) : null,
+          isPassed: latestSubmission.isPassed,
+          feedback: latestSubmission.feedback,
+          adminNote: isAdmin ? latestSubmission.adminNote : null,
+          submittedAt: latestSubmission.submittedAt.toISOString(),
+          reviewedAt: latestSubmission.reviewedAt ? latestSubmission.reviewedAt.toISOString() : null,
+          isLate: latestSubmission.isLate,
+          files: latestSubmission.files,
+        }
+      : null,
+    isPastDeadline,
+    isSubmissionAllowed,
+    attemptsUsed: submissions.length,
+    maxAttempts: homework.maxAttempts,
+  };
+}
+
+

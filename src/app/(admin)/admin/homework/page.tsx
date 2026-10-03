@@ -34,6 +34,8 @@ import {
   Layers,
   ChevronRight,
   Download,
+  Share2,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -166,6 +168,17 @@ export default function AdminHomeworkPage() {
         toast.error(err.message || "Failed to return homework");
       }
     });
+  };
+
+  const handleCopyShareLink = (id: string, title?: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://superwarrior30.com";
+    const shareUrl = `${origin}/homework/${id}`;
+    navigator.clipboard.writeText(shareUrl);
+    toast.success(
+      title
+        ? `📋 Link for "${title}" copied! Share it to remind students.`
+        : "📋 Shareable homework reminder link copied to clipboard!"
+    );
   };
 
   // Stat Counters
@@ -467,18 +480,28 @@ export default function AdminHomeworkPage() {
                           </td>
 
                           <td className="px-5 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReview(sub.id)}
-                              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                                isPending
-                                  ? "bg-primary text-primary-foreground shadow hover:bg-primary/90"
-                                  : "bg-background border border-border text-foreground hover:bg-muted"
-                              }`}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              {isPending ? "Grade & Review" : "View Details"}
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyShareLink(sub.homeworkId, sub.homeworkTitle)}
+                                className="p-1.5 rounded-xl border border-border bg-background text-muted-foreground hover:text-amber-400 hover:bg-muted transition cursor-pointer"
+                                title="Copy shareable link to remind student"
+                              >
+                                <Share2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReview(sub.id)}
+                                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                  isPending
+                                    ? "bg-primary text-primary-foreground shadow hover:bg-primary/90"
+                                    : "bg-background border border-border text-foreground hover:bg-muted"
+                                }`}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                {isPending ? "Grade & Review" : "View Details"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -567,13 +590,24 @@ export default function AdminHomeworkPage() {
                       )}
                     </div>
 
-                    <Link
-                      href={`/admin/courses/${hw.courseId}`}
-                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2 text-xs font-bold text-foreground hover:bg-muted transition-all"
-                    >
-                      <BookOpen className="h-3.5 w-3.5 text-amber-400" />
-                      Manage in Course Builder
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/admin/courses/${hw.courseId}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2 text-xs font-bold text-foreground hover:bg-muted transition-all"
+                      >
+                        <BookOpen className="h-3.5 w-3.5 text-amber-400" />
+                        Course Builder
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyShareLink(hw.id, hw.title)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all cursor-pointer"
+                        title="Copy shareable reminder link to send to students"
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                        Remind Link
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -605,13 +639,26 @@ export default function AdminHomeworkPage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedSubmissionId(null)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {detailData?.homeworkId && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopyShareLink(detailData.homeworkId, detailData.homeworkTitle)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
+                    title="Copy shareable reminder link to send to student"
+                  >
+                    <Share2 className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Copy Link</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedSubmissionId(null)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {loadingDetail ? (
