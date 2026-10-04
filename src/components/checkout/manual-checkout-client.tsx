@@ -392,35 +392,10 @@ export function ManualCheckoutClient({
         });
         toast.success(data.message || `Coupon applied! Saved ₹${data.discountAmount}`);
       } else {
-        if (targetCode === "SW30" || targetCode === "SUPER30") {
-          const discount = Math.round(balanceBeforeCoupon * 0.3);
-          setAppliedCoupon({
-            code: targetCode,
-            discountAmount: discount,
-            finalPrice: Math.max(0, balanceBeforeCoupon - discount),
-            discountType: "PERCENTAGE",
-            discountValue: 30,
-          });
-          toast.success(`Coupon ${targetCode} applied! You saved ₹${discount}`);
-        } else {
-          setCouponError(data.message || "Invalid or expired promo coupon.");
-        }
+        setCouponError(data.message || "Invalid or expired promo coupon.");
       }
     } catch {
-      if (targetCode === "SW30" || targetCode === "SUPER30") {
-        const balanceBeforeCoupon = Math.max(0, course.price - brokerDiscount - referralDiscount);
-        const discount = Math.round(balanceBeforeCoupon * 0.3);
-        setAppliedCoupon({
-          code: targetCode,
-          discountAmount: discount,
-          finalPrice: Math.max(0, balanceBeforeCoupon - discount),
-          discountType: "PERCENTAGE",
-          discountValue: 30,
-        });
-        toast.success(`Coupon ${targetCode} applied! You saved ₹${discount}`);
-      } else {
-        setCouponError("Invalid or expired promo coupon.");
-      }
+      setCouponError("Invalid or expired promo coupon.");
     } finally {
       setIsCheckingCoupon(false);
     }
@@ -1650,7 +1625,11 @@ export function ManualCheckoutClient({
                       <form onSubmit={handleApplyCoupon} className="flex gap-2">
                         <input
                           type="text"
-                          placeholder="ENTER PROMO COUPON (E.G. SW30)"
+                          placeholder={
+                            availableCoupons.length > 0
+                              ? `ENTER PROMO COUPON (E.G. ${availableCoupons[0].code})`
+                              : "ENTER PROMO COUPON CODE"
+                          }
                           value={couponInput}
                           onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
                           className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold uppercase text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"

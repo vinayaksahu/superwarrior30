@@ -200,18 +200,6 @@ export default async function CheckoutPage({
           discountType: refType,
           discountValue: refVal,
         };
-      } else if (config?.isReferralDiscountEnabled !== false) {
-        // Direct / New student without a referrer gets default Welcome Coupon "SW30"
-        const isSelf = user?.referralCode === defaultReferralCode;
-        if (!isSelf) {
-          refCoupon = {
-            code: defaultReferralCode,
-            referrerName: defaultReferrerName,
-            discountPercentage: referralPct,
-            discountType: refType,
-            discountValue: refVal,
-          };
-        }
       }
 
       return [methods, config, validCoupons, refCoupon] as const;

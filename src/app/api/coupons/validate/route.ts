@@ -85,46 +85,22 @@ export async function POST(req: Request) {
     });
 
     if (!coupon) {
-      // Check if it matches an affiliate referral / welcome code (e.g. SUPERWARRIOR30)
+      // Check if user accidentally entered an affiliate referral code into promo coupon box
       const referrerUser = await prisma.user.findUnique({
         where: { referralCode: cleanCode },
         select: { id: true, name: true, referralCode: true, status: true },
       });
 
-      if (referrerUser && referrerUser.status === "ACTIVE" && brokerSettings.isReferralDiscountEnabled !== false) {
-        if (currentUser && currentUser.id === referrerUser.id) {
-          return NextResponse.json({
-            valid: false,
-            message: "You cannot use your own referral code for a discount.",
-          });
-        }
-
-        const refPct = Number(brokerSettings.referralDiscountPercentage) || 25;
-        const calculationBase = typeof currentBalance === "number" && !isNaN(currentBalance)
-          ? Math.max(0, currentBalance)
-          : coursePrice;
-
-        const discountAmount = Number(((calculationBase * refPct) / 100).toFixed(2));
-        const finalPrice = Math.max(0, Number((calculationBase - discountAmount).toFixed(2)));
-
+      if (referrerUser && referrerUser.status === "ACTIVE") {
         return NextResponse.json({
-          valid: true,
-          couponId: `ref_${referrerUser.id}`,
-          code: referrerUser.referralCode,
-          discountType: "PERCENTAGE",
-          discountValue: refPct,
-          maxDiscountAmount: null,
-          discountAmount,
-          originalPrice: coursePrice,
-          calculationBase,
-          finalPrice,
-          message: `Referral/Welcome code "${referrerUser.referralCode}" applied! You save ₹${discountAmount} (${refPct}% OFF).`,
+          valid: false,
+          message: `"${cleanCode}" is an Affiliate Referral Code, not a Promo Coupon. Please enter it in the "Have an Affiliate / Referral Code?" section.`,
         });
       }
 
       return NextResponse.json({
         valid: false,
-        message: "Invalid promo coupon code.",
+        message: "Invalid or expired promo coupon code.",
       });
     }
 
