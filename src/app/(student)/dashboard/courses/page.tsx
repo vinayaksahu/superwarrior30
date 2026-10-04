@@ -3,6 +3,8 @@ import Link from "next/link";
 import { requireAuth } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import { getUserEnrolledCoursesAction } from "@/server/actions/enrollment.actions";
+import { CourseAffiliateShareButton } from "@/components/student/course-affiliate-share-button";
+import { generateReferralCode } from "@/lib/utils";
 import { BookOpen, PlayCircle, Clock, CheckCircle2, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,17 @@ export const metadata: Metadata = {
 
 export default async function StudentCoursesPage() {
   const user = await requireAuth();
+
+  let effectiveReferralCode = user.referralCode;
+  if (!effectiveReferralCode) {
+    effectiveReferralCode = generateReferralCode();
+    await prisma.user
+      .update({
+        where: { id: user.id },
+        data: { referralCode: effectiveReferralCode },
+      })
+      .catch(() => {});
+  }
 
   const [enrolledCourses, pendingOrders] = await Promise.all([
     getUserEnrolledCoursesAction().catch((err) => {
@@ -198,18 +211,24 @@ export default async function StudentCoursesPage() {
                 </div>
               </div>
 
-              <div className="border-t border-border/60 bg-muted/20 p-4">
+              <div className="border-t border-border/60 bg-muted/20 p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                 <Link
                   href={
                     course.nextLessonId
                       ? `/learn/${course.courseSlug}/${course.nextLessonId}`
                       : `/learn/${course.courseSlug}`
                   }
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground shadow transition-colors hover:bg-primary/90"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground shadow transition-colors hover:bg-primary/90"
                 >
                   <PlayCircle className="h-4 w-4" />
-                  {course.progressPercentage > 0 ? "Continue Learning" : "Start Course"}
+                  <span>{course.progressPercentage > 0 ? "Continue Learning" : "Start Course"}</span>
                 </Link>
+                <CourseAffiliateShareButton
+                  courseId={course.courseId}
+                  courseTitle={course.courseTitle}
+                  courseSlug={course.courseSlug}
+                  referralCode={effectiveReferralCode}
+                />
               </div>
             </div>
           ))}

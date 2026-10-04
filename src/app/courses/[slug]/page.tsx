@@ -22,10 +22,12 @@ import {
   ArrowLeft,
   Share2,
   PlayCircle,
+  Sparkles,
 } from "lucide-react";
 
 interface CourseDetailPageProps {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export async function generateMetadata({
@@ -48,8 +50,12 @@ export async function generateMetadata({
 
 export default async function CourseDetailPage({
   params,
+  searchParams,
 }: CourseDetailPageProps) {
   const { slug } = await params;
+  const sParams = searchParams ? await searchParams : {};
+  const refCode = typeof sParams.ref === "string" ? sParams.ref.trim() : undefined;
+
   const pageEnv = await resolvePublicHomepageEnvironment();
   const course = await withEnvironmentContext(pageEnv, async () => {
     return await getPublicCourseBySlugAction(slug);
@@ -269,6 +275,18 @@ export default async function CourseDetailPage({
                 </div>
               </div>
 
+              {refCode && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                    <Sparkles className="h-4 w-4 shrink-0" />
+                    <span>Referral Bonus Active ({refCode})</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-normal">
+                    Special referral discount will be automatically applied at checkout!
+                  </p>
+                </div>
+              )}
+
               {isEnrolled ? (
                 <Link
                   href={`/learn/${course.slug}`}
@@ -279,7 +297,11 @@ export default async function CourseDetailPage({
                 </Link>
               ) : (
                 <Link
-                  href={`/checkout/${course.id}`}
+                  href={
+                    refCode
+                      ? `/checkout/${course.id}?ref=${encodeURIComponent(refCode)}`
+                      : `/checkout/${course.id}`
+                  }
                   className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-[1.01]"
                 >
                   Enroll Now

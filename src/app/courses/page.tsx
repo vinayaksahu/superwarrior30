@@ -16,11 +16,12 @@ export const metadata: Metadata = {
 export default async function PublicCoursesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; difficulty?: string }>;
+  searchParams: Promise<{ search?: string; difficulty?: string; ref?: string }>;
 }) {
   const params = await searchParams;
   const search = params.search || "";
   const difficulty = params.difficulty || "all";
+  const refCode = params.ref ? params.ref.trim() : "";
 
   const pageEnv = await resolvePublicHomepageEnvironment();
   const courses = await withEnvironmentContext(pageEnv, async () => {
@@ -137,7 +138,15 @@ export default async function PublicCoursesPage({
                     {/* Content */}
                     <div className="p-6">
                       <h3 className="text-lg font-bold tracking-tight text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                        <Link href={`/courses/${course.slug}`}>{course.title}</Link>
+                        <Link
+                          href={
+                            refCode
+                              ? `/courses/${course.slug}?ref=${encodeURIComponent(refCode)}`
+                              : `/courses/${course.slug}`
+                          }
+                        >
+                          {course.title}
+                        </Link>
                       </h3>
 
                       <p className="mt-2 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
@@ -180,7 +189,11 @@ export default async function PublicCoursesPage({
                     </div>
 
                     <Link
-                      href={`/courses/${course.slug}`}
+                      href={
+                        refCode
+                          ? `/courses/${course.slug}?ref=${encodeURIComponent(refCode)}`
+                          : `/courses/${course.slug}`
+                      }
                       className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90"
                     >
                       View Details

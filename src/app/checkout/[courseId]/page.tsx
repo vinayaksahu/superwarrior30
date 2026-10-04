@@ -16,10 +16,16 @@ export const metadata: Metadata = {
 
 export default async function CheckoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ courseId: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { courseId } = await params;
+  const sParams = searchParams ? await searchParams : {};
+  const explicitRefCode =
+    typeof sParams.ref === "string" ? sParams.ref.trim() : undefined;
+
   await ensureDatabaseSchemaSync();
   const pageEnv = await resolvePublicHomepageEnvironment();
 
@@ -145,7 +151,37 @@ export default async function CheckoutPage({
       const refType = config?.referralDiscountType || "PERCENTAGE";
       const refVal = config?.referralDiscountValue !== undefined ? config?.referralDiscountValue : referralPct;
 
+      // Check direct referrer from URL parameter (?ref=...)
+      let directReferrer = null;
+      if (explicitRefCode) {
+        directReferrer = await prisma.user.findFirst({
+          where: {
+            referralCode: { equals: explicitRefCode, mode: "insensitive" },
+            status: "ACTIVE",
+          },
+          select: { id: true, name: true, referralCode: true, role: true },
+        });
+      }
+
       if (
+        directReferrer &&
+        (!user || directReferrer.id !== user.id)
+      ) {
+        const isAdminRef =
+          directReferrer.referralCode === "SW30" ||
+          directReferrer.referralCode === "SUPERWARRIOR30" ||
+          directReferrer.role === "SUPER_ADMIN" ||
+          directReferrer.role === "ADMIN" ||
+          directReferrer.name === "Vinayak Sahu";
+
+        refCoupon = {
+          code: directReferrer.referralCode,
+          referrerName: isAdminRef ? "Admin" : (directReferrer.name || "Referral Partner"),
+          discountPercentage: referralPct,
+          discountType: refType,
+          discountValue: refVal,
+        };
+      } else if (
         referralRel &&
         referralRel.referrer &&
         referralRel.referrer.status === "ACTIVE"
