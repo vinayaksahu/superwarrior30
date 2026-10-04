@@ -40,14 +40,22 @@ const navLinks = [
 
 interface StudentNavProps {
   isCommunityMember?: boolean;
+  visibilityMap?: Record<string, boolean>;
 }
 
-export function StudentNav({ isCommunityMember = false }: StudentNavProps) {
+export function StudentNav({ isCommunityMember = false, visibilityMap }: StudentNavProps) {
   const pathname = usePathname();
+
+  const visibleLinks = navLinks.filter((link) => {
+    if (visibilityMap && visibilityMap[link.href] === false) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <nav className="hidden lg:block lg:w-60 lg:shrink-0 space-y-1">
-      {navLinks.map((link) => {
+      {visibleLinks.map((link) => {
         const isActive =
           pathname === link.href ||
           (link.href !== "/dashboard" && pathname.startsWith(`${link.href}/`));

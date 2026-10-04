@@ -31,6 +31,7 @@ import {
   Mail,
   Film,
   Award,
+  Sliders,
   HelpCircle,
   BookMarked,
   Video,
@@ -195,6 +196,7 @@ export const allSidebarLinks: SidebarLink[] = [
     icon: Settings,
     children: [
       { href: "/admin/settings", label: "General & Branding", exact: true, icon: Globe, requiredPermission: "settings.general.manage" },
+      { href: "/admin/settings/member-menu", label: "Member Portal Menus", exact: true, icon: Sliders, requiredPermission: "settings.general.manage" },
       { href: "/admin/settings/profile", label: "Profile & Security", exact: true, icon: UserCheck, requiredPermission: "settings.profile.manage" },
       { href: "/admin/settings/email", label: "Email & OTP Security", exact: true, icon: Mail, requiredPermission: "settings.email_otp.manage" },
       { href: "/admin/settings/media-storage", label: "Media Storage (Bunny)", exact: false, icon: Cloud, requiredPermission: "settings.media_storage.manage" },

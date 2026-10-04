@@ -59,6 +59,7 @@ export function StudentHomeworkDrawer({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
+  const [showReattemptForm, setShowReattemptForm] = useState(false);
   const [activeLightboxImg, setActiveLightboxImg] = useState<{ url: string; title: string } | null>(null);
 
   // TradingView / Chart URL Import State
@@ -88,6 +89,11 @@ export function StudentHomeworkDrawer({
       // Pre-fill notes if latest submission was returned for resubmission
       if (res?.latestSubmission?.status === "RETURNED_FOR_RESUBMISSION" && res?.latestSubmission?.textAnswer) {
         setNotes(res.latestSubmission.textAnswer);
+      }
+      if (res?.latestSubmission?.status === "RETURNED_FOR_RESUBMISSION" || !res?.latestSubmission) {
+        setShowReattemptForm(true);
+      } else {
+        setShowReattemptForm(false);
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to load homework details");
@@ -457,6 +463,28 @@ export function StudentHomeworkDrawer({
                       <p className="leading-relaxed whitespace-pre-wrap">{latestSubmission.feedback}</p>
                     </div>
                   )}
+
+                  {isReviewed && isSubmissionAllowed && (
+                    <div className="pt-2.5 border-t border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="text-[11px] text-foreground">
+                        <span className="font-bold text-amber-400">Re-attempt Available: </span>
+                        <span>{maxAttempts - attemptsUsed} attempt{maxAttempts - attemptsUsed > 1 ? "s" : ""} left</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowReattemptForm(true);
+                          setTimeout(() => {
+                            document.getElementById("drawer-submission-area")?.scrollIntoView({ behavior: "smooth" });
+                          }, 100);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 px-3 py-1.5 text-xs font-black text-black shadow transition-all hover:scale-[1.02] cursor-pointer shrink-0"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Re-attempt (Attempt #{attemptsUsed + 1})</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -527,16 +555,63 @@ export function StudentHomeworkDrawer({
 
               {/* Submission Area */}
               {isSubmissionAllowed ? (
-                <div className="space-y-5 rounded-2xl border border-border bg-muted/15 p-4 sm:p-5">
-                  <div className="flex items-center justify-between border-b border-border pb-2.5">
-                    <h3 className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
-                      <Sparkles className="h-4 w-4 text-amber-400" />
-                      {latestSubmission ? "Submit Revision" : "Submit Homework"}
-                    </h3>
-                    <span className="text-[11px] font-bold text-muted-foreground">
-                      Attempt {attemptsUsed + 1} of {maxAttempts}
-                    </span>
+                isReviewed && !showReattemptForm ? (
+                  <div id="drawer-submission-area" className="rounded-xl border border-amber-500/30 bg-muted/20 p-4 space-y-3">
+                    <div className="space-y-1">
+                      <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                        <RotateCcw className="h-3 w-3" />
+                        Attempt {attemptsUsed + 1} of {maxAttempts} Available
+                      </div>
+                      <h4 className="text-sm font-bold text-foreground">
+                        Ready to Re-attempt this Assignment?
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        You have {maxAttempts - attemptsUsed} attempt{maxAttempts - attemptsUsed > 1 ? "s" : ""} left. You can review your mentor's feedback and submit new charts.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowReattemptForm(true)}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-500 py-2.5 text-xs font-black text-black shadow cursor-pointer transition"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Start Re-attempt #{attemptsUsed + 1}</span>
+                    </button>
                   </div>
+                ) : (
+                  <div id="drawer-submission-area" className="space-y-5 rounded-2xl border border-border bg-muted/15 p-4 sm:p-5">
+                    <div className="flex items-center justify-between border-b border-border pb-2.5">
+                      <div className="space-y-0.5">
+                        <h3 className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
+                          <Sparkles className="h-4 w-4 text-amber-400" />
+                          {isReviewed
+                            ? `Re-attempt (Attempt ${attemptsUsed + 1} of ${maxAttempts})`
+                            : isReturned
+                            ? "Submit Revision"
+                            : "Submit Homework"}
+                        </h3>
+                        {isReviewed && (
+                          <p className="text-[10px] text-muted-foreground">
+                            Upload new chart screenshots for attempt #{attemptsUsed + 1}.
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-muted-foreground">
+                          Attempt {attemptsUsed + 1} of {maxAttempts}
+                        </span>
+                        {isReviewed && (
+                          <button
+                            type="button"
+                            onClick={() => setShowReattemptForm(false)}
+                            className="text-[10px] font-bold text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border hover:bg-muted cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
                   {/* Written Notes Area */}
                   <div className="space-y-1.5">
@@ -894,18 +969,23 @@ export function StudentHomeworkDrawer({
                       {isSubmitting ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Submitting Homework to Mentor...
+                          Submitting {isReviewed ? `Attempt #${attemptsUsed + 1}...` : "Homework..."}
                         </>
                       ) : (
                         <>
                           <Send className="h-3.5 w-3.5" />
-                          Submit Homework (Notes + Screenshots)
+                          {isReviewed
+                            ? `Submit Re-attempt #${attemptsUsed + 1}`
+                            : isReturned
+                            ? "Submit Revision"
+                            : "Submit Homework (Notes + Screenshots)"}
                         </>
                       )}
                     </button>
                   </div>
                 </div>
-              ) : (
+              )
+            ) : (
                 <div className="rounded-xl border border-border bg-card p-5 text-center space-y-1.5">
                   <Clock className="h-6 w-6 text-muted-foreground mx-auto" />
                   <p className="text-xs font-bold text-foreground">
@@ -918,7 +998,7 @@ export function StudentHomeworkDrawer({
                       ? "Your submission has been received and is in line for mentorship grading."
                       : isPastDeadline
                       ? "The deadline for this assignment has passed."
-                      : "Maximum attempts reached for this homework."}
+                      : `Maximum attempts reached (${attemptsUsed}/${maxAttempts}) for this homework.`}
                   </p>
                 </div>
               )}

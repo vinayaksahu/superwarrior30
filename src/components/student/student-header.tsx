@@ -38,6 +38,7 @@ interface StudentHeaderProps {
     isTestData?: boolean;
   };
   isCommunityMember?: boolean;
+  visibilityMap?: Record<string, boolean>;
 }
 
 const navLinks = [
@@ -57,10 +58,21 @@ const navLinks = [
   { href: "/profile", label: "Profile", icon: User },
 ];
 
-export function StudentHeader({ user, isCommunityMember = false }: StudentHeaderProps) {
+export function StudentHeader({
+  user,
+  isCommunityMember = false,
+  visibilityMap,
+}: StudentHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const { t } = useLanguage();
+
+  const visibleNavLinks = navLinks.filter((link) => {
+    if (visibilityMap && visibilityMap[link.href] === false) {
+      return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     if (!isMobileMenuOpen) return;
@@ -196,7 +208,7 @@ export function StudentHeader({ user, isCommunityMember = false }: StudentHeader
 
             {/* Nav Links */}
             <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1">
-              {navLinks.map((link) => {
+              {visibleNavLinks.map((link) => {
                 const isActive =
                   pathname === link.href ||
                   (link.href !== "/dashboard" && pathname.startsWith(`${link.href}/`));

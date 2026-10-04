@@ -52,6 +52,7 @@ export function StudentHomeworkView({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showReattemptForm, setShowReattemptForm] = useState(false);
   const [activeLightboxImg, setActiveLightboxImg] = useState<{ url: string; title: string } | null>(null);
   const [isSubmitting, startSubmitTransition] = useTransition();
 
@@ -60,6 +61,11 @@ export function StudentHomeworkView({
     try {
       const res = await getLessonHomeworkAction(lessonId);
       setData(res);
+      if (res?.latestSubmission?.status === "RETURNED_FOR_RESUBMISSION" || !res?.latestSubmission) {
+        setShowReattemptForm(true);
+      } else {
+        setShowReattemptForm(false);
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to load homework details");
     } finally {
@@ -519,28 +525,105 @@ export function StudentHomeworkView({
             </div>
           </div>
 
-          {latestSubmission.feedback && (
-            <div className="rounded-xl bg-background border border-border p-4 space-y-1.5">
-              <strong className="text-xs font-bold text-foreground">Teacher Feedback:</strong>
-              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                {latestSubmission.feedback}
-              </p>
+              {latestSubmission.feedback && (
+                <div className="rounded-xl bg-background border border-border p-4 space-y-1.5">
+                  <strong className="text-xs font-bold text-foreground">Teacher Feedback:</strong>
+                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {latestSubmission.feedback}
+                  </p>
+                </div>
+              )}
+
+              {isReviewed && isSubmissionAllowed && (
+                <div className="pt-3 border-t border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Re-attempt Available ({maxAttempts - attemptsUsed} attempt{maxAttempts - attemptsUsed > 1 ? "s" : ""} remaining)</span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      You can incorporate teacher feedback and submit updated analysis to improve your score.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReattemptForm(true);
+                      setTimeout(() => {
+                        document.getElementById("student-submission-area")?.scrollIntoView({ behavior: "smooth" });
+                      }, 100);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-500 px-4 py-2 text-xs font-black text-black shadow-md transition-all hover:scale-[1.02] cursor-pointer shrink-0"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Re-attempt Homework (Attempt #{attemptsUsed + 1})</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* 3. Student Submission Area (If Submission is Allowed) */}
-      {isSubmissionAllowed ? (
-        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-5 shadow-sm">
-          <div className="border-b border-border pb-3 flex items-center justify-between">
-            <h3 className="font-extrabold text-base text-foreground">
-              {latestSubmission ? "Submit Revision / Resubmission" : "Submit Your Homework"}
-            </h3>
-            <span className="text-xs text-muted-foreground font-semibold">
-              Attempt {attemptsUsed + 1} of {maxAttempts}
-            </span>
-          </div>
+          {/* 3. Student Submission Area (If Submission is Allowed) */}
+          {isSubmissionAllowed ? (
+            isReviewed && !showReattemptForm ? (
+              <div id="student-submission-area" className="rounded-2xl border border-amber-500/30 bg-card p-6 sm:p-8 space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 px-2.5 py-0.5 text-xs font-bold text-amber-400">
+                      <RotateCcw className="h-3 w-3" />
+                      Attempt {attemptsUsed + 1} of {maxAttempts} Available
+                    </div>
+                    <h3 className="text-lg font-black text-foreground">
+                      Want to Re-attempt this Assignment?
+                    </h3>
+                    <p className="text-xs text-muted-foreground max-w-xl">
+                      You have used {attemptsUsed} of {maxAttempts} attempts ({maxAttempts - attemptsUsed} remaining). You can re-attempt the assignment by incorporating teacher feedback and submitting revised charts.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowReattemptForm(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-500 px-6 py-3 text-xs font-black text-black shadow-lg transition-all hover:scale-[1.02] cursor-pointer shrink-0"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    <span>Start Re-attempt #{attemptsUsed + 1}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div id="student-submission-area" className="rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-5 shadow-sm">
+                <div className="border-b border-border pb-3 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-400" />
+                      {isReviewed
+                        ? `Re-attempt Assignment (Attempt ${attemptsUsed + 1} of ${maxAttempts})`
+                        : isReturned
+                        ? "Submit Revision / Resubmission"
+                        : "Submit Your Homework"}
+                    </h3>
+                    {isReviewed && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Upload your new charts and analysis for attempt #{attemptsUsed + 1}.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-semibold">
+                      Attempt {attemptsUsed + 1} of {maxAttempts}
+                    </span>
+                    {isReviewed && (
+                      <button
+                        type="button"
+                        onClick={() => setShowReattemptForm(false)}
+                        className="text-xs font-bold text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border hover:bg-muted cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
 
           {/* Text Answer */}
           <div>
@@ -678,11 +761,16 @@ export function StudentHomeworkView({
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-extrabold text-primary-foreground shadow-lg hover:bg-primary/90 cursor-pointer"
             >
               <Send className="h-3.5 w-3.5" />
-              Submit Homework for Review
+              {isReviewed
+                ? `Submit Re-attempt #${attemptsUsed + 1} for Review`
+                : isReturned
+                ? "Submit Revision for Review"
+                : "Submit Homework for Review"}
             </button>
           </div>
         </div>
-      ) : (
+      )
+    ) : (
         <div className="rounded-2xl border border-border bg-card p-6 text-center space-y-2">
           <Clock className="h-6 w-6 text-muted-foreground mx-auto" />
           <h4 className="text-sm font-bold text-foreground">
@@ -695,7 +783,7 @@ export function StudentHomeworkView({
               ? "Your homework has been submitted and is waiting for teacher grading."
               : isPastDeadline
               ? "The deadline for this homework has passed and late submissions are closed."
-              : "You have reached the maximum allowed attempts for this homework."}
+              : `You have reached the maximum allowed attempts (${attemptsUsed}/${maxAttempts}) for this homework.`}
           </p>
         </div>
       )}

@@ -1,6 +1,8 @@
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/server/dal/auth";
 import { getStudentLiveSessionsAction } from "@/server/actions/live-session.actions";
+import { getMemberMenuSettingsAction } from "@/server/actions/member-menu.actions";
 import { LiveSessionCard } from "@/components/live/live-session-card";
 import { Video, Radio, Calendar, Play, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +14,11 @@ export const metadata: Metadata = {
 
 export default async function StudentLiveHubPage() {
   await requireAuth();
+  const { visibilityMap } = await getMemberMenuSettingsAction();
+  if (visibilityMap["/dashboard/live"] === false) {
+    redirect("/dashboard");
+  }
+
   const { liveNow, upcoming, replays, totalCount, enrolledCourseCount } =
     await getStudentLiveSessionsAction();
 

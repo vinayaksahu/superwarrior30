@@ -356,7 +356,9 @@ export default function StudentHomeworkDashboardPage() {
                   >
                     <Send className="h-3.5 w-3.5" />
                     {isReviewed
-                      ? "View Graded Work"
+                      ? hw.attemptNumber < hw.maxAttempts
+                        ? "View / Re-attempt"
+                        : "View Graded Work"
                       : isSubmitted
                       ? "View Submission"
                       : isReturned

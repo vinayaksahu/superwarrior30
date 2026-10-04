@@ -25,6 +25,12 @@ const settingsTabs = [
     exact: true,
   },
   {
+    href: "/admin/settings/member-menu",
+    label: "Member Portal Menus",
+    icon: Sliders,
+    exact: true,
+  },
+  {
     href: "/admin/settings/media-storage",
     label: "Media Storage (Bunny)",
     icon: Cloud,
