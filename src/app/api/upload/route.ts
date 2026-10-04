@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const allowedCategories = new Set([
       "pdf", "homework", "submission", "student", "journal", "screenshot",
       "thumbnail", "thumbnails", "course", "courses", "general", "documents", "materials",
-      "affiliate", "promotional"
+      "affiliate", "promotional", "payment", "qr", "payment-methods", "qrcode"
     ]);
     const category = allowedCategories.has(safeCategory) ? safeCategory : "general";
 
@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
       storagePath = `courses/${courseId || "general"}/lessons/${lessonId}/doc-${uniqueId}.${ext}`;
     } else if (category === "materials" || category === "affiliate" || category === "promotional") {
       storagePath = `affiliate/materials/${uniqueId}.${ext}`;
+    } else if (category === "payment" || category === "qr" || category === "payment-methods" || category === "qrcode") {
+      storagePath = `payment-methods/qr/${uniqueId}.${ext}`;
     } else {
       storagePath = `courses/${courseId || "general"}/files/${uniqueId}.${ext}`;
     }
@@ -155,6 +157,36 @@ export async function POST(req: NextRequest) {
       category === "materials" ||
       category === "affiliate" ||
       category === "promotional";
+
+    const isPaymentUpload =
+      category === "payment" ||
+      category === "qr" ||
+      category === "payment-methods" ||
+      category === "qrcode";
+
+    if (isPaymentUpload) {
+      if (!isBunnyActive) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Bunny Storage is required for payment QR code images. Please configure Bunny Storage in Media Settings.",
+          },
+          { status: 500 }
+        );
+      }
+      const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
+      return NextResponse.json({
+        success: true,
+        key: storagePath,
+        url: result.cdnUrl,
+        cdnUrl: result.cdnUrl,
+        bunnyVideoId: null,
+        provider: "BUNNY",
+        filename,
+        category,
+        message: `${filename} QR code uploaded to Bunny Storage and CDN successfully!`,
+      });
+    }
 
     if (isAffiliateUpload) {
       if (!isBunnyActive) {

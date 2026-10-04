@@ -52,6 +52,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
   const [activeModal, setActiveModal] = useState<"GATEWAY" | "UPI" | "BANK" | "CRYPTO" | null>(null);
   const [editingMethod, setEditingMethod] = useState<PaymentMethodItem | null>(null);
   const [customQrUrl, setCustomQrUrl] = useState<string>("");
+  const [isUploadingQr, setIsUploadingQr] = useState<boolean>(false);
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethodItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [actionMessage, setActionMessage] = useState<{ success: boolean; text: string } | null>(null);
@@ -216,7 +217,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
     setActiveModal(method.type);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -225,13 +226,37 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setCustomQrUrl(reader.result);
+    setIsUploadingQr(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+      uploadFormData.append("category", "payment");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadFormData,
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to upload QR code to Bunny Storage.");
       }
-    };
-    reader.readAsDataURL(file);
+
+      const cdnUrl = json.cdnUrl || json.url;
+      setCustomQrUrl(cdnUrl);
+      setActionMessage({
+        success: true,
+        text: "Custom QR code uploaded to Bunny Storage & CDN successfully!",
+      });
+    } catch (err: unknown) {
+      console.error("QR upload error:", err);
+      alert(err instanceof Error ? err.message : "Error uploading QR image to Bunny Storage.");
+    } finally {
+      setIsUploadingQr(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1207,42 +1232,59 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                   </div>
 
                   {/* Device File Upload */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
+                      disabled={isUploadingQr}
                       onChange={handleImageUpload}
                       className="hidden"
                     />
                     <button
                       type="button"
+                      disabled={isUploadingQr}
                       onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-input bg-card px-3.5 py-2 text-xs font-bold text-foreground hover:bg-accent transition-all cursor-pointer shadow-sm"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-input bg-card px-3.5 py-2 text-xs font-bold text-foreground hover:bg-accent transition-all cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <Upload className="h-3.5 w-3.5 text-primary" />
-                      Upload QR Image from Device
+                      {isUploadingQr ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5 text-primary" />
+                      )}
+                      {isUploadingQr ? "Uploading to Bunny Storage..." : "Upload QR Image from Device"}
                     </button>
 
                     {customQrUrl && (
-                      <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
-                        <Check className="h-3 w-3" /> Image Loaded
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-400">
+                        <Check className="h-3 w-3" /> Bunny Storage Active
                       </span>
                     )}
                   </div>
 
                   {/* Preview if uploaded */}
                   {customQrUrl && (
-                    <div className="flex items-center gap-3 pt-1">
+                    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/60 p-2.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={customQrUrl}
                         alt="QR Preview"
-                        className="h-16 w-16 rounded-lg border border-border bg-white p-1 object-contain"
+                        className="h-16 w-16 shrink-0 rounded-lg border border-border bg-white p-1 object-contain shadow-sm"
                       />
-                      <p className="text-[10px] text-muted-foreground">
-                        Custom QR code will be displayed to buyers during checkout.
-                      </p>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-foreground">Custom QR Code</span>
+                          <span className="rounded bg-primary/10 px-1.5 py-0.2 text-[9px] font-mono font-bold text-primary">
+                            Bunny CDN
+                          </span>
+                        </div>
+                        <p className="truncate font-mono text-[10px] text-muted-foreground" title={customQrUrl}>
+                          {customQrUrl}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          This QR will be displayed to students during checkout.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

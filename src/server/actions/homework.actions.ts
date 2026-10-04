@@ -82,6 +82,7 @@ export async function getLessonHomeworkAction(lessonId: string) {
   const isSubmissionAllowed =
     homework.status === "PUBLISHED" &&
     (!latestSubmission ||
+      latestSubmission.status === "REVIEWED" ||
       latestSubmission.status === "RETURNED_FOR_RESUBMISSION" ||
       latestSubmission.status === "DRAFT") &&
     (!isPastDeadline || homework.allowLateSubmission) &&
@@ -297,7 +298,7 @@ export async function submitHomeworkAction(
   });
 
   const latestSub = pastSubmissions[0];
-  if (latestSub && latestSub.status === "SUBMITTED") {
+  if (latestSub && (latestSub.status === "SUBMITTED" || latestSub.status === "UNDER_REVIEW")) {
     throw new Error("Your previous submission is currently awaiting teacher review.");
   }
 
@@ -910,6 +911,7 @@ export async function getHomeworkShareableDataAction(identifier: string) {
   const isSubmissionAllowed =
     homework.status === "PUBLISHED" &&
     (!latestSubmission ||
+      latestSubmission.status === "REVIEWED" ||
       latestSubmission.status === "RETURNED_FOR_RESUBMISSION" ||
       latestSubmission.status === "DRAFT") &&
     (!isPastDeadline || homework.allowLateSubmission) &&

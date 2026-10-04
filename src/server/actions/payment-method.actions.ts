@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireSuperAdmin, requirePermission } from "@/server/dal/auth";
 import type { ActionState } from "@/types";
@@ -180,6 +181,30 @@ export async function getSystemPaymentMethodsAction(
         : fallbackPaymentMethods.filter((m) => m.isActive);
     }
 
+    // Background safety: If any method currently has base64 QR code in details, upload to Bunny Storage and update DB
+    for (const m of methods) {
+      const details = m.details as Record<string, string> | null;
+      if (details?.qrCodeUrl && details.qrCodeUrl.startsWith("data:image/")) {
+        ensureBunnyQrCodeUrl(details.qrCodeUrl).then(async (bunnyUrl) => {
+          if (bunnyUrl && bunnyUrl !== details.qrCodeUrl) {
+            try {
+              await prisma.systemPaymentMethod.update({
+                where: { id: m.id },
+                data: {
+                  details: {
+                    ...details,
+                    qrCodeUrl: bunnyUrl,
+                  },
+                },
+              });
+            } catch {
+              // ignore
+            }
+          }
+        }).catch(() => {});
+      }
+    }
+
     return methods.map((m) => ({
       id: m.id,
       type: m.type as "UPI" | "BANK" | "CRYPTO" | "GATEWAY",
@@ -250,6 +275,72 @@ export async function getPublicPaymentMethodsAction(): Promise<PaymentMethodItem
   }));
 }
 
+/**
+ * Ensures any uploaded QR code image (base64 data URL or external image link)
+ * is safely uploaded to Bunny Storage and returns a high-speed Bunny CDN URL.
+ */
+async function ensureBunnyQrCodeUrl(rawUrl: string | undefined): Promise<string | undefined> {
+  if (!rawUrl || typeof rawUrl !== "string") return rawUrl;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return undefined;
+
+  // Already served from Bunny CDN
+  if (trimmed.includes(".b-cdn.net")) return trimmed;
+
+  // 1. Base64 Data URL upload to Bunny Storage
+  if (trimmed.startsWith("data:image/")) {
+    try {
+      const matches = trimmed.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+      if (matches) {
+        const rawExt = matches[1].toLowerCase();
+        const ext = rawExt.includes("png") ? "png" : rawExt.includes("webp") ? "webp" : "jpg";
+        const buffer = Buffer.from(matches[2], "base64");
+        const { getResolvedBunnyConfig, uploadToBunnyStorage } = await import("@/lib/bunny");
+        const config = await getResolvedBunnyConfig();
+        if (config.storageZoneName && config.storagePassword) {
+          const uniqueId = crypto.randomUUID();
+          const storagePath = `payment-methods/qr/${uniqueId}.${ext}`;
+          const result = await uploadToBunnyStorage(storagePath, buffer, `image/${ext}`);
+          if (result?.cdnUrl) {
+            return result.cdnUrl;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to upload base64 QR code to Bunny Storage:", err);
+    }
+  }
+
+  // 2. External URL (not api.qrserver.com auto-generator)
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    if (!trimmed.includes("api.qrserver.com")) {
+      try {
+        const { getResolvedBunnyConfig, uploadToBunnyStorage } = await import("@/lib/bunny");
+        const config = await getResolvedBunnyConfig();
+        const isBunny = (config.cdnHostname && trimmed.includes(config.cdnHostname)) || trimmed.includes("b-cdn.net");
+        if (!isBunny && config.storageZoneName && config.storagePassword) {
+          const fetchRes = await fetch(trimmed);
+          if (fetchRes.ok) {
+            const contentType = fetchRes.headers.get("content-type") || "image/png";
+            const buffer = Buffer.from(await fetchRes.arrayBuffer());
+            const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+            const uniqueId = crypto.randomUUID();
+            const storagePath = `payment-methods/qr/${uniqueId}.${ext}`;
+            const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
+            if (result?.cdnUrl) {
+              return result.cdnUrl;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not transfer external QR image to Bunny Storage:", err);
+      }
+    }
+  }
+
+  return trimmed;
+}
+
 export async function createPaymentMethodAction(
   _prevState: ActionState | null,
   formData: FormData
@@ -305,6 +396,8 @@ export async function createPaymentMethodAction(
       qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi://pay?pa=${encodeURIComponent(
         upiId
       )}&pn=${encodeURIComponent(payeeName)}`;
+    } else {
+      qrCodeUrl = (await ensureBunnyQrCodeUrl(qrCodeUrl)) || qrCodeUrl;
     }
 
     details.upiId = upiId;
@@ -342,6 +435,8 @@ export async function createPaymentMethodAction(
       qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
         walletAddress
       )}`;
+    } else {
+      qrCodeUrl = (await ensureBunnyQrCodeUrl(qrCodeUrl)) || qrCodeUrl;
     }
 
     details.network = network;
@@ -433,6 +528,8 @@ export async function updatePaymentMethodAction(
       qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=upi://pay?pa=${encodeURIComponent(
         upiId
       )}&pn=${encodeURIComponent(payeeName || "Super Warrior 30")}`;
+    } else if (qrCodeUrl) {
+      qrCodeUrl = (await ensureBunnyQrCodeUrl(qrCodeUrl)) || qrCodeUrl;
     }
 
     if (upiId) updatedDetails.upiId = upiId;
@@ -459,6 +556,8 @@ export async function updatePaymentMethodAction(
       qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
         walletAddress
       )}`;
+    } else if (qrCodeUrl) {
+      qrCodeUrl = (await ensureBunnyQrCodeUrl(qrCodeUrl)) || qrCodeUrl;
     }
 
     if (network) updatedDetails.network = network;
