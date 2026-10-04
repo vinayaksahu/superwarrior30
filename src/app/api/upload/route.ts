@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     const safeCategory = rawCategory.replace(/[^a-z0-9_-]/g, "") || "general";
     const allowedCategories = new Set([
       "pdf", "homework", "submission", "student", "journal", "screenshot",
-      "thumbnail", "thumbnails", "course", "courses", "general", "documents", "materials"
+      "thumbnail", "thumbnails", "course", "courses", "general", "documents", "materials",
+      "affiliate", "promotional"
     ]);
     const category = allowedCategories.has(safeCategory) ? safeCategory : "general";
 
@@ -142,6 +143,8 @@ export async function POST(req: NextRequest) {
       storagePath = `courses/${courseId || "general"}/thumbnail-${uniqueId}.${ext}`;
     } else if (category === "pdf" && lessonId) {
       storagePath = `courses/${courseId || "general"}/lessons/${lessonId}/doc-${uniqueId}.${ext}`;
+    } else if (category === "materials" || category === "affiliate" || category === "promotional") {
+      storagePath = `affiliate/materials/${uniqueId}.${ext}`;
     } else {
       storagePath = `courses/${courseId || "general"}/files/${uniqueId}.${ext}`;
     }

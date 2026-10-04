@@ -1327,3 +1327,330 @@ export async function getStudentReferralDashboardAction() {
     })),
   };
 }
+
+// ==========================================
+// 12. AFFILIATE PROMOTIONAL MATERIALS
+// ==========================================
+
+export type PromotionalMaterialType =
+  | "BANNER"
+  | "WHATSAPP"
+  | "TELEGRAM"
+  | "INSTAGRAM"
+  | "FACEBOOK"
+  | "TEXT";
+
+export interface AffiliatePromotionalMaterial {
+  id: string;
+  title: string;
+  type: PromotionalMaterialType;
+  description?: string;
+  imageUrl?: string;
+  content: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const DEFAULT_AFFILIATE_MATERIALS: AffiliatePromotionalMaterial[] = [
+  {
+    id: "default-mat-1",
+    title: "WhatsApp Institutional Trading Invite",
+    type: "WHATSAPP",
+    description: "High-converting short copy for WhatsApp chats, status, and direct broadcast",
+    imageUrl: "/logo.png",
+    content: `🚀 *Master Institutional Price Action with Super Warrior 30!*
+
+Stop gambling with lagging indicators. Learn real institutional market structure, liquidity sweeps & high-probability setups from professional traders! 📊📈
+
+✅ Daily Live Market Analysis & Setups
+✅ Full SMC, Liquidity & Risk Management Roadmap
+🎁 *Exclusive Referral Discount Applied!*
+
+👉 *Enroll now with my link:*
+{AFFILIATE_LINK}
+
+Referral Code: *{REFERRAL_CODE}*
+Let's grow together! 🔥`,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "default-mat-2",
+    title: "Telegram Channel & Group Share",
+    type: "TELEGRAM",
+    description: "Detailed pitch formatted for Telegram trading groups and channels",
+    imageUrl: "/logo.png",
+    content: `🔥 **Super Warrior 30 Trading Mentorship — Level Up Your Trading**
+
+Ready to turn your trading consistent? Join India's top institutional price action academy:
+
+🔹 Market Structure (HH, HL, LH, LL) mastery
+🔹 Institutional Liquidity & Order Flow concepts
+🔹 Proven Risk-Reward Management
+🔹 Live Trade Journal & Psychology Mastery
+
+🎁 **Claim your referral bonus & join now:**
+👉 {AFFILIATE_LINK}
+
+Use my invite code: \`{REFERRAL_CODE}\``,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "default-mat-3",
+    title: "Instagram Caption & Story Hook",
+    type: "INSTAGRAM",
+    description: "Engaging caption for Instagram Reels, Posts, and Story link stickers",
+    imageUrl: "/logo.png",
+    content: `Trading is not about guessing, it is about understanding WHERE the liquidity rests. 📉📈
+
+If you want to trade with the banks and smart money instead of being their liquidity, checkout Super Warrior 30.
+
+🔗 Click the link in bio or visit:
+{AFFILIATE_LINK}
+(Use invite code: {REFERRAL_CODE} for a special discount)
+
+#trading #priceaction #smartmoneyconcepts #forextrading #nifty50 #banknifty #superwarrior30`,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "default-mat-4",
+    title: "Facebook Trading Community Recommendation",
+    type: "FACEBOOK",
+    description: "Detailed recommendation for Facebook trading groups, profiles, and communities",
+    imageUrl: "/logo.png",
+    content: `For everyone in the group asking where to learn real price action and institutional order flow:
+
+I strongly recommend checking out Super Warrior 30 Trading Academy. The structured modules, real live trade proofs, and complete risk management frameworks are top-tier.
+
+You can claim a direct discount using my invitation link:
+{AFFILIATE_LINK}
+Referral Code: {REFERRAL_CODE}`,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "default-mat-5",
+    title: "Official Academy Masterclass Banner",
+    type: "BANNER",
+    description: "Official branded promotional banner for sharing across social feeds and web",
+    imageUrl: "/logo.png",
+    content: `Super Warrior 30 — Complete Professional Trading Masterclass.
+Get instant access with my student referral bonus:
+{AFFILIATE_LINK}
+Code: {REFERRAL_CODE}`,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+export async function getAffiliateMaterialsAction(
+  includeInactive = false
+): Promise<AffiliatePromotionalMaterial[]> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: "affiliate_promotional_materials" },
+    });
+
+    let materials: AffiliatePromotionalMaterial[] = [];
+    if (setting && setting.value) {
+      try {
+        materials = JSON.parse(setting.value);
+      } catch {
+        materials = DEFAULT_AFFILIATE_MATERIALS;
+      }
+    } else {
+      materials = DEFAULT_AFFILIATE_MATERIALS;
+      // Auto-seed default materials for future quick edits
+      prisma.siteSetting
+        .upsert({
+          where: { key: "affiliate_promotional_materials" },
+          update: { value: JSON.stringify(DEFAULT_AFFILIATE_MATERIALS) },
+          create: {
+            key: "affiliate_promotional_materials",
+            value: JSON.stringify(DEFAULT_AFFILIATE_MATERIALS),
+            type: "json",
+          },
+        })
+        .catch(() => {});
+    }
+
+    if (!Array.isArray(materials)) {
+      materials = DEFAULT_AFFILIATE_MATERIALS;
+    }
+
+    if (!includeInactive) {
+      materials = materials.filter((m) => m.isActive !== false);
+    }
+
+    return materials;
+  } catch (error) {
+    console.error("Error fetching affiliate promotional materials:", error);
+    return DEFAULT_AFFILIATE_MATERIALS.filter((m) => includeInactive || m.isActive);
+  }
+}
+
+export async function saveAffiliateMaterialAction(data: {
+  id?: string;
+  title: string;
+  type: PromotionalMaterialType;
+  description?: string;
+  imageUrl?: string;
+  content: string;
+  isActive?: boolean;
+}): Promise<ActionState> {
+  try {
+    await requireAdmin();
+
+    if (!data.title?.trim() || !data.content?.trim()) {
+      return {
+        success: false,
+        message: "Title and message content are required.",
+      };
+    }
+
+    const currentMaterials = await getAffiliateMaterialsAction(true);
+    const now = new Date().toISOString();
+
+    let updatedMaterials: AffiliatePromotionalMaterial[];
+
+    if (data.id) {
+      // Update existing
+      updatedMaterials = currentMaterials.map((m) => {
+        if (m.id === data.id) {
+          return {
+            ...m,
+            title: data.title.trim(),
+            type: data.type,
+            description: data.description?.trim() || "",
+            imageUrl: data.imageUrl?.trim() || undefined,
+            content: data.content.trim(),
+            isActive: data.isActive !== undefined ? data.isActive : m.isActive,
+            updatedAt: now,
+          };
+        }
+        return m;
+      });
+    } else {
+      // Add new
+      const newMaterial: AffiliatePromotionalMaterial = {
+        id: `mat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        title: data.title.trim(),
+        type: data.type,
+        description: data.description?.trim() || "",
+        imageUrl: data.imageUrl?.trim() || undefined,
+        content: data.content.trim(),
+        isActive: data.isActive !== undefined ? data.isActive : true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      updatedMaterials = [newMaterial, ...currentMaterials];
+    }
+
+    await prisma.siteSetting.upsert({
+      where: { key: "affiliate_promotional_materials" },
+      update: { value: JSON.stringify(updatedMaterials) },
+      create: {
+        key: "affiliate_promotional_materials",
+        value: JSON.stringify(updatedMaterials),
+        type: "json",
+      },
+    });
+
+    revalidatePath("/admin/referrals");
+    revalidatePath("/admin/referrals/materials");
+    revalidatePath("/referrals");
+
+    return {
+      success: true,
+      message: data.id ? "Promotional material updated!" : "Promotional material created!",
+    };
+  } catch (error) {
+    console.error("Error saving promotional material:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to save promotional material.",
+    };
+  }
+}
+
+export async function deleteAffiliateMaterialAction(id: string): Promise<ActionState> {
+  try {
+    await requireAdmin();
+
+    const currentMaterials = await getAffiliateMaterialsAction(true);
+    const filtered = currentMaterials.filter((m) => m.id !== id);
+
+    await prisma.siteSetting.upsert({
+      where: { key: "affiliate_promotional_materials" },
+      update: { value: JSON.stringify(filtered) },
+      create: {
+        key: "affiliate_promotional_materials",
+        value: JSON.stringify(filtered),
+        type: "json",
+      },
+    });
+
+    revalidatePath("/admin/referrals");
+    revalidatePath("/admin/referrals/materials");
+    revalidatePath("/referrals");
+
+    return {
+      success: true,
+      message: "Promotional material deleted successfully.",
+    };
+  } catch (error) {
+    console.error("Error deleting promotional material:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to delete promotional material.",
+    };
+  }
+}
+
+export async function toggleAffiliateMaterialStatusAction(
+  id: string,
+  isActive: boolean
+): Promise<ActionState> {
+  try {
+    await requireAdmin();
+
+    const currentMaterials = await getAffiliateMaterialsAction(true);
+    const updated = currentMaterials.map((m) =>
+      m.id === id ? { ...m, isActive, updatedAt: new Date().toISOString() } : m
+    );
+
+    await prisma.siteSetting.upsert({
+      where: { key: "affiliate_promotional_materials" },
+      update: { value: JSON.stringify(updated) },
+      create: {
+        key: "affiliate_promotional_materials",
+        value: JSON.stringify(updated),
+        type: "json",
+      },
+    });
+
+    revalidatePath("/admin/referrals");
+    revalidatePath("/admin/referrals/materials");
+    revalidatePath("/referrals");
+
+    return {
+      success: true,
+      message: isActive ? "Material activated." : "Material deactivated.",
+    };
+  } catch (error) {
+    console.error("Error toggling material status:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to toggle status.",
+    };
+  }
+}
+

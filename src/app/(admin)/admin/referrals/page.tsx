@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getAdminReferralDashboardAction } from "@/server/actions/referral.actions";
 import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
-import { Settings, Users, GitBranch, IndianRupee, Clock, Search, Trophy, ArrowRight } from "lucide-react";
+import { Settings, Users, GitBranch, IndianRupee, Clock, Search, Trophy, ArrowRight, Sparkles } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,15 @@ export default async function AdminReferralsPage({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/admin/referrals/materials"
+            className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black shadow transition-colors hover:bg-amber-400"
+          >
+            <Sparkles className="h-4 w-4" />
+            Promotional Materials
+          </Link>
+
           <Link
             href="/admin/referrals/clearance"
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:bg-emerald-700"

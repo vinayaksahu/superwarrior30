@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { getStudentReferralDashboardAction } from "@/server/actions/referral.actions";
+import { getStudentReferralDashboardAction, getAffiliateMaterialsAction } from "@/server/actions/referral.actions";
 import { ReferralLinkCard } from "@/components/student/referral-link-card";
 import { ReferralNetworkTree } from "@/components/student/referral-network-tree";
+import { AffiliateMaterialsShowcase } from "@/components/student/affiliate-materials-showcase";
 import { formatCurrency } from "@/lib/utils";
 import { Users, IndianRupee, Clock, GitBranch } from "lucide-react";
 
@@ -12,7 +13,10 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentReferralsPage() {
-  const data = await getStudentReferralDashboardAction();
+  const [data, materials] = await Promise.all([
+    getStudentReferralDashboardAction(),
+    getAffiliateMaterialsAction(false),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -28,6 +32,13 @@ export default async function StudentReferralsPage() {
 
       {/* Referral Link & Social Share Card */}
       <ReferralLinkCard
+        referralCode={data.referralCode}
+        referralLink={data.referralLink}
+      />
+
+      {/* Promotional Creatives & 1-Click Share Kit */}
+      <AffiliateMaterialsShowcase
+        materials={materials}
         referralCode={data.referralCode}
         referralLink={data.referralLink}
       />
