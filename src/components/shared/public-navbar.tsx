@@ -112,169 +112,174 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
-      {/* Test Mode Notification Banner */}
-      {isTestMode && (
-        <div className="w-full bg-amber-500/20 border-b border-amber-500/40 px-3 py-1.5 text-center flex items-center justify-center gap-1.5">
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
-          </span>
-          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-400">
-            ⚠️ TEST MODE ACTIVE (Admins + Homepage) — Test Environment Data
-          </span>
-        </div>
-      )}
-
-      <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-6 min-w-0 max-w-full">
-        <div onClick={handleLogoClick} className="cursor-pointer min-w-0 shrink">
-          <BrandLogo href="/" size="md" isTestMode={isTestMode} />
-        </div>
-
-        {/* Desktop Nav */}
-        <nav className="hidden items-center gap-6 md:flex">
-          <Link
-            href="/#courses"
-            onClick={(e) => handleSectionClick(e, "courses")}
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
-          >
-            {t("nav_courses", "Courses")}
-          </Link>
-          <Link
-            href="/#testimonials"
-            onClick={(e) => handleSectionClick(e, "testimonials")}
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
-          >
-            {t("nav_testimonials", "Testimonials")}
-          </Link>
-          <Link
-            href="/#about"
-            onClick={(e) => handleSectionClick(e, "about")}
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
-          >
-            {t("nav_about", "About")}
-          </Link>
-          <Link
-            href="/#faq"
-            onClick={(e) => handleSectionClick(e, "faq")}
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
-          >
-            {t("nav_faq", "FAQ")}
-          </Link>
-          <Link
-            href="/#contact"
-            onClick={(e) => handleSectionClick(e, "contact")}
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
-          >
-            {t("nav_contact", "Contact")}
-          </Link>
-          <Link
-            href="/premium-group"
-            className="group flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-400 hover:bg-amber-500/20 hover:border-amber-400 hover:text-amber-300 transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)]"
-          >
-            <Users className="h-3.5 w-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
-            <span>Join Community</span>
-            <span className="rounded-full bg-amber-400/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-amber-300">
-              Free
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-xs transition-colors">
+        {/* Test Mode Notification Banner */}
+        {isTestMode && (
+          <div className="w-full bg-amber-500/20 border-b border-amber-500/40 px-3 py-1.5 text-center flex items-center justify-center gap-1.5">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
             </span>
-          </Link>
-        </nav>
-
-        {/* Actions & Theme Toggle */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          <LanguageSwitcher variant="header" />
-          <ThemeToggle />
-
-          <Link
-            href="/login"
-            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground px-2.5 py-1.5 hidden sm:inline-block"
-          >
-            {t("nav_signin", "Sign In")}
-          </Link>
-          <Link
-            href="/register"
-            className="inline-flex h-8 sm:h-9 items-center justify-center rounded-xl bg-primary px-2.5 sm:px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 shrink-0"
-          >
-            {t("nav_getstarted", "Get Started")}
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="rounded-lg p-1.5 sm:p-2 text-muted-foreground hover:bg-accent md:hidden cursor-pointer shrink-0"
-            aria-label="Toggle navigation menu"
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Drawer */}
-      {mobileOpen && (
-        <div className="md:hidden border-b border-border bg-card px-4 py-4 space-y-3 animate-in slide-in-from-top-2">
-          <Link
-            href="/#courses"
-            onClick={(e) => handleSectionClick(e, "courses")}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
-          >
-            {t("nav_courses", "Courses")}
-          </Link>
-          <Link
-            href="/#testimonials"
-            onClick={(e) => handleSectionClick(e, "testimonials")}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
-          >
-            {t("nav_testimonials", "Testimonials & Reviews")}
-          </Link>
-          <Link
-            href="/#about"
-            onClick={(e) => handleSectionClick(e, "about")}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
-          >
-            {t("nav_about", "About Methodology")}
-          </Link>
-          <Link
-            href="/#faq"
-            onClick={(e) => handleSectionClick(e, "faq")}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
-          >
-            {t("nav_faq", "FAQ")}
-          </Link>
-          <Link
-            href="/#contact"
-            onClick={(e) => handleSectionClick(e, "contact")}
-            className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
-          >
-            {t("nav_contact", "Contact")}
-          </Link>
-          <Link
-            href="/premium-group"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all cursor-pointer"
-          >
-            <span className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Join Community (Telegram)
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-400">
+              ⚠️ TEST MODE ACTIVE (Admins + Homepage) — Test Environment Data
             </span>
-            <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300">
-              Free
-            </span>
-          </Link>
-          <div className="border-t border-border pt-3 space-y-3">
-            <LanguageSwitcher variant="mobile" />
-            <div className="flex items-center justify-between">
-              <Link
-                href="/login"
-                onClick={() => setMobileOpen(false)}
-                className="text-xs font-bold text-muted-foreground hover:text-foreground"
-              >
-                {t("nav_signin", "Sign In")}
-              </Link>
-              <ThemeToggle showLabel />
-            </div>
+          </div>
+        )}
+
+        <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-6 min-w-0 max-w-full">
+          <div onClick={handleLogoClick} className="cursor-pointer min-w-0 shrink">
+            <BrandLogo href="/" size="md" isTestMode={isTestMode} />
+          </div>
+
+          {/* Desktop Nav */}
+          <nav className="hidden items-center gap-6 md:flex">
+            <Link
+              href="/#courses"
+              onClick={(e) => handleSectionClick(e, "courses")}
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
+            >
+              {t("nav_courses", "Courses")}
+            </Link>
+            <Link
+              href="/#testimonials"
+              onClick={(e) => handleSectionClick(e, "testimonials")}
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
+            >
+              {t("nav_testimonials", "Testimonials")}
+            </Link>
+            <Link
+              href="/#about"
+              onClick={(e) => handleSectionClick(e, "about")}
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
+            >
+              {t("nav_about", "About")}
+            </Link>
+            <Link
+              href="/#faq"
+              onClick={(e) => handleSectionClick(e, "faq")}
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
+            >
+              {t("nav_faq", "FAQ")}
+            </Link>
+            <Link
+              href="/#contact"
+              onClick={(e) => handleSectionClick(e, "contact")}
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-primary cursor-pointer"
+            >
+              {t("nav_contact", "Contact")}
+            </Link>
+            <Link
+              href="/premium-group"
+              className="group flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-400 hover:bg-amber-500/20 hover:border-amber-400 hover:text-amber-300 transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+            >
+              <Users className="h-3.5 w-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span>Join Community</span>
+              <span className="rounded-full bg-amber-400/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-amber-300">
+                Free
+              </span>
+            </Link>
+          </nav>
+
+          {/* Actions & Theme Toggle */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <LanguageSwitcher variant="header" />
+            <ThemeToggle />
+
+            <Link
+              href="/login"
+              className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground px-2.5 py-1.5 hidden sm:inline-block"
+            >
+              {t("nav_signin", "Sign In")}
+            </Link>
+            <Link
+              href="/register"
+              className="inline-flex h-8 sm:h-9 items-center justify-center rounded-xl bg-primary px-2.5 sm:px-4 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 shrink-0"
+            >
+              {t("nav_getstarted", "Get Started")}
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="rounded-lg p-1.5 sm:p-2 text-muted-foreground hover:bg-accent md:hidden cursor-pointer shrink-0"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </div>
-      )}
-    </header>
+
+        {/* Mobile Drawer */}
+        {mobileOpen && (
+          <div className="md:hidden border-b border-border bg-card/95 backdrop-blur-md px-4 py-4 space-y-3 animate-in slide-in-from-top-2 max-h-[calc(100vh-4rem)] overflow-y-auto shadow-xl">
+            <Link
+              href="/#courses"
+              onClick={(e) => handleSectionClick(e, "courses")}
+              className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
+            >
+              {t("nav_courses", "Courses")}
+            </Link>
+            <Link
+              href="/#testimonials"
+              onClick={(e) => handleSectionClick(e, "testimonials")}
+              className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
+            >
+              {t("nav_testimonials", "Testimonials & Reviews")}
+            </Link>
+            <Link
+              href="/#about"
+              onClick={(e) => handleSectionClick(e, "about")}
+              className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
+            >
+              {t("nav_about", "About Methodology")}
+            </Link>
+            <Link
+              href="/#faq"
+              onClick={(e) => handleSectionClick(e, "faq")}
+              className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
+            >
+              {t("nav_faq", "FAQ")}
+            </Link>
+            <Link
+              href="/#contact"
+              onClick={(e) => handleSectionClick(e, "contact")}
+              className="block rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-muted cursor-pointer"
+            >
+              {t("nav_contact", "Contact")}
+            </Link>
+            <Link
+              href="/premium-group"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Join Community (Telegram)
+              </span>
+              <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300">
+                Free
+              </span>
+            </Link>
+            <div className="border-t border-border pt-3 space-y-3">
+              <LanguageSwitcher variant="mobile" />
+              <div className="flex items-center justify-between">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="text-xs font-bold text-muted-foreground hover:text-foreground"
+                >
+                  {t("nav_signin", "Sign In")}
+                </Link>
+                <ThemeToggle showLabel />
+              </div>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Spacer so page content starts cleanly below the fixed header */}
+      <div className={isTestMode ? "h-[5.5rem] w-full shrink-0" : "h-16 w-full shrink-0"} aria-hidden="true" />
+    </>
   );
 }

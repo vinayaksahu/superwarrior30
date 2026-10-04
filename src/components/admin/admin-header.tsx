@@ -132,7 +132,7 @@ export function AdminHeader({
 
   return (
     <>
-      <header className="flex h-16 items-center justify-between border-b border-border bg-background px-3 sm:px-6">
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/95 backdrop-blur-md px-3 sm:px-6 shadow-xs">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileMenuOpen(true)}
