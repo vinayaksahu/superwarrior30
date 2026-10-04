@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { CouponForm } from "@/components/admin/coupon-form";
 import { requireAdmin } from "@/server/dal/auth";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Create Coupon",
 };

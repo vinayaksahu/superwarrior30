@@ -3,6 +3,8 @@ import { JoinCommunityClient } from "@/components/student/join-community-client"
 import { getCurrentUser } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Join Community | Super Warrior 30",
 };

@@ -15,6 +15,8 @@ import {
   BookOpen,
 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Live Sessions Management | Admin",
   description: "Schedule live classes, webinars, and manage video meetings.",

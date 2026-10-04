@@ -5,6 +5,8 @@ import { SettingsNav } from "@/components/admin/settings-nav";
 import { requireAdmin } from "@/server/dal/auth";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Admin Profile & Password | Settings",
   description: "Update administrator profile details and change master password",

@@ -5,6 +5,8 @@ import { getHomeworkShareableDataAction } from "@/server/actions/homework.action
 import { StudentHomeworkWorkspace } from "./homework-workspace";
 import { Lock, BookOpen, AlertCircle, ArrowLeft, ShieldAlert } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 interface ShareableHomeworkPageProps {
   params: Promise<{ id: string }>;
 }

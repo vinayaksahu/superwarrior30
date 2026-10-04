@@ -5,6 +5,8 @@ import { ReferralSettingsForm } from "@/components/admin/referral-settings-form"
 import { requireAdmin } from "@/server/dal/auth";
 import { ArrowLeft } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Affiliate Program Settings",
 };

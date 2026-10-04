@@ -4,6 +4,8 @@ import { AdminBackupsClient } from "@/components/admin/admin-backups-client";
 import { SettingsNav } from "@/components/admin/settings-nav";
 import { requirePermission, getCurrentUser } from "@/server/dal/auth";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Database Backups & Maintenance | Settings",
   description: "Download database snapshots, trigger schema syncs, and monitor database health",

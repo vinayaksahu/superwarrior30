@@ -14,6 +14,8 @@ interface EditLiveSessionPageProps {
   }>;
 }
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Edit Live Session | Admin",
   description: "Edit live session details and view attendees.",

@@ -7,6 +7,8 @@ import { LiveSessionCard } from "@/components/live/live-session-card";
 import { Video, Radio, Calendar, Play, Sparkles } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Live Classes & Mentorship | Rahul Trade Warrior",
   description: "Join live trading classes, interactive mentorship sessions, and watch past replays.",

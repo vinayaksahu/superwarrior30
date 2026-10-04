@@ -4,6 +4,8 @@ import { AdminSettingsForm } from "@/components/admin/admin-settings-form";
 import { SettingsNav } from "@/components/admin/settings-nav";
 import { requireAdmin } from "@/server/dal/auth";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "General Platform Settings | Admin",
   description: "Configure platform identity, contact email, and maintenance mode",

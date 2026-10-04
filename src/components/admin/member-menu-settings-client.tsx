@@ -26,10 +26,8 @@ import {
   AlertCircle,
   RotateCcw,
 } from "lucide-react";
-import {
-  MemberMenuItemConfig,
-  saveMemberMenuSettingsAction,
-} from "@/server/actions/member-menu.actions";
+import type { MemberMenuItemConfig } from "@/lib/member-menu-config";
+import { saveMemberMenuSettingsAction } from "@/server/actions/member-menu.actions";
 
 interface MemberMenuSettingsClientProps {
   initialItems: MemberMenuItemConfig[];

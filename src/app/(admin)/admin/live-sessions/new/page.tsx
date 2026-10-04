@@ -6,6 +6,8 @@ import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { LiveSessionForm } from "@/components/admin/live-session-form";
 import { ArrowLeft } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Schedule Live Class | Admin",
   description: "Schedule a new live class or webinar.",

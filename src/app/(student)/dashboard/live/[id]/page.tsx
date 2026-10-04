@@ -6,6 +6,8 @@ import { EmbeddedLiveRoom } from "@/components/live/embedded-live-room";
 import { formatDate } from "@/lib/utils";
 import { isBunnyStreamConfigured, getSecurePlaybackUrl } from "@/lib/bunny";
 import Link from "next/link";
+
+export const dynamic = "force-dynamic";
 import {
   ArrowLeft,
   Calendar,

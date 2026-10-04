@@ -6,6 +6,8 @@ import { formatCurrency } from "@/lib/utils";
 import { requireAdmin } from "@/server/dal/auth";
 import { Wallet, IndianRupee, Clock, ArrowDownToLine, Search } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Wallets Management",
 };
