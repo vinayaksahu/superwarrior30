@@ -301,7 +301,10 @@ export async function POST(req: NextRequest) {
     );
 
     const uniqueId = crypto.randomUUID();
-    const storagePath = `homework/${user.id}/${uniqueId}.${ext}`;
+    const storagePath =
+      category === "journal" || category === "screenshot"
+        ? `journal/${user.id}/${uniqueId}.${ext}`
+        : `homework/${user.id}/${uniqueId}.${ext}`;
 
     if (isBunnyActive) {
       const result = await uploadToBunnyStorage(storagePath, buffer, mime);

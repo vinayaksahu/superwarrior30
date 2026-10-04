@@ -530,6 +530,38 @@ export function TradingJournalClient({
     }
   };
 
+  const handleImportFromUrl = async (urlToImport: string, isEdit = false) => {
+    const trimmed = urlToImport.trim();
+    if (!trimmed || !trimmed.startsWith("http")) return;
+    if (trimmed.includes(".b-cdn.net")) return;
+
+    setUploadingScreenshot(true);
+    try {
+      const res = await fetch("/api/upload/from-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed, category: "journal" }),
+      });
+      const json = await res.json();
+      if (json.success && (json.cdnUrl || json.url)) {
+        const finalUrl = json.cdnUrl || json.url;
+        if (isEdit) {
+          setEditFormData((prev) => ({ ...prev, screenshotUrl: finalUrl }));
+        } else {
+          setFormData((prev) => ({ ...prev, screenshotUrl: finalUrl }));
+        }
+        toast.success("Chart imported and saved to Bunny CDN!");
+      } else {
+        toast.error(json.error || "Could not import chart from link.");
+      }
+    } catch (err) {
+      console.error("URL import error:", err);
+      toast.error("Failed to import chart from link.");
+    } finally {
+      setUploadingScreenshot(false);
+    }
+  };
+
   const handleCreateTrade = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.instrument || !formData.entryPrice || !formData.stopLoss || !formData.takeProfit) {
@@ -1992,7 +2024,7 @@ export function TradingJournalClient({
                         className="h-full w-full object-cover"
                       />
                       <div className="absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] text-emerald-400 font-bold flex items-center gap-1 backdrop-blur-xs">
-                        <CheckCircle2 className="h-3 w-3" /> Screenshot Attached
+                        <CheckCircle2 className="h-3 w-3" /> {formData.screenshotUrl.includes("b-cdn.net") ? "Saved on Bunny CDN" : "Screenshot Attached"}
                       </div>
                     </div>
                   ) : (
@@ -2008,7 +2040,7 @@ export function TradingJournalClient({
                         {uploadingScreenshot ? (
                           <div className="flex items-center gap-2 text-primary text-xs font-semibold py-2">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Uploading screenshot to CDN...</span>
+                            <span>Uploading screenshot to Bunny Storage & CDN...</span>
                           </div>
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-center py-1">
@@ -2019,13 +2051,25 @@ export function TradingJournalClient({
                         )}
                       </label>
 
-                      <input
-                        type="url"
-                        value={formData.screenshotUrl}
-                        onChange={(e) => setFormData((p) => ({ ...p, screenshotUrl: e.target.value }))}
-                        placeholder="Or paste screenshot URL (TradingView, Lightshot, etc.)"
-                        className="w-full rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-mono focus:border-primary focus:outline-none"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={formData.screenshotUrl}
+                          onChange={(e) => setFormData((p) => ({ ...p, screenshotUrl: e.target.value }))}
+                          placeholder="Or paste screenshot URL (TradingView, Lightshot, etc.)"
+                          className="flex-1 rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-mono focus:border-primary focus:outline-none"
+                        />
+                        {formData.screenshotUrl && !formData.screenshotUrl.includes("b-cdn.net") && (
+                          <button
+                            type="button"
+                            onClick={() => handleImportFromUrl(formData.screenshotUrl, false)}
+                            disabled={uploadingScreenshot}
+                            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            Import to Bunny
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2596,7 +2640,7 @@ export function TradingJournalClient({
                         className="h-full w-full object-cover"
                       />
                       <div className="absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] text-emerald-400 font-bold flex items-center gap-1 backdrop-blur-xs">
-                        <CheckCircle2 className="h-3 w-3" /> Screenshot Attached
+                        <CheckCircle2 className="h-3 w-3" /> {editFormData.screenshotUrl.includes("b-cdn.net") ? "Saved on Bunny CDN" : "Screenshot Attached"}
                       </div>
                     </div>
                   ) : (
@@ -2612,7 +2656,7 @@ export function TradingJournalClient({
                         {uploadingScreenshot ? (
                           <div className="flex items-center gap-2 text-primary text-xs font-semibold py-2">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Uploading screenshot to CDN...</span>
+                            <span>Uploading screenshot to Bunny Storage & CDN...</span>
                           </div>
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-center py-1">
@@ -2623,13 +2667,25 @@ export function TradingJournalClient({
                         )}
                       </label>
 
-                      <input
-                        type="url"
-                        value={editFormData.screenshotUrl}
-                        onChange={(e) => setEditFormData((p) => ({ ...p, screenshotUrl: e.target.value }))}
-                        placeholder="Or paste screenshot URL (TradingView, Lightshot, etc.)"
-                        className="w-full rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-mono focus:border-primary focus:outline-none"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={editFormData.screenshotUrl}
+                          onChange={(e) => setEditFormData((p) => ({ ...p, screenshotUrl: e.target.value }))}
+                          placeholder="Or paste screenshot URL (TradingView, Lightshot, etc.)"
+                          className="flex-1 rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-mono focus:border-primary focus:outline-none"
+                        />
+                        {editFormData.screenshotUrl && !editFormData.screenshotUrl.includes("b-cdn.net") && (
+                          <button
+                            type="button"
+                            onClick={() => handleImportFromUrl(editFormData.screenshotUrl, true)}
+                            disabled={uploadingScreenshot}
+                            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            Import to Bunny
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireAdmin } from "@/server/dal/auth";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
@@ -91,6 +92,96 @@ export async function getStudentJournalAction({
   }
 }
 
+/**
+ * Ensures a trade journal screenshot (uploaded file, base64, or external image)
+ * is safely uploaded to Bunny Storage and served via Bunny CDN.
+ */
+async function ensureBunnyJournalScreenshot(
+  rawUrl: string | null | undefined,
+  userId: string
+): Promise<string | null> {
+  if (!rawUrl || typeof rawUrl !== "string") return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+
+  // Already served from Bunny CDN
+  if (trimmed.includes(".b-cdn.net")) return trimmed;
+
+  // If it's an interactive TradingView chart layout link (e.g. tradingview.com/chart/...)
+  // keep it so users/mentors can open the interactive chart
+  if (trimmed.includes("tradingview.com/chart/")) {
+    return trimmed;
+  }
+
+  // 1. Base64 Data URL
+  if (trimmed.startsWith("data:image/")) {
+    try {
+      const matches = trimmed.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+      if (matches) {
+        const rawExt = matches[1].toLowerCase();
+        const ext = rawExt.includes("png") ? "png" : rawExt.includes("webp") ? "webp" : "jpg";
+        const buffer = Buffer.from(matches[2], "base64");
+        const { getResolvedBunnyConfig, uploadToBunnyStorage } = await import("@/lib/bunny");
+        const config = await getResolvedBunnyConfig();
+        if (config.storageZoneName && config.storagePassword) {
+          const uniqueId = crypto.randomUUID();
+          const storagePath = `journal/${userId}/${uniqueId}.${ext}`;
+          const result = await uploadToBunnyStorage(storagePath, buffer, `image/${ext}`);
+          if (result?.cdnUrl) {
+            return result.cdnUrl;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to upload base64 screenshot to Bunny Storage:", err);
+    }
+  }
+
+  // 2. TradingView snapshot link (/x/...) or external image URL
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const { getResolvedBunnyConfig, uploadToBunnyStorage } = await import("@/lib/bunny");
+      const config = await getResolvedBunnyConfig();
+      const isBunny = (config.cdnHostname && trimmed.includes(config.cdnHostname)) || trimmed.includes("b-cdn.net");
+
+      if (!isBunny && config.storageZoneName && config.storagePassword) {
+        let fetchUrl = trimmed;
+
+        // If it's TradingView /x/ snapshot link, resolve to direct s3 snapshot image
+        const match = trimmed.match(/\/x\/([a-zA-Z0-9_-]+)/);
+        if (trimmed.includes("tradingview.com") && match && match[1]) {
+          const snapshotId = match[1];
+          const firstChar = snapshotId.charAt(0).toLowerCase();
+          fetchUrl = `https://s3.tradingview.com/snapshots/${firstChar}/${snapshotId.toLowerCase()}.png`;
+        }
+
+        const fetchRes = await fetch(fetchUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            Accept: "image/*,*/*;q=0.8",
+          },
+        });
+
+        if (fetchRes.ok) {
+          const contentType = fetchRes.headers.get("content-type") || "image/png";
+          const buffer = Buffer.from(await fetchRes.arrayBuffer());
+          const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+          const uniqueId = crypto.randomUUID();
+          const storagePath = `journal/${userId}/${uniqueId}.${ext}`;
+          const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
+          if (result?.cdnUrl) {
+            return result.cdnUrl;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not transfer journal screenshot to Bunny Storage:", err);
+    }
+  }
+
+  return trimmed;
+}
+
 // ==========================================
 // 2. STUDENT: LOG NEW TRADE
 // ==========================================
@@ -118,6 +209,8 @@ export async function createTradeEntryAction(data: CreateTradeInput) {
       }
     }
 
+    const finalScreenshotUrl = await ensureBunnyJournalScreenshot(data.screenshotUrl, user.id);
+
     const trade = await prisma.tradeJournal.create({
       data: {
         userId: user.id,
@@ -138,7 +231,7 @@ export async function createTradeEntryAction(data: CreateTradeInput) {
         emotions: data.emotions || "CALM",
         mistakes: data.mistakes || "NONE",
         notes: data.notes || null,
-        screenshotUrl: data.screenshotUrl || null,
+        screenshotUrl: finalScreenshotUrl,
         tradedAt: data.tradedAt ? new Date(data.tradedAt) : new Date(),
       },
     });
@@ -191,6 +284,11 @@ export async function updateTradeEntryAction(
       }
     }
 
+    const updatedScreenshotUrl =
+      data.screenshotUrl !== undefined
+        ? await ensureBunnyJournalScreenshot(data.screenshotUrl, user.id)
+        : undefined;
+
     // When student edits a trade, it resets isFeatured: false so Admin must re-approve it for public showcase
     await prisma.tradeJournal.update({
       where: { id: tradeId },
@@ -210,7 +308,7 @@ export async function updateTradeEntryAction(
         ...(data.mistakes ? { mistakes: data.mistakes } : {}),
         ...(data.setupReason !== undefined ? { setupReason: data.setupReason } : {}),
         ...(data.notes !== undefined ? { notes: data.notes } : {}),
-        ...(data.screenshotUrl !== undefined ? { screenshotUrl: data.screenshotUrl } : {}),
+        ...(updatedScreenshotUrl !== undefined ? { screenshotUrl: updatedScreenshotUrl } : {}),
         ...(calculatedRR ? { riskRewardRatio: calculatedRR } : {}),
         isFeatured: false, // Must be re-approved by mentor/admin to showcase
       },

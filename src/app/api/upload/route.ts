@@ -164,6 +164,34 @@ export async function POST(req: NextRequest) {
       category === "payment-methods" ||
       category === "qrcode";
 
+    const isJournalUpload =
+      category === "journal" ||
+      category === "screenshot";
+
+    if (isJournalUpload) {
+      if (!isBunnyActive) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Bunny Storage is required for chart screenshots. Please configure Bunny Storage in Media Settings.",
+          },
+          { status: 500 }
+        );
+      }
+      const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
+      return NextResponse.json({
+        success: true,
+        key: storagePath,
+        url: result.cdnUrl,
+        cdnUrl: result.cdnUrl,
+        bunnyVideoId: null,
+        provider: "BUNNY",
+        filename,
+        category,
+        message: `${filename} chart screenshot uploaded to Bunny Storage and CDN successfully!`,
+      });
+    }
+
     if (isPaymentUpload) {
       if (!isBunnyActive) {
         return NextResponse.json(
