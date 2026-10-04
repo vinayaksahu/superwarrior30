@@ -32,6 +32,8 @@ import {
   ClipboardPaste,
   Check,
   Plus,
+  Link2,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -58,6 +60,11 @@ export function StudentHomeworkDrawer({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [activeLightboxImg, setActiveLightboxImg] = useState<{ url: string; title: string } | null>(null);
+
+  // TradingView / Chart URL Import State
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [tradingViewUrl, setTradingViewUrl] = useState("");
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
 
   const cleanInstructions = useMemo(() => {
     if (!data?.homework?.instructions) return "";
@@ -94,6 +101,8 @@ export function StudentHomeworkDrawer({
       loadData();
       setUploadedScreenshots([]);
       setNotes("");
+      setShowUrlInput(false);
+      setTradingViewUrl("");
     }
   }, [isOpen, lessonId, loadData]);
 
@@ -120,6 +129,55 @@ export function StudentHomeworkDrawer({
       fileSize: file.size,
       mimeType: file.type || "image/png",
     };
+  };
+
+  // Import chart from TradingView link or direct image URL
+  const handleImportFromUrl = async (overrideUrl?: string) => {
+    const targetUrl = (overrideUrl || tradingViewUrl).trim();
+    if (!targetUrl) {
+      toast.error("Please enter a TradingView or chart link.");
+      return;
+    }
+
+    setIsImportingUrl(true);
+    toast.info("Importing chart from link and saving to Bunny CDN...");
+
+    try {
+      const res = await fetch("/api/upload/from-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: targetUrl, category: "homework" }),
+      });
+
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.success || !result.url) {
+        throw new Error(result.error || "Failed to import chart from link.");
+      }
+
+      const taskIdx = uploadedScreenshots.length;
+      const taskLabel = parsedTasks[taskIdx]
+        ? `${taskIdx + 1}. ${parsedTasks[taskIdx]}`
+        : result.originalFilename || `Screenshot #${taskIdx + 1}`;
+
+      setUploadedScreenshots((prev) => [
+        ...prev,
+        {
+          fileUrl: result.url,
+          storageKey: result.key || null,
+          originalFilename: taskLabel,
+          fileSize: result.fileSize || 0,
+          mimeType: result.mimeType || "image/png",
+        },
+      ]);
+
+      setTradingViewUrl("");
+      setShowUrlInput(false);
+      toast.success("🎯 TradingView chart imported successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to import chart from link");
+    } finally {
+      setIsImportingUrl(false);
+    }
   };
 
   const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,11 +235,25 @@ export function StudentHomeworkDrawer({
     }
   };
 
-  // Handle Clipboard Paste (Ctrl+V) for Instant Screenshot Upload
+  // Handle Clipboard Paste (Ctrl+V) for Instant Screenshot or TradingView Link
   useEffect(() => {
     if (!isOpen) return;
 
     const handlePaste = async (e: ClipboardEvent) => {
+      // 1. Check if pasted text is a TradingView or image link
+      const text = e.clipboardData?.getData("text")?.trim();
+      if (
+        text &&
+        (text.includes("tradingview.com/x/") ||
+          text.includes("tradingview.com/snapshots/") ||
+          text.match(/^https?:\/\/.*(tradingview\.com|images\.tradingview\.com|\.(png|jpg|jpeg|webp))(\?.*)?$/i))
+      ) {
+        e.preventDefault();
+        await handleImportFromUrl(text);
+        return;
+      }
+
+      // 2. Check if pasted image file
       const items = e.clipboardData?.items;
       if (!items) return;
 
@@ -483,7 +555,7 @@ export function StudentHomeworkDrawer({
 
                   {/* Chart Screenshots Uploader with "+ Add More" functionality */}
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                           <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
@@ -498,61 +570,142 @@ export function StudentHomeworkDrawer({
                         {uploadedScreenshots.length > 0 && (
                           <label className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 px-2.5 py-1 text-xs font-bold text-amber-400 cursor-pointer transition shadow-xs">
                             <Plus className="h-3.5 w-3.5" />
-                            <span>Add More (Optional)</span>
+                            <span>Add File</span>
                             <input
                               type="file"
                               multiple
                               accept="image/png,image/jpeg,image/webp,image/jpg"
                               onChange={handleFileInput}
-                              disabled={isUploading}
+                              disabled={isUploading || isImportingUrl}
                               className="hidden"
                             />
                           </label>
                         )}
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full">
+                        <button
+                          type="button"
+                          onClick={() => setShowUrlInput(!showUrlInput)}
+                          className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                            showUrlInput
+                              ? "bg-amber-400 text-black border-amber-400 font-extrabold"
+                              : "text-amber-400 bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/20"
+                          }`}
+                        >
+                          <Link2 className="h-3 w-3" />
+                          <span>TradingView Link</span>
+                        </button>
+                        <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full">
                           <ClipboardPaste className="h-2.5 w-2.5" />
                           Ctrl+V to paste
                         </span>
                       </div>
                     </div>
 
+                    {/* TradingView / Chart URL Input Panel */}
+                    {showUrlInput && (
+                      <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 p-3.5 space-y-2 animate-in fade-in">
+                        <div className="flex items-center justify-between text-xs">
+                          <label className="font-extrabold text-foreground flex items-center gap-1.5">
+                            <Link2 className="h-3.5 w-3.5 text-amber-400" />
+                            Import from TradingView Link
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowUrlInput(false)}
+                            className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                          >
+                            ✕ Close
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Paste your TradingView share snapshot link (e.g. <span className="font-mono text-amber-400 font-bold">https://www.tradingview.com/x/...</span>) or image URL. The chart will be imported directly to Bunny CDN.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={tradingViewUrl}
+                            onChange={(e) => setTradingViewUrl(e.target.value)}
+                            placeholder="https://www.tradingview.com/x/..."
+                            className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-amber-400"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleImportFromUrl();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={isImportingUrl || !tradingViewUrl.trim()}
+                            onClick={() => handleImportFromUrl()}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 px-4 py-1.5 text-xs font-black text-black shadow disabled:opacity-50 cursor-pointer shrink-0"
+                          >
+                            {isImportingUrl ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>Importing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Import Chart</span>
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* If 0 Screenshots Uploaded: Big Initial Dropzone */}
                     {uploadedScreenshots.length === 0 ? (
-                      <div className="relative rounded-xl border-2 border-dashed border-border p-5 text-center hover:border-amber-400/50 transition-colors bg-background/50">
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/png,image/jpeg,image/webp,image/jpg"
-                          onChange={handleFileInput}
-                          disabled={isUploading}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                        />
-                        <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="relative rounded-xl border-2 border-dashed border-border p-6 text-center hover:border-amber-400/50 transition-colors bg-background/50">
+                        <div className="flex flex-col items-center justify-center gap-2.5">
                           {isUploading ? (
                             <>
-                              <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+                              <Loader2 className="h-7 w-7 animate-spin text-amber-400" />
                               <p className="text-xs font-bold text-foreground">
                                 Uploading screenshot ({uploadProgress}%)...
                               </p>
                             </>
+                          ) : isImportingUrl ? (
+                            <>
+                              <Loader2 className="h-7 w-7 animate-spin text-amber-400" />
+                              <p className="text-xs font-bold text-foreground">
+                                Fetching &amp; uploading chart from TradingView to Bunny CDN...
+                              </p>
+                            </>
                           ) : (
                             <>
-                              <UploadCloud className="h-7 w-7 text-amber-400" />
+                              <UploadCloud className="h-8 w-8 text-amber-400" />
                               <div>
                                 <p className="text-xs font-bold text-foreground">
-                                  Click or drag chart screenshot here (or paste with Ctrl+V)
+                                  Upload Chart Screenshot or Paste TradingView Link
                                 </p>
                                 <p className="text-[10px] text-muted-foreground mt-0.5">
                                   1 chart screenshot is required • Additional charts are optional
                                 </p>
                               </div>
-                              <button
-                                type="button"
-                                className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-bold text-primary pointer-events-none"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                                Select Chart Screenshot (Required)
-                              </button>
+                              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                                <label className="inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary/90 px-3.5 py-2 text-xs font-bold text-primary-foreground shadow cursor-pointer transition">
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Select File from Device
+                                  <input
+                                    type="file"
+                                    multiple
+                                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                                    onChange={handleFileInput}
+                                    disabled={isUploading || isImportingUrl}
+                                    className="hidden"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowUrlInput(true)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 px-3.5 py-2 text-xs font-bold text-amber-400 cursor-pointer transition"
+                                >
+                                  <Link2 className="h-3.5 w-3.5" />
+                                  Paste TradingView Link
+                                </button>
+                              </div>
                             </>
                           )}
                         </div>
@@ -612,7 +765,7 @@ export function StudentHomeworkDrawer({
                                       type="file"
                                       accept="image/png,image/jpeg,image/webp,image/jpg"
                                       onChange={(e) => handleReplaceScreenshot(idx, e)}
-                                      disabled={isUploading}
+                                      disabled={isUploading || isImportingUrl}
                                       className="hidden"
                                     />
                                   </label>
@@ -631,36 +784,47 @@ export function StudentHomeworkDrawer({
                           ))}
 
                           {/* "+ Add More" Upload Card inside grid */}
-                          <label className="group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-border hover:border-amber-400 bg-background/40 hover:bg-background/80 cursor-pointer transition min-h-[140px] text-center">
-                            {isUploading ? (
+                          <div className="group relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-border hover:border-amber-400 bg-background/40 hover:bg-background/80 transition min-h-[140px] text-center">
+                            {isUploading || isImportingUrl ? (
                               <>
                                 <Loader2 className="h-6 w-6 animate-spin text-amber-400 mb-1" />
                                 <span className="text-xs font-bold text-foreground">
-                                  Uploading ({uploadProgress}%)...
+                                  {isImportingUrl ? "Importing TradingView Chart..." : `Uploading (${uploadProgress}%)...`}
                                 </span>
                               </>
                             ) : (
                               <>
-                                <div className="h-8 w-8 rounded-full bg-amber-400/10 flex items-center justify-center text-amber-400 mb-1.5 group-hover:scale-110 transition-transform">
+                                <div className="h-8 w-8 rounded-full bg-amber-400/10 flex items-center justify-center text-amber-400 mb-1 group-hover:scale-110 transition-transform">
                                   <Plus className="h-4 w-4" />
                                 </div>
                                 <span className="text-xs font-extrabold text-foreground group-hover:text-amber-400">
                                   + Add More (Optional)
                                 </span>
-                                <span className="text-[10px] text-muted-foreground mt-0.5">
-                                  Add extra chart or paste Ctrl+V
-                                </span>
+                                <div className="flex items-center gap-1.5 mt-2">
+                                  <label className="inline-flex items-center gap-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-2 py-1 text-[10px] font-bold cursor-pointer transition">
+                                    <Plus className="h-3 w-3" />
+                                    File
+                                    <input
+                                      type="file"
+                                      multiple
+                                      accept="image/png,image/jpeg,image/webp,image/jpg"
+                                      onChange={handleFileInput}
+                                      disabled={isUploading || isImportingUrl}
+                                      className="hidden"
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowUrlInput(true)}
+                                    className="inline-flex items-center gap-1 rounded-md bg-amber-400/15 hover:bg-amber-400/25 text-amber-400 border border-amber-400/30 px-2 py-1 text-[10px] font-bold cursor-pointer transition"
+                                  >
+                                    <Link2 className="h-3 w-3" />
+                                    TradingView
+                                  </button>
+                                </div>
                               </>
                             )}
-                            <input
-                              type="file"
-                              multiple
-                              accept="image/png,image/jpeg,image/webp,image/jpg"
-                              onChange={handleFileInput}
-                              disabled={isUploading}
-                              className="hidden"
-                            />
-                          </label>
+                          </div>
                         </div>
                       </div>
                     )}
