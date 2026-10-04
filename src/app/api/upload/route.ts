@@ -151,6 +151,35 @@ export async function POST(req: NextRequest) {
 
     const contentType = file.type || (category === "pdf" ? "application/pdf" : "image/jpeg");
 
+    const isAffiliateUpload =
+      category === "materials" ||
+      category === "affiliate" ||
+      category === "promotional";
+
+    if (isAffiliateUpload) {
+      if (!isBunnyActive) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Bunny Storage is required for promotional materials. Please configure Bunny Storage in Media Settings.",
+          },
+          { status: 500 }
+        );
+      }
+      const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
+      return NextResponse.json({
+        success: true,
+        key: storagePath,
+        url: result.cdnUrl,
+        cdnUrl: result.cdnUrl,
+        bunnyVideoId: null,
+        provider: "BUNNY",
+        filename,
+        category,
+        message: `${filename} uploaded to Bunny Storage and CDN successfully!`,
+      });
+    }
+
     if (isBunnyActive) {
       const result = await uploadToBunnyStorage(storagePath, buffer, contentType);
       return NextResponse.json({

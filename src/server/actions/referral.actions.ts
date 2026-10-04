@@ -1519,6 +1519,42 @@ export async function saveAffiliateMaterialAction(data: {
     const currentMaterials = await getAffiliateMaterialsAction(true);
     const now = new Date().toISOString();
 
+    let finalImageUrl = data.imageUrl?.trim() || undefined;
+
+    // Ensure all images are stored on Bunny Storage & served via Bunny CDN
+    if (finalImageUrl && finalImageUrl.startsWith("http")) {
+      try {
+        const { getResolvedBunnyConfig, uploadToBunnyStorage } = await import("@/lib/bunny");
+        const bunnyConfig = await getResolvedBunnyConfig();
+        const isBunnyUrl =
+          (bunnyConfig.cdnHostname && finalImageUrl.includes(bunnyConfig.cdnHostname)) ||
+          finalImageUrl.includes("b-cdn.net");
+
+        if (!isBunnyUrl && bunnyConfig.storageZoneName && bunnyConfig.storagePassword) {
+          const fetchRes = await fetch(finalImageUrl);
+          if (fetchRes.ok) {
+            const contentType = fetchRes.headers.get("content-type") || "image/jpeg";
+            const buffer = Buffer.from(await fetchRes.arrayBuffer());
+            const ext = contentType.includes("png")
+              ? "png"
+              : contentType.includes("webp")
+              ? "webp"
+              : contentType.includes("gif")
+              ? "gif"
+              : "jpg";
+            const uniqueId = crypto.randomUUID();
+            const storagePath = `affiliate/materials/${uniqueId}.${ext}`;
+            const uploadResult = await uploadToBunnyStorage(storagePath, buffer, contentType);
+            if (uploadResult?.cdnUrl) {
+              finalImageUrl = uploadResult.cdnUrl;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not automatically transfer image to Bunny Storage:", err);
+      }
+    }
+
     let updatedMaterials: AffiliatePromotionalMaterial[];
 
     if (data.id) {
@@ -1530,7 +1566,7 @@ export async function saveAffiliateMaterialAction(data: {
             title: data.title.trim(),
             type: data.type,
             description: data.description?.trim() || "",
-            imageUrl: data.imageUrl?.trim() || undefined,
+            imageUrl: finalImageUrl,
             content: data.content.trim(),
             isActive: data.isActive !== undefined ? data.isActive : m.isActive,
             updatedAt: now,
@@ -1545,7 +1581,7 @@ export async function saveAffiliateMaterialAction(data: {
         title: data.title.trim(),
         type: data.type,
         description: data.description?.trim() || "",
-        imageUrl: data.imageUrl?.trim() || undefined,
+        imageUrl: finalImageUrl,
         content: data.content.trim(),
         isActive: data.isActive !== undefined ? data.isActive : true,
         createdAt: now,

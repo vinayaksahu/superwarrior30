@@ -636,9 +636,15 @@ export function AffiliateMaterialsManager({
                 </div>
 
                 {imageUrl ? (
-                  <div className="relative aspect-video w-full max-w-sm rounded-xl overflow-hidden border border-border bg-black/40">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imageUrl} alt="Creative Preview" className="h-full w-full object-cover" />
+                  <div className="space-y-2">
+                    <div className="relative aspect-video w-full max-w-sm rounded-xl overflow-hidden border border-border bg-black/40">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imageUrl} alt="Creative Preview" className="h-full w-full object-cover" />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-500 font-semibold">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>{imageUrl.includes("b-cdn.net") ? "Stored on Bunny Storage & CDN" : "Will be automatically saved to Bunny Storage on save"}</span>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
