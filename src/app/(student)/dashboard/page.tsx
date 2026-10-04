@@ -4,7 +4,8 @@ import { requireAuth } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import { getUserEnrolledCoursesAction } from "@/server/actions/enrollment.actions";
 import { getStudentHomeworkDashboardListAction } from "@/server/actions/homework.actions";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, generateReferralCode } from "@/lib/utils";
+import { CourseAffiliateShareButton } from "@/components/student/course-affiliate-share-button";
 import {
   PlayCircle,
   ArrowRight,
@@ -30,6 +31,17 @@ export const metadata: Metadata = {
 
 export default async function StudentDashboardPage() {
   const user = await requireAuth();
+
+  let effectiveReferralCode = user.referralCode;
+  if (!effectiveReferralCode) {
+    effectiveReferralCode = generateReferralCode();
+    await prisma.user
+      .update({
+        where: { id: user.id },
+        data: { referralCode: effectiveReferralCode },
+      })
+      .catch(() => {});
+  }
 
   let enrolledCourses: Awaited<ReturnType<typeof getUserEnrolledCoursesAction>> = [];
   let availableBalance = 0;
@@ -314,7 +326,7 @@ export default async function StudentDashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
                   <span className="text-[11px] text-muted-foreground">
                     {course.progressPercentage >= 100 ? (
                       <span className="text-emerald-500 font-semibold flex items-center gap-1">
@@ -325,17 +337,26 @@ export default async function StudentDashboardPage() {
                     )}
                   </span>
 
-                  <Link
-                    href={
-                      course.nextLessonId
-                        ? `/learn/${course.courseSlug}/${course.nextLessonId}`
-                        : `/learn/${course.courseSlug}`
-                    }
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90"
-                  >
-                    <PlayCircle className="h-3.5 w-3.5" />
-                    {course.progressPercentage > 0 ? "Resume" : "Start"}
-                  </Link>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <CourseAffiliateShareButton
+                      courseId={course.courseId}
+                      courseTitle={course.courseTitle}
+                      courseSlug={course.courseSlug}
+                      referralCode={effectiveReferralCode}
+                    />
+
+                    <Link
+                      href={
+                        course.nextLessonId
+                          ? `/learn/${course.courseSlug}/${course.nextLessonId}`
+                          : `/learn/${course.courseSlug}`
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90"
+                    >
+                      <PlayCircle className="h-3.5 w-3.5" />
+                      {course.progressPercentage > 0 ? "Resume" : "Start"}
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}
