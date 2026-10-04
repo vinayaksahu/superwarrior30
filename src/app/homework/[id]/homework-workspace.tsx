@@ -742,74 +742,127 @@ export function StudentHomeworkWorkspace({
                 /* If 1+ Screenshots Uploaded: Grid of Cards + "+ Add More" Card */
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {uploadedScreenshots.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="group relative rounded-xl border border-border bg-background overflow-hidden shadow-xs flex flex-col"
-                      >
+                    {uploadedScreenshots.map((item, idx) => {
+                      const isTradingView =
+                        item.mimeType === "application/x-tradingview-chart" ||
+                        (item.fileUrl?.includes("tradingview.com") && !item.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i));
+
+                      return (
                         <div
-                          onClick={() =>
-                            setActiveLightboxImg({
-                              url: item.fileUrl,
-                              title: item.originalFilename,
-                            })
-                          }
-                          className="relative aspect-video w-full bg-black/70 cursor-zoom-in overflow-hidden"
+                          key={idx}
+                          className="group relative rounded-xl border border-border bg-background overflow-hidden shadow-xs flex flex-col"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={item.fileUrl}
-                            alt={item.originalFilename}
-                            className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <ZoomIn className="h-4 w-4 text-white" />
-                          </div>
-                          <span className="absolute top-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
-                            #{idx + 1}
-                          </span>
-                        </div>
+                          {isTradingView ? (
+                            <div className="relative aspect-video w-full bg-gradient-to-br from-[#131722] via-[#1a1e29] to-[#131722] p-3 flex flex-col justify-between border-b border-border/50">
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex items-center gap-1 rounded bg-[#2962ff]/20 border border-[#2962ff]/40 px-2 py-0.5 text-[9px] font-extrabold text-[#2962ff]">
+                                  <ExternalLink className="h-2.5 w-2.5" />
+                                  TradingView
+                                </span>
+                                <span className="text-[9px] font-bold text-muted-foreground bg-black/60 px-1.5 py-0.5 rounded">
+                                  #{idx + 1}
+                                </span>
+                              </div>
 
-                        <div className="p-2.5 space-y-2 text-xs bg-card">
-                          <input
-                            type="text"
-                            value={item.originalFilename}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setUploadedScreenshots((prev) =>
-                                prev.map((s, i) => (i === idx ? { ...s, originalFilename: val } : s))
-                              );
-                            }}
-                            placeholder="e.g. 1. Trend: HH, HL"
-                            className="w-full bg-background rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-foreground focus:outline-none focus:border-amber-400 truncate"
-                            title="Click to rename screenshot or label step"
-                          />
+                              <div className="text-center py-1">
+                                <p className="text-[11px] font-extrabold text-foreground truncate px-1">
+                                  {item.originalFilename}
+                                </p>
+                                <p className="text-[9px] text-muted-foreground truncate px-1 mt-0.5 font-mono">
+                                  {item.fileUrl}
+                                </p>
+                              </div>
 
-                          <div className="flex items-center justify-between text-xs">
-                            <label className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground cursor-pointer font-bold">
-                              <UploadCloud className="h-3.5 w-3.5 text-amber-400" />
-                              Replace
-                              <input
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp,image/jpg"
-                                onChange={(e) => handleReplaceScreenshot(idx, e)}
-                                disabled={isUploading || isImportingUrl}
-                                className="hidden"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => setUploadedScreenshots((prev) => prev.filter((_, i) => i !== idx))}
-                              className="inline-flex items-center gap-1 text-muted-foreground hover:text-red-400 cursor-pointer font-bold"
-                              title="Remove screenshot"
+                              <div className="flex items-center justify-center">
+                                <a
+                                  href={item.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#2962ff] hover:bg-[#1e53e5] px-3.5 py-1.5 text-xs font-bold text-white shadow transition-all hover:scale-105 cursor-pointer"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  <span>Open in Browser</span>
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() =>
+                                setActiveLightboxImg({
+                                  url: item.fileUrl,
+                                  title: item.originalFilename,
+                                })
+                              }
+                              className="relative aspect-video w-full bg-black/70 cursor-zoom-in overflow-hidden"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.fileUrl}
+                                alt={item.originalFilename}
+                                className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <ZoomIn className="h-4 w-4 text-white" />
+                              </div>
+                              <span className="absolute top-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
+                                #{idx + 1}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="p-2.5 space-y-2 text-xs bg-card">
+                            <input
+                              type="text"
+                              value={item.originalFilename}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setUploadedScreenshots((prev) =>
+                                  prev.map((s, i) => (i === idx ? { ...s, originalFilename: val } : s))
+                                );
+                              }}
+                              placeholder="e.g. 1. Trend: HH, HL"
+                              className="w-full bg-background rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-foreground focus:outline-none focus:border-amber-400 truncate"
+                              title="Click to rename screenshot or label step"
+                            />
+
+                            <div className="flex items-center justify-between text-xs">
+                              {isTradingView ? (
+                                <a
+                                  href={item.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[#2962ff] hover:underline font-bold"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Verify Link
+                                </a>
+                              ) : (
+                                <label className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground cursor-pointer font-bold">
+                                  <UploadCloud className="h-3.5 w-3.5 text-amber-400" />
+                                  Replace
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                                    onChange={(e) => handleReplaceScreenshot(idx, e)}
+                                    disabled={isUploading || isImportingUrl}
+                                    className="hidden"
+                                  />
+                                </label>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setUploadedScreenshots((prev) => prev.filter((_, i) => i !== idx))}
+                                className="inline-flex items-center gap-1 text-muted-foreground hover:text-red-400 cursor-pointer font-bold"
+                                title="Remove screenshot"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {/* "+ Add More" Upload Card inside grid */}
                     <div className="group relative flex flex-col items-center justify-center p-5 rounded-xl border-2 border-dashed border-border hover:border-amber-400 bg-background/40 hover:bg-background/80 transition min-h-[160px] text-center">
@@ -934,22 +987,39 @@ export function StudentHomeworkWorkspace({
 
                     {sub.files && sub.files.length > 0 && (
                       <div className="flex flex-wrap gap-2 pt-1">
-                        {sub.files.map((f: any) => (
-                          <button
-                            key={f.id}
-                            type="button"
-                            onClick={() =>
-                              setActiveLightboxImg({
-                                url: f.fileUrl,
-                                title: f.originalFilename,
-                              })
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-card border border-border px-3 py-1 text-xs font-semibold text-foreground hover:bg-muted"
-                          >
-                            <ImageIcon className="h-3 w-3 text-amber-400" />
-                            {f.originalFilename}
-                          </button>
-                        ))}
+                        {sub.files.map((f: any) => {
+                          const isTv =
+                            f.mimeType === "application/x-tradingview-chart" ||
+                            (f.fileUrl?.includes("tradingview.com") && !f.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i));
+
+                          return isTv ? (
+                            <a
+                              key={f.id}
+                              href={f.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#2962ff]/15 border border-[#2962ff]/30 px-3 py-1 text-xs font-semibold text-[#2962ff] hover:bg-[#2962ff]/25"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              {f.originalFilename}
+                            </a>
+                          ) : (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() =>
+                                setActiveLightboxImg({
+                                  url: f.fileUrl,
+                                  title: f.originalFilename,
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-card border border-border px-3 py-1 text-xs font-semibold text-foreground hover:bg-muted cursor-zoom-in"
+                            >
+                              <ImageIcon className="h-3 w-3 text-amber-400" />
+                              {f.originalFilename}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 

@@ -534,13 +534,18 @@ export default function AdminHomeworkPage() {
                       const isReviewed = sub.status === "REVIEWED";
                       const isReturned = sub.status === "RETURNED_FOR_RESUBMISSION";
 
-                      // Check for screenshot image files
+                      // Check for screenshot image files and TradingView chart links
+                      const isTvFile = (f: any) =>
+                        f.mimeType === "application/x-tradingview-chart" ||
+                        (f.fileUrl?.includes("tradingview.com") && !f.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i));
+
                       const imageFiles = (sub.files || []).filter(
                         (f: any) =>
-                          f.mimeType?.startsWith("image/") ||
-                          f.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i)
+                          !isTvFile(f) &&
+                          (f.mimeType?.startsWith("image/") || f.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i))
                       );
-                      const otherFilesCount = (sub.files || []).length - imageFiles.length;
+                      const tradingViewFiles = (sub.files || []).filter(isTvFile);
+                      const otherFilesCount = (sub.files || []).length - imageFiles.length - tradingViewFiles.length;
 
                       return (
                         <tr key={sub.id} className="hover:bg-muted/20 transition-colors">
@@ -573,7 +578,7 @@ export default function AdminHomeworkPage() {
                           {/* Screenshots & Notes Column */}
                           <td className="px-5 py-4">
                             <div className="flex flex-col gap-1.5">
-                              {imageFiles.length > 0 ? (
+                              {imageFiles.length > 0 && (
                                 <div className="flex items-center gap-1.5">
                                   {imageFiles.slice(0, 3).map((img: any, i: number) => (
                                     <button
@@ -605,7 +610,28 @@ export default function AdminHomeworkPage() {
                                     </span>
                                   )}
                                 </div>
-                              ) : (
+                              )}
+
+                              {tradingViewFiles.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {tradingViewFiles.map((tv: any, idx: number) => (
+                                    <a
+                                      key={tv.id || idx}
+                                      href={tv.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 rounded bg-[#2962ff]/15 hover:bg-[#2962ff]/25 border border-[#2962ff]/30 px-2 py-0.5 text-[10px] font-bold text-[#2962ff] transition"
+                                      title={`Open TradingView Chart: ${tv.fileUrl}`}
+                                    >
+                                      <ExternalLink className="h-2.5 w-2.5" />
+                                      TradingView {tradingViewFiles.length > 1 ? `#${idx + 1}` : "Chart"}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+
+                              {imageFiles.length === 0 && tradingViewFiles.length === 0 && (
                                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground italic">
                                   No screenshots
                                 </span>
@@ -1029,9 +1055,71 @@ export default function AdminHomeworkPage() {
                   {detailData.files && detailData.files.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {detailData.files.map((file: any) => {
+                        const isTradingView =
+                          file.mimeType === "application/x-tradingview-chart" ||
+                          (file.fileUrl?.includes("tradingview.com") && !file.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i));
+
                         const isImg =
-                          file.mimeType?.startsWith("image/") ||
-                          file.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i);
+                          !isTradingView &&
+                          (file.mimeType?.startsWith("image/") || file.fileUrl?.match(/\.(png|jpg|jpeg|webp|gif)/i));
+
+                        if (isTradingView) {
+                          return (
+                            <div
+                              key={file.id}
+                              className="group rounded-2xl border-2 border-[#2962ff]/40 bg-gradient-to-b from-[#131722] via-[#1a1e29] to-[#131722] p-5 shadow-xl flex flex-col justify-between hover:border-[#2962ff] transition-all"
+                            >
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#2962ff]/20 border border-[#2962ff]/40 px-2.5 py-1 text-xs font-black text-[#2962ff]">
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    TradingView Chart
+                                  </span>
+                                  <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                                    View Only Mode
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <h4 className="text-sm font-extrabold text-foreground group-hover:text-amber-400 transition-colors">
+                                    {file.originalFilename}
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground font-mono truncate mt-1" title={file.fileUrl}>
+                                    {file.fileUrl}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-xl bg-black/40 border border-white/5 p-3 text-xs text-muted-foreground">
+                                  Student submitted a live TradingView layout with chart markings (Trend, Support, Resistance &amp; Liquidity).
+                                </div>
+                              </div>
+
+                              <div className="pt-4 mt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+                                <a
+                                  href={file.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 rounded-xl bg-[#2962ff] hover:bg-[#1e53e5] px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-[#2962ff]/25 hover:scale-[1.02] transition-all cursor-pointer"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  <span>Open Live Chart in Browser</span>
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(file.fileUrl);
+                                    toast.success("TradingView chart link copied to clipboard!");
+                                  }}
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-bold text-foreground cursor-pointer transition"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                  <span>Copy Link</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }
 
                         return isImg ? (
                           <div

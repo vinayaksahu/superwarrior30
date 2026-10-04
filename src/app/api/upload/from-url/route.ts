@@ -141,7 +141,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Resolve tradingview / image URL
+    // Check if this is a TradingView URL
+    const isTradingViewHost = rawUrl.toLowerCase().includes("tradingview.com");
+    const chartMatch = rawUrl.match(/\/chart\/([a-zA-Z0-9_-]+)/i);
+
+    // If it's a TradingView interactive chart layout (e.g. https://www.tradingview.com/chart/2e8KHmxR/)
+    if (isTradingViewHost && chartMatch && chartMatch[1]) {
+      const chartId = chartMatch[1];
+      return NextResponse.json({
+        success: true,
+        url: rawUrl,
+        key: null,
+        originalFilename: `TradingView Chart (${chartId})`,
+        fileSize: 0,
+        mimeType: "application/x-tradingview-chart",
+        provider: "TRADINGVIEW",
+        sourceUrl: rawUrl,
+        message: "TradingView interactive chart link attached successfully!",
+      });
+    }
+
+    // 1. Resolve tradingview snapshot / image URL
     const { imageUrl, title } = await resolveTradingViewImageUrl(rawUrl);
 
     // 2. Fetch the image bytes
@@ -161,6 +181,19 @@ export async function POST(req: NextRequest) {
       });
     } catch (fetchErr: any) {
       clearTimeout(timeoutId);
+      if (isTradingViewHost) {
+        return NextResponse.json({
+          success: true,
+          url: rawUrl,
+          key: null,
+          originalFilename: title || "TradingView Chart",
+          fileSize: 0,
+          mimeType: "application/x-tradingview-chart",
+          provider: "TRADINGVIEW",
+          sourceUrl: rawUrl,
+          message: "TradingView chart link attached successfully!",
+        });
+      }
       return NextResponse.json(
         {
           success: false,
@@ -172,10 +205,23 @@ export async function POST(req: NextRequest) {
     clearTimeout(timeoutId);
 
     if (!imageRes.ok) {
+      if (isTradingViewHost) {
+        return NextResponse.json({
+          success: true,
+          url: rawUrl,
+          key: null,
+          originalFilename: title || "TradingView Chart",
+          fileSize: 0,
+          mimeType: "application/x-tradingview-chart",
+          provider: "TRADINGVIEW",
+          sourceUrl: rawUrl,
+          message: "TradingView chart link attached successfully!",
+        });
+      }
       return NextResponse.json(
         {
           success: false,
-          error: `Could not fetch image from link (HTTP ${imageRes.status}). Please make sure the TradingView link is public and active.`,
+          error: `Could not fetch image from link (HTTP ${imageRes.status}). Please make sure the link is public and active.`,
         },
         { status: 400 }
       );
@@ -187,6 +233,19 @@ export async function POST(req: NextRequest) {
 
     // 3. File Size Validation (Max 15MB)
     if (buffer.length === 0) {
+      if (isTradingViewHost) {
+        return NextResponse.json({
+          success: true,
+          url: rawUrl,
+          key: null,
+          originalFilename: title || "TradingView Chart",
+          fileSize: 0,
+          mimeType: "application/x-tradingview-chart",
+          provider: "TRADINGVIEW",
+          sourceUrl: rawUrl,
+          message: "TradingView chart link attached successfully!",
+        });
+      }
       return NextResponse.json(
         { success: false, error: "The provided link returned an empty response." },
         { status: 400 }
@@ -207,11 +266,26 @@ export async function POST(req: NextRequest) {
       buffer.subarray(8, 12).toString("ascii") === "WEBP";
 
     if (!isPng && !isJpg && !isWebp) {
+      // If it's a TradingView URL that didn't resolve to a direct static image, keep it as an interactive chart link!
+      if (isTradingViewHost) {
+        return NextResponse.json({
+          success: true,
+          url: rawUrl,
+          key: null,
+          originalFilename: title || "TradingView Chart",
+          fileSize: 0,
+          mimeType: "application/x-tradingview-chart",
+          provider: "TRADINGVIEW",
+          sourceUrl: rawUrl,
+          message: "TradingView chart link attached successfully!",
+        });
+      }
+
       return NextResponse.json(
         {
           success: false,
           error:
-            "The link does not point to a valid chart image (must be PNG, JPG, or WEBP). Make sure you copied the TradingView snapshot link (e.g. https://www.tradingview.com/x/...)",
+            "The link does not point to a valid chart image (must be PNG, JPG, or WEBP). Make sure you copied the TradingView chart link (e.g. https://www.tradingview.com/chart/... or https://www.tradingview.com/x/...)",
         },
         { status: 400 }
       );
