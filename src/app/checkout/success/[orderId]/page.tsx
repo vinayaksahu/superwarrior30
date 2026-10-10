@@ -82,6 +82,15 @@ export default async function OrderSuccessPage({
             </div>
           )}
 
+          {Boolean((order.manualPaymentProof as any)?.screenshotUrl || (order.manualPaymentProof as any)?.proofUrl) && (
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-muted-foreground">Payment Proof Slip</span>
+              <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Attached for Verification
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-between items-center text-xs">
             <span className="text-muted-foreground">Order Status</span>
             <span

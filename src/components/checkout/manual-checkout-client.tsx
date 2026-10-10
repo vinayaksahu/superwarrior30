@@ -26,6 +26,8 @@ import {
   Users,
   Eye,
   EyeOff,
+  UploadCloud,
+  Image as ImageIcon,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { PaymentMethodItem } from "@/server/actions/payment-method.actions";
@@ -97,6 +99,73 @@ export function ManualCheckoutClient({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [utrInput, setUtrInput] = useState<string>("");
   const [proofNote, setProofNote] = useState<string>("");
+  const [paymentScreenshotFile, setPaymentScreenshotFile] = useState<File | null>(null);
+  const [paymentScreenshotPreview, setPaymentScreenshotPreview] = useState<string | null>(null);
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState<string | null>(null);
+  const [isUploadingScreenshot, setIsUploadingScreenshot] = useState<boolean>(false);
+
+  const handlePaymentScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Screenshot file size cannot exceed 10MB.");
+      return;
+    }
+
+    const validExtensions = ["png", "jpg", "jpeg", "webp"];
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!ext || !validExtensions.includes(ext)) {
+      toast.error("Please upload an image (PNG, JPG, JPEG, or WEBP).");
+      return;
+    }
+
+    setPaymentScreenshotFile(file);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setPaymentScreenshotPreview(dataUrl);
+
+      setIsUploadingScreenshot(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("category", "payment-proof");
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success && (data.url || data.cdnUrl)) {
+          const finalUrl = data.url || data.cdnUrl;
+          setPaymentScreenshotUrl(finalUrl);
+          toast.success("Payment screenshot uploaded successfully!");
+        } else {
+          // Resilient fallback to DataURL so checkout submission always succeeds
+          setPaymentScreenshotUrl(dataUrl);
+          toast.info("Screenshot attached!");
+        }
+      } catch {
+        setPaymentScreenshotUrl(dataUrl);
+        toast.info("Screenshot attached!");
+      } finally {
+        setIsUploadingScreenshot(false);
+      }
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read image file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePaymentScreenshot = () => {
+    setPaymentScreenshotFile(null);
+    setPaymentScreenshotPreview(null);
+    setPaymentScreenshotUrl(null);
+  };
 
   // Guest registration state
   const [guestName, setGuestName] = useState<string>(userName || "");
@@ -913,6 +982,8 @@ export function ManualCheckoutClient({
           paymentMethodId: selectedMethod.id,
           paymentMethodTitle: selectedMethod.title,
           utrRef: utrInput.trim(),
+          paymentScreenshotUrl: paymentScreenshotUrl || undefined,
+          paymentProofUrl: paymentScreenshotUrl || undefined,
           proofNote: proofNote.trim(),
           guestName: isGuest ? guestName.trim() : undefined,
           guestUsername: isGuest ? guestUsername.trim() : undefined,
@@ -1851,6 +1922,87 @@ export function ManualCheckoutClient({
                         }
                         className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
                       />
+                    </div>
+
+                    {/* Payment Screenshot Upload */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                          <ImageIcon className="h-3.5 w-3.5 text-primary" />
+                          Payment Screenshot / Receipt (Recommended)
+                        </label>
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          PNG, JPG, WEBP (Max 10MB)
+                        </span>
+                      </div>
+
+                      {paymentScreenshotPreview ? (
+                        <div className="relative rounded-xl border border-primary/40 bg-primary/5 p-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={paymentScreenshotPreview}
+                              alt="Payment Proof Preview"
+                              className="h-16 w-16 object-cover rounded-lg border border-border shadow-sm shrink-0 bg-background"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-foreground truncate">
+                                {paymentScreenshotFile?.name || "Payment_Screenshot.png"}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {paymentScreenshotFile
+                                  ? `${(paymentScreenshotFile.size / (1024 * 1024)).toFixed(2)} MB`
+                                  : "Attached"}
+                              </p>
+                              <div className="flex items-center gap-1 text-[11px] font-semibold mt-0.5">
+                                {isUploadingScreenshot ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                                    <span className="text-amber-400">Uploading screenshot...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                    <span className="text-emerald-400">Screenshot attached for admin</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleRemovePaymentScreenshot}
+                            disabled={isUploadingScreenshot}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                            title="Remove Screenshot"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-border/80 hover:border-primary/60 rounded-xl p-4 bg-background/50 hover:bg-background/90 transition-all cursor-pointer group">
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            onChange={handlePaymentScreenshotChange}
+                            className="hidden"
+                          />
+                          <div className="flex flex-col items-center justify-center text-center space-y-1.5">
+                            <div className="p-2.5 rounded-full bg-primary/10 text-primary group-hover:scale-105 transition-transform">
+                              <UploadCloud className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">
+                                Click or drag &amp; drop payment screenshot
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Upload UPI/Bank success slip showing UTR or Txn ID for faster admin verification
+                              </p>
+                            </div>
+                          </div>
+                        </label>
+                      )}
                     </div>
 
                     <div>

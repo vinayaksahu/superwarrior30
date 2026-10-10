@@ -26,6 +26,8 @@ export async function POST(req: Request) {
       paymentMethodId,
       paymentMethodTitle,
       utrRef,
+      paymentScreenshotUrl,
+      paymentProofUrl,
       proofNote,
       guestName,
       guestUsername,
@@ -574,11 +576,17 @@ export async function POST(req: Request) {
     const orderNumber = generateOrderNumber();
     const cleanUtr = utrRef.trim();
 
+    const finalScreenshotUrl =
+      (paymentScreenshotUrl || paymentProofUrl || body.proofUrl || "").trim() || null;
+
     const proofData = {
       paymentMethodId: paymentMethodId || "manual",
       paymentMethodTitle: paymentMethodTitle || "Manual Payment",
       utrRef: cleanUtr,
-      proofUrl: requestedProofUrl,
+      screenshotUrl: finalScreenshotUrl,
+      paymentScreenshotUrl: finalScreenshotUrl,
+      proofUrl: finalScreenshotUrl || requestedProofUrl,
+      brokerProofUrl: requestedProofUrl,
       proofNote: proofNote?.trim() || null,
       submittedAt: new Date().toISOString(),
       customerEmail: user.email,

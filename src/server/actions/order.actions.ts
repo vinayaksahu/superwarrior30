@@ -654,6 +654,8 @@ export async function submitManualPaymentOrderAction({
   paymentMethodId,
   paymentMethodTitle,
   utrRef,
+  paymentScreenshotUrl,
+  proofUrl,
   proofNote,
 }: {
   courseId: string;
@@ -661,6 +663,8 @@ export async function submitManualPaymentOrderAction({
   paymentMethodId: string;
   paymentMethodTitle: string;
   utrRef: string;
+  paymentScreenshotUrl?: string;
+  proofUrl?: string;
   proofNote?: string;
 }): Promise<{
   success: boolean;
@@ -726,10 +730,15 @@ export async function submitManualPaymentOrderAction({
 
   const orderNumber = generateOrderNumber();
 
+  const finalScreenshot = (paymentScreenshotUrl || proofUrl || "").trim() || null;
+
   const proofData = {
     paymentMethodId,
     paymentMethodTitle,
     utrRef: utrRef.trim(),
+    screenshotUrl: finalScreenshot,
+    paymentScreenshotUrl: finalScreenshot,
+    proofUrl: finalScreenshot,
     proofNote: proofNote?.trim() || null,
     submittedAt: new Date().toISOString(),
     customerEmail: user.email,

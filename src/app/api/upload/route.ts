@@ -12,14 +12,6 @@ import { getResolvedBunnyConfig, uploadToBunnyStorage } from "@/lib/bunny";
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized. Please log in to upload files." },
-        { status: 401 }
-      );
-    }
-
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const rawCategory = ((formData.get("category") as string) || "pdf").toLowerCase().trim();
@@ -28,9 +20,34 @@ export async function POST(req: NextRequest) {
     const allowedCategories = new Set([
       "pdf", "homework", "submission", "student", "journal", "screenshot",
       "thumbnail", "thumbnails", "course", "courses", "general", "documents", "materials",
-      "affiliate", "promotional", "payment", "qr", "payment-methods", "qrcode"
+      "affiliate", "promotional", "payment", "qr", "payment-methods", "qrcode", "payment-proof"
     ]);
     const category = allowedCategories.has(safeCategory) ? safeCategory : "general";
+    const isPaymentProof = category === "payment-proof";
+
+    const user = await getCurrentUser();
+    if (!user && !isPaymentProof) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please log in to upload files." },
+        { status: 401 }
+      );
+    }
+
+    if (isPaymentProof) {
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
+      const { checkRateLimit } = await import("@/lib/rate-limit");
+      const limit = await checkRateLimit({
+        key: `upload_payment_proof:${ip}`,
+        limit: 20,
+        windowSeconds: 60,
+      });
+      if (!limit.success) {
+        return NextResponse.json(
+          { success: false, error: "Too many upload attempts. Please wait a minute before trying again." },
+          { status: 429 }
+        );
+      }
+    }
 
     const courseId = formData.get("courseId") as string;
     const lessonId = formData.get("lessonId") as string | null;
@@ -40,9 +57,10 @@ export async function POST(req: NextRequest) {
       category === "submission" ||
       category === "student" ||
       category === "journal" ||
-      category === "screenshot";
+      category === "screenshot" ||
+      category === "payment-proof";
 
-    if (!isStudentUpload && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
+    if (!isStudentUpload && user?.role !== "ADMIN" && user?.role !== "SUPER_ADMIN") {
       return NextResponse.json(
         { success: false, error: "Unauthorized. Admin privileges required." },
         { status: 401 }
@@ -135,10 +153,12 @@ export async function POST(req: NextRequest) {
     const uniqueId = crypto.randomUUID();
 
     let storagePath: string;
-    if (category === "journal" || category === "screenshot") {
-      storagePath = `journal/${user.id}/${uniqueId}.${ext}`;
+    if (category === "payment-proof") {
+      storagePath = `payment-proofs/${user?.id || "checkout"}/${uniqueId}.${ext}`;
+    } else if (category === "journal" || category === "screenshot") {
+      storagePath = `journal/${user?.id || "guest"}/${uniqueId}.${ext}`;
     } else if (isStudentUpload) {
-      storagePath = `homework/${user.id}/${uniqueId}.${ext}`;
+      storagePath = `homework/${user?.id || "guest"}/${uniqueId}.${ext}`;
     } else if (category === "thumbnail") {
       storagePath = `courses/${courseId || "general"}/thumbnail-${uniqueId}.${ext}`;
     } else if (category === "pdf" && lessonId) {
