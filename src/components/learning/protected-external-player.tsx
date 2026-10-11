@@ -198,34 +198,47 @@ export function ProtectedExternalPlayer({
           className="absolute bottom-0 right-0 w-52 h-16 z-20 cursor-default bg-transparent"
         />
 
-        {/* 5. Custom Fullscreen Toggle Button */}
+        {/* 5. Top-Right Quick Fullscreen Button (Always accessible) */}
         <button
           type="button"
           onClick={toggleFullscreen}
           title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-          className={
-            isFullscreen
-              ? "absolute top-4 right-4 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/85 text-white text-xs font-semibold backdrop-blur-md border border-white/20 shadow-xl hover:bg-black transition-all active:scale-95"
-              : "absolute bottom-3 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/85 text-white text-xs font-semibold backdrop-blur-md border border-white/20 shadow-xl hover:bg-black transition-all active:scale-95"
-          }
+          className="absolute top-3 right-3 z-40 flex h-8 w-8 items-center justify-center rounded-lg bg-black/85 text-white/90 backdrop-blur-md border border-white/20 shadow-xl hover:bg-black hover:text-white transition-all active:scale-95"
         >
-          {isFullscreen ? (
-            <>
-              <Minimize className="h-3.5 w-3.5" />
-              <span>Exit Fullscreen</span>
-            </>
-          ) : (
-            <>
-              <Maximize className="h-3.5 w-3.5" />
-              <span>Fullscreen</span>
-            </>
-          )}
+          {isFullscreen ? <Minimize className="h-4 w-4 text-amber-400" /> : <Maximize className="h-4 w-4 text-amber-400" />}
         </button>
 
-        {/* 6. Floating Anti-Piracy Watermark Badge */}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-lg bg-black/85 px-2.5 py-1 text-[10px] font-mono text-white/70 backdrop-blur-md border border-white/10 select-none">
-          <Shield className="h-3 w-3 text-amber-400" />
-          <span>{watermarkText}</span>
+        {/* 6. Bottom-Right Fullscreen Badge Button */}
+        {!isFullscreen && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title="Enter Fullscreen"
+            className="absolute bottom-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/20 shadow-2xl hover:bg-black transition-all active:scale-95"
+          >
+            <Maximize className="h-3.5 w-3.5 text-amber-400" />
+            <span>Fullscreen</span>
+          </button>
+        )}
+
+        {/* 7. Exit Fullscreen Button (Shown in Fullscreen mode) */}
+        {isFullscreen && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title="Exit Fullscreen"
+            className="absolute bottom-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/90 text-white text-xs font-semibold backdrop-blur-md border border-white/20 shadow-2xl hover:bg-black transition-all active:scale-95"
+          >
+            <Minimize className="h-3.5 w-3.5 text-amber-400" />
+            <span>Exit Fullscreen</span>
+          </button>
+        )}
+
+        {/* 8. Floating Anti-Piracy Watermark Badge (Compact on mobile to never overlap controls) */}
+        <div className="pointer-events-none absolute bottom-3 left-3 z-30 flex max-w-[150px] sm:max-w-none items-center gap-1.5 rounded-lg bg-black/85 px-2.5 py-1 text-[10px] font-mono text-white/70 backdrop-blur-md border border-white/10 select-none truncate">
+          <Shield className="h-3 w-3 shrink-0 text-amber-400" />
+          <span className="hidden sm:inline truncate">{watermarkText}</span>
+          <span className="sm:hidden truncate">Protected</span>
         </div>
       </div>
     </div>
