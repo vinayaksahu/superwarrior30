@@ -25,6 +25,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { isExternalVideoUrl, parseExternalVideo } from "@/lib/video-utils";
+import { ProtectedExternalPlayer } from "@/components/learning/protected-external-player";
 import { toast } from "sonner";
 
 function YouTubeIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -488,15 +489,12 @@ export function LessonEditModal({
                         </a>
                       </div>
 
-                      <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-border bg-black shadow-inner">
-                        <iframe
-                          src={parsedVideo.embedUrl}
-                          title="External Video Preview"
-                          className="w-full h-full border-0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                          allowFullScreen
-                        />
-                      </div>
+                      <ProtectedExternalPlayer
+                        src={parsedVideo.embedUrl}
+                        title="External Video Preview"
+                        watermarkText="Preview • Shield Protected"
+                        className="rounded-lg shadow-inner"
+                      />
                     </div>
                   )}
 

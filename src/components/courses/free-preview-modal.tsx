@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
+import { ProtectedExternalPlayer } from "@/components/learning/protected-external-player";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
 import { isExternalVideoUrl } from "@/lib/video-utils";
 import { Eye, X, Loader2, Play, Lock, RotateCcw, Sparkles, AlertCircle, Clock, FileText, AlignLeft } from "lucide-react";
@@ -287,15 +288,12 @@ export function FreePreviewButton({
                     {/* Active Video Player */}
                     {!isLimitReached && (
                       isExternalVideoUrl(mediaData.signedUrl, mediaData.provider) ? (
-                        <div className="relative aspect-video w-full h-full bg-black">
-                          <iframe
-                            src={mediaData.signedUrl}
-                            title={lessonTitle}
-                            className="w-full h-full border-0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            allowFullScreen
-                          />
-                        </div>
+                        <ProtectedExternalPlayer
+                          src={mediaData.signedUrl}
+                          title={lessonTitle}
+                          watermarkText="Free Preview • Super Warrior 30"
+                          className="h-full w-full rounded-none border-0"
+                        />
                       ) : (
                         <ProtectedVideoPlayer
                           key={replayKey}

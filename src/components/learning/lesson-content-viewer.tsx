@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { ProtectedPdfViewer } from "./protected-pdf-viewer";
 import { ProtectedVideoPlayer } from "./protected-video-player";
+import { ProtectedExternalPlayer } from "./protected-external-player";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { isExternalVideoUrl } from "@/lib/video-utils";
 
@@ -239,15 +240,10 @@ export function LessonContentViewer({
         {mediaData.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
             isExternalVideoUrl(mediaData.signedUrl, mediaData.provider) ? (
-              <div className="relative aspect-video w-full bg-black select-none">
-                <iframe
-                  src={mediaData.signedUrl}
-                  title={mediaData.title}
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-              </div>
+              <ProtectedExternalPlayer
+                src={mediaData.signedUrl}
+                title={mediaData.title}
+              />
             ) : (
               <ProtectedVideoPlayer
                 lessonId={lessonId}
