@@ -6,6 +6,7 @@ import { getLessonPreviewMediaUrlAction } from "@/server/actions/course.actions"
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
 import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
+import { isExternalVideoUrl } from "@/lib/video-utils";
 import { Eye, X, Loader2, Play, Lock, RotateCcw, Sparkles, AlertCircle, Clock, FileText, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 
@@ -285,20 +286,32 @@ export function FreePreviewButton({
 
                     {/* Active Video Player */}
                     {!isLimitReached && (
-                      <ProtectedVideoPlayer
-                        key={replayKey}
-                        src={mediaData.signedUrl}
-                        title={lessonTitle}
-                        durationSec={previewLimit}
-                        maxPreviewSeconds={previewLimit}
-                        onPreviewLimitReached={() => {
-                          setIsLimitReached(true);
-                          setTimeLeft(0);
-                        }}
-                        autoPlay
-                        watermarkText="Free Preview • Super Warrior 30"
-                        className="h-full w-full object-contain rounded-none border-0"
-                      />
+                      isExternalVideoUrl(mediaData.signedUrl, mediaData.provider) ? (
+                        <div className="relative aspect-video w-full h-full bg-black">
+                          <iframe
+                            src={mediaData.signedUrl}
+                            title={lessonTitle}
+                            className="w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : (
+                        <ProtectedVideoPlayer
+                          key={replayKey}
+                          src={mediaData.signedUrl}
+                          title={lessonTitle}
+                          durationSec={previewLimit}
+                          maxPreviewSeconds={previewLimit}
+                          onPreviewLimitReached={() => {
+                            setIsLimitReached(true);
+                            setTimeLeft(0);
+                          }}
+                          autoPlay
+                          watermarkText="Free Preview • Super Warrior 30"
+                          className="h-full w-full object-contain rounded-none border-0"
+                        />
+                      )
                     )}
                   </div>
                 </div>

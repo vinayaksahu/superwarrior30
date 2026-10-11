@@ -8,6 +8,7 @@ import { courseSchema, moduleSchema, lessonSchema } from "@/lib/validations/cour
 import { slugify } from "@/lib/utils";
 import { deleteR2Object, createPresignedDownloadUrl, getMediaUrl, getThumbnailUrl, deleteMediaAssets, deleteThumbnailAssets, deleteLessonMediaAsset } from "@/lib/storage";
 import { getResolvedBunnyConfig, getSecurePlaybackUrl } from "@/lib/bunny";
+import { parseExternalVideo } from "@/lib/video-utils";
 import { PAGINATION, SIGNED_URL_EXPIRY } from "@/lib/constants";
 import type { ActionState } from "@/types";
 
@@ -1091,16 +1092,50 @@ export async function updateLessonAction(
     }
   }
 
+  const updateData: Record<string, unknown> = {
+    title: validated.data.title,
+    contentType: validated.data.contentType as any,
+    textContent: validated.data.textContent || null,
+    durationSec: finalDurationSec,
+    isFreePreview: validated.data.isFreePreview,
+    isPublished: validated.data.isPublished,
+  };
+
+  if (validated.data.contentType === "VIDEO") {
+    const videoSourceType = raw.videoSourceType as string | undefined;
+    const externalVideoUrl = typeof raw.externalVideoUrl === "string" ? raw.externalVideoUrl.trim() : "";
+
+    if (videoSourceType === "EXTERNAL") {
+      if (externalVideoUrl) {
+        const parsed = parseExternalVideo(externalVideoUrl);
+        if (parsed.isValid) {
+          updateData.videoKey = parsed.embedUrl;
+          updateData.bunnyVideoId = null;
+          updateData.mediaProvider = parsed.provider; // "YOUTUBE" or "EXTERNAL"
+        }
+      } else {
+        // External link cleared
+        updateData.videoKey = null;
+        if (lesson.mediaProvider === "YOUTUBE" || lesson.mediaProvider === "EXTERNAL") {
+          updateData.mediaProvider = null;
+        }
+      }
+    } else if (videoSourceType === "BUNNY") {
+      // Switched to Bunny Stream
+      if (raw.bunnyVideoId) {
+        updateData.bunnyVideoId = String(raw.bunnyVideoId);
+        updateData.videoKey = null;
+        updateData.mediaProvider = "BUNNY";
+      } else if (lesson.mediaProvider === "YOUTUBE" || lesson.mediaProvider === "EXTERNAL") {
+        updateData.videoKey = null;
+        updateData.mediaProvider = "BUNNY";
+      }
+    }
+  }
+
   await prisma.lesson.update({
     where: { id: lessonId },
-    data: {
-      title: validated.data.title,
-      contentType: validated.data.contentType as any,
-      textContent: validated.data.textContent || null,
-      durationSec: finalDurationSec,
-      isFreePreview: validated.data.isFreePreview,
-      isPublished: validated.data.isPublished,
-    },
+    data: updateData,
   });
 
   // If changing content type to QUIZ or ASSIGNMENT, ensure corresponding record exists
@@ -1164,7 +1199,11 @@ export async function updateLessonFileAction(
     mediaProvider: provider || "BUNNY",
   };
 
-  if (provider === "BUNNY" || bunnyVideoId || bunnyCdnUrl) {
+  if (provider === "YOUTUBE" || provider === "EXTERNAL") {
+    updateData.mediaProvider = provider;
+    updateData.videoKey = fileKey;
+    updateData.bunnyVideoId = null;
+  } else if (provider === "BUNNY" || bunnyVideoId || bunnyCdnUrl) {
     updateData.mediaProvider = "BUNNY";
     if (fileType === "video" && bunnyVideoId) {
       updateData.bunnyVideoId = bunnyVideoId;
@@ -1560,10 +1599,17 @@ export async function getLessonPreviewMediaUrlAction(lessonId: string) {
     Boolean(lesson.bunnyVideoId) ||
     Boolean(lesson.bunnyCdnUrl);
 
+  const detectedProvider =
+    lesson.mediaProvider === "YOUTUBE" || lesson.mediaProvider === "EXTERNAL"
+      ? lesson.mediaProvider
+      : isBunny
+      ? "BUNNY"
+      : (lesson.mediaProvider || "R2");
+
   return {
     lesson,
     signedUrl,
-    provider: isBunny ? "BUNNY" : (lesson.mediaProvider || "R2"),
+    provider: detectedProvider,
     bunnyVideoId: lesson.bunnyVideoId,
     courseId: lesson.module?.course?.id,
     courseSlug: lesson.module?.course?.slug,

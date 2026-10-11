@@ -19,8 +19,21 @@ import {
   FolderOpen,
   HelpCircle,
   Award,
+  Link2,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
+import { isExternalVideoUrl, parseExternalVideo } from "@/lib/video-utils";
 import { toast } from "sonner";
+
+function YouTubeIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
 
 interface LessonEditModalProps {
   courseId: string;
@@ -56,6 +69,19 @@ export function LessonEditModal({
   >(
     (lesson.contentType as "VIDEO" | "PDF" | "TEXT" | "QUIZ" | "ASSIGNMENT") || "VIDEO"
   );
+  const isInitialExternal = Boolean(
+    lesson.mediaProvider === "YOUTUBE" ||
+    lesson.mediaProvider === "EXTERNAL" ||
+    (lesson.videoKey && isExternalVideoUrl(lesson.videoKey, lesson.mediaProvider))
+  );
+
+  const [videoSourceType, setVideoSourceType] = useState<"BUNNY" | "EXTERNAL">(
+    isInitialExternal ? "EXTERNAL" : "BUNNY"
+  );
+  const [externalVideoUrl, setExternalVideoUrl] = useState<string>(
+    isInitialExternal && lesson.videoKey ? lesson.videoKey : ""
+  );
+
   const [videoKey, setVideoKey] = useState<string | null>(lesson.videoKey);
   const [pdfKey, setPdfKey] = useState<string | null>(lesson.pdfKey);
   const [bunnyVideoId, setBunnyVideoId] = useState<string | null>(lesson.bunnyVideoId || null);
@@ -64,7 +90,9 @@ export function LessonEditModal({
   const [showMediaPicker, setShowMediaPicker] = useState<"VIDEO" | "PDF" | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const hasVideo = videoKey || bunnyVideoId;
+  const parsedVideo = parseExternalVideo(externalVideoUrl);
+  const hasExternalVideo = videoSourceType === "EXTERNAL" && Boolean(externalVideoUrl.trim()) && parsedVideo.isValid;
+  const hasVideo = hasExternalVideo || videoKey || bunnyVideoId;
   const hasPdf = pdfKey || bunnyCdnUrl;
 
   const handleSelectMediaFromLibrary = async (media: any) => {
@@ -83,6 +111,8 @@ export function LessonEditModal({
       if (media.mediaType === "VIDEO") {
         setBunnyVideoId(media.bunnyVideoId || null);
         setVideoKey(media.storageKey || null);
+        setVideoSourceType("BUNNY");
+        setExternalVideoUrl("");
       } else if (media.mediaType === "PDF") {
         setBunnyCdnUrl(media.storageUrl || null);
         setPdfKey(media.storageKey || null);
@@ -108,6 +138,8 @@ export function LessonEditModal({
       setVideoKey(result.key);
       setBunnyVideoId(null);
     }
+    setVideoSourceType("BUNNY");
+    setExternalVideoUrl("");
     await updateLessonFileAction(
       lesson.id,
       "video",
@@ -147,6 +179,26 @@ export function LessonEditModal({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set("contentType", contentType);
+
+    if (contentType === "VIDEO") {
+      formData.set("videoSourceType", videoSourceType);
+      if (videoSourceType === "EXTERNAL") {
+        if (externalVideoUrl.trim()) {
+          const parsed = parseExternalVideo(externalVideoUrl);
+          if (!parsed.isValid) {
+            toast.error(parsed.errorMessage || "Please enter a valid YouTube or external video URL");
+            return;
+          }
+          formData.set("externalVideoUrl", externalVideoUrl.trim());
+        } else {
+          formData.set("externalVideoUrl", "");
+        }
+      } else {
+        if (bunnyVideoId) {
+          formData.set("bunnyVideoId", bunnyVideoId);
+        }
+      }
+    }
 
     startTransition(async () => {
       try {
@@ -281,43 +333,181 @@ export function LessonEditModal({
             />
           </div>
 
-          {/* Upload Area for VIDEO */}
+          {/* Upload / Link Area for VIDEO */}
           {contentType === "VIDEO" && (
-            <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+            <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   <Video className="h-4 w-4 text-primary" />
-                  Video File (Bunny Stream)
+                  Video Source
                 </label>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowMediaPicker("VIDEO")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer transition-colors"
-                  >
-                    <FolderOpen className="h-3.5 w-3.5" />
-                    Select from Media Library
-                  </button>
+                  {videoSourceType === "BUNNY" && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMediaPicker("VIDEO")}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" />
+                      Select from Media Library
+                    </button>
+                  )}
                   {hasVideo && (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md border ${
+                      videoSourceType === "EXTERNAL"
+                        ? "text-red-400 bg-red-500/10 border-red-500/20"
+                        : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                    }`}>
                       <PlayCircle className="h-3.5 w-3.5" />
-                      {bunnyVideoId ? "Bunny Stream Active" : "Attached"}
+                      {videoSourceType === "EXTERNAL"
+                        ? parsedVideo.provider === "YOUTUBE"
+                          ? "YouTube Active"
+                          : "External Video Active"
+                        : bunnyVideoId
+                        ? "Bunny Stream Active"
+                        : "Attached"}
                     </span>
                   )}
                 </div>
               </div>
 
-              <FileUploader
-                category="video"
-                courseId={courseId}
-                moduleId={lesson.moduleId}
-                lessonId={lesson.id}
-                currentKey={videoKey}
-                currentBunnyVideoId={bunnyVideoId}
-                onUploadComplete={handleVideoUploadComplete}
-                label="Upload New Video"
-                description="Or upload directly via multi-GB resumable TUS upload to Bunny Stream (up to 2GB)"
-              />
+              {/* Source Switcher Tabs */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-background/80 rounded-lg border border-border">
+                <button
+                  type="button"
+                  onClick={() => setVideoSourceType("BUNNY")}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    videoSourceType === "BUNNY"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  }`}
+                >
+                  <Film className="h-3.5 w-3.5" />
+                  Bunny Stream (Upload / Library)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoSourceType("EXTERNAL")}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    videoSourceType === "EXTERNAL"
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  }`}
+                >
+                  <YouTubeIcon className="h-3.5 w-3.5" />
+                  External Link (YouTube / Embed)
+                </button>
+              </div>
+
+              {/* Tab 1: Bunny Stream Upload / Picker */}
+              {videoSourceType === "BUNNY" && (
+                <div className="space-y-3 pt-1 animate-in fade-in-50 duration-200">
+                  <FileUploader
+                    category="video"
+                    courseId={courseId}
+                    moduleId={lesson.moduleId}
+                    lessonId={lesson.id}
+                    currentKey={videoKey}
+                    currentBunnyVideoId={bunnyVideoId}
+                    onUploadComplete={handleVideoUploadComplete}
+                    label="Upload New Video"
+                    description="Or upload directly via multi-GB resumable TUS upload to Bunny Stream (up to 2GB)"
+                  />
+                </div>
+              )}
+
+              {/* Tab 2: External Link / YouTube Embed */}
+              {videoSourceType === "EXTERNAL" && (
+                <div className="space-y-3 pt-1 animate-in fade-in-50 duration-200">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="externalVideoUrl" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Link2 className="h-3.5 w-3.5 text-red-500" />
+                        External Video URL / Embed Link / Iframe Code
+                      </label>
+                      {externalVideoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setExternalVideoUrl("")}
+                          className="text-[11px] text-destructive hover:underline font-medium cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        id="externalVideoUrl"
+                        type="text"
+                        name="externalVideoUrl"
+                        value={externalVideoUrl}
+                        onChange={(e) => setExternalVideoUrl(e.target.value)}
+                        placeholder="e.g. https://www.youtube.com/watch?v=... or https://youtu.be/... or <iframe src='...'></iframe>"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-xs font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                      {externalVideoUrl.trim() && (
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                          {parsedVideo.isValid ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      YouTube watch links, Shorts, livestreams, <span className="font-mono text-primary text-[10px]">youtu.be/...</span> links, Vimeo, or complete <span className="font-mono text-primary text-[10px]">&lt;iframe&gt;</span> embed codes are automatically converted into an optimized embedded player.
+                    </p>
+                  </div>
+
+                  {/* Video Live Preview */}
+                  {externalVideoUrl.trim() && parsedVideo.isValid && (
+                    <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-foreground">
+                          {parsedVideo.provider === "YOUTUBE" ? (
+                            <YouTubeIcon className="h-4 w-4 text-red-500" />
+                          ) : (
+                            <Video className="h-4 w-4 text-primary" />
+                          )}
+                          <span>Video Preview ({parsedVideo.provider === "YOUTUBE" ? "YouTube" : "External"})</span>
+                          {parsedVideo.videoId && (
+                            <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              ID: {parsedVideo.videoId}
+                            </span>
+                          )}
+                        </div>
+                        <a
+                          href={parsedVideo.embedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                        >
+                          <span>Open Player</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+
+                      <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-border bg-black shadow-inner">
+                        <iframe
+                          src={parsedVideo.embedUrl}
+                          title="External Video Preview"
+                          className="w-full h-full border-0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {externalVideoUrl.trim() && !parsedVideo.isValid && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{parsedVideo.errorMessage || "Invalid video link format."}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

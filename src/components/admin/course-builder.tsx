@@ -418,7 +418,17 @@ export function CourseBuilder({ courseId, modules }: CourseBuilderProps) {
                               </span>
                             )}
                             {(lesson.videoKey || lesson.bunnyVideoId) && (
-                              <span className="text-[10px] text-primary font-medium">● Video Active</span>
+                              <span className={`text-[10px] font-medium ${
+                                lesson.mediaProvider === "YOUTUBE"
+                                  ? "text-red-400"
+                                  : "text-primary"
+                              }`}>
+                                {lesson.mediaProvider === "YOUTUBE"
+                                  ? "● YouTube Video"
+                                  : lesson.mediaProvider === "EXTERNAL"
+                                  ? "● External Video"
+                                  : "● Video Active"}
+                              </span>
                             )}
                             {(lesson.pdfKey || lesson.bunnyCdnUrl) && (
                               <span className="text-[10px] text-amber-500 font-medium">● PDF Active</span>

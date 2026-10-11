@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2, isR2Configured } from "./r2";
+import { isExternalVideoUrl, parseExternalVideo } from "./video-utils";
 
 // ==========================================
 // R2 Storage Functions (unchanged — backward compat)
@@ -112,6 +113,21 @@ export async function getMediaUrl(
   type: "video" | "pdf",
   expiresIn?: number
 ): Promise<string | null> {
+  // External or YouTube video handling
+  if (type === "video") {
+    if (
+      lesson.mediaProvider === "YOUTUBE" ||
+      lesson.mediaProvider === "EXTERNAL" ||
+      isExternalVideoUrl(lesson.videoKey, lesson.mediaProvider)
+    ) {
+      if (lesson.videoKey) {
+        const parsed = parseExternalVideo(lesson.videoKey);
+        return parsed.isValid ? parsed.embedUrl : lesson.videoKey;
+      }
+      return null;
+    }
+  }
+
   // Bunny provider path (handles both explicit BUNNY provider and existing bunny fields)
   if (
     lesson.mediaProvider === "BUNNY" ||
@@ -182,6 +198,7 @@ export async function deleteLessonMediaAsset(
     pdfKey?: string | null;
     bunnyVideoId?: string | null;
     bunnyCdnUrl?: string | null;
+    mediaProvider?: string | null;
   },
   type: "video" | "pdf",
   newKeyOrUrl?: string | null
@@ -190,7 +207,9 @@ export async function deleteLessonMediaAsset(
 
   if (type === "video") {
     if (lesson.videoKey && lesson.videoKey !== newKeyOrUrl) {
-      deleteOps.push(deleteR2Object(lesson.videoKey).catch(() => {}));
+      if (!isExternalVideoUrl(lesson.videoKey, lesson.mediaProvider)) {
+        deleteOps.push(deleteR2Object(lesson.videoKey).catch(() => {}));
+      }
     }
     if (lesson.bunnyVideoId && lesson.bunnyVideoId !== newKeyOrUrl) {
       const { deleteBunnyVideo } = await import("./bunny/stream");

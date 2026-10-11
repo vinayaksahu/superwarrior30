@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { ProtectedPdfViewer } from "./protected-pdf-viewer";
 import { ProtectedVideoPlayer } from "./protected-video-player";
 import { MarkdownContent } from "@/components/shared/markdown-content";
+import { isExternalVideoUrl } from "@/lib/video-utils";
 
 interface LessonContentViewerProps {
   courseSlug: string;
@@ -237,16 +238,28 @@ export function LessonContentViewer({
 
         {mediaData.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
-            <ProtectedVideoPlayer
-              lessonId={lessonId}
-              src={mediaData.signedUrl}
-              title={mediaData.title}
-              durationSec={mediaData.durationSec}
-              initialPositionSeconds={mediaData.lastPositionSeconds ?? 0}
-              initialWatchedSeconds={mediaData.watchTimeSeconds ?? 0}
-              onProgressSave={handleVideoProgressSave}
-              onEnded={handleVideoEnded}
-            />
+            isExternalVideoUrl(mediaData.signedUrl, mediaData.provider) ? (
+              <div className="relative aspect-video w-full bg-black select-none">
+                <iframe
+                  src={mediaData.signedUrl}
+                  title={mediaData.title}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <ProtectedVideoPlayer
+                lessonId={lessonId}
+                src={mediaData.signedUrl}
+                title={mediaData.title}
+                durationSec={mediaData.durationSec}
+                initialPositionSeconds={mediaData.lastPositionSeconds ?? 0}
+                initialWatchedSeconds={mediaData.watchTimeSeconds ?? 0}
+                onProgressSave={handleVideoProgressSave}
+                onEnded={handleVideoEnded}
+              />
+            )
           ) : (
             <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 text-muted-foreground p-8 text-center bg-card">
               <AlertCircle className="h-8 w-8 text-muted-foreground/50" />

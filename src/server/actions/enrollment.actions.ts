@@ -230,7 +230,12 @@ export async function getEnrolledCourseContentAction(
       activeLesson.mediaProvider === "BUNNY" ||
       Boolean(activeLesson.bunnyVideoId) ||
       Boolean(activeLesson.bunnyCdnUrl);
-    const detectedProvider = isBunny ? "BUNNY" : (activeLesson.mediaProvider || "R2");
+    const detectedProvider =
+      activeLesson.mediaProvider === "YOUTUBE" || activeLesson.mediaProvider === "EXTERNAL"
+        ? activeLesson.mediaProvider
+        : isBunny
+        ? "BUNNY"
+        : (activeLesson.mediaProvider || "R2");
 
     const activeProgress = progressMap[activeLesson.id];
 
@@ -362,7 +367,12 @@ export async function getEnrolledLessonMediaUrlAction({
     Boolean(lesson.bunnyVideoId) ||
     Boolean(lesson.bunnyCdnUrl);
 
-  const detectedProvider = isBunny ? "BUNNY" : (lesson.mediaProvider || "R2");
+  const detectedProvider =
+    lesson.mediaProvider === "YOUTUBE" || lesson.mediaProvider === "EXTERNAL"
+      ? lesson.mediaProvider
+      : isBunny
+      ? "BUNNY"
+      : (lesson.mediaProvider || "R2");
 
   return {
     lessonId: lesson.id,

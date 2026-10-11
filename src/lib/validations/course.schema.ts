@@ -60,6 +60,10 @@ export const lessonSchema = z.object({
   durationSec: z.coerce.number().int().min(0).default(0),
   isFreePreview: z.coerce.boolean().default(false),
   isPublished: z.coerce.boolean().default(true),
+  videoSourceType: z.enum(["BUNNY", "EXTERNAL"]).optional(),
+  externalVideoUrl: z.string().max(2000).optional().or(z.literal("")),
+  videoKey: z.string().optional().nullable(),
+  bunnyVideoId: z.string().optional().nullable(),
 });
 
 export const uploadSchema = z.object({

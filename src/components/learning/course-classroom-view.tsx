@@ -6,6 +6,7 @@ import { ProtectedPdfViewer } from "@/components/learning/protected-pdf-viewer";
 import { ProtectedVideoPlayer } from "@/components/learning/protected-video-player";
 import { StudentQuizView } from "@/components/learning/student-quiz-view";
 import { StudentHomeworkView } from "@/components/learning/student-homework-view";
+import { isExternalVideoUrl } from "@/lib/video-utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { getEnrolledLessonMediaUrlAction } from "@/server/actions/enrollment.actions";
 import {
@@ -704,25 +705,40 @@ export function CourseClassroomView({
           />
         ) : mediaData?.contentType === "VIDEO" ? (
           mediaData.signedUrl ? (
-            <ProtectedVideoPlayer
-              key={currentLessonId}
-              lessonId={currentLessonId}
-              src={mediaData.signedUrl}
-              title={mediaData.title}
-              durationSec={mediaData.durationSec}
-              initialPositionSeconds={
-                mediaData.lastPositionSeconds ??
-                progressMap[currentLessonId]?.lastPositionSeconds ??
-                0
-              }
-              initialWatchedSeconds={
-                mediaData.watchTimeSeconds ??
-                progressMap[currentLessonId]?.watchTimeSeconds ??
-                0
-              }
-              onProgressSave={handleVideoProgressSave}
-              onEnded={() => handleToggleComplete()}
-            />
+            isExternalVideoUrl(mediaData.signedUrl, mediaData.provider) ? (
+              <div
+                key={currentLessonId}
+                className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-border shadow-2xl select-none"
+              >
+                <iframe
+                  src={mediaData.signedUrl}
+                  title={mediaData.title}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <ProtectedVideoPlayer
+                key={currentLessonId}
+                lessonId={currentLessonId}
+                src={mediaData.signedUrl}
+                title={mediaData.title}
+                durationSec={mediaData.durationSec}
+                initialPositionSeconds={
+                  mediaData.lastPositionSeconds ??
+                  progressMap[currentLessonId]?.lastPositionSeconds ??
+                  0
+                }
+                initialWatchedSeconds={
+                  mediaData.watchTimeSeconds ??
+                  progressMap[currentLessonId]?.watchTimeSeconds ??
+                  0
+                }
+                onProgressSave={handleVideoProgressSave}
+                onEnded={() => handleToggleComplete()}
+              />
+            )
           ) : (
             <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 text-muted-foreground p-8 text-center bg-card rounded-2xl border border-border">
               <AlertCircle className="h-8 w-8 text-muted-foreground/50" />
