@@ -99,7 +99,7 @@ export function parseExternalVideo(input: string): ParsedVideoInfo {
   const ytId = extractYouTubeId(targetUrl);
   if (ytId) {
     const startTime = extractStartTime(targetUrl);
-    let embedUrl = `https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`;
+    let embedUrl = `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`;
     if (startTime && startTime > 0) {
       embedUrl += `&start=${startTime}`;
     }
