@@ -343,13 +343,9 @@ export async function getPublicLiveTradesAction({
       take: limit,
     });
 
-    if (trades.length === 0) {
-      return DEFAULT_SAMPLE_TRADES.slice(0, limit);
-    }
-
     return trades;
   } catch (error) {
     console.error("Error fetching public live trade proofs:", error);
-    return DEFAULT_SAMPLE_TRADES.slice(0, limit);
+    return [];
   }
 }
