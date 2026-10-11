@@ -15,6 +15,10 @@ const PUBLIC_ROUTES = [
   "/premium-group",
   "/sitemap.xml",
   "/robots.txt",
+  "/manifest.json",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/offline.html",
   "/pdf.min.js",
   "/pdf.worker.min.js",
 ];
@@ -30,8 +34,10 @@ const AUTH_ROUTES = [
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.includes(pathname)) return true;
-  // Allow public static assets in /public folder (e.g. .js, .css, images, fonts)
-  if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|ttf|eot|map|wasm)$/i.test(pathname)) return true;
+  // Allow .well-known (e.g. assetlinks.json)
+  if (pathname.startsWith("/.well-known/")) return true;
+  // Allow public static assets in /public folder (e.g. .js, .css, images, fonts, json, html)
+  if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|ttf|eot|map|wasm|json|webmanifest|html|txt|xml)$/i.test(pathname)) return true;
   // Allow /courses/[slug] as public
   if (pathname.startsWith("/courses/")) return true;
   // Allow /super-warrior-30 and any subpaths as public
@@ -147,6 +153,6 @@ export const config = {
      * - public assets
      * - api routes (handled separately)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|map|wasm)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|offline\\.html|manifest\\.json|manifest\\.webmanifest|\\.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|map|wasm|json|webmanifest|html|txt|xml)$).*)",
   ],
 };
