@@ -60,7 +60,7 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // Gateway form state
-  const [gatewayProvider, setGatewayProvider] = useState<"RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM">("RAZORPAY");
+  const [gatewayProvider, setGatewayProvider] = useState<"RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | "YOUPI">("RAZORPAY");
   const [gatewayMode, setGatewayMode] = useState<"TEST" | "LIVE">("TEST");
   const [showSecret, setShowSecret] = useState<boolean>(false);
   const [originUrl, setOriginUrl] = useState<string>("");
@@ -299,7 +299,12 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
     return m.type === selectedTab;
   });
 
-  const webhookUrl = `${originUrl || "https://yourdomain.com"}/api/webhooks/razorpay`;
+  const getGatewayWebhookUrl = (provider?: string) => {
+    const isYoupi = (provider || gatewayProvider) === "YOUPI";
+    return `${originUrl || "https://yourdomain.com"}/api/webhooks/${isYoupi ? "youpi" : "razorpay"}`;
+  };
+
+  const webhookUrl = getGatewayWebhookUrl();
 
   return (
     <div className="space-y-6">
@@ -648,30 +653,35 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                     </div>
                   )}
 
-                  {/* Webhook endpoint helper box */}
-                  <div className="pt-2 border-t border-border/40 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-muted-foreground font-semibold">Webhook URL:</span>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(webhookUrl, `wh_${method.id}`)}
-                        className="text-[10px] text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        {copiedId === `wh_${method.id}` ? (
-                          <>
-                            <Check className="h-2.5 w-2.5 text-emerald-400" /> Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-2.5 w-2.5" /> Copy Webhook URL
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    <p className="font-mono text-[10px] text-muted-foreground break-all bg-background/90 p-1.5 rounded border border-border/40">
-                      {webhookUrl}
-                    </p>
-                  </div>
+                    {/* Webhook endpoint helper box */}
+                    {(() => {
+                      const mWhUrl = getGatewayWebhookUrl(method.details.provider);
+                      return (
+                        <div className="pt-2 border-t border-border/40 space-y-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground font-semibold">Webhook URL:</span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(mWhUrl, `wh_${method.id}`)}
+                              className="text-[10px] text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              {copiedId === `wh_${method.id}` ? (
+                                <>
+                                  <Check className="h-2.5 w-2.5 text-emerald-400" /> Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-2.5 w-2.5" /> Copy Webhook URL
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <p className="font-mono text-[10px] text-muted-foreground break-all bg-background/90 p-1.5 rounded border border-border/40">
+                            {mWhUrl}
+                          </p>
+                        </div>
+                      );
+                    })()}
                 </div>
               )}
 
@@ -911,26 +921,27 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">
                       Choose Payment Gateway Provider *
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
-                        { id: "RAZORPAY", name: "Razorpay", desc: "Cards, UPI, NetBanking", popular: true },
+                        { id: "YOUPI", name: "⚡ YouPI PG", desc: "0% Fees, Direct UPI", popular: true },
+                        { id: "RAZORPAY", name: "Razorpay", desc: "Cards, UPI, NetBanking" },
                         { id: "PHONEPE", name: "PhonePe", desc: "UPI, Cards PG" },
                         { id: "CASHFREE", name: "Cashfree", desc: "Instant Gateway" },
                       ].map((item) => (
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => setGatewayProvider(item.id as "RAZORPAY" | "PHONEPE" | "CASHFREE")}
+                          onClick={() => setGatewayProvider(item.id as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "YOUPI")}
                           className={cn(
-                            "relative flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer",
+                            "relative flex flex-col items-start p-2.5 rounded-xl border text-left transition-all cursor-pointer",
                             gatewayProvider === item.id
                               ? "border-primary bg-primary/10 text-primary shadow-sm"
                               : "border-border bg-background/50 hover:bg-accent text-foreground"
                           )}
                         >
                           {item.popular && (
-                            <span className="absolute -top-2 right-2 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.2 rounded-full">
-                              Popular
+                            <span className="absolute -top-2 right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                              0% Fee
                             </span>
                           )}
                           <span className="font-bold text-xs">{item.name}</span>
@@ -976,77 +987,179 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                     </div>
                   </div>
 
-                  {/* Gateway Key ID */}
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                      {gatewayProvider === "RAZORPAY" ? "Razorpay Key ID *" : `${gatewayProvider} Merchant / Key ID *`}
-                    </label>
-                    <input
-                      name="keyId"
-                      type="text"
-                      required
-                      defaultValue={editingMethod?.details?.keyId || ""}
-                      placeholder={
-                        gatewayMode === "TEST"
-                          ? "e.g. rzp_test_1DP5mmOlF5G5ag"
-                          : "e.g. rzp_live_xxxxxxxxxxxxxx"
-                      }
-                      className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </div>
+                  {gatewayProvider === "YOUPI" ? (
+                    <>
+                      {/* YouPI API URL */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          YouPI Core API URL *
+                        </label>
+                        <input
+                          name="apiUrl"
+                          type="text"
+                          required
+                          defaultValue={editingMethod?.details?.apiUrl || "http://localhost:6100"}
+                          placeholder="e.g. http://localhost:6100 or https://pay.yourdomain.com"
+                          className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
+                        />
+                        <span className="text-[10px] text-muted-foreground mt-1 block">
+                          Central Payment Core service endpoint (Port 6100 or tunnel URL)
+                        </span>
+                      </div>
 
-                  {/* Gateway Key Secret */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-                        {gatewayProvider === "RAZORPAY" ? "Razorpay Key Secret *" : `${gatewayProvider} Secret / Salt Key *`}
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowSecret(!showSecret)}
-                        className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
-                      >
-                        {showSecret ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                        {showSecret ? "Hide Secret" : "Show Secret"}
-                      </button>
-                    </div>
-                    <input
-                      name="keySecret"
-                      type={showSecret ? "text" : "password"}
-                      required
-                      defaultValue={editingMethod?.details?.keySecret || ""}
-                      placeholder="e.g. 21zN8xxxxxxxxxxxxxxxxxxx"
-                      className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </div>
+                      {/* YouPI Checkout Portal Host */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          YouPI Checkout Portal Host URL *
+                        </label>
+                        <input
+                          name="checkoutUrl"
+                          type="text"
+                          required
+                          defaultValue={editingMethod?.details?.checkoutUrl || "http://localhost:7000"}
+                          placeholder="e.g. http://localhost:7000 or https://checkout.yourdomain.com"
+                          className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
+                        />
+                        <span className="text-[10px] text-muted-foreground mt-1 block">
+                          Customer-facing QR & WhatsApp checkout page host (Port 7000)
+                        </span>
+                      </div>
 
-                  {/* Optional Webhook Secret */}
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                      Webhook Secret (Optional, for asynchronous event verification)
-                    </label>
-                    <input
-                      name="webhookSecret"
-                      type="text"
-                      defaultValue={editingMethod?.details?.webhookSecret || ""}
-                      placeholder="e.g. your_webhook_secret_key"
-                      className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </div>
+                      {/* YouPI Merchant ID */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          Merchant ID (Optional UUID)
+                        </label>
+                        <input
+                          name="merchantId"
+                          type="text"
+                          defaultValue={editingMethod?.details?.merchantId || ""}
+                          placeholder="e.g. 00000000-0000-0000-0000-000000000001 (leave blank for default)"
+                          className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
 
-                  {/* Helpful Quick Guide */}
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-xs space-y-1.5">
-                    <p className="font-bold text-foreground flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      How to get Razorpay API Keys:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground text-[11px]">
-                      <li>Log in to your <strong>Razorpay Dashboard</strong> (razorpay.com).</li>
-                      <li>Go to <strong>Settings</strong> &gt; <strong>API Keys</strong> &gt; Click <strong>Generate Key</strong>.</li>
-                      <li>Copy your <strong>Key ID</strong> and <strong>Key Secret</strong> and paste them above.</li>
-                      <li>To enable webhooks, add endpoint <code className="bg-background px-1 py-0.5 rounded text-[10px] text-foreground">{webhookUrl}</code> in Settings &gt; Webhooks.</li>
-                    </ol>
-                  </div>
+                      {/* YouPI Webhook Secret */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                            Webhook HMAC-SHA256 Secret
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSecret(!showSecret)}
+                            className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+                          >
+                            {showSecret ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                            {showSecret ? "Hide Secret" : "Show Secret"}
+                          </button>
+                        </div>
+                        <input
+                          name="webhookSecret"
+                          type={showSecret ? "text" : "password"}
+                          defaultValue={editingMethod?.details?.webhookSecret || ""}
+                          placeholder="e.g. your_youpi_webhook_secret_key"
+                          className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
+                        />
+                        <span className="text-[10px] text-muted-foreground mt-1 block">
+                          Secret key used to verify authoritative server-to-server webhook callbacks
+                        </span>
+                      </div>
+
+                      {/* Helpful YouPI Guide */}
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 text-xs space-y-1.5">
+                        <p className="font-bold text-foreground flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                          ⚡ YouPI Sovereign Gateway Superpowers:
+                        </p>
+                        <ul className="list-disc list-inside space-y-0.5 text-muted-foreground text-[11px]">
+                          <li><strong>0% Platform Fees</strong>: Every rupee goes directly to your bank account.</li>
+                          <li><strong>WhatsApp OTP Pre-Auth</strong>: Verified real phone numbers, 0 fake orders.</li>
+                          <li><strong>Bank Observers</strong>: Automatic credit matching via Bank SMS & Gmail Observers.</li>
+                          <li>
+                            Webhook Callback:{" "}
+                            <code className="bg-background px-1 py-0.5 rounded text-[10px] text-foreground font-mono">
+                              {getGatewayWebhookUrl("YOUPI")}
+                            </code>
+                          </li>
+                        </ul>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Gateway Key ID */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          {gatewayProvider === "RAZORPAY" ? "Razorpay Key ID *" : `${gatewayProvider} Merchant / Key ID *`}
+                        </label>
+                        <input
+                          name="keyId"
+                          type="text"
+                          required
+                          defaultValue={editingMethod?.details?.keyId || ""}
+                          placeholder={
+                            gatewayMode === "TEST"
+                              ? "e.g. rzp_test_1DP5mmOlF5G5ag"
+                              : "e.g. rzp_live_xxxxxxxxxxxxxx"
+                          }
+                          className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Gateway Key Secret */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                            {gatewayProvider === "RAZORPAY" ? "Razorpay Key Secret *" : `${gatewayProvider} Secret / Salt Key *`}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSecret(!showSecret)}
+                            className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+                          >
+                            {showSecret ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                            {showSecret ? "Hide Secret" : "Show Secret"}
+                          </button>
+                        </div>
+                        <input
+                          name="keySecret"
+                          type={showSecret ? "text" : "password"}
+                          required
+                          defaultValue={editingMethod?.details?.keySecret || ""}
+                          placeholder="e.g. 21zN8xxxxxxxxxxxxxxxxxxx"
+                          className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Optional Webhook Secret */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          Webhook Secret (Optional, for asynchronous event verification)
+                        </label>
+                        <input
+                          name="webhookSecret"
+                          type="text"
+                          defaultValue={editingMethod?.details?.webhookSecret || ""}
+                          placeholder="e.g. your_webhook_secret_key"
+                          className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Helpful Quick Guide */}
+                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-xs space-y-1.5">
+                        <p className="font-bold text-foreground flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          How to get Razorpay API Keys:
+                        </p>
+                        <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground text-[11px]">
+                          <li>Log in to your <strong>Razorpay Dashboard</strong> (razorpay.com).</li>
+                          <li>Go to <strong>Settings</strong> &gt; <strong>API Keys</strong> &gt; Click <strong>Generate Key</strong>.</li>
+                          <li>Copy your <strong>Key ID</strong> and <strong>Key Secret</strong> and paste them above.</li>
+                          <li>To enable webhooks, add endpoint <code className="bg-background px-1 py-0.5 rounded text-[10px] text-foreground">{webhookUrl}</code> in Settings &gt; Webhooks.</li>
+                        </ol>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 

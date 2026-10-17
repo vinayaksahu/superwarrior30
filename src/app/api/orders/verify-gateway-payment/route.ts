@@ -98,6 +98,63 @@ export async function POST(req: Request) {
       });
     }
 
+    // Handle YouPI Payment Gateway
+    if (order.paymentProvider === "YOUPI") {
+      const youpiPaymentId = order.gatewayOrderId || order.paymentId;
+      if (!youpiPaymentId) {
+        return NextResponse.json(
+          { success: false, message: "Order has no associated YouPI payment ID." },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const { getYoupiPaymentStatus } = await import("@/lib/payment/youpi");
+        const statusRes = await getYoupiPaymentStatus(youpiPaymentId);
+
+        if (statusRes.status === "SUCCESS") {
+          await fulfillOrderPayment({
+            orderId: order.id,
+            provider: "YOUPI",
+            paymentId: youpiPaymentId,
+            metadata: {
+              utr: statusRes.utr,
+              amount: statusRes.amount,
+              verifiedAt: new Date().toISOString(),
+              confirmedVia: "STATUS_POLL",
+            },
+          });
+
+          if (statusRes.utr) {
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { manualPaymentRef: statusRes.utr },
+            });
+          }
+
+          const courseSlug = order.items[0]?.course?.slug;
+          return NextResponse.json({
+            success: true,
+            orderId: order.id,
+            courseSlug,
+            message: "Payment verified successfully via YouPI!",
+          });
+        } else {
+          return NextResponse.json({
+            success: false,
+            status: statusRes.status,
+            message: `Payment is currently ${statusRes.status}. Please complete payment in your UPI app.`,
+          });
+        }
+      } catch (err: unknown) {
+        console.error("YouPI verification query failed:", err);
+        return NextResponse.json(
+          { success: false, message: "Could not verify YouPI payment status yet. If you have paid, it will be confirmed automatically via webhook." },
+          { status: 400 }
+        );
+      }
+    }
+
     // SECURITY: Use server-stored Razorpay order ID for signature verification
     // NEVER trust client-supplied razorpayOrderId for HMAC verification
     const serverRazorpayOrderId = order.gatewayOrderId || order.paymentId;

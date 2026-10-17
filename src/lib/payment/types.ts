@@ -9,11 +9,12 @@ export interface CreatePaymentOrderInput {
 }
 
 export interface PaymentOrderResult {
-  provider: "RAZORPAY" | "MOCK";
+  provider: "RAZORPAY" | "MOCK" | "YOUPI";
   providerOrderId: string;
   amount: number;
   currency: string;
   keyId?: string;
+  checkoutUrl?: string;
 }
 
 export interface PaymentVerificationInput {

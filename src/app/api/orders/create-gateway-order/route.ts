@@ -7,6 +7,7 @@ import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { createRazorpayOrder, getRazorpayConfig } from "@/lib/payment/razorpay";
+import { createYoupiOrder, getYoupiConfig } from "@/lib/payment/youpi";
 import { validateAndCalculateCouponAction } from "@/server/actions/coupon.actions";
 import { getBrokerSettings } from "@/lib/broker/config";
 import { verifyBrokerMemberIdServer } from "@/lib/broker/verification";
@@ -499,7 +500,36 @@ export async function POST(req: Request) {
     const discountAmount = Math.max(0, Number((coursePrice - finalPayable).toFixed(2)));
 
     const orderNumber = generateOrderNumber();
-    const gatewayConfig = await getRazorpayConfig();
+
+    // Resolve Gateway Configuration & Provider
+    let chosenPaymentMethod = null;
+    if (paymentMethodId) {
+      chosenPaymentMethod = await prisma.systemPaymentMethod.findUnique({
+        where: { id: paymentMethodId },
+      });
+    }
+    if (!chosenPaymentMethod) {
+      chosenPaymentMethod = await prisma.systemPaymentMethod.findFirst({
+        where: { type: "GATEWAY", isActive: true },
+        orderBy: { displayOrder: "asc" },
+      });
+    }
+
+    const providerType = (
+      ((chosenPaymentMethod?.details as Record<string, any>)?.provider) ||
+      process.env.DEFAULT_PAYMENT_GATEWAY ||
+      "RAZORPAY"
+    ).toUpperCase();
+
+    const isYoupi = providerType === "YOUPI";
+    const youpiConfig = isYoupi ? await getYoupiConfig() : null;
+    const gatewayConfig = !isYoupi ? await getRazorpayConfig() : null;
+
+    const initialProvider = isYoupi
+      ? "YOUPI"
+      : gatewayConfig?.isConfigured
+      ? "RAZORPAY"
+      : "MOCK";
 
     const order = await prisma.order.create({
       data: {
@@ -512,7 +542,7 @@ export async function POST(req: Request) {
         discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
         taxAmount: new Prisma.Decimal("0.00"),
         totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
-        paymentProvider: gatewayConfig.isConfigured ? "RAZORPAY" : "MOCK",
+        paymentProvider: initialProvider,
         items: {
           create: {
             courseId: course.id,
@@ -550,15 +580,28 @@ export async function POST(req: Request) {
     }
 
     // Create provider order
-    const paymentOrder = await createRazorpayOrder({
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      amount: finalPayable,
-      currency: "INR",
-      customerEmail: user.email,
-      customerName: user.name || undefined,
-      customerPhone: user.phone || undefined,
-    });
+    let paymentOrder;
+    if (isYoupi) {
+      paymentOrder = await createYoupiOrder({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        amount: finalPayable,
+        currency: "INR",
+        customerEmail: user.email,
+        customerName: user.name || undefined,
+        customerPhone: user.phone || undefined,
+      });
+    } else {
+      paymentOrder = await createRazorpayOrder({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        amount: finalPayable,
+        currency: "INR",
+        customerEmail: user.email,
+        customerName: user.name || undefined,
+        customerPhone: user.phone || undefined,
+      });
+    }
 
     // Update order with provider order ID
     await prisma.order.update({
@@ -570,6 +613,7 @@ export async function POST(req: Request) {
           paymentMethodId,
           provider: paymentOrder.provider,
           providerOrderId: paymentOrder.providerOrderId,
+          checkoutUrl: paymentOrder.checkoutUrl,
         },
       },
     });
@@ -582,7 +626,8 @@ export async function POST(req: Request) {
       currency: "INR",
       provider: paymentOrder.provider,
       providerOrderId: paymentOrder.providerOrderId,
-      keyId: paymentOrder.keyId || gatewayConfig.keyId,
+      keyId: paymentOrder.keyId || (isYoupi ? youpiConfig?.merchantId : gatewayConfig?.keyId),
+      checkoutUrl: paymentOrder.checkoutUrl,
       customer: {
         name: user.name || "Student",
         email: user.email,

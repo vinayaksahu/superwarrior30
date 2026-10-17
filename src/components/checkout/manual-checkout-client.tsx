@@ -843,6 +843,13 @@ export function ManualCheckoutClient({
         throw new Error(data.message || "Failed to initialize payment gateway.");
       }
 
+      // Handle YouPI Sovereign Payment Gateway
+      if (data.provider === "YOUPI" && data.checkoutUrl) {
+        toast.success("Opening YouPI Sovereign UPI Checkout...");
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
       if (typeof window !== "undefined" && window.Razorpay && data.keyId) {
         const options = {
           key: data.keyId,

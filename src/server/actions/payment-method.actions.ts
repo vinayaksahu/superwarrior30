@@ -22,7 +22,7 @@ export interface PaymentMethodItem {
     network?: string;
     walletAddress?: string;
     // Gateway specific
-    provider?: "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM";
+    provider?: "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | "YOUPI";
     keyId?: string;
     keySecret?: string;
     webhookSecret?: string;
@@ -30,6 +30,8 @@ export interface PaymentMethodItem {
     merchantId?: string;
     saltKey?: string;
     saltIndex?: string;
+    apiUrl?: string;
+    checkoutUrl?: string;
   };
   instructions: string | null;
   isActive: boolean;
@@ -246,6 +248,7 @@ function sanitizePaymentMethodDetailsForClient(
       provider: details.provider,
       mode: details.mode,
       keyId: details.keyId, // Public Key ID (safe if needed for frontend SDK checkout initialization)
+      checkoutUrl: details.checkoutUrl,
       // STRICT: keySecret, webhookSecret, merchantId, saltKey, saltIndex are stripped
     };
   }
@@ -363,26 +366,39 @@ export async function createPaymentMethodAction(
   const details: Record<string, string> = {};
 
   if (type === "GATEWAY") {
-    const provider = (formData.get("provider")?.toString().trim().toUpperCase() || "RAZORPAY") as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM";
+    const provider = (formData.get("provider")?.toString().trim().toUpperCase() || "RAZORPAY") as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | "YOUPI";
     const mode = (formData.get("mode")?.toString().trim().toUpperCase() || "TEST") as "TEST" | "LIVE";
     const keyId = formData.get("keyId")?.toString().trim();
     const keySecret = formData.get("keySecret")?.toString().trim();
     const webhookSecret = formData.get("webhookSecret")?.toString().trim() || "";
     const merchantId = formData.get("merchantId")?.toString().trim() || "";
+    const apiUrl = formData.get("apiUrl")?.toString().trim() || "";
+    const checkoutUrl = formData.get("checkoutUrl")?.toString().trim() || "";
 
-    if (!keyId || keyId.length < 3) {
-      return { success: false, message: "API Key ID is required." };
-    }
-    if (!keySecret || keySecret.length < 3) {
-      return { success: false, message: "API Key Secret is required." };
-    }
+    if (provider === "YOUPI") {
+      details.provider = provider;
+      details.mode = mode;
+      details.apiUrl = apiUrl || "http://localhost:6100";
+      details.checkoutUrl = checkoutUrl || "http://localhost:7000";
+      if (merchantId) details.merchantId = merchantId;
+      if (keyId) details.keyId = keyId;
+      if (keySecret) details.keySecret = keySecret;
+      if (webhookSecret) details.webhookSecret = webhookSecret;
+    } else {
+      if (!keyId || keyId.length < 3) {
+        return { success: false, message: "API Key ID is required." };
+      }
+      if (!keySecret || keySecret.length < 3) {
+        return { success: false, message: "API Key Secret is required." };
+      }
 
-    details.provider = provider;
-    details.mode = mode;
-    details.keyId = keyId;
-    details.keySecret = keySecret;
-    if (webhookSecret) details.webhookSecret = webhookSecret;
-    if (merchantId) details.merchantId = merchantId;
+      details.provider = provider;
+      details.mode = mode;
+      details.keyId = keyId;
+      details.keySecret = keySecret;
+      if (webhookSecret) details.webhookSecret = webhookSecret;
+      if (merchantId) details.merchantId = merchantId;
+    }
   } else if (type === "UPI") {
     const upiId = formData.get("upiId")?.toString().trim();
     const payeeName = formData.get("payeeName")?.toString().trim() || title;
@@ -506,19 +522,23 @@ export async function updatePaymentMethodAction(
   const updatedDetails: Record<string, string> = { ...currentDetails };
 
   if (existing.type === "GATEWAY") {
-    const provider = formData.get("provider")?.toString().trim().toUpperCase() as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | undefined;
+    const provider = formData.get("provider")?.toString().trim().toUpperCase() as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | "YOUPI" | undefined;
     const mode = formData.get("mode")?.toString().trim().toUpperCase() as "TEST" | "LIVE" | undefined;
     const keyId = formData.get("keyId")?.toString().trim();
     const keySecret = formData.get("keySecret")?.toString().trim();
     const webhookSecret = formData.get("webhookSecret")?.toString().trim();
     const merchantId = formData.get("merchantId")?.toString().trim();
+    const apiUrl = formData.get("apiUrl")?.toString().trim();
+    const checkoutUrl = formData.get("checkoutUrl")?.toString().trim();
 
     if (provider) updatedDetails.provider = provider;
     if (mode) updatedDetails.mode = mode;
-    if (keyId) updatedDetails.keyId = keyId;
-    if (keySecret) updatedDetails.keySecret = keySecret;
+    if (keyId !== undefined) updatedDetails.keyId = keyId;
+    if (keySecret !== undefined) updatedDetails.keySecret = keySecret;
     if (webhookSecret !== undefined) updatedDetails.webhookSecret = webhookSecret;
     if (merchantId !== undefined) updatedDetails.merchantId = merchantId;
+    if (apiUrl !== undefined) updatedDetails.apiUrl = apiUrl;
+    if (checkoutUrl !== undefined) updatedDetails.checkoutUrl = checkoutUrl;
   } else if (existing.type === "UPI") {
     const upiId = formData.get("upiId")?.toString().trim() || currentDetails.upiId;
     const payeeName = formData.get("payeeName")?.toString().trim() || currentDetails.payeeName;
