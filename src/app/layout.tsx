@@ -7,6 +7,8 @@ import { GlobalFloatingLanguageWidget } from "@/components/shared/global-floatin
 import { SessionGuard } from "@/components/auth/session-guard";
 import { MaintenanceGuard } from "@/components/shared/maintenance-guard";
 import { PwaRegister } from "@/components/shared/pwa-register";
+import { Suspense } from "react";
+import { RouteProgressBar } from "@/components/shared/route-progress-bar";
 import "./globals.css";
 
 const inter = Inter({
@@ -67,6 +69,9 @@ export default function RootLayout({
           enableSystem={true}
           disableTransitionOnChange={false}
         >
+          <Suspense fallback={null}>
+            <RouteProgressBar />
+          </Suspense>
           <LanguageProvider>
             <MaintenanceGuard>
               {children}

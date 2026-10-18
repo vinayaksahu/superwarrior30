@@ -175,3 +175,30 @@ body {
   border: 0 !important;
 }
 
+/* ==========================================================================
+   Instant Button & Touch Response Optimizations (Zero Input Lag)
+   ========================================================================== */
+html,
+body,
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation; /* Eliminates 300ms tap delay on mobile & touch displays */
+}
+
+/* 0ms tactile click/tap response across all portal buttons */
+button:active:not(:disabled),
+a[role="button"]:active,
+[role="tab"]:active,
+.btn:active {
+  transform: scale(0.97);
+  transition: transform 0.05s ease-out;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+

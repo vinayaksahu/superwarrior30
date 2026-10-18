@@ -153,6 +153,6 @@ export const config = {
      * - public assets
      * - api routes (handled separately)
      */
-    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|offline\\.html|manifest\\.json|manifest\\.webmanifest|\\.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|map|wasm|json|webmanifest|html|txt|xml)$).*)",
+    "/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|sw\\.js|offline\\.html|manifest\\.json|manifest\\.webmanifest|\\.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|map|wasm|json|webmanifest|html|txt|xml)$).*)",
   ],
 };
