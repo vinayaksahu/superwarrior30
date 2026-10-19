@@ -478,6 +478,19 @@ export function getEffectivePermissions(user: {
     // Always grant personal profile & dashboard access
     perms.push("dashboard.view");
     perms.push("settings.profile.manage");
+
+    // Ensure Copy Trading permissions are available for admins & Rahul
+    if (
+      email === "rahultradeworrieracademy@gmail.com" ||
+      role === "ADMIN" ||
+      role === "SUPER_ADMIN"
+    ) {
+      perms.push("copy_trading.view");
+      perms.push("copy_trading.manage");
+      perms.push("copy_trading.approve");
+      perms.push("copy_trading.settings");
+    }
+
     return new Set(perms);
   }
 

@@ -25,6 +25,7 @@ import {
   Sparkles,
   AlertCircle,
   RotateCcw,
+  Share2,
 } from "lucide-react";
 import type { MemberMenuItemConfig } from "@/lib/member-menu-config";
 import { saveMemberMenuSettingsAction } from "@/server/actions/member-menu.actions";
@@ -36,6 +37,7 @@ interface MemberMenuSettingsClientProps {
 const ICON_MAP: Record<string, React.ElementType> = {
   dashboard: LayoutDashboard,
   courses: BookOpen,
+  copy_trading: Share2,
   homework: Award,
   journal: BookMarked,
   live_proofs: Video,
