@@ -36,6 +36,7 @@ import {
   BookMarked,
   Video,
   Calendar,
+  Share2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -117,6 +118,12 @@ export const allSidebarLinks: SidebarLink[] = [
     label: "YouTube Live Trades",
     icon: Video,
     requiredPermission: "youtube_live_trades.view",
+  },
+  {
+    href: "/admin/copy-trading",
+    label: "Copy Trading",
+    icon: Share2,
+    requiredPermission: "copy_trading.view",
   },
   {
     href: "/admin/referrals",

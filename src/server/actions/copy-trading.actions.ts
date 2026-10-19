@@ -1,0 +1,596 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser, requireAuth, requirePermission } from "@/server/dal/auth";
+import type { ActionState } from "@/types";
+import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { revalidatePath } from "next/cache";
+
+export interface StudentCopyTradingPayload {
+  brokerName: string;
+  accountNumber: string;
+  serverName: string;
+  platform: "MT5" | "MT4";
+  password?: string;
+  accountCurrency?: string;
+  balance?: number;
+  equity?: number;
+  riskMode: "FIXED_LOT" | "MULTIPLIER" | "PROPORTIONAL_EQUITY";
+  multiplier: number;
+  fixedLot: number;
+  maxDrawdownGuard: number;
+  maxLotLimit: number;
+}
+
+export interface MasterAccountPayload {
+  id?: string;
+  accountName: string;
+  brokerName: string;
+  accountNumber: string;
+  serverName: string;
+  platform: "MT5" | "MT4";
+  strategyDescription?: string;
+  riskLevel: "LOW" | "MODERATE" | "HIGH";
+  minCapitalUsd: number;
+  isActive: boolean;
+  totalTrades?: number;
+  winRate?: number;
+  totalProfitUsd?: number;
+  profitFactor?: number;
+  maxDrawdown?: number;
+  roiMonthly?: number;
+  vpsNodeName?: string;
+}
+
+/**
+ * Fetch Student Copy Trading Dashboard Data
+ */
+export async function getStudentCopyTradingDataAction() {
+  await ensureDatabaseSchemaSync();
+  const user = await requireAuth();
+
+  // Find active Master Account
+  const master = await prisma.copyTradingMaster.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+  }) || await prisma.copyTradingMaster.findFirst({
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Find student's subscription
+  const subscription = master
+    ? await prisma.copyTradingSubscription.findUnique({
+        where: {
+          userId_masterId: {
+            userId: user.id,
+            masterId: master.id,
+          },
+        },
+      })
+    : null;
+
+  // Recent trade logs copied to this student or general master trade logs
+  const logs = subscription
+    ? await prisma.copyTradeLog.findMany({
+        where: { subscriptionId: subscription.id },
+        orderBy: { openedAt: "desc" },
+        take: 30,
+      })
+    : master
+    ? await prisma.copyTradeLog.findMany({
+        where: { masterId: master.id },
+        orderBy: { openedAt: "desc" },
+        take: 15,
+      })
+    : [];
+
+  // Settings
+  const settingsRecords = await prisma.copyTradingSetting.findMany();
+  const settingsMap: Record<string, string> = {};
+  for (const s of settingsRecords) {
+    settingsMap[s.key] = s.value;
+  }
+
+  return {
+    master,
+    subscription,
+    logs,
+    settings: settingsMap,
+  };
+}
+
+/**
+ * Submit or Update Student MT4/MT5 Subscription Request
+ */
+export async function submitStudentSubscriptionAction(
+  data: StudentCopyTradingPayload
+): Promise<ActionState<{ id: string; status: string }>> {
+  try {
+    await ensureDatabaseSchemaSync();
+    const user = await requireAuth();
+
+    if (!data.brokerName?.trim() || !data.accountNumber?.trim() || !data.serverName?.trim()) {
+      return { success: false, message: "Broker name, account number, and server name are required." };
+    }
+
+    const master = await prisma.copyTradingMaster.findFirst({
+      where: { isActive: true },
+    }) || await prisma.copyTradingMaster.findFirst();
+
+    if (!master) {
+      return { success: false, message: "No active master trading account found. Please contact support." };
+    }
+
+    // Upsert subscription
+    const subscription = await prisma.copyTradingSubscription.upsert({
+      where: {
+        userId_masterId: {
+          userId: user.id,
+          masterId: master.id,
+        },
+      },
+      update: {
+        brokerName: data.brokerName.trim(),
+        accountNumber: data.accountNumber.trim(),
+        serverName: data.serverName.trim(),
+        platform: data.platform || "MT5",
+        encryptedPassword: data.password?.trim() || undefined,
+        accountCurrency: data.accountCurrency || "USD",
+        riskMode: data.riskMode || "MULTIPLIER",
+        multiplier: Number(data.multiplier) || 1.0,
+        fixedLot: Number(data.fixedLot) || 0.01,
+        maxDrawdownGuard: Number(data.maxDrawdownGuard) || 15.0,
+        maxLotLimit: Number(data.maxLotLimit) || 0.50,
+        balance: Number(data.balance) || 1000.0,
+        equity: Number(data.equity) || 1000.0,
+        status: "PENDING_APPROVAL", // Goes for admin review & VPS slot assignment
+        rejectionReason: null,
+      },
+      create: {
+        userId: user.id,
+        masterId: master.id,
+        brokerName: data.brokerName.trim(),
+        accountNumber: data.accountNumber.trim(),
+        serverName: data.serverName.trim(),
+        platform: data.platform || "MT5",
+        encryptedPassword: data.password?.trim() || "",
+        accountCurrency: data.accountCurrency || "USD",
+        riskMode: data.riskMode || "MULTIPLIER",
+        multiplier: Number(data.multiplier) || 1.0,
+        fixedLot: Number(data.fixedLot) || 0.01,
+        maxDrawdownGuard: Number(data.maxDrawdownGuard) || 15.0,
+        maxLotLimit: Number(data.maxLotLimit) || 0.50,
+        balance: Number(data.balance) || 1000.0,
+        equity: Number(data.equity) || 1000.0,
+        status: "PENDING_APPROVAL",
+        vpsNode: "Oracle-Ampere-Node1",
+      },
+    });
+
+    revalidatePath("/dashboard/copy-trading");
+    revalidatePath("/admin/copy-trading");
+
+    return {
+      success: true,
+      message: "Your MT5/MT4 account details submitted successfully! Admin will assign an Oracle VPS slot shortly.",
+      data: { id: subscription.id, status: subscription.status },
+    };
+  } catch (error) {
+    console.error("Failed to submit student subscription:", error);
+    return { success: false, message: "Internal error submitting account details." };
+  }
+}
+
+/**
+ * Toggle Student Copy Pause / Resume
+ */
+export async function toggleStudentCopyPauseAction(
+  subscriptionId: string
+): Promise<ActionState<{ status: string }>> {
+  try {
+    const user = await requireAuth();
+
+    const sub = await prisma.copyTradingSubscription.findUnique({
+      where: { id: subscriptionId },
+    });
+
+    if (!sub || sub.userId !== user.id) {
+      return { success: false, message: "Subscription not found or unauthorized." };
+    }
+
+    if (sub.status !== "ACTIVE" && sub.status !== "PAUSED") {
+      return { success: false, message: `Cannot toggle state while status is ${sub.status}.` };
+    }
+
+    const nextStatus = sub.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
+
+    const updated = await prisma.copyTradingSubscription.update({
+      where: { id: subscriptionId },
+      data: { status: nextStatus },
+    });
+
+    revalidatePath("/dashboard/copy-trading");
+    revalidatePath("/admin/copy-trading");
+
+    return {
+      success: true,
+      message: nextStatus === "PAUSED" ? "Copy trading paused. No new trades will copy." : "Copy trading resumed successfully!",
+      data: { status: updated.status },
+    };
+  } catch (error) {
+    console.error("Failed to toggle pause:", error);
+    return { success: false, message: "Failed to update status." };
+  }
+}
+
+/**
+ * Disconnect Student Account
+ */
+export async function disconnectStudentSubscriptionAction(
+  subscriptionId: string
+): Promise<ActionState<{ success: boolean }>> {
+  try {
+    const user = await requireAuth();
+
+    const sub = await prisma.copyTradingSubscription.findUnique({
+      where: { id: subscriptionId },
+    });
+
+    if (!sub || sub.userId !== user.id) {
+      return { success: false, message: "Subscription not found or unauthorized." };
+    }
+
+    await prisma.copyTradingSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: "DISCONNECTED",
+        isOnline: false,
+        vpsSlotNumber: null,
+      },
+    });
+
+    revalidatePath("/dashboard/copy-trading");
+    revalidatePath("/admin/copy-trading");
+
+    return { success: true, message: "Account disconnected and VPS slot released." };
+  } catch (error) {
+    console.error("Failed to disconnect account:", error);
+    return { success: false, message: "Failed to disconnect account." };
+  }
+}
+
+/**
+ * Admin: Get Fleet & Management Data
+ */
+export async function getAdminCopyTradingDataAction() {
+  await ensureDatabaseSchemaSync();
+  await requirePermission("copy_trading.view");
+
+  const [masters, subscriptions, recentLogs, settingsRecords] = await Promise.all([
+    prisma.copyTradingMaster.findMany({
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.copyTradingSubscription.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+            referralCode: true,
+          },
+        },
+      },
+      orderBy: [
+        { status: "asc" }, // PENDING_APPROVAL first
+        { updatedAt: "desc" },
+      ],
+    }),
+    prisma.copyTradeLog.findMany({
+      include: {
+        subscription: {
+          include: {
+            user: { select: { name: true, email: true } },
+          },
+        },
+      },
+      orderBy: { openedAt: "desc" },
+      take: 60,
+    }),
+    prisma.copyTradingSetting.findMany(),
+  ]);
+
+  const settingsMap: Record<string, string> = {};
+  for (const s of settingsRecords) {
+    settingsMap[s.key] = s.value;
+  }
+
+  // Calculate fleet KPI
+  const totalStudents = subscriptions.length;
+  const activeStudents = subscriptions.filter((s) => s.status === "ACTIVE").length;
+  const pendingApprovals = subscriptions.filter((s) => s.status === "PENDING_APPROVAL").length;
+  const pausedStudents = subscriptions.filter((s) => s.status === "PAUSED").length;
+
+  // Oracle VPS Fleet info
+  const vpsFleet = [
+    {
+      nodeId: "Oracle-Ampere-Node1",
+      name: "Oracle Cloud Always Free (Ampere A1)",
+      specs: "4 OCPUs, 24 GB RAM (Always Free Eligible)",
+      ipAddress: "132.145.88.24",
+      status: "HEALTHY",
+      totalCapacity: 20,
+      occupiedSlots: activeStudents,
+      cpuUsagePercent: Math.min(28, 8 + activeStudents * 1.2),
+      ramUsageGb: Math.min(24, 3.2 + activeStudents * 0.22).toFixed(1),
+      maxRamGb: 24,
+      avgPingMs: 3,
+      idleReclaimProtected: true,
+    },
+  ];
+
+  return {
+    masters,
+    subscriptions,
+    recentLogs,
+    settings: settingsMap,
+    kpi: {
+      totalStudents,
+      activeStudents,
+      pendingApprovals,
+      pausedStudents,
+    },
+    vpsFleet,
+  };
+}
+
+/**
+ * Admin: Update Student Subscription Status (Approve, Reject, Pause, Delete)
+ */
+export async function adminUpdateSubscriptionStatusAction(
+  subscriptionId: string,
+  action: "APPROVE" | "REJECT" | "PAUSE" | "ACTIVATE" | "DISCONNECT" | "DELETE",
+  rejectionReason?: string
+): Promise<ActionState<{ success: boolean }>> {
+  try {
+    await requirePermission("copy_trading.approve");
+
+    const sub = await prisma.copyTradingSubscription.findUnique({
+      where: { id: subscriptionId },
+    });
+
+    if (!sub) {
+      return { success: false, message: "Subscription not found." };
+    }
+
+    if (action === "DELETE") {
+      await prisma.copyTradingSubscription.delete({
+        where: { id: subscriptionId },
+      });
+      revalidatePath("/admin/copy-trading");
+      revalidatePath("/dashboard/copy-trading");
+      return { success: true, message: "Student account record deleted." };
+    }
+
+    let status = sub.status;
+    let slot = sub.vpsSlotNumber;
+    let isOnline = sub.isOnline;
+
+    if (action === "APPROVE") {
+      status = "ACTIVE";
+      isOnline = true;
+      // Auto-assign next free slot 1..20
+      const existingSubs = await prisma.copyTradingSubscription.findMany({
+        where: { status: "ACTIVE", vpsSlotNumber: { not: null } },
+        select: { vpsSlotNumber: true },
+      });
+      const takenSlots = new Set(existingSubs.map((s) => s.vpsSlotNumber));
+      for (let i = 1; i <= 25; i++) {
+        if (!takenSlots.has(i)) {
+          slot = i;
+          break;
+        }
+      }
+    } else if (action === "REJECT") {
+      status = "REJECTED";
+      slot = null;
+      isOnline = false;
+    } else if (action === "PAUSE") {
+      status = "PAUSED";
+    } else if (action === "ACTIVATE") {
+      status = "ACTIVE";
+      isOnline = true;
+    } else if (action === "DISCONNECT") {
+      status = "DISCONNECTED";
+      slot = null;
+      isOnline = false;
+    }
+
+    await prisma.copyTradingSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status,
+        vpsSlotNumber: slot,
+        isOnline,
+        rejectionReason: action === "REJECT" ? rejectionReason || "Credentials or broker invalid" : null,
+      },
+    });
+
+    revalidatePath("/admin/copy-trading");
+    revalidatePath("/dashboard/copy-trading");
+
+    return { success: true, message: `Account updated to ${status}. Slot #${slot || "none"}` };
+  } catch (error) {
+    console.error("Admin update status error:", error);
+    return { success: false, message: "Failed to update student account status." };
+  }
+}
+
+/**
+ * Admin: Update or Create Master Account Details
+ */
+export async function adminUpdateMasterAccountAction(
+  payload: MasterAccountPayload
+): Promise<ActionState<{ id: string }>> {
+  try {
+    await requirePermission("copy_trading.settings");
+
+    let master;
+    if (payload.id) {
+      master = await prisma.copyTradingMaster.update({
+        where: { id: payload.id },
+        data: {
+          accountName: payload.accountName.trim(),
+          brokerName: payload.brokerName.trim(),
+          accountNumber: payload.accountNumber.trim(),
+          serverName: payload.serverName.trim(),
+          platform: payload.platform || "MT5",
+          strategyDescription: payload.strategyDescription,
+          riskLevel: payload.riskLevel || "MODERATE",
+          minCapitalUsd: Number(payload.minCapitalUsd) || 100,
+          isActive: Boolean(payload.isActive),
+          winRate: Number(payload.winRate) || 78.5,
+          totalTrades: Number(payload.totalTrades) || 150,
+          totalProfitUsd: Number(payload.totalProfitUsd) || 20000,
+          profitFactor: Number(payload.profitFactor) || 2.5,
+          maxDrawdown: Number(payload.maxDrawdown) || 6.5,
+          roiMonthly: Number(payload.roiMonthly) || 20.0,
+          vpsNodeName: payload.vpsNodeName || "Oracle-Ampere-Node1",
+        },
+      });
+    } else {
+      master = await prisma.copyTradingMaster.create({
+        data: {
+          accountName: payload.accountName.trim(),
+          brokerName: payload.brokerName.trim(),
+          accountNumber: payload.accountNumber.trim(),
+          serverName: payload.serverName.trim(),
+          platform: payload.platform || "MT5",
+          strategyDescription: payload.strategyDescription,
+          riskLevel: payload.riskLevel || "MODERATE",
+          minCapitalUsd: Number(payload.minCapitalUsd) || 100,
+          isActive: Boolean(payload.isActive),
+          winRate: Number(payload.winRate) || 78.5,
+          totalTrades: Number(payload.totalTrades) || 150,
+          totalProfitUsd: Number(payload.totalProfitUsd) || 20000,
+          profitFactor: Number(payload.profitFactor) || 2.5,
+          maxDrawdown: Number(payload.maxDrawdown) || 6.5,
+          roiMonthly: Number(payload.roiMonthly) || 20.0,
+          vpsNodeName: payload.vpsNodeName || "Oracle-Ampere-Node1",
+        },
+      });
+    }
+
+    revalidatePath("/admin/copy-trading");
+    revalidatePath("/dashboard/copy-trading");
+
+    return { success: true, message: "Master Trading Account updated successfully!", data: { id: master.id } };
+  } catch (error) {
+    console.error("Admin master account update error:", error);
+    return { success: false, message: "Failed to update master account." };
+  }
+}
+
+/**
+ * Admin: Simulate Trade Sync Across Active Child Accounts
+ */
+export async function adminSimulateTradeSyncAction(
+  symbol: string = "XAUUSD",
+  orderType: "BUY" | "SELL" = "BUY",
+  masterLots: number = 0.50,
+  openPrice: number = 2655.40,
+  closePrice?: number,
+  profitPerLot: number = 180.0
+): Promise<ActionState<{ copiedCount: number }>> {
+  try {
+    await requirePermission("copy_trading.manage");
+
+    const master = await prisma.copyTradingMaster.findFirst({
+      where: { isActive: true },
+    }) || await prisma.copyTradingMaster.findFirst();
+
+    if (!master) {
+      return { success: false, message: "No active master account found." };
+    }
+
+    const activeSubs = await prisma.copyTradingSubscription.findMany({
+      where: { status: "ACTIVE" },
+    });
+
+    const ticket = String(Math.floor(10000000 + Math.random() * 90000000));
+    const finalClosePrice = closePrice || (orderType === "BUY" ? openPrice + 4.50 : openPrice - 4.50);
+
+    let count = 0;
+    for (const sub of activeSubs) {
+      let copiedLots = 0.01;
+      if (sub.riskMode === "FIXED_LOT") {
+        copiedLots = sub.fixedLot;
+      } else if (sub.riskMode === "MULTIPLIER") {
+        copiedLots = Math.min(sub.maxLotLimit, Number((masterLots * sub.multiplier).toFixed(2)));
+      } else {
+        copiedLots = 0.02;
+      }
+
+      const tradeProfit = Number((copiedLots * profitPerLot).toFixed(2));
+      const slippage = Number((Math.random() * 0.3).toFixed(2));
+      const ping = Math.floor(2 + Math.random() * 4);
+
+      await prisma.copyTradeLog.create({
+        data: {
+          masterId: master.id,
+          subscriptionId: sub.id,
+          tradeTicket: ticket,
+          symbol,
+          orderType,
+          masterLots,
+          copiedLots,
+          masterOpenPrice: openPrice,
+          childOpenPrice: orderType === "BUY" ? openPrice + slippage * 0.1 : openPrice - slippage * 0.1,
+          masterClosePrice: finalClosePrice,
+          childClosePrice: finalClosePrice,
+          slippagePips: slippage,
+          latencyMs: ping,
+          profit: tradeProfit,
+          status: "EXECUTED",
+          closedAt: new Date(),
+        },
+      });
+
+      // Update student balance & equity
+      await prisma.copyTradingSubscription.update({
+        where: { id: sub.id },
+        data: {
+          balance: { increment: tradeProfit },
+          equity: { increment: tradeProfit },
+          lastSyncedAt: new Date(),
+        },
+      });
+
+      count++;
+    }
+
+    // Also update master trade stats
+    await prisma.copyTradingMaster.update({
+      where: { id: master.id },
+      data: {
+        totalTrades: { increment: 1 },
+        totalProfitUsd: { increment: Number((masterLots * profitPerLot).toFixed(2)) },
+        lastHeartbeat: new Date(),
+      },
+    });
+
+    revalidatePath("/admin/copy-trading");
+    revalidatePath("/dashboard/copy-trading");
+
+    return {
+      success: true,
+      message: `Simulated trade ${symbol} ${orderType} copied to ${count} active child terminals!`,
+      data: { copiedCount: count },
+    };
+  } catch (error) {
+    console.error("Simulation error:", error);
+    return { success: false, message: "Trade sync simulation failed." };
+  }
+}

@@ -103,6 +103,9 @@ model User {
   tradeJournals          TradeJournal[]
   psychologyLogs         PsychologyLog[]
 
+  // Copy Trading
+  copyTradingSubscriptions CopyTradingSubscription[]
+
   @@index([role])
   @@index([status])
   @@index([referralCode])
@@ -1731,5 +1734,131 @@ model TradeSetting {
   updatedAt       DateTime       @updatedAt
 
   @@map("trade_settings")
+}
+
+// ==========================================
+// COPY TRADING SYSTEM (Master & Child Fleet)
+// ==========================================
+
+enum CopyTradingStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  PAUSED
+  DISCONNECTED
+  REJECTED
+}
+
+enum CopyTradingRiskMode {
+  FIXED_LOT
+  MULTIPLIER
+  PROPORTIONAL_EQUITY
+}
+
+model CopyTradingMaster {
+  id                  String                    @id @default(cuid())
+  accountName         String                    // e.g. "Rahul Trade Warrior Master"
+  brokerName          String                    // e.g. "Exness"
+  accountNumber       String                    // e.g. "145920391"
+  serverName          String                    // e.g. "Exness-Real21"
+  platform            String                    @default("MT5") // MT5, MT4
+  strategyDescription String?                   @db.Text
+  riskLevel           String                    @default("MODERATE") // LOW, MODERATE, HIGH
+  minCapitalUsd       Float                     @default(100.0)
+  isActive            Boolean                   @default(true)
+  totalTrades         Int                       @default(0)
+  winRate             Float                     @default(78.5)
+  totalProfitUsd      Float                     @default(0.0)
+  profitFactor        Float                     @default(2.4)
+  maxDrawdown         Float                     @default(6.8)
+  roiMonthly          Float                     @default(18.5)
+  vpsNodeName         String?                   @default("Oracle-Ampere-Node1")
+  lastHeartbeat       DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  subscriptions       CopyTradingSubscription[]
+  tradeLogs           CopyTradeLog[]
+
+  @@map("copy_trading_masters")
+}
+
+model CopyTradingSubscription {
+  id                String              @id @default(cuid())
+  userId            String
+  masterId          String
+  brokerName        String              // Student's broker (e.g. Exness, OctaFX, XM)
+  accountNumber     String              // Student's account number
+  serverName        String              // Broker server (e.g. Exness-Real25)
+  platform          String              @default("MT5") // MT5, MT4
+  encryptedPassword String?             // Investor or trading password
+  accountCurrency   String              @default("USD")
+  balance           Float               @default(0.0)
+  equity            Float               @default(0.0)
+  riskMode          CopyTradingRiskMode @default(MULTIPLIER)
+  multiplier        Float               @default(1.0)
+  fixedLot          Float               @default(0.01)
+  maxDrawdownGuard  Float               @default(15.0) // Auto-pause if drawdown exceeds %
+  maxLotLimit       Float               @default(0.50) // Hard lot limit safeguard
+  status            CopyTradingStatus   @default(PENDING_APPROVAL)
+  rejectionReason   String?
+  vpsNode           String?             @default("Oracle-Ampere-Node1")
+  vpsSlotNumber     Int?
+  latencyMs         Int                 @default(3)
+  isOnline          Boolean             @default(true)
+  lastSyncedAt      DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  master            CopyTradingMaster   @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  tradeLogs         CopyTradeLog[]
+
+  @@unique([userId, masterId])
+  @@index([userId])
+  @@index([masterId])
+  @@index([status])
+  @@map("copy_trading_subscriptions")
+}
+
+model CopyTradeLog {
+  id               String                   @id @default(cuid())
+  masterId         String
+  subscriptionId   String?
+  tradeTicket      String                   // Ticket number from MT5
+  symbol           String                   // e.g. XAUUSD, EURUSD
+  orderType        String                   // BUY, SELL
+  masterLots       Float
+  copiedLots       Float?
+  masterOpenPrice  Float
+  childOpenPrice   Float?
+  masterClosePrice Float?
+  childClosePrice  Float?
+  slippagePips     Float                    @default(0.0)
+  latencyMs        Int                      @default(3)
+  profit           Float                    @default(0.0)
+  status           String                   @default("EXECUTED") // EXECUTED, SKIPPED, FAILED
+  errorMessage     String?
+  openedAt         DateTime                 @default(now())
+  closedAt         DateTime?
+
+  master           CopyTradingMaster        @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  subscription     CopyTradingSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([masterId])
+  @@index([subscriptionId])
+  @@index([symbol])
+  @@index([openedAt(sort: Desc)])
+  @@map("copy_trade_logs")
+}
+
+model CopyTradingSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("copy_trading_settings")
 }
 

@@ -23,6 +23,7 @@ import {
   Gift,
   Users,
   Award,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -44,6 +45,7 @@ interface StudentHeaderProps {
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/courses", label: "My Courses", icon: BookOpen },
+  { href: "/dashboard/copy-trading", label: "Copy Trading", icon: Share2 },
   { href: "/dashboard/homework", label: "Homework", icon: Award },
   { href: "/dashboard/journal", label: "Trading Journal", icon: BookMarked },
   { href: "/dashboard/live-proofs", label: "YouTube Live Trades", icon: Video },

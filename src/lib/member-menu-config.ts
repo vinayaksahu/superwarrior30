@@ -36,6 +36,13 @@ export const DEFAULT_MEMBER_MENU_ITEMS: MemberMenuItemConfig[] = [
     description: "Personal trade logging, analytics, and screenshots",
   },
   {
+    key: "copy_trading",
+    label: "Copy Trading",
+    href: "/dashboard/copy-trading",
+    isEnabled: true,
+    description: "Automated MT5 copy trading, master trader syncing, and live execution logs",
+  },
+  {
     key: "live_proofs",
     label: "YouTube Live Trades",
     href: "/dashboard/live-proofs",
