@@ -31,6 +31,7 @@ import {
   adminUpdateSubscriptionStatusAction,
   adminUpdateMasterAccountAction,
   adminSimulateTradeSyncAction,
+  refreshAdminCopyTradingDataAction,
   MasterAccountPayload,
 } from "@/server/actions/copy-trading.actions";
 
@@ -160,6 +161,8 @@ export function AdminCopyTradingClient({
   // Action Loading
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
 
   // Master Edit Form State
   const activeMaster = masters[0] || null;
@@ -267,6 +270,23 @@ export function AdminCopyTradingClient({
     }
   };
 
+  const handleRefreshStatus = async () => {
+    try {
+      setIsRefreshing(true);
+      const freshData = await refreshAdminCopyTradingDataAction();
+      setMasters(freshData.masters as any);
+      setSubscriptions(freshData.subscriptions as any);
+      setLogs(freshData.recentLogs as any);
+      setKpi(freshData.kpi);
+      setLastRefreshedAt(freshData.refreshedAt);
+      toast.success("Fleet status refreshed from database!");
+    } catch {
+      toast.error("Failed to refresh fleet status.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const filteredSubscriptions = subscriptions.filter((sub) => {
     if (statusFilter !== "ALL" && sub.status !== statusFilter) return false;
     if (searchQuery.trim()) {
@@ -300,8 +320,17 @@ export function AdminCopyTradingClient({
           </p>
         </div>
 
-        {/* Global Master Status Pill */}
+        {/* Global Master Status Pill + Refresh Button */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefreshStatus}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+            title="Fetch latest VPS & fleet data from database"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+            {isRefreshing ? "Refreshing..." : "Refresh Live Status"}
+          </button>
           <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="font-semibold text-foreground">Master:</span>
@@ -309,6 +338,14 @@ export function AdminCopyTradingClient({
           </div>
         </div>
       </div>
+
+      {/* Last Refreshed Timestamp */}
+      {lastRefreshedAt && (
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          <span>Last refreshed: {new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+        </div>
+      )}
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

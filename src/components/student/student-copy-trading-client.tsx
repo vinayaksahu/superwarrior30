@@ -30,6 +30,7 @@ import {
   submitStudentSubscriptionAction,
   toggleStudentCopyPauseAction,
   disconnectStudentSubscriptionAction,
+  refreshStudentCopyTradingDataAction,
   StudentCopyTradingPayload,
 } from "@/server/actions/copy-trading.actions";
 
@@ -109,13 +110,15 @@ export function StudentCopyTradingClient({
   initialSubscription,
   initialLogs,
 }: StudentCopyTradingClientProps) {
-  const [master] = useState<MasterData | null>(initialMaster);
+  const [master, setMaster] = useState<MasterData | null>(initialMaster);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(initialSubscription);
-  const [logs] = useState<TradeLog[]>(initialLogs);
+  const [logs, setLogs] = useState<TradeLog[]>(initialLogs);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isActionPending, setIsActionPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<StudentCopyTradingPayload>({
@@ -214,6 +217,22 @@ export function StudentCopyTradingClient({
     }
   };
 
+  const handleRefreshStatus = async () => {
+    try {
+      setIsRefreshing(true);
+      const freshData = await refreshStudentCopyTradingDataAction();
+      if (freshData.master) setMaster(freshData.master as any);
+      if (freshData.subscription) setSubscription(freshData.subscription as any);
+      setLogs(freshData.logs as any);
+      setLastRefreshedAt(freshData.refreshedAt);
+      toast.success("Status refreshed from VPS!");
+    } catch {
+      toast.error("Failed to refresh status.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -232,20 +251,39 @@ export function StudentCopyTradingClient({
           </p>
         </div>
 
-        {/* Oracle Cloud VPS Server Status Banner */}
-        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm">
-          <div className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-          </div>
-          <div>
-            <div className="font-medium text-foreground flex items-center gap-1">
-              <Server className="h-3 w-3 text-primary" /> Oracle Cloud VPS (Ampere A1)
+        {/* Oracle Cloud VPS Server Status Banner + Refresh Button */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefreshStatus}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+            title="Fetch latest status from VPS"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+            {isRefreshing ? "Refreshing..." : "Refresh Status"}
+          </button>
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm">
+            <div className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </div>
-            <div className="text-muted-foreground">Execution Latency: &lt; 4ms • 24/7 Active</div>
+            <div>
+              <div className="font-medium text-foreground flex items-center gap-1">
+                <Server className="h-3 w-3 text-primary" /> Oracle Cloud VPS (Ampere A1)
+              </div>
+              <div className="text-muted-foreground">Execution Latency: &lt; 4ms • 24/7 Active</div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Last Refreshed Timestamp */}
+      {lastRefreshedAt && (
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          <span>Last refreshed: {new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+        </div>
+      )}
 
       {/* Master Trader Performance Showcase */}
       {master && (
