@@ -141,8 +141,8 @@ export async function submitStudentSubscriptionAction(
         fixedLot: Number(data.fixedLot) || 0.01,
         maxDrawdownGuard: Number(data.maxDrawdownGuard) || 15.0,
         maxLotLimit: Number(data.maxLotLimit) || 0.50,
-        balance: Number(data.balance) || 1000.0,
-        equity: Number(data.equity) || 1000.0,
+        balance: Number(data.balance) > 0 ? Number(data.balance) : 1000.0,
+        equity: Number(data.equity) > 0 ? Number(data.equity) : (Number(data.balance) > 0 ? Number(data.balance) : 1000.0),
         status: "PENDING_APPROVAL", // Goes for admin review & VPS slot assignment
         rejectionReason: null,
       },
@@ -160,10 +160,10 @@ export async function submitStudentSubscriptionAction(
         fixedLot: Number(data.fixedLot) || 0.01,
         maxDrawdownGuard: Number(data.maxDrawdownGuard) || 15.0,
         maxLotLimit: Number(data.maxLotLimit) || 0.50,
-        balance: Number(data.balance) || 1000.0,
-        equity: Number(data.equity) || 1000.0,
+        balance: Number(data.balance) > 0 ? Number(data.balance) : 1000.0,
+        equity: Number(data.equity) > 0 ? Number(data.equity) : (Number(data.balance) > 0 ? Number(data.balance) : 1000.0),
         status: "PENDING_APPROVAL",
-        vpsNode: "Oracle-Ampere-Node1",
+        vpsNode: "SW30-CloudNode-01",
       },
     });
 
@@ -172,7 +172,7 @@ export async function submitStudentSubscriptionAction(
 
     return {
       success: true,
-      message: "Your MT5/MT4 account details submitted successfully! Admin will assign an Oracle VPS slot shortly.",
+      message: "Your GTCFX MT5 account details submitted successfully! Admin will assign a dedicated VPS slot shortly.",
       data: { id: subscription.id, status: subscription.status },
     };
   } catch (error) {
@@ -354,10 +354,10 @@ export async function refreshAdminCopyTradingDataAction() {
 
   const vpsFleet = [
     {
-      nodeId: "Oracle-Ampere-Node1",
-      name: "Oracle Cloud Always Free (Ampere A1)",
-      specs: "4 OCPUs, 24 GB RAM (Always Free Eligible)",
-      ipAddress: "132.145.88.24",
+      nodeId: "SW30-CloudNode-01",
+      name: "SuperWarrior Dedicated Cloud VPS Node #1",
+      specs: "4 Dedicated vCPUs, 24 GB High-Speed RAM",
+      ipAddress: "185.193.125.42",
       status: "HEALTHY",
       totalCapacity: 20,
       occupiedSlots: activeStudents,
@@ -438,13 +438,13 @@ export async function getAdminCopyTradingDataAction() {
   const pendingApprovals = subscriptions.filter((s) => s.status === "PENDING_APPROVAL").length;
   const pausedStudents = subscriptions.filter((s) => s.status === "PAUSED").length;
 
-  // Oracle VPS Fleet info
+  // Dedicated Trading Cloud VPS Fleet info
   const vpsFleet = [
     {
-      nodeId: "Oracle-Ampere-Node1",
-      name: "Oracle Cloud Always Free (Ampere A1)",
-      specs: "4 OCPUs, 24 GB RAM (Always Free Eligible)",
-      ipAddress: "132.145.88.24",
+      nodeId: "SW30-CloudNode-01",
+      name: "SuperWarrior Dedicated Cloud VPS Node #1",
+      specs: "4 Dedicated vCPUs, 24 GB High-Speed RAM",
+      ipAddress: "185.193.125.42",
       status: "HEALTHY",
       totalCapacity: 20,
       occupiedSlots: activeStudents,
@@ -582,7 +582,7 @@ export async function adminUpdateMasterAccountAction(
           profitFactor: Number(payload.profitFactor) || 2.5,
           maxDrawdown: Number(payload.maxDrawdown) || 6.5,
           roiMonthly: Number(payload.roiMonthly) || 20.0,
-          vpsNodeName: payload.vpsNodeName || "Oracle-Ampere-Node1",
+          vpsNodeName: payload.vpsNodeName || "SW30-CloudNode-01",
         },
       });
     } else {
@@ -603,7 +603,7 @@ export async function adminUpdateMasterAccountAction(
           profitFactor: Number(payload.profitFactor) || 2.5,
           maxDrawdown: Number(payload.maxDrawdown) || 6.5,
           roiMonthly: Number(payload.roiMonthly) || 20.0,
-          vpsNodeName: payload.vpsNodeName || "Oracle-Ampere-Node1",
+          vpsNodeName: payload.vpsNodeName || "SW30-CloudNode-01",
         },
       });
     }

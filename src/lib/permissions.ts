@@ -85,7 +85,7 @@ export const ALL_MODULES: ModuleDefinition[] = [
   {
     id: "copy_trading",
     name: "Copy Trading (Master & Fleet)",
-    description: "Master MT5 trading sync, child terminals, Oracle VPS fleet and execution logs",
+    description: "Master MT5 trading sync, child terminals, high-speed trading VPS fleet and execution logs",
     iconName: "Share2",
     permissions: [
       { key: "copy_trading.view", name: "View Copy Trading", description: "Browse child accounts, master metrics, and execution logs", action: "VIEW" },

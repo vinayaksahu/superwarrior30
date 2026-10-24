@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Copy Trading Fleet | Super Warrior 30 Admin",
-  description: "Manage MT5 Master Trading Account, Student Terminals, and Oracle VPS Fleet.",
+  description: "Manage MT5 Master Trading Account, Student Terminals, and High-Speed Cloud VPS Fleet.",
 };
 
 export default async function AdminCopyTradingPage() {

@@ -23,6 +23,9 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  MessageCircle,
+  BadgePercent,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -122,14 +125,14 @@ export function StudentCopyTradingClient({
 
   // Form State
   const [formData, setFormData] = useState<StudentCopyTradingPayload>({
-    brokerName: subscription?.brokerName || "Exness",
+    brokerName: "GTCFX",
     accountNumber: subscription?.accountNumber || "",
-    serverName: subscription?.serverName || "Exness-Real21",
+    serverName: subscription?.serverName || "GTCFX MT5 - Server 2",
     platform: (subscription?.platform as "MT5" | "MT4") || "MT5",
     password: "",
     accountCurrency: subscription?.accountCurrency || "USD",
-    balance: subscription?.balance || 1000,
-    equity: subscription?.equity || 1000,
+    balance: subscription?.balance || 500,
+    equity: subscription?.equity || 500,
     riskMode: (subscription?.riskMode as any) || "MULTIPLIER",
     multiplier: subscription?.multiplier || 1.0,
     fixedLot: subscription?.fixedLot || 0.01,
@@ -141,6 +144,10 @@ export function StudentCopyTradingClient({
     e.preventDefault();
     if (!formData.accountNumber.trim() || !formData.serverName.trim()) {
       toast.error("Please fill in your account number and broker server.");
+      return;
+    }
+    if (!formData.balance || formData.balance <= 0) {
+      toast.error("Please enter a valid initial balance.");
       return;
     }
 
@@ -251,7 +258,7 @@ export function StudentCopyTradingClient({
           </p>
         </div>
 
-        {/* Oracle Cloud VPS Server Status Banner + Refresh Button */}
+        {/* Dedicated Trading Cloud VPS Status Banner + Refresh Button */}
         <div className="flex items-center gap-2">
           <button
             onClick={handleRefreshStatus}
@@ -269,7 +276,7 @@ export function StudentCopyTradingClient({
             </div>
             <div>
               <div className="font-medium text-foreground flex items-center gap-1">
-                <Server className="h-3 w-3 text-primary" /> Oracle Cloud VPS (Ampere A1)
+                <Server className="h-3 w-3 text-primary" /> Dedicated Trading Cloud VPS
               </div>
               <div className="text-muted-foreground">Execution Latency: &lt; 4ms • 24/7 Active</div>
             </div>
@@ -434,14 +441,14 @@ export function StudentCopyTradingClient({
             <div>
               <h4 className="text-base font-semibold text-foreground">No Trading Account Connected</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Connect your Exness, XM, OctaFX or any other MT5/MT4 account. Our cloud VPS will copy all trades automatically with zero manual effort.
+                Connect your GTCFX MT5 account under our IB. Our dedicated high-speed cloud VPS will copy all Gold &amp; BTC trades automatically with zero manual effort.
               </p>
             </div>
             <button
               onClick={() => setIsModalOpen(true)}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
             >
-              <Zap className="h-4 w-4" /> Connect My MT5 Account Now
+              <Zap className="h-4 w-4" /> Connect My GTCFX MT5 Account
             </button>
           </div>
         ) : subscription.status === "PENDING_APPROVAL" ? (
@@ -453,7 +460,7 @@ export function StudentCopyTradingClient({
                   Connection Request Under Review (Slot Allocation in Progress)
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your MT5 credentials for account <span className="font-mono font-medium text-foreground">#{subscription.accountNumber}</span> ({subscription.brokerName}) have been recorded. Admin is setting up a lightweight isolated terminal on the Oracle VPS Node. You will be notified as soon as sync is live!
+                  Your MT5 credentials for account <span className="font-mono font-medium text-foreground">#{subscription.accountNumber}</span> ({subscription.brokerName}) have been recorded. Admin is setting up a lightweight isolated terminal on our dedicated Cloud Trading VPS. You will be notified as soon as sync is live!
                 </p>
               </div>
             </div>
@@ -521,7 +528,7 @@ export function StudentCopyTradingClient({
               <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
                 <span className="text-muted-foreground text-xs">VPS Slot:</span>
                 <p className="font-semibold text-foreground text-xs mt-1">
-                  Slot #{subscription.vpsSlotNumber || "1"} ({subscription.vpsNode || "Oracle-A1"})
+                  Slot #{subscription.vpsSlotNumber || "1"} ({subscription.vpsNode?.replace(/Oracle-Ampere-|Oracle-/gi, "Cloud-") || "Dedicated-Node1"})
                 </p>
               </div>
 
@@ -650,40 +657,141 @@ export function StudentCopyTradingClient({
         )}
       </div>
 
-      {/* Copy Trading FAQ & Safety Rules */}
-      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-4">
-        <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-          <HelpCircle className="h-4 w-4 text-primary" />
-          Frequently Asked Questions & Risk Rules
-        </h3>
+      {/* SuperWarrior30 Copy Trading Highlights & Official FAQ (English) */}
+      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-6">
+        {/* Banner from Poster */}
+        <div className="rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-amber-500/5 border border-primary/20 p-4 sm:p-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-primary/20 text-primary px-2 py-0.5 text-[11px] font-bold">
+                  BTC &amp; GOLD TRADING
+                </span>
+                <span className="rounded bg-emerald-500/15 text-emerald-500 px-2 py-0.5 text-[11px] font-semibold border border-emerald-500/20">
+                  GTCFX Under Our IB
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-foreground">
+                SuperWarrior30 Copy Trading • Follow Expert Trades In Your Own Account
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Ideal for individuals who don&apos;t have time for live trading or cannot follow signal channels continuously.
+              </p>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-            <h4 className="font-semibold text-foreground">1. Kya mujhe apna laptop/PC 24/7 on rakhna hoga?</h4>
-            <p className="text-muted-foreground leading-relaxed">
-              <strong>Nahi!</strong> Aapka MT5 account hamare dedicated <strong>Oracle Cloud VPS (Always Free Ampere A1)</strong> par run hota hai. Yeh background me 24/7 online rehta hai chahe aapka phone ya PC band ho.
-            </p>
+            <a
+              href="https://wa.me/919580957721?text=Hi%20SuperWarrior30,%20I%20want%20to%20start%20Copy%20Trading%20in%20GTCFX"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs font-semibold shadow transition-colors shrink-0"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>WhatsApp: +91 95809 57721</span>
+            </a>
           </div>
 
-          <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-            <h4 className="font-semibold text-foreground">2. Risk Multiplier kaise kaam karta hai?</h4>
-            <p className="text-muted-foreground leading-relaxed">
-              Agar Master 1.00 lot open karega aur aapka multiplier <strong>0.5x</strong> hai, to aapke account me <strong>0.50 lot</strong> open hoga. Chote accounts ($100-$300) ke liye <strong>0.01 fixed lot</strong> ya <strong>0.5x</strong> recommended hai.
-            </p>
+          {/* 4 Feature Badges from Poster */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3 border-t border-border/50 text-[11px]">
+            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
+              <span className="text-muted-foreground block text-[10px]">Execution:</span>
+              <strong className="text-foreground">In Your Own Trading Account</strong>
+            </div>
+            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
+              <span className="text-muted-foreground block text-[10px]">Manual Effort:</span>
+              <strong className="text-foreground">100% Automated (Zero Copying)</strong>
+            </div>
+            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
+              <span className="text-muted-foreground block text-[10px]">Profit Sharing:</span>
+              <strong className="text-emerald-500">0% Until Capital Recovers</strong>
+            </div>
+            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
+              <span className="text-muted-foreground block text-[10px]">Monthly VPS Fee:</span>
+              <strong className="text-foreground">₹1,999 / month</strong>
+            </div>
           </div>
+        </div>
 
-          <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-            <h4 className="font-semibold text-foreground">3. Max Drawdown Guard kya hai?</h4>
-            <p className="text-muted-foreground leading-relaxed">
-              Yeh aapke balance ka circuit breaker hai. Agar aapne 15% set kiya hai aur kisi bhi din drawdown 15% touch karta hai, to system auto-pause ho jayega taaki aapka capital safe rahe.
-            </p>
-          </div>
+        {/* FAQ Grid */}
+        <div>
+          <h3 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4">
+            <HelpCircle className="h-4 w-4 text-primary" />
+            Frequently Asked Questions &amp; Copy Trading Rules
+          </h3>
 
-          <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-            <h4 className="font-semibold text-foreground">4. Kaunse Brokers Supported Hain?</h4>
-            <p className="text-muted-foreground leading-relaxed">
-              Exness, OctaFX, XM, JustMarkets, IC Markets samet sabhi standard MT5 & MT4 brokers supported hain. Best latency ke liye <strong>Exness</strong> ya <strong>XM</strong> recommended hai.
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                1. What is SuperWarrior30 Copy Trading and how does it work?
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                High-probability positions executed by our Master Trader on <strong>Gold (XAUUSD) and Bitcoin (BTC)</strong> are automatically mirrored into your personal account in real-time. There is zero manual effort or screen-watching needed.
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                2. Which broker is supported and how do I register?
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                Copy trading is exclusively supported on <strong>GTCFX</strong> under our official IB. You must register your MT5 account under our IB link. The dedicated server for live sync is <strong>GTCFX MT5 - Server 2</strong>.
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                3. How does the Profit Sharing policy work?
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                We use an unmatched student-friendly policy: <strong>No profit sharing until your initial investment is 100% recovered!</strong> Thereafter, profit sharing is <strong>50%</strong> on net profits with weekly settlements.
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                4. What is the Monthly Fee and why is it charged?
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                A subscription of <strong>₹1,999 per month</strong> covers dedicated high-speed Cloud VPS hosting, round-the-clock terminal monitoring, zero-latency execution (&lt; 4ms), and server maintenance.
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                5. Are my funds and capital secure?
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                <strong>Yes, 100% safe.</strong> Your capital remains exclusively in your own GTCFX account. You can connect using an <strong>Investor (Read-Only) Password</strong> which provides zero withdrawal permissions. Only you can deposit or withdraw money.
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                6. Do I need to keep my laptop or mobile phone powered on 24/7?
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                <strong>No!</strong> Your copy terminal operates 24/7 on our dedicated cloud VPS cluster. Trades copy flawlessly in real-time even when your phone, computer, or internet connection is switched off.
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                7. What are the essential risk rules I must follow?
+              </h4>
+              <ul className="text-muted-foreground space-y-1 list-disc list-inside">
+                <li><strong>Don&apos;t chase during open trade:</strong> Never manually interfere or close trades early.</li>
+                <li><strong>Patience and consistency:</strong> Allow the tested strategy to perform through complete market cycles.</li>
+                <li><strong>Risk awareness:</strong> Trading financial markets carries risk. Profits are not guaranteed.</li>
+              </ul>
+            </div>
+
+            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
+              <h4 className="font-semibold text-foreground">
+                8. How do I get my GTCFX account link or onboarding assistance?
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                Connect directly with our team on WhatsApp at <strong className="text-foreground">+91 95809 57721</strong>. We will guide you step-by-step through account creation under our IB, fund deposit, and live terminal synchronization.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -711,7 +819,7 @@ export function StudentCopyTradingClient({
             </div>
 
             <form onSubmit={handleConnectSubmit} className="space-y-4 text-xs">
-              {/* Platform & Broker */}
+              {/* Platform & Broker Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-medium text-foreground block mb-1">Platform</label>
@@ -727,18 +835,24 @@ export function StudentCopyTradingClient({
 
                 <div>
                   <label className="font-medium text-foreground block mb-1">Broker Name</label>
-                  <input
-                    type="text"
-                    required
+                  <select
                     value={formData.brokerName}
-                    onChange={(e) => setFormData({ ...formData, brokerName: e.target.value })}
-                    placeholder="e.g. Exness, XM, OctaFX"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs"
-                  />
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        brokerName: val,
+                        serverName: val === "GTCFX" ? "GTCFX MT5 - Server 2" : formData.serverName,
+                      });
+                    }}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs font-semibold"
+                  >
+                    <option value="GTCFX">GTCFX</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Account Number & Server Name */}
+              {/* Account Number & Broker Server Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-medium text-foreground block mb-1">Login / Account Number</label>
@@ -759,34 +873,73 @@ export function StudentCopyTradingClient({
                     required
                     value={formData.serverName}
                     onChange={(e) => setFormData({ ...formData, serverName: e.target.value })}
-                    placeholder="e.g. Exness-Real21"
+                    placeholder="GTCFX MT5 - Server 2"
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs font-mono"
                   />
                 </div>
               </div>
 
-              {/* Trading / Investor Password */}
-              <div>
-                <label className="font-medium text-foreground block mb-1">
-                  Trading Password (Required for Order Execution)
-                </label>
-                <div className="relative">
+              {/* Initial Balance & Trading Password */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-medium text-foreground block mb-1">
+                    Initial Balance ($ USD)
+                  </label>
                   <input
-                    type={showPassword ? "text" : "password"}
-                    required={!subscription}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder={subscription ? "Leave blank to keep existing password" : "Enter MT5 trading password"}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs pr-10 font-mono"
+                    type="number"
+                    min="1"
+                    step="10"
+                    required
+                    value={formData.balance || ""}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setFormData({ ...formData, balance: val, equity: val });
+                    }}
+                    placeholder="e.g. 500, 1000"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs font-mono"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Your starting balance in GTCFX account.</p>
                 </div>
+
+                <div>
+                  <label className="font-medium text-foreground block mb-1">
+                    Trading Password (Required for Order Execution)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required={!subscription}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder={subscription ? "Leave blank to keep existing password" : "Enter MT5 trading password"}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs pr-10 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Investor (Read-Only) or Trading password.</p>
+                </div>
+              </div>
+
+              {/* WhatsApp IB Account Assistance Banner */}
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="text-xs">
+                  <span className="font-semibold text-emerald-500">Need a GTCFX Account under our IB?</span>
+                  <p className="text-[11px] text-muted-foreground">Open your account under our IB to activate zero-fee copy trading sync.</p>
+                </div>
+                <a
+                  href="https://wa.me/919580957721?text=Hi%20SuperWarrior30,%20I%20need%20the%20GTCFX%20IB%20account%20opening%20link%20for%20Copy%20Trading"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 text-xs font-semibold shrink-0 transition-colors"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp Help
+                </a>
               </div>
 
               {/* Risk Mode Selection */}
@@ -915,7 +1068,7 @@ export function StudentCopyTradingClient({
                       <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Submitting...
                     </>
                   ) : (
-                    "Save & Connect to Oracle VPS"
+                    "Save & Connect Account"
                   )}
                 </button>
               </div>

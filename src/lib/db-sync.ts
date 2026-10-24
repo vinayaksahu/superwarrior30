@@ -1211,12 +1211,12 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
     if (masterCount === 0) {
       await prisma.copyTradingMaster.create({
         data: {
-          accountName: "Rahul Trade Warrior Master",
-          brokerName: "Exness",
+          accountName: "SuperWarrior30 Master Trader",
+          brokerName: "GTCFX",
           accountNumber: "148932014",
-          serverName: "Exness-Real21",
+          serverName: "GTCFX MT5 - Server 2",
           platform: "MT5",
-          strategyDescription: "Precision Price Action & Liquidity Sweep Strategy focusing on Gold (XAUUSD) and Major FX pairs with strict 1:2 to 1:3 Risk to Reward ratio.",
+          strategyDescription: "Precision BTC & Gold (XAUUSD) Trading Strategy with strict risk management.",
           riskLevel: "MODERATE",
           minCapitalUsd: 100.0,
           isActive: true,
@@ -1226,7 +1226,17 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
           profitFactor: 2.65,
           maxDrawdown: 5.4,
           roiMonthly: 21.8,
-          vpsNodeName: "Oracle-Ampere-Node1",
+          vpsNodeName: "SW30-CloudNode-01",
+        },
+      });
+    } else {
+      // Migrate any existing Exness or Oracle references to GTCFX & Cloud Node
+      await prisma.copyTradingMaster.updateMany({
+        where: { brokerName: "Exness" },
+        data: {
+          brokerName: "GTCFX",
+          serverName: "GTCFX MT5 - Server 2",
+          vpsNodeName: "SW30-CloudNode-01",
         },
       });
     }

@@ -55,12 +55,12 @@ export async function POST(req: NextRequest) {
     const body: VpsSyncPayload = await req.json();
 
     // Verify Secret Key
-    const expectedSecret = process.env.VPS_SYNC_SECRET_KEY || "SuperWarrior30@OracleVPS#SyncKey2026";
+    const expectedSecret = process.env.VPS_SYNC_SECRET_KEY || "SuperWarrior30@CloudVPS#SyncKey2026";
     if (!body.secretKey || body.secretKey !== expectedSecret) {
       return NextResponse.json({ success: false, message: "Unauthorized sync key" }, { status: 401 });
     }
 
-    const nodeName = body.vpsNodeName || "Oracle-Ampere-Node1";
+    const nodeName = body.vpsNodeName || "SW30-CloudNode-01";
 
     // 1. Update Master Account Status if reported
     let masterRecord = null;

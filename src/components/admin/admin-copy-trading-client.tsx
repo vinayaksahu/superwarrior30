@@ -24,6 +24,9 @@ import {
   RefreshCw,
   Sliders,
   Sparkles,
+  Eye,
+  EyeOff,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -63,6 +66,7 @@ interface StudentSubscription {
   accountNumber: string;
   serverName: string;
   platform: string;
+  encryptedPassword?: string | null;
   accountCurrency: string;
   balance: number;
   equity: number;
@@ -168,10 +172,10 @@ export function AdminCopyTradingClient({
   const activeMaster = masters[0] || null;
   const [masterForm, setMasterForm] = useState<MasterAccountPayload>({
     id: activeMaster?.id,
-    accountName: activeMaster?.accountName || "Rahul Trade Warrior Master",
-    brokerName: activeMaster?.brokerName || "Exness",
+    accountName: activeMaster?.accountName || "SuperWarrior30 Master Trader",
+    brokerName: activeMaster?.brokerName || "GTCFX",
     accountNumber: activeMaster?.accountNumber || "148932014",
-    serverName: activeMaster?.serverName || "Exness-Real21",
+    serverName: activeMaster?.serverName || "GTCFX MT5 - Server 2",
     platform: (activeMaster?.platform as any) || "MT5",
     strategyDescription: activeMaster?.strategyDescription || "",
     riskLevel: (activeMaster?.riskLevel as any) || "MODERATE",
@@ -183,9 +187,20 @@ export function AdminCopyTradingClient({
     profitFactor: activeMaster?.profitFactor || 2.65,
     maxDrawdown: activeMaster?.maxDrawdown || 5.4,
     roiMonthly: activeMaster?.roiMonthly || 21.8,
-    vpsNodeName: activeMaster?.vpsNodeName || "Oracle-Ampere-Node1",
+    vpsNodeName: activeMaster?.vpsNodeName || "SW30-CloudNode-01",
   });
   const [isSavingMaster, setIsSavingMaster] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (id: string) => {
+    setVisiblePasswords((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard!`);
+  };
 
   // Simulation Form
   const [simForm, setSimForm] = useState({
@@ -312,7 +327,7 @@ export function AdminCopyTradingClient({
               Copy Trading Fleet Management
             </h1>
             <span className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-semibold border border-primary/20">
-              Oracle VPS Cloud
+              Dedicated VPS Cloud
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -334,7 +349,7 @@ export function AdminCopyTradingClient({
           <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="font-semibold text-foreground">Master:</span>
-            <span className="text-muted-foreground">Rahul Trade Warrior MT5</span>
+            <span className="text-muted-foreground">SuperWarrior30 Master Trader (GTCFX)</span>
           </div>
         </div>
       </div>
@@ -377,14 +392,14 @@ export function AdminCopyTradingClient({
 
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between text-muted-foreground text-xs">
-            <span>Oracle VPS Capacity</span>
+            <span>Trading VPS Capacity</span>
             <Server className="h-4 w-4 text-primary" />
           </div>
           <div className="text-2xl font-bold text-foreground mt-2">
             {node ? `${node.occupiedSlots} / ${node.totalCapacity}` : "0 / 20"}
           </div>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Always Free Ampere A1 (24GB)
+            Dedicated Ultra-Low Latency Cluster
           </p>
         </div>
 
@@ -445,7 +460,7 @@ export function AdminCopyTradingClient({
           )}
         >
           <Server className="h-3.5 w-3.5" />
-          Oracle Cloud VPS Monitor
+          Trading Cloud VPS Monitor
         </button>
 
         <button
@@ -503,7 +518,7 @@ export function AdminCopyTradingClient({
                   <tr>
                     <th className="py-3 px-4">Student</th>
                     <th className="py-3 px-3">Broker &amp; Server</th>
-                    <th className="py-3 px-3">Login ID</th>
+                    <th className="py-3 px-3">Trading ID &amp; Credentials</th>
                     <th className="py-3 px-3">Risk Setting</th>
                     <th className="py-3 px-3">VPS Slot</th>
                     <th className="py-3 px-3">Latency</th>
@@ -539,9 +554,55 @@ export function AdminCopyTradingClient({
                             <div className="font-mono text-[11px] text-muted-foreground">{sub.serverName}</div>
                           </td>
 
-                          <td className="py-3 px-3 font-mono font-semibold text-foreground">
-                            #{sub.accountNumber}
-                            <span className="text-[10px] text-muted-foreground ml-1">({sub.platform})</span>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5 font-mono font-bold text-foreground">
+                              <span>#{sub.accountNumber}</span>
+                              <span className="text-[10px] text-muted-foreground font-normal">({sub.platform})</span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(sub.accountNumber, "Login ID")}
+                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                                title="Copy Trading Login ID"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="text-[10px] text-muted-foreground font-medium">Pwd:</span>
+                              {sub.encryptedPassword ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono text-[11px] bg-accent/80 border border-border/60 px-1.5 py-0.5 rounded text-foreground select-all">
+                                    {visiblePasswords[sub.id] ? sub.encryptedPassword : "••••••••"}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePasswordVisibility(sub.id)}
+                                    className="text-muted-foreground hover:text-foreground p-0.5"
+                                    title={visiblePasswords[sub.id] ? "Hide Password" : "Show Password"}
+                                  >
+                                    {visiblePasswords[sub.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3 text-primary" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(sub.encryptedPassword || "", "Password")}
+                                    className="text-muted-foreground hover:text-foreground p-0.5"
+                                    title="Copy Password"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground italic">Not set</span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                              <span>Initial Bal:</span>
+                              <strong className="text-emerald-500 font-mono font-bold">
+                                ${sub.balance?.toFixed(2) || "0.00"}
+                              </strong>
+                            </div>
                           </td>
 
                           <td className="py-3 px-3">
@@ -814,7 +875,7 @@ export function AdminCopyTradingClient({
         </div>
       )}
 
-      {/* TAB 3: ORACLE CLOUD VPS MONITOR */}
+      {/* TAB 3: TRADING CLOUD VPS MONITOR */}
       {activeTab === "VPS" && (
         <div className="space-y-6">
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-5">
@@ -822,20 +883,20 @@ export function AdminCopyTradingClient({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-foreground">
-                    Oracle Cloud Always Free Node #1
+                    SuperWarrior Dedicated Cloud Node #1
                   </h3>
                   <span className="rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold">
                     Healthy • Online
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Shape: <strong>Ampere A1 Flex (ARM64)</strong> • Specs: 4 OCPU, 24 GB RAM • 200 GB NVMe Storage
+                  Architecture: <strong>Ultra-Low Latency Cloud Cluster</strong> • Specs: 4 Dedicated vCPUs, 24 GB RAM • 200 GB NVMe Storage
                 </p>
               </div>
 
               <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-500 font-medium flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4" />
-                <span>Idle Reclaim Guard Active (&gt;20% CPU Ticks)</span>
+                <span>Zero-Slippage Execution Bridge (&lt; 3ms Latency)</span>
               </div>
             </div>
 
