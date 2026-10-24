@@ -760,7 +760,7 @@ export function StudentCopyTradingClient({
                 5. Are my funds and capital secure?
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                <strong>Yes, 100% safe.</strong> Your capital remains exclusively in your own GTCFX account. You can connect using an <strong>Investor (Read-Only) Password</strong> which provides zero withdrawal permissions. Only you can deposit or withdraw money.
+                <strong>Yes, 100% safe.</strong> Your capital remains exclusively in your own GTCFX account. Your <strong>Trading password</strong> is used only for executing copied trades in your terminal. Withdrawals cannot be made from MT5—only you can deposit or withdraw money from your GTCFX client portal.
               </p>
             </div>
 
@@ -922,7 +922,7 @@ export function StudentCopyTradingClient({
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Investor (Read-Only) or Trading password.</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Trading password.</p>
                 </div>
               </div>
 
