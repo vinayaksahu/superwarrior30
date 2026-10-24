@@ -418,7 +418,7 @@ export function AdminCopyTradingClient({
       </div>
 
       {/* Tabs Header */}
-      <div className="flex items-center gap-2 border-b border-border text-xs">
+      <div className="flex items-center gap-1.5 sm:gap-2 border-b border-border text-xs overflow-x-auto scrollbar-none pb-0.5">
         <button
           onClick={() => setActiveTab("FLEET")}
           className={cn(
@@ -513,7 +513,7 @@ export function AdminCopyTradingClient({
           {/* Table */}
           <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[880px] text-left text-xs">
                 <thead className="border-b border-border/60 bg-accent/30 text-muted-foreground uppercase text-[10px] tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Student</th>

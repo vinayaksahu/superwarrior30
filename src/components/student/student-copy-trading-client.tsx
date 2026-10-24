@@ -245,40 +245,40 @@ export function StudentCopyTradingClient({
       {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Automated MT5 Copy Trading
             </h1>
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-500 border border-emerald-500/20">
               <Zap className="h-3 w-3" /> Live Master Sync
             </span>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Mirror Rahul Trade Warrior Academy&apos;s verified trades directly into your MT4/MT5 account with ultra-low latency execution.
           </p>
         </div>
 
         {/* Dedicated Trading Cloud VPS Status Banner + Refresh Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
           <button
             onClick={handleRefreshStatus}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors w-full sm:w-auto"
             title="Fetch latest status from VPS"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
             {isRefreshing ? "Refreshing..." : "Refresh Status"}
           </button>
-          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm">
-            <div className="relative flex h-2.5 w-2.5">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm w-full sm:w-auto">
+            <div className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </div>
             <div>
               <div className="font-medium text-foreground flex items-center gap-1">
-                <Server className="h-3 w-3 text-primary" /> Dedicated Trading Cloud VPS
+                <Server className="h-3 w-3 text-primary shrink-0" /> Dedicated Trading Cloud VPS
               </div>
-              <div className="text-muted-foreground">Execution Latency: &lt; 4ms • 24/7 Active</div>
+              <div className="text-[11px] text-muted-foreground">Execution Latency: &lt; 4ms • 24/7 Active</div>
             </div>
           </div>
         </div>
@@ -392,7 +392,7 @@ export function StudentCopyTradingClient({
           </div>
 
           {subscription && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {subscription.status === "ACTIVE" && (
                 <button
                   onClick={handleTogglePause}
@@ -551,13 +551,13 @@ export function StudentCopyTradingClient({
 
             {/* Account Info Pill */}
             <div className="rounded-lg bg-card border border-border/80 p-3 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                 <span className="text-muted-foreground">MT5 Login:</span>
                 <span className="font-mono font-semibold text-foreground">#{subscription.accountNumber}</span>
-                <span className="text-muted-foreground">({subscription.brokerName} - {subscription.serverName})</span>
+                <span className="text-muted-foreground text-[11px]">({subscription.brokerName} - {subscription.serverName})</span>
               </div>
-              <div className="flex items-center gap-4 text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-muted-foreground pt-1 sm:pt-0 border-t sm:border-t-0 border-border/40">
                 <span>Balance: <strong className="text-foreground">${subscription.balance.toFixed(2)}</strong></span>
                 <span>Equity: <strong className="text-foreground">${subscription.equity.toFixed(2)}</strong></span>
                 <span>Safety Stop: <strong className="text-amber-500">{subscription.maxDrawdownGuard}% DD</strong></span>
@@ -589,8 +589,8 @@ export function StudentCopyTradingClient({
             No trades executed yet. When Master opens a position on Gold (XAUUSD) or Forex, it will appear here in real-time.
           </div>
         ) : (
-          <div className="overflow-x-auto mt-4">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto mt-4 -mx-5 px-5 sm:mx-0 sm:px-0">
+            <table className="w-full min-w-[680px] text-left text-xs">
               <thead className="border-b border-border/60 text-muted-foreground uppercase text-[10px] tracking-wider">
                 <tr>
                   <th className="py-2.5 px-3">Ticket</th>
@@ -798,27 +798,30 @@ export function StudentCopyTradingClient({
 
       {/* Account Connection Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="relative w-full max-w-xl rounded-xl border border-border bg-card p-6 shadow-2xl space-y-5 my-8">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-xl max-h-[92vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl my-auto overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border/60 p-4 sm:p-5 shrink-0 bg-card">
               <div>
-                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
                   <Share2 className="h-5 w-5 text-primary" />
                   Connect MT4 / MT5 Account
                 </h3>
-                <p className="text-xs text-muted-foreground">
-                  Credentials are encrypted and loaded only into your isolated VPS slot.
+                <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+                  Credentials are encrypted and loaded directly into your isolated VPS slot.
                 </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground text-sm"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground text-sm transition-colors"
+                aria-label="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleConnectSubmit} className="space-y-4 text-xs">
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleConnectSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               {/* Platform & Broker Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -826,7 +829,7 @@ export function StudentCopyTradingClient({
                   <select
                     value={formData.platform}
                     onChange={(e) => setFormData({ ...formData, platform: e.target.value as any })}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
                   >
                     <option value="MT5">MetaTrader 5 (MT5 - Recommended)</option>
                     <option value="MT4">MetaTrader 4 (MT4)</option>
@@ -845,7 +848,7 @@ export function StudentCopyTradingClient({
                         serverName: val === "GTCFX" ? "GTCFX MT5 - Server 2" : formData.serverName,
                       });
                     }}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs font-semibold"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs font-semibold"
                   >
                     <option value="GTCFX">GTCFX</option>
                   </select>
@@ -862,7 +865,7 @@ export function StudentCopyTradingClient({
                     value={formData.accountNumber}
                     onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
                     placeholder="e.g. 14920391"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs font-mono"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs font-mono"
                   />
                 </div>
 
@@ -874,7 +877,7 @@ export function StudentCopyTradingClient({
                     value={formData.serverName}
                     onChange={(e) => setFormData({ ...formData, serverName: e.target.value })}
                     placeholder="GTCFX MT5 - Server 2"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs font-mono"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs font-mono"
                   />
                 </div>
               </div>
@@ -896,7 +899,7 @@ export function StudentCopyTradingClient({
                       setFormData({ ...formData, balance: val, equity: val });
                     }}
                     placeholder="e.g. 500, 1000"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs font-mono"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs font-mono"
                   />
                   <p className="text-[10px] text-muted-foreground mt-0.5">Your starting balance in GTCFX account.</p>
                 </div>
@@ -912,12 +915,12 @@ export function StudentCopyTradingClient({
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       placeholder={subscription ? "Leave blank to keep existing password" : "Enter MT5 trading password"}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs pr-10 font-mono"
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs pr-10 font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -927,7 +930,7 @@ export function StudentCopyTradingClient({
               </div>
 
               {/* WhatsApp IB Account Assistance Banner */}
-              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div className="text-xs">
                   <span className="font-semibold text-emerald-500">Need a GTCFX Account under our IB?</span>
                   <p className="text-[11px] text-muted-foreground">Open your account under our IB to activate zero-fee copy trading sync.</p>
@@ -936,7 +939,7 @@ export function StudentCopyTradingClient({
                   href="https://wa.me/919580957721?text=Hi%20SuperWarrior30,%20I%20need%20the%20GTCFX%20IB%20account%20opening%20link%20for%20Copy%20Trading"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 text-xs font-semibold shrink-0 transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 text-xs font-semibold shrink-0 transition-colors w-full sm:w-auto"
                 >
                   <MessageCircle className="h-3.5 w-3.5" /> WhatsApp Help
                 </a>
@@ -945,47 +948,47 @@ export function StudentCopyTradingClient({
               {/* Risk Mode Selection */}
               <div className="space-y-2 border-t border-border/60 pt-3">
                 <label className="font-semibold text-foreground block">Risk Sizing Mode</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, riskMode: "MULTIPLIER" })}
                     className={cn(
-                      "rounded-lg border p-2.5 text-center text-xs transition-all",
+                      "rounded-lg border p-2 sm:p-2.5 text-center transition-all",
                       formData.riskMode === "MULTIPLIER"
                         ? "border-primary bg-primary/10 text-primary font-bold"
                         : "border-border bg-background text-muted-foreground hover:bg-accent"
                     )}
                   >
-                    <div>Multiplier (x)</div>
-                    <div className="text-[10px] font-normal opacity-80 mt-0.5">Scale with Master</div>
+                    <div className="text-[11px] sm:text-xs">Multiplier (x)</div>
+                    <div className="text-[9px] sm:text-[10px] font-normal opacity-80 mt-0.5">Scale with Master</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, riskMode: "FIXED_LOT" })}
                     className={cn(
-                      "rounded-lg border p-2.5 text-center text-xs transition-all",
+                      "rounded-lg border p-2 sm:p-2.5 text-center transition-all",
                       formData.riskMode === "FIXED_LOT"
                         ? "border-primary bg-primary/10 text-primary font-bold"
                         : "border-border bg-background text-muted-foreground hover:bg-accent"
                     )}
                   >
-                    <div>Fixed Lot</div>
-                    <div className="text-[10px] font-normal opacity-80 mt-0.5">e.g. Always 0.01</div>
+                    <div className="text-[11px] sm:text-xs">Fixed Lot</div>
+                    <div className="text-[9px] sm:text-[10px] font-normal opacity-80 mt-0.5">e.g. Always 0.01</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, riskMode: "PROPORTIONAL_EQUITY" })}
                     className={cn(
-                      "rounded-lg border p-2.5 text-center text-xs transition-all",
+                      "rounded-lg border p-2 sm:p-2.5 text-center transition-all",
                       formData.riskMode === "PROPORTIONAL_EQUITY"
                         ? "border-primary bg-primary/10 text-primary font-bold"
                         : "border-border bg-background text-muted-foreground hover:bg-accent"
                     )}
                   >
-                    <div>Auto Equity</div>
-                    <div className="text-[10px] font-normal opacity-80 mt-0.5">Balance Ratio</div>
+                    <div className="text-[11px] sm:text-xs">Auto Equity</div>
+                    <div className="text-[9px] sm:text-[10px] font-normal opacity-80 mt-0.5">Balance Ratio</div>
                   </button>
                 </div>
               </div>
@@ -1002,7 +1005,7 @@ export function StudentCopyTradingClient({
                       max="3.0"
                       value={formData.multiplier}
                       onChange={(e) => setFormData({ ...formData, multiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs"
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
                     />
                   </div>
                 )}
@@ -1017,7 +1020,7 @@ export function StudentCopyTradingClient({
                       max="1.0"
                       value={formData.fixedLot}
                       onChange={(e) => setFormData({ ...formData, fixedLot: parseFloat(e.target.value) || 0.01 })}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs"
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
                     />
                   </div>
                 )}
@@ -1031,7 +1034,7 @@ export function StudentCopyTradingClient({
                     max="5.0"
                     value={formData.maxLotLimit}
                     onChange={(e) => setFormData({ ...formData, maxLotLimit: parseFloat(e.target.value) || 0.50 })}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
                   />
                 </div>
 
@@ -1044,24 +1047,24 @@ export function StudentCopyTradingClient({
                     max="50"
                     value={formData.maxDrawdownGuard}
                     onChange={(e) => setFormData({ ...formData, maxDrawdownGuard: parseFloat(e.target.value) || 15.0 })}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground text-xs"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
                   />
                 </div>
               </div>
 
               {/* Form Action Buttons */}
-              <div className="flex items-center justify-end gap-3 border-t border-border/60 pt-4">
+              <div className="sticky bottom-0 bg-card pt-4 border-t border-border/60 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="w-full sm:w-auto rounded-lg border border-border px-4 py-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
                   {isSubmitting ? (
                     <>
