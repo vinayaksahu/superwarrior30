@@ -1805,12 +1805,14 @@ model CopyTradingSubscription {
   status            CopyTradingStatus   @default(PENDING_APPROVAL)
   rejectionReason   String?
   vpsNode           String?             @default("Oracle-Ampere-Node1")
-  vpsSlotNumber     Int?
-  latencyMs         Int                 @default(3)
-  isOnline          Boolean             @default(true)
-  lastSyncedAt      DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  vpsSlotNumber          Int?
+  latencyMs              Int                 @default(3)
+  isOnline               Boolean             @default(true)
+  isCycleEligible        Boolean             @default(true)
+  cycleEligibilityStatus String?             @default("ELIGIBLE") // ELIGIBLE, PENDING_SETTLEMENT, SUSPENDED
+  lastSyncedAt           DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   master            CopyTradingMaster   @relation(fields: [masterId], references: [id], onDelete: Cascade)
@@ -1886,27 +1888,37 @@ model CopyTradingVpsPayment {
 }
 
 model CopyTradingSettlementInvoice {
-  id                 String    @id @default(cuid())
-  subscriptionId     String?
-  userId             String
-  invoiceNumber      String    @unique
-  weekPeriod         String
-  profitUsd          Float
-  profitInr          Float
-  investorShareInr   Float
-  academyShareInr    Float
-  affiliateShareInr  Float     @default(0.0)
-  totalAmountDueInr  Float
-  affiliateUserId    String?
-  status             String    @default("PENDING") // PENDING, PAID, SETTLED
-  paymentMethod      String?
-  utrNumber          String?
-  proofUrl           String?
-  paidAt             DateTime?
-  settledAt          DateTime?
-  notes              String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  subscriptionId        String?
+  userId                String
+  invoiceNumber         String    @unique
+  weekPeriod            String
+  profitUsd             Float
+  profitInr             Float     @default(0.0)
+  investorShareInr      Float     @default(0.0)
+  academyShareInr       Float     @default(0.0)
+  affiliateShareInr     Float     @default(0.0)
+  totalAmountDueInr     Float     @default(0.0)
+  investorShareUsd      Float     @default(0.0)
+  academyShareUsd       Float     @default(0.0)
+  affiliateShareUsd     Float     @default(0.0)
+  totalAmountDueUsd     Float     @default(0.0)
+  currency              String    @default("USDT")
+  txnHash               String?
+  blockchainVerified    Boolean   @default(false)
+  network               String?   @default("BEP-20 (BNB Smart Chain)")
+  depositAddress        String?   @default("0x1Ca7cEbF067f1A0fdE2E09a3cf0D909B8c53d147")
+  cycleEligibleNextWeek Boolean   @default(false)
+  affiliateUserId       String?
+  status                String    @default("PENDING") // PENDING, PAID, SETTLED
+  paymentMethod         String?   @default("USDT (BEP-20)")
+  utrNumber             String?
+  proofUrl              String?
+  paidAt                DateTime?
+  settledAt             DateTime?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user               User      @relation("UserSettlements", fields: [userId], references: [id], onDelete: Cascade)
   affiliateUser      User?     @relation("AffiliateSettlements", fields: [affiliateUserId], references: [id], onDelete: SetNull)

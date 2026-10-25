@@ -1497,7 +1497,7 @@ export function AdminCopyTradingClient({
                       <th className="px-4 py-3">Student / Terminal</th>
                       <th className="px-4 py-3">Net Profit</th>
                       <th className="px-4 py-3">70% / 20% / 10% Split</th>
-                      <th className="px-4 py-3">Amount Due (30%)</th>
+                      <th className="px-4 py-3">Amount Due (30% USDT)</th>
                       <th className="px-4 py-3">Status &amp; UTR</th>
                       <th className="px-4 py-3 text-right">Affiliate Action</th>
                     </tr>
@@ -1523,7 +1523,7 @@ export function AdminCopyTradingClient({
                           <span className="text-amber-500 font-semibold block">10% Affiliate: ₹{inv.affiliateShareInr?.toLocaleString("en-IN")}</span>
                         </td>
                         <td className="px-4 py-3 font-mono font-bold text-primary">
-                          ₹{inv.totalAmountDueInr?.toLocaleString("en-IN")}
+                          ${(inv.totalAmountDueUsd || inv.profitUsd * 0.30).toFixed(2)} USDT
                         </td>
                         <td className="px-4 py-3">
                           {inv.status === "SETTLED" ? (
@@ -1535,11 +1535,20 @@ export function AdminCopyTradingClient({
                               <span className="rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1">
                                 <Clock className="h-3 w-3" /> Paid (Verify UTR)
                               </span>
-                              {inv.utrNumber && (
+                              {inv.txnHash ? (
+                                <a
+                                  href={`https://bscscan.com/tx/${inv.txnHash}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-mono text-[10px] text-primary hover:underline block mt-0.5"
+                                >
+                                  TxID: {inv.txnHash.slice(0, 8)}...{inv.txnHash.slice(-4)}
+                                </a>
+                              ) : inv.utrNumber ? (
                                 <span className="font-mono text-[10px] text-foreground block mt-0.5">
-                                  UTR: {inv.utrNumber}
+                                  Ref: {inv.utrNumber}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           ) : (
                             <span className="rounded-full bg-destructive/10 text-destructive border border-destructive/30 px-2 py-0.5 text-[10px] font-bold">

@@ -1247,6 +1247,19 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
       CREATE INDEX IF NOT EXISTS "copy_trading_settlement_invoices_userId_idx" ON "copy_trading_settlement_invoices"("userId");
       CREATE INDEX IF NOT EXISTS "copy_trading_settlement_invoices_status_idx" ON "copy_trading_settlement_invoices"("status");
       CREATE INDEX IF NOT EXISTS "copy_trading_settlement_invoices_affiliateUserId_idx" ON "copy_trading_settlement_invoices"("affiliateUserId");
+
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "investorShareUsd" DOUBLE PRECISION DEFAULT 0.0;
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "academyShareUsd" DOUBLE PRECISION DEFAULT 0.0;
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "affiliateShareUsd" DOUBLE PRECISION DEFAULT 0.0;
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "totalAmountDueUsd" DOUBLE PRECISION DEFAULT 0.0;
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'USDT';
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "txnHash" TEXT;
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "blockchainVerified" BOOLEAN DEFAULT false;
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "network" TEXT DEFAULT 'BEP-20 (BNB Smart Chain)';
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "depositAddress" TEXT DEFAULT '0x1Ca7cEbF067f1A0fdE2E09a3cf0D909B8c53d147';
+      ALTER TABLE "copy_trading_settlement_invoices" ADD COLUMN IF NOT EXISTS "cycleEligibleNextWeek" BOOLEAN DEFAULT false;
+      ALTER TABLE "copy_trading_subscriptions" ADD COLUMN IF NOT EXISTS "isCycleEligible" BOOLEAN DEFAULT true;
+      ALTER TABLE "copy_trading_subscriptions" ADD COLUMN IF NOT EXISTS "cycleEligibilityStatus" TEXT DEFAULT 'ELIGIBLE';
     `);
 
     // Ensure default master account exists

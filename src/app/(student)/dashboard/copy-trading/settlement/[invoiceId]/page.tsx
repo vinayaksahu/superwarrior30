@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { requireAuth } from "@/server/dal/auth";
 import { getSettlementInvoiceDetailsAction } from "@/server/actions/copy-trading.actions";
 import { CopyTradingSettlementClient } from "@/components/student/copy-trading-settlement-client";
@@ -7,8 +7,8 @@ import { CopyTradingSettlementClient } from "@/components/student/copy-trading-s
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Profit Share Settlement Payment | Super Warrior 30",
-  description: "Weekly profit share settlement payment gateway & affiliate distribution.",
+  title: "Profit Share Settlement Payment (USDT) | Super Warrior 30",
+  description: "Weekly profit share settlement payment gateway & blockchain verification.",
 };
 
 export default async function CopyTradingSettlementPage({
@@ -24,10 +24,5 @@ export default async function CopyTradingSettlementPage({
     notFound();
   }
 
-  return (
-    <CopyTradingSettlementClient
-      invoice={res.invoice}
-      paymentMethods={res.paymentMethods}
-    />
-  );
+  return <CopyTradingSettlementClient invoice={res.invoice} />;
 }

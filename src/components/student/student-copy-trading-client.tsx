@@ -343,6 +343,34 @@ export function StudentCopyTradingClient({
         </div>
       )}
 
+      {/* Pending Weekly Settlement Alert Banner (USDT Blockchain Gateway) */}
+      {invoices.some((inv: any) => inv.status === "PENDING") && (
+        <div className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
+                Weekly Profit Sharing Settlement Due (30% USDT)
+                <span className="rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold">
+                  Monday Cycle Qualification
+                </span>
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Your 70% realized profit remains directly in your MT5 account. Please settle the 30% sharing in USDT (BEP-20) to qualify for next week&apos;s copy trading cycle (starting Monday).
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/dashboard/copy-trading/settlement"
+              className="rounded-lg bg-amber-500 hover:bg-amber-600 text-black font-bold px-4 py-2 text-xs transition-colors shadow-sm inline-flex items-center gap-1.5"
+            >
+              Verify on Blockchain (USDT) →
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Course VIP Fee Exemption Benefit Banner */}
       {affiliateInfo?.has14999Course ? (
         <div className="rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-primary/10 to-emerald-500/10 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1092,10 +1120,10 @@ export function StudentCopyTradingClient({
           <div>
             <h3 className="text-base font-bold text-foreground flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-emerald-500" />
-              Weekly Profit Sharing Settlement (70 / 20 / 10)
+              Weekly Profit Sharing Settlement (70 / 20 / 10 in USDT)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              70% Net Profit Kept by You • 20% Academy Execution • 10% Affiliate Partner. (0% fee charged until initial capital is recovered).
+              70% Kept in MT5 • 20% Academy Execution • 10% Affiliate Partner. (0% fee charged until initial capital is recovered. Paid in USDT BEP-20).
             </p>
           </div>
           <Link

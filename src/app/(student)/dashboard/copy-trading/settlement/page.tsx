@@ -6,8 +6,8 @@ import { CopyTradingSettlementHubClient } from "@/components/student/copy-tradin
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Weekly Profit Sharing Settlement | Super Warrior 30",
-  description: "Weekly profit share settlement payment gateway & affiliate distribution.",
+  title: "Weekly Profit Sharing Settlement (USDT) | Super Warrior 30",
+  description: "Weekly profit share settlement blockchain gateway & BEP-20 auto-verification.",
 };
 
 export default async function CopyTradingSettlementHubPage() {
@@ -17,7 +17,6 @@ export default async function CopyTradingSettlementHubPage() {
   return (
     <CopyTradingSettlementHubClient
       invoices={data.invoices || []}
-      paymentMethods={data.paymentMethods || []}
       affiliateInfo={data.affiliateInfo}
     />
   );
