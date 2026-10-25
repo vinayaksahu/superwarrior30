@@ -26,6 +26,9 @@ import {
   MessageCircle,
   BadgePercent,
   Check,
+  Copy,
+  Users,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,6 +39,7 @@ import {
   disconnectStudentSubscriptionAction,
   refreshStudentCopyTradingDataAction,
   StudentCopyTradingPayload,
+  CopyTradingAffiliateInfo,
 } from "@/server/actions/copy-trading.actions";
 
 interface MasterData {
@@ -106,6 +110,7 @@ interface StudentCopyTradingClientProps {
   initialMaster: MasterData | null;
   initialSubscription: SubscriptionData | null;
   initialLogs: TradeLog[];
+  initialAffiliateInfo?: CopyTradingAffiliateInfo;
   settings: Record<string, string>;
 }
 
@@ -113,16 +118,36 @@ export function StudentCopyTradingClient({
   initialMaster,
   initialSubscription,
   initialLogs,
+  initialAffiliateInfo,
 }: StudentCopyTradingClientProps) {
   const [master, setMaster] = useState<MasterData | null>(initialMaster);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(initialSubscription);
   const [logs, setLogs] = useState<TradeLog[]>(initialLogs);
+  const [affiliateInfo, setAffiliateInfo] = useState<CopyTradingAffiliateInfo | undefined>(initialAffiliateInfo);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isActionPending, setIsActionPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
+  const [copiedReferral, setCopiedReferral] = useState(false);
+
+  const referralCode = affiliateInfo?.referralCode || "";
+  const referralUrl =
+    typeof window !== "undefined" && referralCode
+      ? `${window.location.origin}/register?ref=${referralCode}`
+      : `https://superwarrior30.com/register?ref=${referralCode}`;
+
+  const handleCopyReferralLink = async () => {
+    try {
+      await navigator.clipboard.writeText(referralUrl);
+      setCopiedReferral(true);
+      toast.success("Affiliate referral link copied to clipboard!");
+      setTimeout(() => setCopiedReferral(false), 2500);
+    } catch {
+      toast.error("Failed to copy referral link.");
+    }
+  };
 
   // Form State
   const initialTier = calculateCopyTradingTier(subscription?.balance || 300);
@@ -235,6 +260,7 @@ export function StudentCopyTradingClient({
       if (freshData.master) setMaster(freshData.master as any);
       if (freshData.subscription) setSubscription(freshData.subscription as any);
       setLogs(freshData.logs as any);
+      if (freshData.affiliateInfo) setAffiliateInfo(freshData.affiliateInfo);
       setLastRefreshedAt(freshData.refreshedAt);
       toast.success("Status refreshed from VPS!");
     } catch {
@@ -293,6 +319,57 @@ export function StudentCopyTradingClient({
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <Clock className="h-3 w-3" />
           <span>Last refreshed: {new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+        </div>
+      )}
+
+      {/* Course VIP Fee Exemption Benefit Banner */}
+      {affiliateInfo?.has14999Course ? (
+        <div className="rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-primary/10 to-emerald-500/10 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0 shadow-inner">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-foreground text-sm">₹14,999 Course VIP Member</span>
+                <span className="rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold">
+                  100% Free Lifetime VPS + AMC
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Because you are enrolled in the ₹14,999 course, you do NOT need to pay the ₹1,999/month VPS + AMC fee. Your account runs 24/7 on dedicated cloud hosting at <strong>₹0 / month</strong>!
+              </p>
+            </div>
+          </div>
+          <div className="text-left sm:text-right sm:border-l sm:border-border/60 sm:pl-4 shrink-0">
+            <div className="text-xs text-muted-foreground">Monthly VPS + AMC Fee</div>
+            <div className="text-lg font-bold text-emerald-500">
+              ₹0 <span className="text-xs text-muted-foreground line-through font-normal">₹1,999/mo</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+              <Server className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-foreground text-sm">Dedicated Cloud VPS &amp; AMC Hosting</span>
+                <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-medium">
+                  Standard Plan
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Standard monthly hosting is ₹1,999/mo. <em>Enrolled ₹14,999 Masterclass students get 100% Free Lifetime VPS + AMC!</em>
+              </p>
+            </div>
+          </div>
+          <div className="text-left sm:text-right sm:border-l sm:border-border/60 sm:pl-4 shrink-0">
+            <div className="text-xs text-muted-foreground">Monthly Fee</div>
+            <div className="text-base font-bold text-foreground">₹1,999 / mo</div>
+          </div>
         </div>
       )}
 
@@ -801,6 +878,193 @@ export function StudentCopyTradingClient({
         )}
       </div>
 
+      {/* Copy Trading Affiliate & Weekly Settlement Program */}
+      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base sm:text-lg font-bold text-foreground">
+                  Copy Trading Affiliate &amp; Weekly Settlement
+                </h3>
+                <span className="rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold">
+                  10% Profit Share
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Earn 10% commission on the weekly net profit of every investor who joins copy trading using your referral link.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 3-Way Profit Split Card */}
+        <div className="rounded-xl bg-gradient-to-br from-primary/5 via-accent/30 to-background border border-border/60 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <BadgePercent className="h-4 w-4 text-primary" />
+              Weekly Profit Sharing Structure
+            </span>
+            <span className="text-[11px] text-emerald-500 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              0% Fee Until Capital Recovered
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            {/* 70% Investor */}
+            <div className="rounded-lg bg-card border border-emerald-500/30 p-3.5 space-y-1.5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 h-16 w-16 bg-emerald-500/10 rounded-bl-full pointer-events-none"></div>
+              <span className="text-[11px] text-muted-foreground uppercase font-semibold">Investor Share</span>
+              <div className="text-2xl font-black text-emerald-500">70%</div>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                The investor/student retains the dominant 70% of all weekly net profits directly in their own trading account.
+              </p>
+            </div>
+
+            {/* 20% Academy */}
+            <div className="rounded-lg bg-card border border-primary/30 p-3.5 space-y-1.5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 h-16 w-16 bg-primary/10 rounded-bl-full pointer-events-none"></div>
+              <span className="text-[11px] text-muted-foreground uppercase font-semibold">Rahul Trade Warrior Academy</span>
+              <div className="text-2xl font-black text-primary">20%</div>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Covers master trader execution, algorithmic trade management, and round-the-clock dedicated risk monitoring.
+              </p>
+            </div>
+
+            {/* 10% Affiliate */}
+            <div className="rounded-lg bg-card border border-amber-500/30 p-3.5 space-y-1.5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 h-16 w-16 bg-amber-500/10 rounded-bl-full pointer-events-none"></div>
+              <span className="text-[11px] text-muted-foreground uppercase font-semibold">Affiliate Partner Share</span>
+              <div className="text-2xl font-black text-amber-500">10%</div>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                Paid out weekly to you on the net realized profits of the students/investors you referred.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Affiliate Link & Sharing Controls */}
+        <div className="space-y-3">
+          <label className="text-xs font-semibold text-foreground block">
+            Your Personal Copy Trading Referral Link
+          </label>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                readOnly
+                value={referralUrl}
+                className="w-full rounded-lg border border-border bg-accent/40 px-3.5 py-2.5 text-xs text-foreground font-mono select-all"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyReferralLink}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2.5 text-xs font-semibold transition-colors shrink-0 shadow-sm"
+            >
+              {copiedReferral ? (
+                <>
+                  <Check className="h-4 w-4" /> Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" /> Copy Link
+                </>
+              )}
+            </button>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Join SuperWarrior30 Copy Trading with Rahul Trade Warrior Academy! Automated Gold & BTC trading directly into your MT5 account. Register with my link: ${referralUrl}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 text-xs font-semibold transition-colors shrink-0 shadow-sm"
+            >
+              <MessageCircle className="h-4 w-4" /> Share on WhatsApp
+            </a>
+          </div>
+        </div>
+
+        {/* Affiliate Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="rounded-lg bg-background/80 border border-border/60 p-3">
+            <span className="text-muted-foreground text-[11px] block">Total Referred</span>
+            <strong className="text-lg font-bold text-foreground mt-0.5 block">
+              {affiliateInfo?.totalReferredInvestors || 0}
+            </strong>
+            <span className="text-[10px] text-muted-foreground">Students registered</span>
+          </div>
+
+          <div className="rounded-lg bg-background/80 border border-border/60 p-3">
+            <span className="text-muted-foreground text-[11px] block">Active Copying</span>
+            <strong className="text-lg font-bold text-emerald-500 mt-0.5 block">
+              {affiliateInfo?.activeCopyingReferrals || 0}
+            </strong>
+            <span className="text-[10px] text-muted-foreground">Generating commissions</span>
+          </div>
+
+          <div className="rounded-lg bg-background/80 border border-border/60 p-3">
+            <span className="text-muted-foreground text-[11px] block">Weekly Commission</span>
+            <strong className="text-lg font-bold text-amber-500 mt-0.5 block">10%</strong>
+            <span className="text-[10px] text-muted-foreground">On weekly net profit</span>
+          </div>
+
+          <div className="rounded-lg bg-background/80 border border-border/60 p-3">
+            <span className="text-muted-foreground text-[11px] block">Your Hosting Fee</span>
+            <strong className={cn("text-base font-bold mt-0.5 block", affiliateInfo?.has14999Course ? "text-emerald-500" : "text-foreground")}>
+              {affiliateInfo?.has14999Course ? "₹0 (VIP Exempt)" : "₹1,999 / mo"}
+            </strong>
+            <span className="text-[10px] text-muted-foreground">
+              {affiliateInfo?.has14999Course ? "₹14,999 Course Benefit" : "Standard Plan"}
+            </span>
+          </div>
+        </div>
+
+        {/* Referred Investors List (if any) */}
+        {affiliateInfo?.referredUsers && affiliateInfo.referredUsers.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-border/50">
+            <span className="text-xs font-semibold text-foreground block">
+              Your Referred Investors ({affiliateInfo.referredUsers.length})
+            </span>
+            <div className="rounded-lg border border-border/60 overflow-x-auto">
+              <table className="w-full text-[11px] text-left">
+                <thead className="bg-muted/40 text-muted-foreground uppercase text-[10px] border-b border-border/60">
+                  <tr>
+                    <th className="py-2 px-3">Student Name</th>
+                    <th className="py-2 px-3">Email</th>
+                    <th className="py-2 px-3">Joined On</th>
+                    <th className="py-2 px-3 text-right">Copy Trading Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {affiliateInfo.referredUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-muted/20">
+                      <td className="py-2 px-3 font-medium text-foreground">{u.name}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{u.email}</td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {new Date(u.joinedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        {u.isCopying ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold">
+                            🟢 Copying Live
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px]">
+                            Registered
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* SuperWarrior30 Copy Trading Highlights & Official FAQ (English) */}
       <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-6">
         {/* Banner from Poster */}
@@ -846,11 +1110,13 @@ export function StudentCopyTradingClient({
             </div>
             <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
               <span className="text-muted-foreground block text-[10px]">Profit Sharing:</span>
-              <strong className="text-emerald-500">0% Until Capital Recovers</strong>
+              <strong className="text-emerald-500">70% / 20% / 10% (0% till capital recovered)</strong>
             </div>
             <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
-              <span className="text-muted-foreground block text-[10px]">Monthly VPS Fee:</span>
-              <strong className="text-foreground">₹1,999 / month</strong>
+              <span className="text-muted-foreground block text-[10px]">Monthly VPS + AMC Fee:</span>
+              <strong className={affiliateInfo?.has14999Course ? "text-emerald-500 font-bold" : "text-foreground"}>
+                {affiliateInfo?.has14999Course ? "₹0 / Free (Course VIP)" : "₹1,999 / month"}
+              </strong>
             </div>
           </div>
         </div>
@@ -886,16 +1152,16 @@ export function StudentCopyTradingClient({
                 3. How does the Profit Sharing policy work?
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                We use an unmatched student-friendly policy: <strong>No profit sharing until your initial investment is 100% recovered!</strong> Thereafter, profit sharing is <strong>50%</strong> on net profits with weekly settlements.
+                We follow an unmatched student-friendly policy: <strong>0% profit sharing until your initial capital is 100% recovered!</strong> Once in net profit, weekly settlements follow a transparent 3-way split: <strong>70% retained by the Investor</strong>, <strong>20% to Rahul Trade Warrior Academy</strong>, and <strong>10% Affiliate Commission</strong> to the partner who referred you.
               </p>
             </div>
 
             <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
               <h4 className="font-semibold text-foreground">
-                4. What is the Monthly Fee and why is it charged?
+                4. What is the Monthly Fee and do ₹14,999 Course students need to pay?
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                A subscription of <strong>₹1,999 per month</strong> covers dedicated high-speed Cloud VPS hosting, round-the-clock terminal monitoring, zero-latency execution (&lt; 4ms), and server maintenance.
+                The standard fee is <strong>₹1,999 per month</strong> covering high-speed Cloud VPS hosting, 24/7 terminal uptime, and zero-latency execution. <strong>Special Exemption:</strong> Students who enrolled in the <strong>₹14,999 Institutional Masterclass</strong> do NOT pay this fee—they receive <strong>100% FREE Lifetime VPS + AMC hosting!</strong>
               </p>
             </div>
 
@@ -966,6 +1232,35 @@ export function StudentCopyTradingClient({
 
             {/* Scrollable Form Body */}
             <form onSubmit={handleConnectSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              {/* Hosting Fee Status in Modal */}
+              {affiliateInfo?.has14999Course ? (
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <div>
+                      <span className="font-bold text-foreground text-xs block">₹14,999 Course VIP Member</span>
+                      <span className="text-[11px] text-muted-foreground">Monthly VPS + AMC fee is fully exempted (Free Lifetime)</span>
+                    </div>
+                  </div>
+                  <span className="rounded bg-emerald-500/20 text-emerald-500 px-2.5 py-0.5 text-[10px] font-bold border border-emerald-500/30">
+                    ₹0 / Month
+                  </span>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-accent/40 border border-border/60 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Server className="h-4 w-4 text-primary shrink-0" />
+                    <div>
+                      <span className="font-semibold text-foreground text-xs block">Dedicated Cloud VPS Hosting</span>
+                      <span className="text-[11px] text-muted-foreground">Standard plan (Free for ₹14,999 Course students)</span>
+                    </div>
+                  </div>
+                  <span className="rounded bg-muted text-foreground px-2.5 py-0.5 text-[10px] font-semibold border border-border">
+                    ₹1,999 / Month
+                  </span>
+                </div>
+              )}
+
               {/* Platform & Broker Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

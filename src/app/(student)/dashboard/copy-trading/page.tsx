@@ -19,6 +19,7 @@ export default async function StudentCopyTradingPage() {
       initialMaster={data.master as any}
       initialSubscription={data.subscription as any}
       initialLogs={data.logs as any}
+      initialAffiliateInfo={data.affiliateInfo}
       settings={data.settings}
     />
   );

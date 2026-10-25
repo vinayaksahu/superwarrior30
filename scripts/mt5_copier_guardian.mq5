@@ -57,7 +57,10 @@ void CheckDailyReset()
 //+------------------------------------------------------------------+
 double CalculateTierLot(double balance)
 {
-   int units = (int)MathFloor(balance / InpBalanceUnit);
+   // Add $2.00 commission/spread buffer so micro fees (e.g. $599.96 or $899.96)
+   // do not drop the tier down to a lower lot size.
+   double effectiveBalance = balance + 2.00;
+   int units = (int)MathFloor(effectiveBalance / InpBalanceUnit);
    if(units < 1) units = 1;
    double lot = units * InpLotPerUnit;
    return NormalizeDouble(lot, 2);

@@ -27,6 +27,8 @@ import {
   Eye,
   EyeOff,
   Copy,
+  DollarSign,
+  BadgePercent,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -83,6 +85,13 @@ interface StudentSubscription {
   latencyMs: number;
   isOnline: boolean;
   lastSyncedAt: Date | string | null;
+  isCourseExempt?: boolean;
+  referredBy?: {
+    id: string;
+    name: string | null;
+    email: string;
+    referralCode: string;
+  } | null;
   user: {
     id: string;
     name: string | null;
@@ -153,7 +162,7 @@ export function AdminCopyTradingClient({
   initialKpi,
   vpsFleet,
 }: AdminCopyTradingClientProps) {
-  const [activeTab, setActiveTab] = useState<"FLEET" | "MASTER" | "VPS" | "LOGS">("FLEET");
+  const [activeTab, setActiveTab] = useState<"FLEET" | "MASTER" | "VPS" | "LOGS" | "SETTLEMENT">("FLEET");
   const [subscriptions, setSubscriptions] = useState<StudentSubscription[]>(initialSubscriptions);
   const [masters, setMasters] = useState<MasterData[]>(initialMasters);
   const [logs, setLogs] = useState<TradeLog[]>(initialLogs);
@@ -162,6 +171,11 @@ export function AdminCopyTradingClient({
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  // Weekly Settlement & Affiliate 70/20/10 Split Calculator
+  const [settlementProfitUsd, setSettlementProfitUsd] = useState<number>(100);
+  const [settlementSelectedSubId, setSettlementSelectedSubId] = useState<string>("ALL");
+  const [settlementFilterType, setSettlementFilterType] = useState<"ALL" | "VIP" | "AFFILIATED" | "STANDARD">("ALL");
 
   // Action Loading
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -476,6 +490,19 @@ export function AdminCopyTradingClient({
           <Activity className="h-3.5 w-3.5" />
           Execution Logs &amp; Simulation
         </button>
+
+        <button
+          onClick={() => setActiveTab("SETTLEMENT")}
+          className={cn(
+            "flex items-center gap-2 border-b-2 px-4 py-2.5 font-semibold transition-colors",
+            activeTab === "SETTLEMENT"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
+          Weekly Settlement &amp; Affiliate Split (70/20/10)
+        </button>
       </div>
 
       {/* Copy Trading Risk Sizing & DD Rules Matrix Card */}
@@ -582,10 +609,28 @@ export function AdminCopyTradingClient({
                       return (
                         <tr key={sub.id} className="hover:bg-accent/30 transition-colors">
                           <td className="py-3 px-4">
-                            <div className="font-semibold text-foreground">
-                              {sub.user.name || "Student"}
+                            <div className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
+                              <span>{sub.user.name || "Student"}</span>
+                              {sub.isCourseExempt ? (
+                                <span className="inline-flex items-center gap-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-bold">
+                                  <Sparkles className="h-2.5 w-2.5" /> ₹14,999 VIP (₹0 VPS)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded bg-muted text-muted-foreground px-1.5 py-0.5 text-[9px]">
+                                  Std (₹1,999/mo)
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-muted-foreground">{sub.user.email}</div>
+                            {sub.referredBy ? (
+                              <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1 font-medium">
+                                <span className="text-muted-foreground">Affiliate:</span>
+                                <span>{sub.referredBy.name || sub.referredBy.email}</span>
+                                <span className="font-mono text-[9px] text-muted-foreground">({sub.referredBy.referralCode})</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-muted-foreground mt-0.5 italic">Direct (No Referrer)</div>
+                            )}
                           </td>
 
                           <td className="py-3 px-3">
@@ -1210,6 +1255,302 @@ export function AdminCopyTradingClient({
                       );
                     })
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Weekly Settlement & Affiliate Profit Split Tab (70% / 20% / 10%) */}
+      {activeTab === "SETTLEMENT" && (
+        <div className="space-y-6">
+          {/* Header & KPI Summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <span className="text-muted-foreground text-[11px] font-medium block">Total Child Accounts</span>
+              <div className="text-2xl font-bold text-foreground mt-1">{subscriptions.length}</div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Enrolled copy trading terminals</p>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/30 bg-card p-4 shadow-sm">
+              <span className="text-amber-500 text-[11px] font-bold block flex items-center gap-1">
+                <Sparkles className="h-3 w-3" /> ₹14,999 Course VIPs
+              </span>
+              <div className="text-2xl font-bold text-amber-500 mt-1">
+                {subscriptions.filter((s) => s.isCourseExempt).length}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">₹0 / month VPS &amp; AMC (Exempted)</p>
+            </div>
+
+            <div className="rounded-xl border border-primary/30 bg-card p-4 shadow-sm">
+              <span className="text-primary text-[11px] font-medium block">Standard Hosting Accounts</span>
+              <div className="text-2xl font-bold text-foreground mt-1">
+                {subscriptions.filter((s) => !s.isCourseExempt).length}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">₹1,999 / month VPS &amp; AMC</p>
+            </div>
+
+            <div className="rounded-xl border border-emerald-500/30 bg-card p-4 shadow-sm">
+              <span className="text-emerald-500 text-[11px] font-bold block flex items-center gap-1">
+                <BadgePercent className="h-3.5 w-3.5" /> Affiliated Referrals
+              </span>
+              <div className="text-2xl font-bold text-emerald-500 mt-1">
+                {subscriptions.filter((s) => s.referredBy).length}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">10% Weekly Profit Share Active</p>
+            </div>
+          </div>
+
+          {/* Interactive Weekly Settlement Split Calculator */}
+          <div className="rounded-xl border border-primary/30 bg-card p-5 sm:p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-emerald-500" />
+                  Weekly Settlement &amp; Affiliate Split Calculator
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Official Policy: 70% Investor / 20% Academy / 10% Affiliate on realized weekly net profit. (0% fee until initial capital is recovered).
+                </p>
+              </div>
+              <span className="rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold self-start sm:self-auto">
+                70 / 20 / 10 Split
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1.5">
+                  Select Student Child Account
+                </label>
+                <select
+                  value={settlementSelectedSubId}
+                  onChange={(e) => setSettlementSelectedSubId(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground"
+                >
+                  <option value="ALL">All Active Accounts (Aggregate Calculation)</option>
+                  {subscriptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.user.name || "Student"} (#{s.accountNumber}) — {s.referredBy ? `Ref: ${s.referredBy.name || s.referredBy.referralCode}` : "Direct"} — {s.isCourseExempt ? "VIP (₹0 VPS)" : "₹1,999/mo"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1.5">
+                  Weekly Realized Net Profit (USD $)
+                </label>
+                <input
+                  type="number"
+                  step="10"
+                  min="0"
+                  value={settlementProfitUsd}
+                  onChange={(e) => setSettlementProfitUsd(Math.max(0, parseFloat(e.target.value) || 0))}
+                  placeholder="e.g. 150"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            {/* Live Calculation Preview Cards */}
+            {(() => {
+              const selectedSub = subscriptions.find((s) => s.id === settlementSelectedSubId);
+              const hasReferrer = selectedSub ? Boolean(selectedSub.referredBy) : true;
+              const profit = settlementProfitUsd;
+              const investorShare = Number((profit * 0.70).toFixed(2));
+              const affiliateShare = hasReferrer ? Number((profit * 0.10).toFixed(2)) : 0;
+              const academyShare = Number((profit - investorShare - affiliateShare).toFixed(2));
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4 space-y-1">
+                    <span className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider block">
+                      70% Investor / Student
+                    </span>
+                    <div className="text-2xl font-black text-foreground font-mono">
+                      ${investorShare.toFixed(2)}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Kept directly in {selectedSub?.user.name ? `${selectedSub.user.name}'s` : "investor"} trading account.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-primary/10 border border-primary/30 p-4 space-y-1">
+                    <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">
+                      {hasReferrer ? "20% Rahul Trade Warrior Academy" : "30% Rahul Trade Warrior Academy (Direct)"}
+                    </span>
+                    <div className="text-2xl font-black text-foreground font-mono">
+                      ${academyShare.toFixed(2)}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Platform fee &amp; master execution. {hasReferrer ? "(20% split)" : "(No referrer, retained 30%)"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-4 space-y-1">
+                    <span className="text-[11px] font-bold text-amber-500 uppercase tracking-wider block">
+                      10% Affiliate Partner Share
+                    </span>
+                    <div className="text-2xl font-black text-foreground font-mono">
+                      ${affiliateShare.toFixed(2)}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {selectedSub?.referredBy ? (
+                        <>Paid to: <strong className="text-foreground">{selectedSub.referredBy.name || selectedSub.referredBy.email}</strong> ({selectedSub.referredBy.referralCode})</>
+                      ) : (
+                        "Paid to referring partner (10% of net realized profit)"
+                      )}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Accounts Settlement Table */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm space-y-0">
+            <div className="p-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-accent/20">
+              <div>
+                <h3 className="font-semibold text-xs text-foreground">
+                  Student Accounts Settlement &amp; Fee Status Roster ({subscriptions.length})
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Filter accounts to audit hosting fee exemptions and affiliate splits.
+                </p>
+              </div>
+
+              {/* Quick Filters */}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setSettlementFilterType("ALL")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 font-medium transition-colors border",
+                    settlementFilterType === "ALL"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:bg-accent"
+                  )}
+                >
+                  All ({subscriptions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettlementFilterType("VIP")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 font-medium transition-colors border",
+                    settlementFilterType === "VIP"
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-background text-muted-foreground border-border hover:bg-accent"
+                  )}
+                >
+                  VIP ₹0 VPS ({subscriptions.filter((s) => s.isCourseExempt).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettlementFilterType("AFFILIATED")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 font-medium transition-colors border",
+                    settlementFilterType === "AFFILIATED"
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "bg-background text-muted-foreground border-border hover:bg-accent"
+                  )}
+                >
+                  Affiliated ({subscriptions.filter((s) => s.referredBy).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettlementFilterType("STANDARD")}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 font-medium transition-colors border",
+                    settlementFilterType === "STANDARD"
+                      ? "bg-accent text-foreground border-border font-bold"
+                      : "bg-background text-muted-foreground border-border hover:bg-accent"
+                  )}
+                >
+                  Standard ₹1,999 ({subscriptions.filter((s) => !s.isCourseExempt).length})
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[850px]">
+                <thead className="border-b border-border/60 bg-accent/30 text-muted-foreground uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-3">Student</th>
+                    <th className="py-2.5 px-3">Account / Broker</th>
+                    <th className="py-2.5 px-3">Monthly VPS &amp; AMC Fee</th>
+                    <th className="py-2.5 px-3">Affiliate Referrer</th>
+                    <th className="py-2.5 px-3">Initial Balance</th>
+                    <th className="py-2.5 px-3 text-right">Weekly Profit Split ($100 Profit)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {subscriptions
+                    .filter((sub) => {
+                      if (settlementFilterType === "VIP") return sub.isCourseExempt;
+                      if (settlementFilterType === "AFFILIATED") return Boolean(sub.referredBy);
+                      if (settlementFilterType === "STANDARD") return !sub.isCourseExempt;
+                      return true;
+                    })
+                    .map((sub) => {
+                      const hasRef = Boolean(sub.referredBy);
+                      return (
+                        <tr key={sub.id} className="hover:bg-accent/30 transition-colors">
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-foreground">{sub.user.name || "Student"}</div>
+                            <div className="text-[11px] text-muted-foreground">{sub.user.email}</div>
+                          </td>
+
+                          <td className="py-2.5 px-3 font-mono">
+                            <div className="font-bold text-foreground">#{sub.accountNumber}</div>
+                            <div className="text-[11px] text-muted-foreground">{sub.brokerName} ({sub.platform})</div>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {sub.isCourseExempt ? (
+                              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold">
+                                <Sparkles className="h-3 w-3" /> ₹0 / Free (₹14,999 VIP)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded bg-muted text-foreground px-2 py-0.5 text-[10px] border border-border">
+                                ₹1,999 / month (Std)
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {sub.referredBy ? (
+                              <div className="space-y-0.5">
+                                <div className="font-semibold text-amber-500 text-xs">
+                                  {sub.referredBy.name || sub.referredBy.email}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground font-mono">
+                                  Code: {sub.referredBy.referralCode}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground italic text-[11px]">Direct / Academy</span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3 font-mono font-bold text-emerald-500">
+                            ${sub.balance?.toFixed(2) || "300.00"}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="text-[11px] font-mono">
+                              <span className="text-emerald-500 font-bold">$70 Student</span>
+                              {" • "}
+                              <span className="text-primary font-bold">{hasRef ? "$20 Academy" : "$30 Academy"}</span>
+                              {" • "}
+                              <span className="text-amber-500 font-bold">{hasRef ? "$10 Affiliate" : "$0"}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

@@ -44,6 +44,7 @@ int            g_copiedCount          = 0;
 
 // Drawdown & Risk State
 double         g_initialDeposit       = 0.0;
+double         g_peakBalance          = 0.0;
 double         g_startOfDayEquity     = 0.0;
 datetime       g_currentDayIndex      = 0;
 bool           g_isDailyLocked        = false;
@@ -52,9 +53,9 @@ string         g_riskStopReason       = "";
 
 // Dynamic LMS Portal Control State
 bool           g_isPortalPaused       = false;
-string         g_portalRiskMode       = "FIXED_LOT";
+string         g_portalRiskMode       = "AUTO";         // Default: AUTO (Dynamic $300 balance-based sizing)
 double         g_portalMultiplier     = 1.0;
-double         g_portalFixedLot       = 0.01;
+double         g_portalFixedLot       = 0.0;
 double         g_portalMaxLotCap      = 0.50;
 ulong          g_lastCtrlReadMs       = 0;
 
@@ -209,8 +210,16 @@ double CalculateLots(string sym, double masterLot)
    if(stepLot <= 0) stepLot = 0.01;
    
    // 1. Core Rule: Every $300 balance = 0.01 Lot (Independent of Master Lots)
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   int units = (int)MathFloor(balance / InpBalanceUnit);
+   // Tier-Locked Recovery Rule: Sizing uses the account's baseline tier (Peak Balance or Initial Deposit).
+   // During normal drawdowns (up to 14.9%), lot size stays locked so recovery is fast.
+   // When account profits and crosses into the next $300 tier, lot size upgrades automatically.
+   double curBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   if(curBalance > g_peakBalance)
+      g_peakBalance = curBalance;
+      
+   double referenceBalance = MathMax(g_initialDeposit, g_peakBalance);
+   double effectiveBalance = referenceBalance + 2.00;
+   int units = (int)MathFloor(effectiveBalance / InpBalanceUnit);
    if(units < 1) units = 1;
    double calculated = units * InpLotPerUnit;
    
@@ -299,6 +308,8 @@ void ReadControlFile(string fName)
    // Parse riskMode
    if(StringFind(content, "FIXED_LOT") >= 0)
       g_portalRiskMode = "FIXED_LOT";
+   else if(StringFind(content, "AUTO") >= 0 || StringFind(content, "MULTIPLIER") >= 0 || StringFind(content, "BALANCE") >= 0)
+      g_portalRiskMode = "AUTO";
 }
 
 void CheckLmsPortalControl()
@@ -310,6 +321,24 @@ void CheckLmsPortalControl()
 
    ReadControlFile(g_ctrlTxt);
    ReadControlFile(g_ctrlJson);
+}
+
+//+------------------------------------------------------------------+
+//| Calculate Strict Tier-Base ($300 Unit) Risk Limits               |
+//| $300 Tier: Daily DD -$15.00 (5%), Max DD -$45.00 (15%)           |
+//| $600 Tier: Daily DD -$30.00 (5%), Max DD -$90.00 (15%)           |
+//| $900 Tier: Daily DD -$45.00 (5%), Max DD -$135.00 (15%)          |
+//+------------------------------------------------------------------+
+void GetTierRiskLimits(double &outTierBase, double &outDailyLimitUsd, double &outMaxLimitUsd, double &outCutoffEquity)
+{
+   double refBal = MathMax(g_initialDeposit, g_peakBalance);
+   int units = (int)MathFloor((refBal + 2.0) / InpBalanceUnit);
+   if(units < 1) units = 1;
+   
+   outTierBase        = units * InpBalanceUnit;
+   outDailyLimitUsd   = outTierBase * (InpDailyDDPercent / 100.0);
+   outMaxLimitUsd     = outTierBase * (InpMaxDDPercent / 100.0);
+   outCutoffEquity    = g_initialDeposit - outMaxLimitUsd;
 }
 
 //+------------------------------------------------------------------+
@@ -326,13 +355,16 @@ void UpdateComment(string extraStatus)
    double currentLot = CalculateLots(_Symbol, 0.01);
    int    openTrades = CountOpenCopiedTrades();
 
+   double tierBase, dailyDDLimitUsd, maxDDLimitUsd, maxDDCutoffEquity;
+   GetTierRiskLimits(tierBase, dailyDDLimitUsd, maxDDLimitUsd, maxDDCutoffEquity);
+
    double totalDrawdownUsd = g_initialDeposit - equity;
-   double totalDDPct       = (g_initialDeposit > 0) ? (totalDrawdownUsd / g_initialDeposit) * 100.0 : 0.0;
-   if(totalDDPct < 0) totalDDPct = 0.0;
+   if(totalDrawdownUsd < 0) totalDrawdownUsd = 0.0;
+   double totalDDPct       = (tierBase > 0) ? (totalDrawdownUsd / tierBase) * 100.0 : 0.0;
 
    double todayPnL     = GetTodayRealizedPnL() + GetCurrentFloatingPnL();
    double todayLossUsd = (todayPnL < 0) ? MathAbs(todayPnL) : 0.0;
-   double dailyDDPct   = (g_startOfDayEquity > 0) ? (todayLossUsd / g_startOfDayEquity) * 100.0 : 0.0;
+   double dailyDDPct   = (tierBase > 0) ? (todayLossUsd / tierBase) * 100.0 : 0.0;
 
    string statusBadge = "🟢 ACTIVE (Copying Live)";
    if(g_isPermanentlyStopped)
@@ -358,9 +390,9 @@ void UpdateComment(string extraStatus)
       StringFormat(" Open Positions : %d / %d Allowed (Max 2 Trades)\n", openTrades, InpMaxOpenTrades) +
       StringFormat(" Total Exposure : %.2f Lot  (Max %.2f)\n", currentLot * openTrades, currentLot * InpMaxOpenTrades) +
       "---------------------------------------------------------------\n" +
-      StringFormat(" Daily DD (5%%)  : -$%.2f  (%.1f%% / 5.0%% Limit - Reset 00:00)\n", todayLossUsd, dailyDDPct) +
-      StringFormat(" Max DD (15%%)   : -$%.2f  (%.1f%% / 15.0%% Hard Stop Exit)\n", (totalDrawdownUsd > 0 ? totalDrawdownUsd : 0.0), totalDDPct) +
-      StringFormat(" 15%% Exit Cutoff: Below $%.2f Equity\n", g_initialDeposit * 0.85) +
+      StringFormat(" Daily DD (5%%)  : -$%.2f / -$%.2f Limit (Reset 00:00)\n", todayLossUsd, dailyDDLimitUsd) +
+      StringFormat(" Max DD (15%%)   : -$%.2f / -$%.2f Hard Stop Exit\n", totalDrawdownUsd, maxDDLimitUsd) +
+      StringFormat(" 15%% Exit Cutoff: Below $%.2f Equity\n", maxDDCutoffEquity) +
       "---------------------------------------------------------------\n" +
       StringFormat(" Engine Status  : %s\n", extraStatus) +
       "===============================================================\n";
@@ -384,6 +416,7 @@ int OnInit()
    g_startOfDayEquity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(g_initialDeposit <= 0) g_initialDeposit = AccountInfoDouble(ACCOUNT_EQUITY);
    if(g_startOfDayEquity <= 0) g_startOfDayEquity = g_initialDeposit;
+   g_peakBalance      = g_initialDeposit;
    g_currentDayIndex  = TimeCurrent() / 86400;
 
    g_isDailyLocked        = false;
@@ -478,19 +511,22 @@ void ProcessMasterPositions()
 {
    CheckDailyReset();
 
+   double tierBase, dailyDDLimitUsd, maxDDLimitUsd, maxDDCutoffEquity;
+   GetTierRiskLimits(tierBase, dailyDDLimitUsd, maxDDLimitUsd, maxDDCutoffEquity);
+
    // -------------------------------------------------------------
    // A. Real-time 15% Max Lifetime Drawdown Check (Hard Kill-Switch)
+   // Strict Tier-Base: -$45 for $300 tier, -$90 for $600 tier, -$135 for $900 tier
    // -------------------------------------------------------------
    double currentEquity    = AccountInfoDouble(ACCOUNT_EQUITY);
    double totalDrawdownUsd = g_initialDeposit - currentEquity;
-   double totalDDPct       = (g_initialDeposit > 0) ? (totalDrawdownUsd / g_initialDeposit) * 100.0 : 0.0;
 
-   if(totalDDPct >= InpMaxDDPercent || g_isPermanentlyStopped)
+   if(totalDrawdownUsd >= maxDDLimitUsd || g_isPermanentlyStopped)
    {
       if(!g_isPermanentlyStopped)
       {
          g_isPermanentlyStopped = true;
-         g_riskStopReason = StringFormat("15%% Max DD Breached (-$%.2f / %.1f%%). Disconnected from copy trading.", totalDrawdownUsd, totalDDPct);
+         g_riskStopReason = StringFormat("15%% Max DD Breached (Loss: -$%.2f >= Limit: -$%.2f). Disconnected from copy trading.", totalDrawdownUsd, maxDDLimitUsd);
          PrintFormat("🛑 [CRITICAL RISK STOP] %s", g_riskStopReason);
          if(InpEmergencyCloseOnMaxDD && PositionsTotal() > 0)
             CloseAllCopiedPositions(g_riskStopReason);
@@ -500,17 +536,17 @@ void ProcessMasterPositions()
 
    // -------------------------------------------------------------
    // B. Real-time 5% Daily Drawdown Check (Daily Circuit Breaker)
+   // Strict Tier-Base: -$15 for $300 tier, -$30 for $600 tier, -$45 for $900 tier
    // -------------------------------------------------------------
    double todayPnL     = GetTodayRealizedPnL() + GetCurrentFloatingPnL();
    double todayLossUsd = (todayPnL < 0) ? MathAbs(todayPnL) : 0.0;
-   double dailyDDPct   = (g_startOfDayEquity > 0) ? (todayLossUsd / g_startOfDayEquity) * 100.0 : 0.0;
 
-   if(dailyDDPct >= InpDailyDDPercent || g_isDailyLocked)
+   if(todayLossUsd >= dailyDDLimitUsd || g_isDailyLocked)
    {
       if(!g_isDailyLocked)
       {
          g_isDailyLocked  = true;
-         g_riskStopReason = StringFormat("5%% Daily DD Reached (-$%.2f / %.1f%%). Paused for today.", todayLossUsd, dailyDDPct);
+         g_riskStopReason = StringFormat("5%% Daily DD Reached (Loss: -$%.2f >= Limit: -$%.2f). Paused for today.", todayLossUsd, dailyDDLimitUsd);
          PrintFormat("⏸️ [DAILY DD PAUSE] %s", g_riskStopReason);
       }
       // Note: do not return yet; existing positions may still need close synchronization!

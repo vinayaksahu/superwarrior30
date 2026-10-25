@@ -23,6 +23,20 @@ export interface StudentCopyTradingPayload {
   maxLotLimit: number;
 }
 
+export interface CopyTradingAffiliateInfo {
+  referralCode: string;
+  has14999Course: boolean;
+  totalReferredInvestors: number;
+  activeCopyingReferrals: number;
+  referredUsers: {
+    id: string;
+    name: string;
+    email: string;
+    isCopying: boolean;
+    joinedAt: Date | string;
+  }[];
+}
+
 export interface MasterAccountPayload {
   id?: string;
   accountName: string;
@@ -41,6 +55,108 @@ export interface MasterAccountPayload {
   maxDrawdown?: number;
   roiMonthly?: number;
   vpsNodeName?: string;
+}
+
+/**
+ * Helper to fetch Copy Trading Affiliate Info & Course Fee Exemption Status
+ * Students who purchased the ₹14,999 course do not pay the ₹1,999 monthly VPS+AMC fee (₹0 / FREE).
+ */
+export async function fetchUserCopyTradingAffiliateInfo(userId: string): Promise<CopyTradingAffiliateInfo> {
+  const userFull: any = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      referralCode: true,
+      enrollments: {
+        select: {
+          course: {
+            select: { price: true, compareAtPrice: true, title: true },
+          },
+        },
+      },
+      orders: {
+        where: { status: "PAID" },
+        select: { totalAmount: true },
+      },
+      directReferrals: {
+        select: {
+          referred: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              createdAt: true,
+              copyTradingSubscriptions: {
+                select: { id: true, status: true, balance: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const has14999Course = Boolean(
+    userFull?.enrollments?.some(
+      (e: any) => Number(e.course?.price) >= 14000 || Number(e.course?.compareAtPrice) >= 14000
+    ) || userFull?.orders?.some((o: any) => Number(o.totalAmount) >= 14000)
+  );
+
+  const referredUsers = (userFull?.directReferrals || []).map((rel: any) => {
+    const isCopying = rel.referred?.copyTradingSubscriptions?.some((s: any) => s.status === "ACTIVE") ?? false;
+    return {
+      id: rel.referred?.id || "",
+      name: rel.referred?.name || "Student",
+      email: rel.referred?.email || "",
+      isCopying,
+      joinedAt: rel.referred?.createdAt || new Date(),
+    };
+  });
+
+  const totalReferredInvestors = referredUsers.length;
+  const activeCopyingReferrals = referredUsers.filter((u: any) => u.isCopying).length;
+
+  return {
+    referralCode: userFull?.referralCode || userId.slice(0, 8).toUpperCase(),
+    has14999Course,
+    totalReferredInvestors,
+    activeCopyingReferrals,
+    referredUsers,
+  };
+}
+
+/**
+ * 70 / 20 / 10 Weekly Settlement Split Calculator:
+ * - 70% Investor (Student) Net Profit
+ * - 20% Rahul Trade Warrior Academy
+ * - 10% Affiliate Partner (Referrer)
+ * If no referrer exists, Academy retains 30%.
+ */
+export function calculateWeeklySettlementSplit(netProfitUsd: number, hasReferrer: boolean) {
+  if (netProfitUsd <= 0) {
+    return {
+      netProfitUsd: 0,
+      investorShareUsd: 0,
+      academyShareUsd: 0,
+      affiliateShareUsd: 0,
+      investorPercent: 70,
+      academyPercent: hasReferrer ? 20 : 30,
+      affiliatePercent: hasReferrer ? 10 : 0,
+    };
+  }
+
+  const investorShareUsd = Number((netProfitUsd * 0.70).toFixed(2));
+  const affiliateShareUsd = hasReferrer ? Number((netProfitUsd * 0.10).toFixed(2)) : 0;
+  const academyShareUsd = Number((netProfitUsd - investorShareUsd - affiliateShareUsd).toFixed(2));
+
+  return {
+    netProfitUsd,
+    investorShareUsd,
+    academyShareUsd,
+    affiliateShareUsd,
+    investorPercent: 70,
+    academyPercent: hasReferrer ? 20 : 30,
+    affiliatePercent: hasReferrer ? 10 : 0,
+  };
 }
 
 /**
@@ -92,11 +208,15 @@ export async function getStudentCopyTradingDataAction() {
     settingsMap[s.key] = s.value;
   }
 
+  // Affiliate & Course Fee Exemption Status
+  const affiliateInfo = await fetchUserCopyTradingAffiliateInfo(user.id);
+
   return {
     master,
     subscription,
     logs,
     settings: settingsMap,
+    affiliateInfo,
   };
 }
 
@@ -303,12 +423,40 @@ export async function refreshStudentCopyTradingDataAction() {
       })
     : [];
 
+  const affiliateInfo = await fetchUserCopyTradingAffiliateInfo(user.id);
+
   return {
     master,
     subscription,
     logs,
+    affiliateInfo,
     refreshedAt: new Date().toISOString(),
   };
+}
+
+function mapSubscriptionsWithAffiliateAndExemption(subs: any[]) {
+  return subs.map((s) => {
+    const isCourseExempt = Boolean(
+      s.user?.enrollments?.some(
+        (e: any) => Number(e.course?.price) >= 14000 || Number(e.course?.compareAtPrice) >= 14000
+      ) || s.user?.orders?.some((o: any) => Number(o.totalAmount) >= 14000)
+    );
+
+    const referrer = s.user?.referredBy?.referrer
+      ? {
+          id: s.user.referredBy.referrer.id,
+          name: s.user.referredBy.referrer.name,
+          email: s.user.referredBy.referrer.email,
+          referralCode: s.user.referredBy.referrer.referralCode,
+        }
+      : null;
+
+    return {
+      ...s,
+      isCourseExempt,
+      referredBy: referrer,
+    };
+  });
 }
 
 /**
@@ -318,7 +466,7 @@ export async function refreshStudentCopyTradingDataAction() {
 export async function refreshAdminCopyTradingDataAction() {
   await requirePermission("copy_trading.view");
 
-  const [masters, subscriptions, recentLogs] = await Promise.all([
+  const [masters, rawSubscriptions, recentLogs] = await Promise.all([
     prisma.copyTradingMaster.findMany({
       orderBy: { createdAt: "desc" },
     }),
@@ -332,6 +480,29 @@ export async function refreshAdminCopyTradingDataAction() {
             phone: true,
             avatarUrl: true,
             referralCode: true,
+            enrollments: {
+              select: {
+                course: {
+                  select: { id: true, title: true, price: true, compareAtPrice: true },
+                },
+              },
+            },
+            orders: {
+              where: { status: "PAID" },
+              select: { totalAmount: true },
+            },
+            referredBy: {
+              select: {
+                referrer: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    referralCode: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -353,6 +524,7 @@ export async function refreshAdminCopyTradingDataAction() {
     }),
   ]);
 
+  const subscriptions = mapSubscriptionsWithAffiliateAndExemption(rawSubscriptions);
   const activeStudents = subscriptions.filter((s) => s.status === "ACTIVE").length;
   const pendingApprovals = subscriptions.filter((s) => s.status === "PENDING_APPROVAL").length;
   const pausedStudents = subscriptions.filter((s) => s.status === "PAUSED").length;
@@ -396,7 +568,7 @@ export async function getAdminCopyTradingDataAction() {
   await ensureDatabaseSchemaSync();
   await requirePermission("copy_trading.view");
 
-  const [masters, subscriptions, recentLogs, settingsRecords] = await Promise.all([
+  const [masters, rawSubscriptions, recentLogs, settingsRecords] = await Promise.all([
     prisma.copyTradingMaster.findMany({
       orderBy: { createdAt: "desc" },
     }),
@@ -410,6 +582,29 @@ export async function getAdminCopyTradingDataAction() {
             phone: true,
             avatarUrl: true,
             referralCode: true,
+            enrollments: {
+              select: {
+                course: {
+                  select: { id: true, title: true, price: true, compareAtPrice: true },
+                },
+              },
+            },
+            orders: {
+              where: { status: "PAID" },
+              select: { totalAmount: true },
+            },
+            referredBy: {
+              select: {
+                referrer: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    referralCode: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -432,6 +627,7 @@ export async function getAdminCopyTradingDataAction() {
     prisma.copyTradingSetting.findMany(),
   ]);
 
+  const subscriptions = mapSubscriptionsWithAffiliateAndExemption(rawSubscriptions);
   const settingsMap: Record<string, string> = {};
   for (const s of settingsRecords) {
     settingsMap[s.key] = s.value;
