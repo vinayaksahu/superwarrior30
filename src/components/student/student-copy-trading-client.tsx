@@ -397,7 +397,7 @@ export function StudentCopyTradingClient({
                 </span>
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Master account chahe jitne bhi bade lot size ya risk se trade kare, aapke MT5 account me strictly yahi rules follow honge.
+                Regardless of the lot size or risk taken on the Master account, your MT5 account strictly executes within these protective risk limits.
               </p>
             </div>
           </div>
@@ -413,7 +413,7 @@ export function StudentCopyTradingClient({
               0.01 Lot per $300
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Har $300 balance par 0.01 lot ($600 = 0.02, $1200 = 0.04).
+              0.01 lot for every $300 balance ($600 = 0.02, $1,200 = 0.04).
             </p>
           </div>
 
@@ -425,7 +425,7 @@ export function StudentCopyTradingClient({
               Max 2 Trades Concurrent
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Ek time pe maximum 2 trades open honge (0.01 + 0.01 for $300).
+              Maximum 2 open positions at a time (e.g. 0.01 + 0.01 for $300).
             </p>
           </div>
 
@@ -437,7 +437,7 @@ export function StudentCopyTradingClient({
               5% Daily Circuit Breaker
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Us din ka 5% loss hote hi new trades stop, agle din resume.
+              Trading pauses for the day if 5% loss is hit; resumes next trading day.
             </p>
           </div>
 
@@ -449,7 +449,7 @@ export function StudentCopyTradingClient({
               15% Hard Exit Limit
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Total 15% drawdown aate hi account copy trading se bahar.
+              Account permanently exits copy trading if 15% total drawdown is reached.
             </p>
           </div>
         </div>
@@ -518,7 +518,7 @@ export function StudentCopyTradingClient({
           </table>
         </div>
         <div className="text-[11px] text-muted-foreground flex items-center justify-between">
-          <span>* And so on: Har <strong>+$300 balance</strong> par <strong>+0.01 lot</strong> scale hoga. Maximum open trades at a time hamesha <strong>2</strong> rahenge.</span>
+          <span>* Linear Progression: Each <strong>+$300 balance</strong> increments lot size by <strong>+0.01 lot</strong>. Maximum open positions at any time are strictly capped at <strong>2 trades</strong>.</span>
         </div>
       </div>
 
@@ -1121,7 +1121,7 @@ export function StudentCopyTradingClient({
                 </div>
 
                 <p className="text-[10px] text-muted-foreground leading-normal">
-                  💡 <strong>Rule:</strong> Master chahe kitna bhi lot le, aapke account me hamesha <strong>{liveTier.lotPerTrade} lot</strong> aur <strong>max 2 trades</strong> hi open rahenge. 5% daily loss par us din trading stop hogi aur 15% total loss par account copy trading se bahar ho jayega.
+                  💡 <strong>Protection Rule:</strong> Regardless of master lot size or risk, your account strictly trades <strong>{liveTier.lotPerTrade} lot</strong> with a maximum of <strong>2 concurrent trades</strong>. Reaching 5% daily loss halts trading for the day, and reaching 15% overall drawdown permanently disconnects the account.
                 </p>
               </div>
 

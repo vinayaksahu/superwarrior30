@@ -506,12 +506,12 @@ export function AdminCopyTradingClient({
           <div className="rounded-lg bg-accent/40 border border-border/60 p-2.5">
             <span className="text-[10px] text-muted-foreground block font-medium">Daily Drawdown</span>
             <div className="font-bold text-amber-500 text-xs mt-0.5">5% Daily Stop</div>
-            <span className="text-[10px] text-muted-foreground">Locks for today, resets 00:00</span>
+            <span className="text-[10px] text-muted-foreground">Halts new trades today, resets 00:00</span>
           </div>
           <div className="rounded-lg bg-accent/40 border border-border/60 p-2.5">
             <span className="text-[10px] text-muted-foreground block font-medium">Max Drawdown</span>
             <div className="font-bold text-destructive text-xs mt-0.5">15% Max DD Hard Exit</div>
-            <span className="text-[10px] text-muted-foreground">Auto-disconnects from fleet</span>
+            <span className="text-[10px] text-muted-foreground">Hard exit &amp; terminal disconnected</span>
           </div>
         </div>
       </div>
@@ -1124,7 +1124,7 @@ export function AdminCopyTradingClient({
 
             <div className="rounded-lg bg-background/80 border border-primary/20 p-2.5 text-[11px] text-muted-foreground flex items-center justify-between">
               <span>
-                🛡️ <strong>Risk Policy Enforced:</strong> Master jitna bhi lot le, har client account me <strong>0.01 lot per $300 balance</strong>, <strong>max 2 concurrent trades</strong>, <strong>5% Daily DD stop</strong>, aur <strong>15% Max DD breach exit</strong> strictly follow hoga.
+                🛡️ <strong>Risk Policy Enforced:</strong> Regardless of master lot size, every child MT5 terminal strictly executes <strong>0.01 lot per $300 balance</strong>, capped at <strong>max 2 concurrent trades</strong>, protected by a <strong>5% Daily Drawdown stop</strong> and a <strong>15% Lifetime Drawdown exit</strong>.
               </span>
             </div>
           </div>
