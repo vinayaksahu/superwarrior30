@@ -307,12 +307,26 @@ export function StudentCopyTradingClient({
           </p>
         </div>
 
-        {/* Refresh Button */}
-        <div className="flex items-center gap-2">
+        {/* Header Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/dashboard/copy-trading/settlement"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+          >
+            <DollarSign className="h-3.5 w-3.5" />
+            Weekly Settlement
+          </Link>
+          <Link
+            href="/dashboard/copy-trading/checkout"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-accent/60 px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
+          >
+            <Server className="h-3.5 w-3.5 text-primary" />
+            Cloud VPS
+          </Link>
           <button
             onClick={handleRefreshStatus}
             disabled={isRefreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors w-full sm:w-auto"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
             title="Fetch latest status from server"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
@@ -1070,6 +1084,42 @@ export function StudentCopyTradingClient({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Weekly Profit Sharing & Settlement Card */}
+      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+          <div>
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-500" />
+              Weekly Profit Sharing Settlement (70 / 20 / 10)
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              70% Net Profit Kept by You • 20% Academy Execution • 10% Affiliate Partner. (0% fee charged until initial capital is recovered).
+            </p>
+          </div>
+          <Link
+            href="/dashboard/copy-trading/settlement"
+            className="rounded-lg bg-primary text-primary-foreground font-bold px-3.5 py-1.5 text-xs shadow hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            Open Settlement Gateway →
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3">
+            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider block">70% Student Share</span>
+            <p className="text-xs text-muted-foreground mt-1">Kept directly in your MT5 trading balance.</p>
+          </div>
+          <div className="rounded-lg bg-primary/10 border border-primary/30 p-3">
+            <span className="text-[10px] font-bold text-primary uppercase tracking-wider block">20% Academy Share</span>
+            <p className="text-xs text-muted-foreground mt-1">Platform management &amp; master execution.</p>
+          </div>
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
+            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block">10% Affiliate Share</span>
+            <p className="text-xs text-muted-foreground mt-1">Credited directly to referring partner wallet.</p>
+          </div>
+        </div>
       </div>
 
       {/* SuperWarrior30 Copy Trading Highlights & Official FAQ (English) */}

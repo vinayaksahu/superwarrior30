@@ -1495,3 +1495,92 @@ export async function adminApproveAndCreditAffiliateSettlementAction(
     return { success: false, message: error?.message || "Failed to settle invoice." };
   }
 }
+
+
+/**
+ * Submit Direct Weekly Profit Sharing Settlement Payment (without requiring pre-generated invoice)
+ */
+export async function submitDirectSettlementPaymentAction(payload: {
+  profitUsd: number;
+  paymentMethod: string;
+  utrNumber: string;
+  proofUrl?: string;
+  weekPeriod?: string;
+}): Promise<ActionState<{ id: string; invoiceNumber: string }>> {
+  try {
+    await ensureDatabaseSchemaSync();
+    const user = await requireAuth();
+
+    if (!payload.utrNumber?.trim()) {
+      return { success: false, message: "UTR / Transaction Reference number is required." };
+    }
+
+    const profitUsd = Number(payload.profitUsd);
+    if (profitUsd <= 0) {
+      return { success: false, message: "Realized profit must be greater than $0." };
+    }
+
+    const subscription = await prisma.copyTradingSubscription.findFirst({
+      where: { userId: user.id },
+    });
+
+    const userWithReferrer = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        referredBy: {
+          select: { referrerId: true },
+        },
+      },
+    });
+
+    const affiliateUserId = userWithReferrer?.referredBy?.referrerId || null;
+    const hasReferrer = Boolean(affiliateUserId);
+
+    const rate = 86.5;
+    const profitInr = Number((profitUsd * rate).toFixed(2));
+    const investorShareInr = Number((profitInr * 0.70).toFixed(2));
+    const affiliateShareInr = hasReferrer ? Number((profitInr * 0.10).toFixed(2)) : 0.0;
+    const academyShareInr = Number((profitInr - investorShareInr - affiliateShareInr).toFixed(2));
+    const totalAmountDueInr = Number((academyShareInr + affiliateShareInr).toFixed(2));
+
+    const invoiceNumber = "INV-CT-" + Date.now().toString().slice(-6) + "-" + Math.floor(100 + Math.random() * 900);
+    const weekPeriod =
+      payload.weekPeriod?.trim() ||
+      "Week " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " - " + new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+    const invoice = await prisma.copyTradingSettlementInvoice.create({
+      data: {
+        subscriptionId: subscription?.id || null,
+        userId: user.id,
+        invoiceNumber,
+        weekPeriod,
+        profitUsd,
+        profitInr,
+        investorShareInr,
+        academyShareInr,
+        affiliateShareInr,
+        totalAmountDueInr,
+        affiliateUserId,
+        status: "PAID",
+        paymentMethod: payload.paymentMethod.trim(),
+        utrNumber: payload.utrNumber.trim(),
+        proofUrl: payload.proofUrl?.trim() || null,
+        paidAt: new Date(),
+      },
+    });
+
+    revalidatePath("/dashboard/copy-trading");
+    revalidatePath("/dashboard/copy-trading/settlement");
+    revalidatePath("/dashboard/copy-trading/settlement/" + invoice.id);
+    revalidatePath("/admin/copy-trading");
+
+    return {
+      success: true,
+      message: "Settlement payment of ₹" + totalAmountDueInr.toLocaleString("en-IN") + " submitted! Admin will verify and settle 10% affiliate share.",
+      data: { id: invoice.id, invoiceNumber },
+    };
+  } catch (error: any) {
+    console.error("Direct settlement submit error:", error);
+    return { success: false, message: error?.message || "Failed to submit settlement payment." };
+  }
+}
