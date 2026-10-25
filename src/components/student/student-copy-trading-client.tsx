@@ -288,29 +288,17 @@ export function StudentCopyTradingClient({
           </p>
         </div>
 
-        {/* Dedicated Trading Cloud VPS Status Banner + Refresh Button */}
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+        {/* Refresh Button */}
+        <div className="flex items-center gap-2">
           <button
             onClick={handleRefreshStatus}
             disabled={isRefreshing}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors w-full sm:w-auto"
-            title="Fetch latest status from VPS"
+            title="Fetch latest status from server"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
             {isRefreshing ? "Refreshing..." : "Refresh Status"}
           </button>
-          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm w-full sm:w-auto">
-            <div className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </div>
-            <div>
-              <div className="font-medium text-foreground flex items-center gap-1">
-                <Server className="h-3 w-3 text-primary shrink-0" /> Dedicated Trading Cloud VPS
-              </div>
-              <div className="text-[11px] text-muted-foreground">Execution Latency: &lt; 4ms • 24/7 Active</div>
-            </div>
-          </div>
         </div>
       </div>
 
