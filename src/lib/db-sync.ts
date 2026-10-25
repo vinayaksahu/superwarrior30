@@ -1204,6 +1204,49 @@ export async function ensureDatabaseSchemaSync(force = false): Promise<void> {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS "copy_trading_vps_payments" (
+        "id" TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "amount" DOUBLE PRECISION NOT NULL DEFAULT 1999.0,
+        "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+        "paymentMethod" TEXT,
+        "utrNumber" TEXT,
+        "proofUrl" TEXT,
+        "validFrom" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "validUntil" TIMESTAMP(3) NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "copy_trading_vps_payments_userId_idx" ON "copy_trading_vps_payments"("userId");
+      CREATE INDEX IF NOT EXISTS "copy_trading_vps_payments_status_idx" ON "copy_trading_vps_payments"("status");
+
+      CREATE TABLE IF NOT EXISTS "copy_trading_settlement_invoices" (
+        "id" TEXT PRIMARY KEY,
+        "subscriptionId" TEXT REFERENCES "copy_trading_subscriptions"("id") ON DELETE SET NULL,
+        "userId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "invoiceNumber" TEXT UNIQUE NOT NULL,
+        "weekPeriod" TEXT NOT NULL,
+        "profitUsd" DOUBLE PRECISION NOT NULL,
+        "profitInr" DOUBLE PRECISION NOT NULL,
+        "investorShareInr" DOUBLE PRECISION NOT NULL,
+        "academyShareInr" DOUBLE PRECISION NOT NULL,
+        "affiliateShareInr" DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+        "totalAmountDueInr" DOUBLE PRECISION NOT NULL,
+        "affiliateUserId" TEXT REFERENCES "users"("id") ON DELETE SET NULL,
+        "status" TEXT NOT NULL DEFAULT 'PENDING',
+        "paymentMethod" TEXT,
+        "utrNumber" TEXT,
+        "proofUrl" TEXT,
+        "paidAt" TIMESTAMP(3),
+        "settledAt" TIMESTAMP(3),
+        "notes" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "copy_trading_settlement_invoices_userId_idx" ON "copy_trading_settlement_invoices"("userId");
+      CREATE INDEX IF NOT EXISTS "copy_trading_settlement_invoices_status_idx" ON "copy_trading_settlement_invoices"("status");
+      CREATE INDEX IF NOT EXISTS "copy_trading_settlement_invoices_affiliateUserId_idx" ON "copy_trading_settlement_invoices"("affiliateUserId");
     `);
 
     // Ensure default master account exists

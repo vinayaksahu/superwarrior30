@@ -37,6 +37,8 @@ import {
   adminUpdateSubscriptionStatusAction,
   adminUpdateMasterAccountAction,
   adminSimulateTradeSyncAction,
+  adminCreateSettlementInvoiceAction,
+  adminApproveAndCreditAffiliateSettlementAction,
   refreshAdminCopyTradingDataAction,
   MasterAccountPayload,
 } from "@/server/actions/copy-trading.actions";
@@ -153,6 +155,8 @@ interface AdminCopyTradingClientProps {
   };
   vpsFleet: VpsNodeInfo[];
   settings: Record<string, string>;
+  initialInvoices?: any[];
+  initialVpsPayments?: any[];
 }
 
 export function AdminCopyTradingClient({
@@ -161,6 +165,8 @@ export function AdminCopyTradingClient({
   initialLogs,
   initialKpi,
   vpsFleet,
+  initialInvoices = [],
+  initialVpsPayments = [],
 }: AdminCopyTradingClientProps) {
   const [activeTab, setActiveTab] = useState<"FLEET" | "MASTER" | "VPS" | "LOGS" | "SETTLEMENT">("FLEET");
   const [subscriptions, setSubscriptions] = useState<StudentSubscription[]>(initialSubscriptions);
@@ -176,6 +182,61 @@ export function AdminCopyTradingClient({
   const [settlementProfitUsd, setSettlementProfitUsd] = useState<number>(100);
   const [settlementSelectedSubId, setSettlementSelectedSubId] = useState<string>("ALL");
   const [settlementFilterType, setSettlementFilterType] = useState<"ALL" | "VIP" | "AFFILIATED" | "STANDARD">("ALL");
+  const [invoices, setInvoices] = useState<any[]>(initialInvoices);
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [settlingInvoiceId, setSettlingInvoiceId] = useState<string | null>(null);
+
+  const handleCreateSettlementInvoice = async () => {
+    if (settlementSelectedSubId === "ALL") {
+      toast.error("Please select a specific student account to generate an invoice.");
+      return;
+    }
+    if (settlementProfitUsd <= 0) {
+      toast.error("Please enter a realized profit amount greater than $0.");
+      return;
+    }
+
+    const currentWeek = "Week " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " - " + new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+    setIsGeneratingInvoice(true);
+    try {
+      const res = await adminCreateSettlementInvoiceAction({
+        subscriptionId: settlementSelectedSubId,
+        weekPeriod: currentWeek,
+        profitUsd: settlementProfitUsd,
+      });
+
+      if (res.success) {
+        toast.success(res.message);
+        const refRes = await refreshAdminCopyTradingDataAction();
+        if (refRes.invoices) setInvoices(refRes.invoices);
+      } else {
+        toast.error(res.message);
+      }
+    } catch {
+      toast.error("Failed to generate settlement invoice.");
+    } finally {
+      setIsGeneratingInvoice(false);
+    }
+  };
+
+  const handleSettleAndCreditAffiliate = async (invoiceId: string) => {
+    setSettlingInvoiceId(invoiceId);
+    try {
+      const res = await adminApproveAndCreditAffiliateSettlementAction(invoiceId);
+      if (res.success) {
+        toast.success(res.message);
+        const refRes = await refreshAdminCopyTradingDataAction();
+        if (refRes.invoices) setInvoices(refRes.invoices);
+      } else {
+        toast.error(res.message);
+      }
+    } catch {
+      toast.error("Failed to settle invoice.");
+    } finally {
+      setSettlingInvoiceId(null);
+    }
+  };
 
   // Action Loading
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -1407,6 +1468,115 @@ export function AdminCopyTradingClient({
                 </div>
               );
             })()}
+          </div>
+
+          {/* Invoices & 10% Affiliate Distribution Roster */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm space-y-0">
+            <div className="p-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-accent/20">
+              <div>
+                <h3 className="font-semibold text-xs text-foreground flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-emerald-500" />
+                  Weekly Settlement Invoices &amp; 10% Affiliate Payouts ({invoices.length})
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Verify payments submitted by students and 1-click credit 10% affiliate commission directly to referrer's wallet.
+                </p>
+              </div>
+            </div>
+
+            {invoices.length === 0 ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                No weekly settlement invoices generated yet. Use the calculator above to generate the first invoice.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/40 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border/60">
+                    <tr>
+                      <th className="px-4 py-3">Invoice &amp; Period</th>
+                      <th className="px-4 py-3">Student / Terminal</th>
+                      <th className="px-4 py-3">Net Profit</th>
+                      <th className="px-4 py-3">70% / 20% / 10% Split</th>
+                      <th className="px-4 py-3">Amount Due (30%)</th>
+                      <th className="px-4 py-3">Status &amp; UTR</th>
+                      <th className="px-4 py-3 text-right">Affiliate Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {invoices.map((inv: any) => (
+                      <tr key={inv.id} className="hover:bg-accent/30 transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="font-mono font-bold text-foreground block">{inv.invoiceNumber}</span>
+                          <span className="text-[10px] text-muted-foreground">{inv.weekPeriod}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-semibold text-foreground block">{inv.user?.name || "Student"}</span>
+                          <span className="text-[10px] text-muted-foreground">{inv.user?.email}</span>
+                        </td>
+                        <td className="px-4 py-3 font-mono">
+                          <span className="font-bold text-foreground block">${inv.profitUsd}</span>
+                          <span className="text-[10px] text-muted-foreground">₹{inv.profitInr?.toLocaleString("en-IN")}</span>
+                        </td>
+                        <td className="px-4 py-3 text-[11px]">
+                          <span className="text-emerald-500 font-bold block">70% Student: ₹{inv.investorShareInr?.toLocaleString("en-IN")}</span>
+                          <span className="text-primary block">20% Academy: ₹{inv.academyShareInr?.toLocaleString("en-IN")}</span>
+                          <span className="text-amber-500 font-semibold block">10% Affiliate: ₹{inv.affiliateShareInr?.toLocaleString("en-IN")}</span>
+                        </td>
+                        <td className="px-4 py-3 font-mono font-bold text-primary">
+                          ₹{inv.totalAmountDueInr?.toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-4 py-3">
+                          {inv.status === "SETTLED" ? (
+                            <span className="rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Settled
+                            </span>
+                          ) : inv.status === "PAID" ? (
+                            <div>
+                              <span className="rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Paid (Verify UTR)
+                              </span>
+                              {inv.utrNumber && (
+                                <span className="font-mono text-[10px] text-foreground block mt-0.5">
+                                  UTR: {inv.utrNumber}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="rounded-full bg-destructive/10 text-destructive border border-destructive/30 px-2 py-0.5 text-[10px] font-bold">
+                              Pending Due
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {inv.status !== "SETTLED" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSettleAndCreditAffiliate(inv.id)}
+                              disabled={settlingInvoiceId === inv.id}
+                              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 text-[11px] shadow transition-colors inline-flex items-center gap-1.5"
+                            >
+                              {settlingInvoiceId === inv.id ? (
+                                <>
+                                  <RefreshCw className="h-3 w-3 animate-spin" /> Crediting...
+                                </>
+                              ) : (
+                                <>
+                                  <BadgePercent className="h-3 w-3" /> Approve &amp; Credit 10%
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground font-semibold">
+                              Wallet Credited ✓
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Accounts Settlement Table */}

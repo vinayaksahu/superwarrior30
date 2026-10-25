@@ -22,6 +22,8 @@ export default async function AdminCopyTradingPage() {
       initialKpi={data.kpi}
       vpsFleet={data.vpsFleet}
       settings={data.settings}
+      initialInvoices={data.invoices as any}
+      initialVpsPayments={data.vpsPayments as any}
     />
   );
 }

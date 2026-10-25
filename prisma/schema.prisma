@@ -105,6 +105,9 @@ model User {
 
   // Copy Trading
   copyTradingSubscriptions CopyTradingSubscription[]
+  copyTradingVpsPayments   CopyTradingVpsPayment[]
+  settlementInvoices       CopyTradingSettlementInvoice[] @relation("UserSettlements")
+  affiliateSettlements     CopyTradingSettlementInvoice[] @relation("AffiliateSettlements")
 
   @@index([role])
   @@index([status])
@@ -1860,5 +1863,57 @@ model CopyTradingSetting {
   updatedAt   DateTime @updatedAt
 
   @@map("copy_trading_settings")
+}
+
+model CopyTradingVpsPayment {
+  id            String    @id @default(cuid())
+  userId        String
+  amount        Float     @default(1999.0)
+  status        String    @default("ACTIVE") // PENDING, ACTIVE, EXPIRED
+  paymentMethod String?
+  utrNumber     String?
+  proofUrl      String?
+  validFrom     DateTime  @default(now())
+  validUntil    DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("copy_trading_vps_payments")
+}
+
+model CopyTradingSettlementInvoice {
+  id                 String    @id @default(cuid())
+  subscriptionId     String?
+  userId             String
+  invoiceNumber      String    @unique
+  weekPeriod         String
+  profitUsd          Float
+  profitInr          Float
+  investorShareInr   Float
+  academyShareInr    Float
+  affiliateShareInr  Float     @default(0.0)
+  totalAmountDueInr  Float
+  affiliateUserId    String?
+  status             String    @default("PENDING") // PENDING, PAID, SETTLED
+  paymentMethod      String?
+  utrNumber          String?
+  proofUrl           String?
+  paidAt             DateTime?
+  settledAt          DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user               User      @relation("UserSettlements", fields: [userId], references: [id], onDelete: Cascade)
+  affiliateUser      User?     @relation("AffiliateSettlements", fields: [affiliateUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([affiliateUserId])
+  @@map("copy_trading_settlement_invoices")
 }
 

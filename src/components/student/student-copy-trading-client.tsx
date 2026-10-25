@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Share2,
   ShieldCheck,
@@ -14,6 +16,8 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  AlertCircle,
+  CreditCard,
   Info,
   DollarSign,
   Layers,
@@ -111,6 +115,8 @@ interface StudentCopyTradingClientProps {
   initialSubscription: SubscriptionData | null;
   initialLogs: TradeLog[];
   initialAffiliateInfo?: CopyTradingAffiliateInfo;
+  initialInvoices?: any[];
+  initialVpsPayments?: any[];
   settings: Record<string, string>;
 }
 
@@ -119,7 +125,10 @@ export function StudentCopyTradingClient({
   initialSubscription,
   initialLogs,
   initialAffiliateInfo,
+  initialInvoices = [],
+  initialVpsPayments = [],
 }: StudentCopyTradingClientProps) {
+  const router = useRouter();
   const [master, setMaster] = useState<MasterData | null>(initialMaster);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(initialSubscription);
   const [logs, setLogs] = useState<TradeLog[]>(initialLogs);
@@ -131,6 +140,16 @@ export function StudentCopyTradingClient({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
+  const [invoices, setInvoices] = useState<any[]>(initialInvoices);
+  const [vpsPayments, setVpsPayments] = useState<any[]>(initialVpsPayments);
+
+  const handleOpenConnectModal = () => {
+    if (!affiliateInfo?.hostingStatus?.canConnect) {
+      router.push("/dashboard/copy-trading/checkout");
+      return;
+    }
+    setIsModalOpen(true);
+  };
 
   const referralCode = affiliateInfo?.referralCode || "";
   const referralUrl =
@@ -654,7 +673,7 @@ export function StudentCopyTradingClient({
               </p>
             </div>
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenConnectModal}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
             >
               <Zap className="h-4 w-4" /> Connect My GTCFX MT5 Account
@@ -1221,33 +1240,55 @@ export function StudentCopyTradingClient({
             {/* Scrollable Form Body */}
             <form onSubmit={handleConnectSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               {/* Hosting Fee Status in Modal */}
-              {affiliateInfo?.has14999Course ? (
+              {!affiliateInfo?.hostingStatus?.canConnect ? (
+                <div className="rounded-xl border border-primary/40 bg-card p-5 text-center space-y-4 my-2">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                    <Server className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-foreground">Dedicated Cloud VPS Hosting Required</h4>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      Each student account requires a dedicated isolated Cloud VPS (₹1,999/month) to run and copy trades 24/7 without terminal downtime. (₹14,999 Course students get 1st year free).
+                    </p>
+                  </div>
+                  <Link
+                    href="/dashboard/copy-trading/checkout"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-5 py-2.5 text-xs font-bold shadow hover:bg-primary/90 transition-colors"
+                  >
+                    <CreditCard className="h-4 w-4" /> Pay ₹1,999 VPS Hosting Fee &amp; Unlock Form →
+                  </Link>
+                </div>
+              ) : affiliateInfo?.hostingStatus?.isOneYearExempt ? (
                 <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-emerald-500 shrink-0" />
                     <div>
                       <span className="font-bold text-foreground text-xs block">₹14,999 Course VIP Member</span>
-                      <span className="text-[11px] text-muted-foreground">Monthly VPS + AMC fee is fully exempted (Free Lifetime)</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        1-Year Free Dedicated Cloud VPS Hosting ({affiliateInfo.hostingStatus.exemptionDaysRemaining} days remaining)
+                      </span>
                     </div>
                   </div>
                   <span className="rounded bg-emerald-500/20 text-emerald-500 px-2.5 py-0.5 text-[10px] font-bold border border-emerald-500/30">
-                    ₹0 / Month
+                    ₹0 / Month (1-Yr Free)
                   </span>
                 </div>
-              ) : (
-                <div className="rounded-lg bg-accent/40 border border-border/60 p-3 flex items-center justify-between">
+              ) : affiliateInfo?.hostingStatus?.hasActiveVpsPayment ? (
+                <div className="rounded-lg bg-primary/10 border border-primary/30 p-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Server className="h-4 w-4 text-primary shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                     <div>
-                      <span className="font-semibold text-foreground text-xs block">Dedicated Cloud VPS Hosting</span>
-                      <span className="text-[11px] text-muted-foreground">Standard plan (Free for ₹14,999 Course students)</span>
+                      <span className="font-bold text-foreground text-xs block">Dedicated Cloud VPS Active</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Valid till {affiliateInfo.hostingStatus.vpsPaymentExpiresAt ? new Date(affiliateInfo.hostingStatus.vpsPaymentExpiresAt).toLocaleDateString("en-IN") : "Active period"}
+                      </span>
                     </div>
                   </div>
-                  <span className="rounded bg-muted text-foreground px-2.5 py-0.5 text-[10px] font-semibold border border-border">
-                    ₹1,999 / Month
+                  <span className="rounded bg-primary/20 text-primary px-2.5 py-0.5 text-[10px] font-bold border border-primary/30">
+                    Active
                   </span>
                 </div>
-              )}
+              ) : null}
 
               {/* Platform & Broker Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

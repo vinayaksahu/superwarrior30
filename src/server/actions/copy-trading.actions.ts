@@ -1,11 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 import { getCurrentUser, requireAuth, requirePermission } from "@/server/dal/auth";
 import type { ActionState } from "@/types";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { revalidatePath } from "next/cache";
 import { calculateCopyTradingTier, evaluateCopyTradeEligibility } from "@/lib/copy-trading-risk";
+import { getPublicPaymentMethodsAction, PaymentMethodItem } from "@/server/actions/payment-method.actions";
 
 export interface StudentCopyTradingPayload {
   brokerName: string;
@@ -23,9 +25,46 @@ export interface StudentCopyTradingPayload {
   maxLotLimit: number;
 }
 
+export interface CopyTradingHostingStatus {
+  canConnect: boolean;
+  isCourseEnrolled: boolean;
+  isOneYearExempt: boolean;
+  exemptionDaysRemaining: number;
+  exemptionExpiresAt: string | null;
+  hasActiveVpsPayment: boolean;
+  vpsPaymentExpiresAt: string | null;
+  monthlyFee: number; // 1999
+}
+
+export interface CopyTradingSettlementItem {
+  id: string;
+  subscriptionId: string | null;
+  userId: string;
+  invoiceNumber: string;
+  weekPeriod: string;
+  profitUsd: number;
+  profitInr: number;
+  investorShareInr: number;
+  academyShareInr: number;
+  affiliateShareInr: number;
+  totalAmountDueInr: number;
+  affiliateUserId: string | null;
+  status: string; // PENDING, PAID, SETTLED
+  paymentMethod: string | null;
+  utrNumber: string | null;
+  proofUrl: string | null;
+  paidAt: Date | string | null;
+  settledAt: Date | string | null;
+  notes: string | null;
+  createdAt: Date | string;
+  user?: { id: string; name: string | null; email: string; phone?: string | null };
+  affiliateUser?: { id: string; name: string | null; email: string; referralCode: string } | null;
+}
+
 export interface CopyTradingAffiliateInfo {
   referralCode: string;
   has14999Course: boolean;
+  hostingStatus: CopyTradingHostingStatus;
   totalReferredInvestors: number;
   activeCopyingReferrals: number;
   referredUsers: {
@@ -59,7 +98,8 @@ export interface MasterAccountPayload {
 
 /**
  * Helper to fetch Copy Trading Affiliate Info & Course Fee Exemption Status
- * Students who purchased the ₹14,999 course do not pay the ₹1,999 monthly VPS+AMC fee (₹0 / FREE).
+ * Students who purchased the ₹14,999 course get 1 Year Free Cloud VPS hosting.
+ * After 1 year, or for non-course students, the standard ₹1,999/mo fee applies.
  */
 export async function fetchUserCopyTradingAffiliateInfo(userId: string): Promise<CopyTradingAffiliateInfo> {
   const userFull: any = await prisma.user.findUnique({
@@ -68,6 +108,7 @@ export async function fetchUserCopyTradingAffiliateInfo(userId: string): Promise
       referralCode: true,
       enrollments: {
         select: {
+          enrolledAt: true,
           course: {
             select: { price: true, compareAtPrice: true, title: true },
           },
@@ -75,7 +116,7 @@ export async function fetchUserCopyTradingAffiliateInfo(userId: string): Promise
       },
       orders: {
         where: { status: "PAID" },
-        select: { totalAmount: true },
+        select: { totalAmount: true, createdAt: true },
       },
       directReferrals: {
         select: {
@@ -95,11 +136,60 @@ export async function fetchUserCopyTradingAffiliateInfo(userId: string): Promise
     },
   });
 
-  const has14999Course = Boolean(
-    userFull?.enrollments?.some(
-      (e: any) => Number(e.course?.price) >= 14000 || Number(e.course?.compareAtPrice) >= 14000
-    ) || userFull?.orders?.some((o: any) => Number(o.totalAmount) >= 14000)
+  const highValueEnrollment = userFull?.enrollments?.find(
+    (e: any) => Number(e.course?.price) >= 14000 || Number(e.course?.compareAtPrice) >= 14000
   );
+  const highValueOrder = userFull?.orders?.find(
+    (o: any) => Number(o.totalAmount) >= 14000
+  );
+
+  const has14999Course = Boolean(highValueEnrollment || highValueOrder);
+  const purchaseDate = highValueEnrollment?.enrolledAt || highValueOrder?.createdAt || null;
+
+  let isOneYearExempt = false;
+  let exemptionDaysRemaining = 0;
+  let exemptionExpiresAt: string | null = null;
+
+  if (purchaseDate) {
+    const purchaseTime = new Date(purchaseDate).getTime();
+    const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+    const expiryTime = purchaseTime + oneYearMs;
+    const now = Date.now();
+    if (expiryTime > now) {
+      isOneYearExempt = true;
+      exemptionDaysRemaining = Math.max(0, Math.ceil((expiryTime - now) / (24 * 60 * 60 * 1000)));
+      exemptionExpiresAt = new Date(expiryTime).toISOString();
+    } else {
+      isOneYearExempt = false;
+      exemptionDaysRemaining = 0;
+      exemptionExpiresAt = new Date(expiryTime).toISOString();
+    }
+  }
+
+  // Active VPS Hosting Payment check (valid for 30 days)
+  const activeVpsPayment = await prisma.copyTradingVpsPayment.findFirst({
+    where: {
+      userId,
+      status: "ACTIVE",
+      validUntil: { gte: new Date() },
+    },
+    orderBy: { validUntil: "desc" },
+  });
+
+  const hasActiveVpsPayment = Boolean(activeVpsPayment);
+  const vpsPaymentExpiresAt = activeVpsPayment ? activeVpsPayment.validUntil.toISOString() : null;
+  const canConnect = isOneYearExempt || hasActiveVpsPayment;
+
+  const hostingStatus: CopyTradingHostingStatus = {
+    canConnect,
+    isCourseEnrolled: has14999Course,
+    isOneYearExempt,
+    exemptionDaysRemaining,
+    exemptionExpiresAt,
+    hasActiveVpsPayment,
+    vpsPaymentExpiresAt,
+    monthlyFee: 1999,
+  };
 
   const referredUsers = (userFull?.directReferrals || []).map((rel: any) => {
     const isCopying = rel.referred?.copyTradingSubscriptions?.some((s: any) => s.status === "ACTIVE") ?? false;
@@ -118,6 +208,7 @@ export async function fetchUserCopyTradingAffiliateInfo(userId: string): Promise
   return {
     referralCode: userFull?.referralCode || userId.slice(0, 8).toUpperCase(),
     has14999Course,
+    hostingStatus,
     totalReferredInvestors,
     activeCopyingReferrals,
     referredUsers,
@@ -211,12 +302,28 @@ export async function getStudentCopyTradingDataAction() {
   // Affiliate & Course Fee Exemption Status
   const affiliateInfo = await fetchUserCopyTradingAffiliateInfo(user.id);
 
+  // Invoices & VPS Payments & Public Payment Methods
+  const [invoices, vpsPayments, paymentMethods] = await Promise.all([
+    prisma.copyTradingSettlementInvoice.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.copyTradingVpsPayment.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    getPublicPaymentMethodsAction(),
+  ]);
+
   return {
     master,
     subscription,
     logs,
     settings: settingsMap,
     affiliateInfo,
+    invoices,
+    vpsPayments,
+    paymentMethods,
   };
 }
 
@@ -232,6 +339,15 @@ export async function submitStudentSubscriptionAction(
 
     if (!data.brokerName?.trim() || !data.accountNumber?.trim() || !data.serverName?.trim()) {
       return { success: false, message: "Broker name, account number, and server name are required." };
+    }
+
+    // Hosting Gate: Check if user has active VPS or is within 1-Year exemption (for ₹14,999 course students)
+    const affiliateInfo = await fetchUserCopyTradingAffiliateInfo(user.id);
+    if (!affiliateInfo.hostingStatus.canConnect) {
+      return {
+        success: false,
+        message: "Dedicated Cloud VPS hosting (₹1,999/mo) is required to connect your MT4/MT5 account. Please complete the VPS payment first.",
+      };
     }
 
     const master = await prisma.copyTradingMaster.findFirst({
@@ -436,11 +552,27 @@ export async function refreshStudentCopyTradingDataAction() {
 
 function mapSubscriptionsWithAffiliateAndExemption(subs: any[]) {
   return subs.map((s) => {
-    const isCourseExempt = Boolean(
-      s.user?.enrollments?.some(
-        (e: any) => Number(e.course?.price) >= 14000 || Number(e.course?.compareAtPrice) >= 14000
-      ) || s.user?.orders?.some((o: any) => Number(o.totalAmount) >= 14000)
+    const highValueEnrollment = s.user?.enrollments?.find(
+      (e: any) => Number(e.course?.price) >= 14000 || Number(e.course?.compareAtPrice) >= 14000
     );
+    const highValueOrder = s.user?.orders?.find(
+      (o: any) => Number(o.totalAmount) >= 14000
+    );
+    const has14999Course = Boolean(highValueEnrollment || highValueOrder);
+    const purchaseDate = highValueEnrollment?.enrolledAt || highValueOrder?.createdAt || null;
+
+    let isOneYearExempt = false;
+    let exemptionDaysRemaining = 0;
+    if (purchaseDate) {
+      const purchaseTime = new Date(purchaseDate).getTime();
+      const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+      const expiryTime = purchaseTime + oneYearMs;
+      const now = Date.now();
+      if (expiryTime > now) {
+        isOneYearExempt = true;
+        exemptionDaysRemaining = Math.max(0, Math.ceil((expiryTime - now) / (24 * 60 * 60 * 1000)));
+      }
+    }
 
     const referrer = s.user?.referredBy?.referrer
       ? {
@@ -453,7 +585,9 @@ function mapSubscriptionsWithAffiliateAndExemption(subs: any[]) {
 
     return {
       ...s,
-      isCourseExempt,
+      isCourseExempt: isOneYearExempt,
+      has14999Course,
+      exemptionDaysRemaining,
       referredBy: referrer,
     };
   });
@@ -466,7 +600,7 @@ function mapSubscriptionsWithAffiliateAndExemption(subs: any[]) {
 export async function refreshAdminCopyTradingDataAction() {
   await requirePermission("copy_trading.view");
 
-  const [masters, rawSubscriptions, recentLogs] = await Promise.all([
+  const [masters, rawSubscriptions, recentLogs, invoices, vpsPayments] = await Promise.all([
     prisma.copyTradingMaster.findMany({
       orderBy: { createdAt: "desc" },
     }),
@@ -482,6 +616,7 @@ export async function refreshAdminCopyTradingDataAction() {
             referralCode: true,
             enrollments: {
               select: {
+                enrolledAt: true,
                 course: {
                   select: { id: true, title: true, price: true, compareAtPrice: true },
                 },
@@ -522,6 +657,20 @@ export async function refreshAdminCopyTradingDataAction() {
       orderBy: { openedAt: "desc" },
       take: 60,
     }),
+    prisma.copyTradingSettlementInvoice.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        affiliateUser: { select: { id: true, name: true, email: true, phone: true, referralCode: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.copyTradingVpsPayment.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
   ]);
 
   const subscriptions = mapSubscriptionsWithAffiliateAndExemption(rawSubscriptions);
@@ -550,6 +699,8 @@ export async function refreshAdminCopyTradingDataAction() {
     masters,
     subscriptions,
     recentLogs,
+    invoices,
+    vpsPayments,
     kpi: {
       totalStudents: subscriptions.length,
       activeStudents,
@@ -568,7 +719,7 @@ export async function getAdminCopyTradingDataAction() {
   await ensureDatabaseSchemaSync();
   await requirePermission("copy_trading.view");
 
-  const [masters, rawSubscriptions, recentLogs, settingsRecords] = await Promise.all([
+  const [masters, rawSubscriptions, recentLogs, settingsRecords, invoices, vpsPayments] = await Promise.all([
     prisma.copyTradingMaster.findMany({
       orderBy: { createdAt: "desc" },
     }),
@@ -584,6 +735,7 @@ export async function getAdminCopyTradingDataAction() {
             referralCode: true,
             enrollments: {
               select: {
+                enrolledAt: true,
                 course: {
                   select: { id: true, title: true, price: true, compareAtPrice: true },
                 },
@@ -625,6 +777,20 @@ export async function getAdminCopyTradingDataAction() {
       take: 60,
     }),
     prisma.copyTradingSetting.findMany(),
+    prisma.copyTradingSettlementInvoice.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        affiliateUser: { select: { id: true, name: true, email: true, phone: true, referralCode: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.copyTradingVpsPayment.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
   ]);
 
   const subscriptions = mapSubscriptionsWithAffiliateAndExemption(rawSubscriptions);
@@ -662,6 +828,8 @@ export async function getAdminCopyTradingDataAction() {
     subscriptions,
     recentLogs,
     settings: settingsMap,
+    invoices,
+    vpsPayments,
     kpi: {
       totalStudents,
       activeStudents,
@@ -1001,5 +1169,329 @@ export async function adminSimulateTradeSyncAction(
   } catch (error) {
     console.error("Simulation error:", error);
     return { success: false, message: "Trade sync simulation failed." };
+  }
+}
+
+
+/**
+ * Submit Cloud VPS Hosting Payment (₹1,999/month)
+ */
+export async function submitCopyTradingVpsPaymentAction(payload: {
+  paymentMethod: string;
+  utrNumber?: string;
+  proofUrl?: string;
+}): Promise<ActionState<{ id: string; validUntil: string }>> {
+  try {
+    await ensureDatabaseSchemaSync();
+    const user = await requireAuth();
+
+    if (!payload.paymentMethod?.trim()) {
+      return { success: false, message: "Please select a payment method." };
+    }
+
+    const now = new Date();
+    // Check if user already has an active VPS payment; extend from that validUntil if valid
+    const existingActive = await prisma.copyTradingVpsPayment.findFirst({
+      where: {
+        userId: user.id,
+        status: "ACTIVE",
+        validUntil: { gte: now },
+      },
+      orderBy: { validUntil: "desc" },
+    });
+
+    const baseDate = existingActive ? new Date(existingActive.validUntil) : now;
+    const validUntil = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days extension
+
+    const payment = await prisma.copyTradingVpsPayment.create({
+      data: {
+        userId: user.id,
+        amount: 1999.0,
+        status: "ACTIVE",
+        paymentMethod: payload.paymentMethod.trim(),
+        utrNumber: payload.utrNumber?.trim() || null,
+        proofUrl: payload.proofUrl?.trim() || null,
+        validFrom: baseDate,
+        validUntil,
+      },
+    });
+
+    revalidatePath("/dashboard/copy-trading");
+    revalidatePath("/dashboard/copy-trading/checkout");
+    revalidatePath("/admin/copy-trading");
+
+    return {
+      success: true,
+      message: "Dedicated Cloud VPS Hosting activated! Valid for 30 days.",
+      data: { id: payment.id, validUntil: validUntil.toISOString() },
+    };
+  } catch (error: any) {
+    console.error("VPS payment submit error:", error);
+    return { success: false, message: error?.message || "Failed to submit VPS payment." };
+  }
+}
+
+/**
+ * Get Specific Settlement Invoice Details (for Student Payment Gateway Page)
+ */
+export async function getSettlementInvoiceDetailsAction(invoiceId: string) {
+  try {
+    await ensureDatabaseSchemaSync();
+    const user = await requireAuth();
+
+    const invoice = await prisma.copyTradingSettlementInvoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+      },
+    });
+
+    if (!invoice || invoice.userId !== user.id) {
+      return { success: false, message: "Invoice not found or unauthorized.", invoice: null, paymentMethods: [] };
+    }
+
+    const paymentMethods = await getPublicPaymentMethodsAction();
+
+    return {
+      success: true,
+      invoice,
+      paymentMethods,
+    };
+  } catch (error: any) {
+    console.error("getSettlementInvoiceDetailsAction error:", error);
+    return { success: false, message: "Failed to load settlement invoice.", invoice: null, paymentMethods: [] };
+  }
+}
+
+/**
+ * Submit Weekly Profit Sharing Settlement Payment (30% share paid by investor)
+ */
+export async function submitSettlementPaymentAction(payload: {
+  invoiceId: string;
+  paymentMethod: string;
+  utrNumber?: string;
+  proofUrl?: string;
+}): Promise<ActionState<{ id: string }>> {
+  try {
+    await ensureDatabaseSchemaSync();
+    const user = await requireAuth();
+
+    const invoice = await prisma.copyTradingSettlementInvoice.findUnique({
+      where: { id: payload.invoiceId },
+    });
+
+    if (!invoice) {
+      return { success: false, message: "Settlement invoice not found." };
+    }
+
+    if (invoice.userId !== user.id) {
+      return { success: false, message: "Unauthorized access to this invoice." };
+    }
+
+    if (!payload.paymentMethod?.trim()) {
+      return { success: false, message: "Please select a payment method." };
+    }
+
+    await prisma.copyTradingSettlementInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "PAID",
+        paymentMethod: payload.paymentMethod.trim(),
+        utrNumber: payload.utrNumber?.trim() || null,
+        proofUrl: payload.proofUrl?.trim() || null,
+        paidAt: new Date(),
+      },
+    });
+
+    revalidatePath("/dashboard/copy-trading");
+    revalidatePath(`/dashboard/copy-trading/settlement/${invoice.id}`);
+    revalidatePath("/admin/copy-trading");
+
+    return {
+      success: true,
+      message: "Weekly settlement payment submitted! The admin will verify and settle 10% affiliate commission.",
+      data: { id: invoice.id },
+    };
+  } catch (error: any) {
+    console.error("Settlement payment error:", error);
+    return { success: false, message: error?.message || "Failed to submit settlement payment." };
+  }
+}
+
+/**
+ * Admin: Generate Weekly Settlement Invoice for a Student Account
+ */
+export async function adminCreateSettlementInvoiceAction(payload: {
+  subscriptionId: string;
+  weekPeriod: string;
+  profitUsd: number;
+  usdToInrRate?: number;
+  notes?: string;
+}): Promise<ActionState<{ invoiceId: string }>> {
+  try {
+    await ensureDatabaseSchemaSync();
+    await requirePermission("copy_trading.manage");
+
+    const subscription = await prisma.copyTradingSubscription.findUnique({
+      where: { id: payload.subscriptionId },
+      include: {
+        user: {
+          include: {
+            referredBy: {
+              select: { referrerId: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!subscription) {
+      return { success: false, message: "Subscription not found." };
+    }
+
+    const rate = Number(payload.usdToInrRate) > 0 ? Number(payload.usdToInrRate) : 86.5;
+    const profitUsd = Number(payload.profitUsd);
+    if (profitUsd <= 0) {
+      return { success: false, message: "Net profit must be greater than $0." };
+    }
+
+    const profitInr = Number((profitUsd * rate).toFixed(2));
+    const affiliateUserId = subscription.user.referredBy?.referrerId || null;
+    const hasReferrer = Boolean(affiliateUserId);
+
+    // 70% Investor / 20% Academy / 10% Affiliate (or 30% Academy if no referrer)
+    const investorShareInr = Number((profitInr * 0.70).toFixed(2));
+    const affiliateShareInr = hasReferrer ? Number((profitInr * 0.10).toFixed(2)) : 0.0;
+    const academyShareInr = Number((profitInr - investorShareInr - affiliateShareInr).toFixed(2));
+    const totalAmountDueInr = Number((academyShareInr + affiliateShareInr).toFixed(2));
+
+    const invoiceNumber = `INV-CT-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const invoice = await prisma.copyTradingSettlementInvoice.create({
+      data: {
+        subscriptionId: subscription.id,
+        userId: subscription.userId,
+        invoiceNumber,
+        weekPeriod: payload.weekPeriod.trim(),
+        profitUsd,
+        profitInr,
+        investorShareInr,
+        academyShareInr,
+        affiliateShareInr,
+        totalAmountDueInr,
+        affiliateUserId,
+        status: "PENDING",
+        notes: payload.notes?.trim() || null,
+      },
+    });
+
+    revalidatePath("/admin/copy-trading");
+    revalidatePath("/dashboard/copy-trading");
+
+    return {
+      success: true,
+      message: `Weekly settlement invoice ${invoiceNumber} generated! Total due from student: ₹${totalAmountDueInr.toLocaleString("en-IN")}`,
+      data: { invoiceId: invoice.id },
+    };
+  } catch (error: any) {
+    console.error("Create settlement invoice error:", error);
+    return { success: false, message: error?.message || "Failed to create invoice." };
+  }
+}
+
+/**
+ * Admin: Approve & Settle Invoice + Instant 10% Affiliate Commission Wallet Credit
+ */
+export async function adminApproveAndCreditAffiliateSettlementAction(
+  invoiceId: string
+): Promise<ActionState<{ settled: boolean; creditedAffiliate: boolean }>> {
+  try {
+    await ensureDatabaseSchemaSync();
+    await requirePermission("copy_trading.manage");
+
+    const invoice = await prisma.copyTradingSettlementInvoice.findUnique({
+      where: { id: invoiceId },
+    });
+
+    if (!invoice) {
+      return { success: false, message: "Invoice not found." };
+    }
+
+    if (invoice.status === "SETTLED") {
+      return { success: false, message: "Invoice is already settled." };
+    }
+
+    let creditedAffiliate = false;
+
+    // Execute in transaction: update invoice status and credit affiliate wallet
+    await prisma.$transaction(async (tx) => {
+      await tx.copyTradingSettlementInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: "SETTLED",
+          settledAt: new Date(),
+          paidAt: invoice.paidAt || new Date(),
+        },
+      });
+
+      if (invoice.affiliateUserId && invoice.affiliateShareInr > 0) {
+        const wallet = await tx.wallet.upsert({
+          where: { userId: invoice.affiliateUserId },
+          create: {
+            userId: invoice.affiliateUserId,
+            availableBalance: new Prisma.Decimal(0.0),
+            pendingBalance: new Prisma.Decimal(0.0),
+            totalEarned: new Prisma.Decimal(0.0),
+            totalWithdrawn: new Prisma.Decimal(0.0),
+          },
+          update: {},
+        });
+
+        const commissionAmount = new Prisma.Decimal(invoice.affiliateShareInr);
+        const currentBal = wallet.availableBalance;
+        const newBal = currentBal.add(commissionAmount);
+        const newTotalEarned = wallet.totalEarned.add(commissionAmount);
+
+        await tx.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            availableBalance: newBal,
+            totalEarned: newTotalEarned,
+            version: { increment: 1 },
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: "CREDIT_COMMISSION",
+            status: "COMPLETED",
+            amount: commissionAmount,
+            balanceBefore: currentBal,
+            balanceAfter: newBal,
+            description: `10% Weekly Profit Share Commission (${invoice.weekPeriod}) from Copy Trading`,
+            referenceType: "COPY_TRADING_SETTLEMENT",
+            referenceId: invoice.id,
+          },
+        });
+
+        creditedAffiliate = true;
+      }
+    });
+
+    revalidatePath("/admin/copy-trading");
+    revalidatePath("/dashboard/copy-trading");
+    revalidatePath("/dashboard/wallet");
+
+    return {
+      success: true,
+      message: creditedAffiliate
+        ? `Invoice settled! ₹${invoice.affiliateShareInr.toLocaleString("en-IN")} credited directly to affiliate partner's wallet.`
+        : "Invoice marked as settled successfully!",
+      data: { settled: true, creditedAffiliate },
+    };
+  } catch (error: any) {
+    console.error("Settlement approve error:", error);
+    return { success: false, message: error?.message || "Failed to settle invoice." };
   }
 }
