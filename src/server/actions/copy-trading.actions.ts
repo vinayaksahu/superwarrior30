@@ -131,7 +131,7 @@ export async function fetchUserCopyTradingAffiliateInfo(userId: string): Promise
  * - 10% Affiliate Partner (Referrer)
  * If no referrer exists, Academy retains 30%.
  */
-export function calculateWeeklySettlementSplit(netProfitUsd: number, hasReferrer: boolean) {
+export async function calculateWeeklySettlementSplit(netProfitUsd: number, hasReferrer: boolean) {
   if (netProfitUsd <= 0) {
     return {
       netProfitUsd: 0,
