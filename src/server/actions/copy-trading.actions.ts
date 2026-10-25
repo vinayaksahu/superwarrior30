@@ -5,6 +5,7 @@ import { getCurrentUser, requireAuth, requirePermission } from "@/server/dal/aut
 import type { ActionState } from "@/types";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { revalidatePath } from "next/cache";
+import { calculateCopyTradingTier, evaluateCopyTradeEligibility } from "@/lib/copy-trading-risk";
 
 export interface StudentCopyTradingPayload {
   brokerName: string;
@@ -121,6 +122,10 @@ export async function submitStudentSubscriptionAction(
       return { success: false, message: "No active master trading account found. Please contact support." };
     }
 
+    const initialBalance = Number(data.balance) > 0 ? Number(data.balance) : 300.0;
+    const initialEquity = Number(data.equity) > 0 ? Number(data.equity) : initialBalance;
+    const tier = calculateCopyTradingTier(initialBalance);
+
     // Upsert subscription
     const subscription = await prisma.copyTradingSubscription.upsert({
       where: {
@@ -136,13 +141,13 @@ export async function submitStudentSubscriptionAction(
         platform: data.platform || "MT5",
         encryptedPassword: data.password?.trim() || undefined,
         accountCurrency: data.accountCurrency || "USD",
-        riskMode: data.riskMode || "MULTIPLIER",
+        riskMode: data.riskMode || "FIXED_LOT",
         multiplier: Number(data.multiplier) || 1.0,
-        fixedLot: Number(data.fixedLot) || 0.01,
-        maxDrawdownGuard: Number(data.maxDrawdownGuard) || 15.0,
-        maxLotLimit: Number(data.maxLotLimit) || 0.50,
-        balance: Number(data.balance) > 0 ? Number(data.balance) : 1000.0,
-        equity: Number(data.equity) > 0 ? Number(data.equity) : (Number(data.balance) > 0 ? Number(data.balance) : 1000.0),
+        fixedLot: tier.lotPerTrade,
+        maxDrawdownGuard: 15.0,
+        maxLotLimit: tier.totalMaxLotExposure,
+        balance: initialBalance,
+        equity: initialEquity,
         status: "PENDING_APPROVAL", // Goes for admin review & VPS slot assignment
         rejectionReason: null,
       },
@@ -155,13 +160,13 @@ export async function submitStudentSubscriptionAction(
         platform: data.platform || "MT5",
         encryptedPassword: data.password?.trim() || "",
         accountCurrency: data.accountCurrency || "USD",
-        riskMode: data.riskMode || "MULTIPLIER",
+        riskMode: data.riskMode || "FIXED_LOT",
         multiplier: Number(data.multiplier) || 1.0,
-        fixedLot: Number(data.fixedLot) || 0.01,
-        maxDrawdownGuard: Number(data.maxDrawdownGuard) || 15.0,
-        maxLotLimit: Number(data.maxLotLimit) || 0.50,
-        balance: Number(data.balance) > 0 ? Number(data.balance) : 1000.0,
-        equity: Number(data.equity) > 0 ? Number(data.equity) : (Number(data.balance) > 0 ? Number(data.balance) : 1000.0),
+        fixedLot: tier.lotPerTrade,
+        maxDrawdownGuard: 15.0,
+        maxLotLimit: tier.totalMaxLotExposure,
+        balance: initialBalance,
+        equity: initialEquity,
         status: "PENDING_APPROVAL",
         vpsNode: "SW30-CloudNode-01",
       },
@@ -642,22 +647,79 @@ export async function adminSimulateTradeSyncAction(
 
     const activeSubs = await prisma.copyTradingSubscription.findMany({
       where: { status: "ACTIVE" },
+      include: {
+        tradeLogs: {
+          orderBy: { openedAt: "desc" },
+          take: 30,
+        },
+      },
     });
 
     const ticket = String(Math.floor(10000000 + Math.random() * 90000000));
     const finalClosePrice = closePrice || (orderType === "BUY" ? openPrice + 4.50 : openPrice - 4.50);
 
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
     let count = 0;
+    let skippedCount = 0;
+
     for (const sub of activeSubs) {
-      let copiedLots = 0.01;
-      if (sub.riskMode === "FIXED_LOT") {
-        copiedLots = sub.fixedLot;
-      } else if (sub.riskMode === "MULTIPLIER") {
-        copiedLots = Math.min(sub.maxLotLimit, Number((masterLots * sub.multiplier).toFixed(2)));
-      } else {
-        copiedLots = 0.02;
+      // 1. Calculate today's realized PnL from trades opened today
+      const todayLogs = sub.tradeLogs.filter((t) => new Date(t.openedAt) >= startOfDay);
+      const todayRealizedPnL = todayLogs.reduce((acc, t) => acc + (t.profit || 0), 0);
+
+      // 2. Count active unclosed positions (or recent active positions)
+      const openTradesCount = sub.tradeLogs.filter((t) => t.status === "EXECUTED" && !t.closedAt).length;
+
+      // 3. Evaluate eligibility through Risk & Lot Sizing Engine
+      const riskCheck = evaluateCopyTradeEligibility({
+        initialBalance: sub.balance,
+        currentBalance: sub.balance,
+        currentEquity: sub.equity,
+        openTradesCount,
+        todayRealizedPnL,
+      });
+
+      if (!riskCheck.allowed) {
+        skippedCount++;
+
+        // If breached 15% Max DD, permanently disconnect the client account
+        if (riskCheck.statusAction === "DISCONNECT") {
+          await prisma.copyTradingSubscription.update({
+            where: { id: sub.id },
+            data: {
+              status: "DISCONNECTED",
+              isOnline: false,
+              rejectionReason: riskCheck.reason || "Exceeded 15% Max Drawdown limit. Removed from copy trading.",
+            },
+          });
+        }
+
+        // Record skipped trade log for transparency
+        await prisma.copyTradeLog.create({
+          data: {
+            masterId: master.id,
+            subscriptionId: sub.id,
+            tradeTicket: ticket,
+            symbol,
+            orderType,
+            masterLots,
+            copiedLots: 0,
+            masterOpenPrice: openPrice,
+            masterClosePrice: finalClosePrice,
+            status: "SKIPPED",
+            errorMessage: riskCheck.reason,
+            openedAt: new Date(),
+          },
+        });
+
+        continue;
       }
 
+      // 4. Client lot size is strictly derived from their account size (Every $300 = 0.01 lot)
+      // Master lot size does not inflate client risk
+      const copiedLots = riskCheck.copiedLots;
       const tradeProfit = Number((copiedLots * profitPerLot).toFixed(2));
       const slippage = Number((Math.random() * 0.3).toFixed(2));
       const ping = Math.floor(2 + Math.random() * 4);
@@ -684,14 +746,40 @@ export async function adminSimulateTradeSyncAction(
       });
 
       // Update student balance & equity
-      await prisma.copyTradingSubscription.update({
-        where: { id: sub.id },
-        data: {
-          balance: { increment: tradeProfit },
-          equity: { increment: tradeProfit },
-          lastSyncedAt: new Date(),
-        },
+      const newBalance = Number((sub.balance + tradeProfit).toFixed(2));
+      const newEquity = Number((sub.equity + tradeProfit).toFixed(2));
+
+      // Post-trade check: If this trade breached the 15% Max DD limit, disconnect immediately
+      const postTradeCheck = evaluateCopyTradeEligibility({
+        initialBalance: sub.balance,
+        currentBalance: newBalance,
+        currentEquity: newEquity,
+        openTradesCount: 0,
+        todayRealizedPnL: todayRealizedPnL + tradeProfit,
       });
+
+      if (postTradeCheck.statusAction === "DISCONNECT") {
+        await prisma.copyTradingSubscription.update({
+          where: { id: sub.id },
+          data: {
+            balance: newBalance,
+            equity: newEquity,
+            status: "DISCONNECTED",
+            isOnline: false,
+            rejectionReason: postTradeCheck.reason,
+            lastSyncedAt: new Date(),
+          },
+        });
+      } else {
+        await prisma.copyTradingSubscription.update({
+          where: { id: sub.id },
+          data: {
+            balance: newBalance,
+            equity: newEquity,
+            lastSyncedAt: new Date(),
+          },
+        });
+      }
 
       count++;
     }
@@ -711,7 +799,7 @@ export async function adminSimulateTradeSyncAction(
 
     return {
       success: true,
-      message: `Simulated trade ${symbol} ${orderType} copied to ${count} active child terminals!`,
+      message: `Simulated trade ${symbol} ${orderType} copied to ${count} terminals (${skippedCount} protected by 5% Daily DD / 15% Max DD / 2-trade limit)!`,
       data: { copiedCount: count },
     };
   } catch (error) {

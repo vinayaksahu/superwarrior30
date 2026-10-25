@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
+import { calculateCopyTradingTier } from "@/lib/copy-trading-risk";
 
 interface VpsSlotStatus {
   slotNumber: number;
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Update Student Slots Status
+    // 2. Update Student Slots Status & Enforce Max DD Safety
     if (Array.isArray(body.slots)) {
       for (const slot of body.slots) {
         // Find subscription by accountNumber or vpsSlotNumber
@@ -100,13 +101,21 @@ export async function POST(req: NextRequest) {
         });
 
         if (sub) {
+          const tier = calculateCopyTradingTier(sub.balance > 0 ? sub.balance : slot.balance);
+          // If reported equity drops below cutoff (15% Max DD breached)
+          const isMaxDDBreached = slot.equity <= tier.cutoffEquity || (sub.balance > 0 && ((sub.balance - slot.equity) / sub.balance) * 100 >= 15.0);
+
           await prisma.copyTradingSubscription.update({
             where: { id: sub.id },
             data: {
-              isOnline: slot.isOnline,
+              isOnline: isMaxDDBreached ? false : slot.isOnline,
               balance: slot.balance,
               equity: slot.equity,
-              vpsSlotNumber: slot.slotNumber,
+              vpsSlotNumber: isMaxDDBreached ? null : slot.slotNumber,
+              status: isMaxDDBreached ? "DISCONNECTED" : sub.status,
+              rejectionReason: isMaxDDBreached
+                ? `Account reached 15% Max Drawdown limit ($${(sub.balance - slot.equity).toFixed(2)} loss). Disconnected from copy trading.`
+                : sub.rejectionReason,
               lastSyncedAt: new Date(),
             },
           });
@@ -162,7 +171,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Return Pending Commands for VPS (e.g. Pause, Resume, or New Slot Assignments)
-    // Query active subscriptions with their desired status
+    // Query active subscriptions with their desired status and calculated tier parameters
     const allSubscriptions = await prisma.copyTradingSubscription.findMany({
       select: {
         id: true,
@@ -174,6 +183,8 @@ export async function POST(req: NextRequest) {
         multiplier: true,
         fixedLot: true,
         riskMode: true,
+        balance: true,
+        equity: true,
         maxDrawdownGuard: true,
       },
     });
@@ -182,17 +193,27 @@ export async function POST(req: NextRequest) {
       success: true,
       timestamp: new Date().toISOString(),
       commands: {
-        subscriptions: allSubscriptions.map((s) => ({
-          subscriptionId: s.id,
-          accountNumber: s.accountNumber,
-          serverName: s.serverName,
-          brokerName: s.brokerName,
-          slotNumber: s.vpsSlotNumber,
-          targetStatus: s.status, // "ACTIVE", "PAUSED", "DISCONNECTED"
-          multiplier: s.multiplier,
-          fixedLot: s.fixedLot,
-          riskMode: s.riskMode,
-        })),
+        subscriptions: allSubscriptions.map((s) => {
+          const tier = calculateCopyTradingTier(s.balance || 300);
+          return {
+            subscriptionId: s.id,
+            accountNumber: s.accountNumber,
+            serverName: s.serverName,
+            brokerName: s.brokerName,
+            slotNumber: s.vpsSlotNumber,
+            targetStatus: s.status, // "ACTIVE", "PAUSED", "DISCONNECTED"
+            multiplier: s.multiplier,
+            fixedLot: tier.lotPerTrade, // Auto-scaled: 0.01 per $300 balance
+            maxOpenTrades: tier.maxOpenTrades, // Strict limit: max 2 open trades
+            totalMaxLotExposure: tier.totalMaxLotExposure,
+            dailyDDLimitPercent: tier.dailyDDLimitPercent, // 5%
+            dailyDDLimitUsd: tier.dailyDDLimitUsd,
+            maxDDLimitPercent: tier.maxDDLimitPercent, // 15%
+            maxDDLimitUsd: tier.maxDDLimitUsd,
+            cutoffEquity: tier.cutoffEquity,
+            riskMode: s.riskMode,
+          };
+        }),
       },
     });
   } catch (error: any) {

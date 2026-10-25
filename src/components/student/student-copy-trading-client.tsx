@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { calculateCopyTradingTier } from "@/lib/copy-trading-risk";
 import {
   submitStudentSubscriptionAction,
   toggleStudentCopyPauseAction,
@@ -124,6 +125,7 @@ export function StudentCopyTradingClient({
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
 
   // Form State
+  const initialTier = calculateCopyTradingTier(subscription?.balance || 300);
   const [formData, setFormData] = useState<StudentCopyTradingPayload>({
     brokerName: "GTCFX",
     accountNumber: subscription?.accountNumber || "",
@@ -131,14 +133,16 @@ export function StudentCopyTradingClient({
     platform: (subscription?.platform as "MT5" | "MT4") || "MT5",
     password: "",
     accountCurrency: subscription?.accountCurrency || "USD",
-    balance: subscription?.balance || 500,
-    equity: subscription?.equity || 500,
-    riskMode: (subscription?.riskMode as any) || "MULTIPLIER",
+    balance: subscription?.balance || 300,
+    equity: subscription?.equity || (subscription?.balance || 300),
+    riskMode: (subscription?.riskMode as any) || "FIXED_LOT",
     multiplier: subscription?.multiplier || 1.0,
-    fixedLot: subscription?.fixedLot || 0.01,
-    maxDrawdownGuard: subscription?.maxDrawdownGuard || 15.0,
-    maxLotLimit: subscription?.maxLotLimit || 0.50,
+    fixedLot: subscription?.fixedLot || initialTier.lotPerTrade,
+    maxDrawdownGuard: 15.0,
+    maxLotLimit: initialTier.totalMaxLotExposure,
   });
+
+  const liveTier = calculateCopyTradingTier(formData.balance || 300);
 
   const handleConnectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -378,6 +382,146 @@ export function StudentCopyTradingClient({
         </div>
       )}
 
+      {/* Official Copy Trading Risk & Lot Sizing Rules Banner */}
+      <div className="rounded-xl border border-primary/30 bg-card p-5 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                Copy Trading Capital Protection &amp; Lot Sizing Rules
+                <span className="rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold">
+                  100% Enforced
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Master account chahe jitne bhi bade lot size ya risk se trade kare, aapke MT5 account me strictly yahi rules follow honge.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Pillars Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
+            <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-primary"></span> Fixed Lot by Balance
+            </span>
+            <div className="font-bold text-foreground text-sm">
+              0.01 Lot per $300
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Har $300 balance par 0.01 lot ($600 = 0.02, $1200 = 0.04).
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
+            <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-blue-500"></span> Max Open Trades
+            </span>
+            <div className="font-bold text-foreground text-sm">
+              Max 2 Trades Concurrent
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Ek time pe maximum 2 trades open honge (0.01 + 0.01 for $300).
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
+            <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-500"></span> Daily DD Limit (5%)
+            </span>
+            <div className="font-bold text-amber-500 text-sm">
+              5% Daily Circuit Breaker
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Us din ka 5% loss hote hi new trades stop, agle din resume.
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
+            <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-destructive"></span> Max DD Limit (15%)
+            </span>
+            <div className="font-bold text-destructive text-sm">
+              15% Hard Exit Limit
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Total 15% drawdown aate hi account copy trading se bahar.
+            </p>
+          </div>
+        </div>
+
+        {/* Lot Size & DD Scale Table */}
+        <div className="overflow-x-auto rounded-lg border border-border/60">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-accent/60 text-muted-foreground font-semibold text-[11px]">
+              <tr>
+                <th className="py-2.5 px-3">Account Balance</th>
+                <th className="py-2.5 px-3">Lot Per Trade</th>
+                <th className="py-2.5 px-3">Max Open Trades</th>
+                <th className="py-2.5 px-3">Max Lot Exposure</th>
+                <th className="py-2.5 px-3">Daily DD Limit (5%)</th>
+                <th className="py-2.5 px-3">Max DD Exit (15%)</th>
+                <th className="py-2.5 px-3">Cutoff Equity</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40 text-foreground">
+              <tr className="hover:bg-accent/30 transition-colors font-medium">
+                <td className="py-2 px-3 font-mono font-bold text-primary">$300</td>
+                <td className="py-2 px-3 font-mono">0.01 lot</td>
+                <td className="py-2 px-3">2 trades</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">0.02 lot</td>
+                <td className="py-2 px-3 font-mono text-amber-500">-$15.00</td>
+                <td className="py-2 px-3 font-mono text-destructive">-$45.00</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $255.00</td>
+              </tr>
+              <tr className="hover:bg-accent/30 transition-colors font-medium">
+                <td className="py-2 px-3 font-mono font-bold text-primary">$600</td>
+                <td className="py-2 px-3 font-mono">0.02 lot</td>
+                <td className="py-2 px-3">2 trades</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">0.04 lot</td>
+                <td className="py-2 px-3 font-mono text-amber-500">-$30.00</td>
+                <td className="py-2 px-3 font-mono text-destructive">-$90.00</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $510.00</td>
+              </tr>
+              <tr className="hover:bg-accent/30 transition-colors font-medium">
+                <td className="py-2 px-3 font-mono font-bold text-primary">$900</td>
+                <td className="py-2 px-3 font-mono">0.03 lot</td>
+                <td className="py-2 px-3">2 trades</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">0.06 lot</td>
+                <td className="py-2 px-3 font-mono text-amber-500">-$45.00</td>
+                <td className="py-2 px-3 font-mono text-destructive">-$135.00</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $765.00</td>
+              </tr>
+              <tr className="hover:bg-accent/30 transition-colors font-medium">
+                <td className="py-2 px-3 font-mono font-bold text-primary">$1,200</td>
+                <td className="py-2 px-3 font-mono">0.04 lot</td>
+                <td className="py-2 px-3">2 trades</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">0.08 lot</td>
+                <td className="py-2 px-3 font-mono text-amber-500">-$60.00</td>
+                <td className="py-2 px-3 font-mono text-destructive">-$180.00</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $1,020.00</td>
+              </tr>
+              <tr className="hover:bg-accent/30 transition-colors font-medium">
+                <td className="py-2 px-3 font-mono font-bold text-primary">$1,500+</td>
+                <td className="py-2 px-3 font-mono">0.05 lot</td>
+                <td className="py-2 px-3">2 trades</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">0.10 lot</td>
+                <td className="py-2 px-3 font-mono text-amber-500">-$75.00</td>
+                <td className="py-2 px-3 font-mono text-destructive">-$225.00</td>
+                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $1,275.00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+          <span>* And so on: Har <strong>+$300 balance</strong> par <strong>+0.01 lot</strong> scale hoga. Maximum open trades at a time hamesha <strong>2</strong> rahenge.</span>
+        </div>
+      </div>
+
       {/* Student Account Connection Status Card */}
       <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
@@ -540,12 +684,11 @@ export function StudentCopyTradingClient({
               </div>
 
               <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground text-xs">Risk Multiplier:</span>
+                <span className="text-muted-foreground text-xs">Risk & Lot Size:</span>
                 <p className="font-semibold text-foreground text-xs mt-1">
-                  {subscription.riskMode === "FIXED_LOT"
-                    ? `Fixed ${subscription.fixedLot} Lot`
-                    : `${subscription.multiplier}x of Master`}
+                  {calculateCopyTradingTier(subscription.balance).lotPerTrade} Lot / trade
                 </p>
+                <span className="text-[10px] text-muted-foreground block">Max 2 trades ({calculateCopyTradingTier(subscription.balance).totalMaxLotExposure} total)</span>
               </div>
             </div>
 
@@ -560,7 +703,8 @@ export function StudentCopyTradingClient({
               <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-muted-foreground pt-1 sm:pt-0 border-t sm:border-t-0 border-border/40">
                 <span>Balance: <strong className="text-foreground">${subscription.balance.toFixed(2)}</strong></span>
                 <span>Equity: <strong className="text-foreground">${subscription.equity.toFixed(2)}</strong></span>
-                <span>Safety Stop: <strong className="text-amber-500">{subscription.maxDrawdownGuard}% DD</strong></span>
+                <span>Daily DD Limit: <strong className="text-amber-500">5% (-${calculateCopyTradingTier(subscription.balance).dailyDDLimitUsd})</strong></span>
+                <span>Max DD Cutoff: <strong className="text-destructive">15% (${calculateCopyTradingTier(subscription.balance).cutoffEquity})</strong></span>
               </div>
             </div>
           </div>
@@ -896,9 +1040,16 @@ export function StudentCopyTradingClient({
                     value={formData.balance || ""}
                     onChange={(e) => {
                       const val = parseFloat(e.target.value) || 0;
-                      setFormData({ ...formData, balance: val, equity: val });
+                      const tier = calculateCopyTradingTier(val);
+                      setFormData({
+                        ...formData,
+                        balance: val,
+                        equity: val,
+                        fixedLot: tier.lotPerTrade,
+                        maxLotLimit: tier.totalMaxLotExposure,
+                      });
                     }}
-                    placeholder="e.g. 500, 1000"
+                    placeholder="e.g. 300, 600, 1200"
                     className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs font-mono"
                   />
                   <p className="text-[10px] text-muted-foreground mt-0.5">Your starting balance in GTCFX account.</p>
@@ -927,6 +1078,51 @@ export function StudentCopyTradingClient({
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-0.5">Trading password.</p>
                 </div>
+              </div>
+
+              {/* Dynamic Risk Sizing & DD Rules Live Preview */}
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                    <span className="font-semibold text-xs text-foreground">
+                      Copy Trading Risk Rules (Enforced by System)
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-primary/20 text-primary font-bold px-2 py-0.5 rounded-full">
+                    Linear Lot Guard
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div className="rounded-lg bg-background/90 border border-border/60 p-2 text-center">
+                    <span className="text-muted-foreground block text-[10px]">Lot Size / Trade</span>
+                    <strong className="text-primary text-xs mt-0.5 block">{liveTier.lotPerTrade} Lot</strong>
+                    <span className="text-[9px] text-muted-foreground">$300 = 0.01 lot</span>
+                  </div>
+
+                  <div className="rounded-lg bg-background/90 border border-border/60 p-2 text-center">
+                    <span className="text-muted-foreground block text-[10px]">Max Open Trades</span>
+                    <strong className="text-foreground text-xs mt-0.5 block">Max 2 Trades</strong>
+                    <span className="text-[9px] text-muted-foreground">Max {liveTier.totalMaxLotExposure} lot</span>
+                  </div>
+
+                  <div className="rounded-lg bg-background/90 border border-border/60 p-2 text-center">
+                    <span className="text-muted-foreground block text-[10px]">Daily DD Limit (5%)</span>
+                    <strong className="text-amber-500 text-xs mt-0.5 block">-${liveTier.dailyDDLimitUsd}</strong>
+                    <span className="text-[9px] text-muted-foreground">Pause for day</span>
+                  </div>
+
+                  <div className="rounded-lg bg-background/90 border border-border/60 p-2 text-center">
+                    <span className="text-muted-foreground block text-[10px]">Max DD Limit (15%)</span>
+                    <strong className="text-destructive text-xs mt-0.5 block">-${liveTier.maxDDLimitUsd}</strong>
+                    <span className="text-[9px] text-muted-foreground">Exit below ${liveTier.cutoffEquity}</span>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-muted-foreground leading-normal">
+                  💡 <strong>Rule:</strong> Master chahe kitna bhi lot le, aapke account me hamesha <strong>{liveTier.lotPerTrade} lot</strong> aur <strong>max 2 trades</strong> hi open rahenge. 5% daily loss par us din trading stop hogi aur 15% total loss par account copy trading se bahar ho jayega.
+                </p>
               </div>
 
               {/* WhatsApp IB Account Assistance Banner */}

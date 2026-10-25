@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { calculateCopyTradingTier } from "@/lib/copy-trading-risk";
 import {
   adminUpdateSubscriptionStatusAction,
   adminUpdateMasterAccountAction,
@@ -477,6 +478,44 @@ export function AdminCopyTradingClient({
         </button>
       </div>
 
+      {/* Copy Trading Risk Sizing & DD Rules Matrix Card */}
+      <div className="rounded-xl border border-primary/30 bg-card p-4 sm:p-5 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+            <span className="font-bold text-sm text-foreground">
+              Official Copy Trading Risk Policy ($300 = 0.01 Lot | Max 2 Trades | 5% Daily DD | 15% Max DD)
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+            Active on all Child Terminals
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-2.5">
+            <span className="text-[10px] text-muted-foreground block font-medium">Linear Sizing</span>
+            <div className="font-bold text-foreground text-xs mt-0.5">0.01 Lot / $300</div>
+            <span className="text-[10px] text-muted-foreground">$600=0.02, $1200=0.04</span>
+          </div>
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-2.5">
+            <span className="text-[10px] text-muted-foreground block font-medium">Concurrency Cap</span>
+            <div className="font-bold text-foreground text-xs mt-0.5">Max 2 Trades Concurrent</div>
+            <span className="text-[10px] text-muted-foreground">0.01+0.01 for $300</span>
+          </div>
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-2.5">
+            <span className="text-[10px] text-muted-foreground block font-medium">Daily Drawdown</span>
+            <div className="font-bold text-amber-500 text-xs mt-0.5">5% Daily Stop</div>
+            <span className="text-[10px] text-muted-foreground">Locks for today, resets 00:00</span>
+          </div>
+          <div className="rounded-lg bg-accent/40 border border-border/60 p-2.5">
+            <span className="text-[10px] text-muted-foreground block font-medium">Max Drawdown</span>
+            <div className="font-bold text-destructive text-xs mt-0.5">15% Max DD Hard Exit</div>
+            <span className="text-[10px] text-muted-foreground">Auto-disconnects from fleet</span>
+          </div>
+        </div>
+      </div>
+
       {/* TAB 1: FLEET TABLE */}
       {activeTab === "FLEET" && (
         <div className="space-y-4">
@@ -606,14 +645,22 @@ export function AdminCopyTradingClient({
                           </td>
 
                           <td className="py-3 px-3">
-                            <div className="font-medium text-foreground">
-                              {sub.riskMode === "FIXED_LOT"
-                                ? `${sub.fixedLot} Lot`
-                                : `${sub.multiplier}x Multiplier`}
-                            </div>
-                            <div className="text-[10px] text-amber-500">
-                              Max DD: {sub.maxDrawdownGuard}%
-                            </div>
+                            {(() => {
+                              const tier = calculateCopyTradingTier(sub.balance || 300);
+                              return (
+                                <div>
+                                  <div className="font-semibold text-primary text-xs">
+                                    {tier.lotPerTrade} Lot / trade
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground">
+                                    Max 2 trades ({tier.totalMaxLotExposure} lot)
+                                  </div>
+                                  <div className="text-[10px] text-amber-500 font-medium">
+                                    5% Daily: -${tier.dailyDDLimitUsd} | 15% Max: -${tier.maxDDLimitUsd}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           <td className="py-3 px-3">
@@ -1073,6 +1120,12 @@ export function AdminCopyTradingClient({
                   className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground font-semibold font-mono"
                 />
               </div>
+            </div>
+
+            <div className="rounded-lg bg-background/80 border border-primary/20 p-2.5 text-[11px] text-muted-foreground flex items-center justify-between">
+              <span>
+                🛡️ <strong>Risk Policy Enforced:</strong> Master jitna bhi lot le, har client account me <strong>0.01 lot per $300 balance</strong>, <strong>max 2 concurrent trades</strong>, <strong>5% Daily DD stop</strong>, aur <strong>15% Max DD breach exit</strong> strictly follow hoga.
+              </span>
             </div>
           </div>
 
