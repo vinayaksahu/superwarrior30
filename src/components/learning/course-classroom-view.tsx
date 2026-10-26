@@ -438,8 +438,8 @@ export function CourseClassroomView({
               }}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[11px] font-extrabold uppercase tracking-wider transition-all cursor-pointer group ${
                 isModuleActive
-                  ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                  : "text-amber-500/80 hover:text-amber-300 hover:bg-muted/60"
+                  ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30"
+                  : "text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 hover:bg-muted/60"
               }`}
               title={firstLesson ? `Go to ${module.title}` : undefined}
             >
@@ -468,7 +468,7 @@ export function CourseClassroomView({
                     }}
                     className={`w-full text-left flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold transition-all cursor-pointer ${
                       isCurrent
-                        ? "bg-amber-500/15 text-amber-300 border border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
+                        ? "bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
                         : isCompleted
                         ? "bg-emerald-500/5 text-foreground hover:bg-muted"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -530,7 +530,7 @@ export function CourseClassroomView({
           <button
             type="button"
             onClick={() => setIsMobileDrawerOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-400"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:text-amber-300"
           >
             <BookOpen className="h-3.5 w-3.5" />
             Curriculum ({completedLessonsCount}/{totalLessons})
@@ -572,7 +572,7 @@ export function CourseClassroomView({
             <div className="flex items-center justify-between border-b border-border pb-3 mb-3">
               <div>
                 <h3 className="font-extrabold text-sm text-foreground line-clamp-1">{courseTitle}</h3>
-                <p className="text-[11px] font-bold text-amber-400 mt-0.5">
+                <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300 mt-0.5">
                   Progress: {currentProgressPercent}%
                 </p>
               </div>
@@ -611,7 +611,7 @@ export function CourseClassroomView({
           <div className="space-y-1.5 pt-1">
             <div className="flex justify-between text-xs font-bold">
               <span className="text-muted-foreground">Course Progress</span>
-              <span className="text-amber-400">{currentProgressPercent}%</span>
+              <span className="text-amber-800 dark:text-amber-300 font-extrabold">{currentProgressPercent}%</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted/80">
               <div
@@ -641,7 +641,7 @@ export function CourseClassroomView({
               <h1 className="text-2xl font-black tracking-tight text-foreground">
                 {mediaData?.title || "Lesson"}
               </h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300">
                 <Lock className="h-2.5 w-2.5" />
                 PROTECTED
               </span>

@@ -68,7 +68,7 @@ export function TestimonialsSection({
         {/* Test Mode Preview Alert */}
         {isAnyTest && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-center">
-            <span className="text-xs font-bold text-amber-400">
+            <span className="text-xs font-bold text-amber-800 dark:text-amber-300">
               ⚠️ TEST MODE PREVIEW: Showing testing environment reviews. In production, only verified live student testimonials are displayed.
             </span>
           </div>
@@ -156,7 +156,7 @@ export function TestimonialsSection({
                       </span>
                     )}
                     {t.tradingResult && (
-                      <span className="rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold">
+                      <span className="rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold">
                         📈 {t.tradingResult}
                       </span>
                     )}

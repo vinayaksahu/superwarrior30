@@ -171,11 +171,11 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
             </Link>
             <Link
               href="/premium-group"
-              className="group flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-400 hover:bg-amber-500/20 hover:border-amber-400 hover:text-amber-300 transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+              className="group flex items-center gap-1.5 rounded-full border border-amber-500/30 dark:border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 hover:text-amber-900 dark:hover:text-amber-200 transition-all shadow-[0_0_12px_rgba(245,158,11,0.12)]"
             >
-              <Users className="h-3.5 w-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+              <Users className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 group-hover:scale-110 transition-transform" />
               <span>Join Community</span>
-              <span className="rounded-full bg-amber-400/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-amber-300">
+              <span className="rounded-full bg-amber-500/20 dark:bg-amber-400/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-amber-800 dark:text-amber-300">
                 Free
               </span>
             </Link>
@@ -251,13 +251,13 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
             <Link
               href="/premium-group"
               onClick={() => setMobileOpen(false)}
-              className="flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all cursor-pointer"
+              className="flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/20 transition-all cursor-pointer"
             >
               <span className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
+                <Users className="h-4 w-4 text-amber-700 dark:text-amber-400" />
                 Join Community (Telegram)
               </span>
-              <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300">
+              <span className="rounded-full bg-amber-500/20 dark:bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800 dark:text-amber-300">
                 Free
               </span>
             </Link>

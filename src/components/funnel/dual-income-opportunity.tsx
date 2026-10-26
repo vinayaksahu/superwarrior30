@@ -30,14 +30,14 @@ export function DualIncomeOpportunity({
       <div className="container mx-auto px-4 sm:px-6 max-w-5xl space-y-12">
         {/* Section Header */}
         <div className="text-center space-y-4 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-black text-amber-500 uppercase tracking-wider shadow-sm">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider shadow-sm">
             <Coins className="h-3.5 w-3.5" />
             <span>The Real Psychology Hack • Dual Income System</span>
           </div>
 
           <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground leading-tight">
             शुरुआत में <span translate="no" className="notranslate">Trading Psychology</span> मजबूत रखने के लिए{" "}
-            <span translate="no" className="notranslate text-amber-400 underline decoration-amber-500/40 decoration-4 underline-offset-8">
+            <span translate="no" className="notranslate text-amber-800 dark:text-amber-300 font-black underline decoration-amber-500/40 decoration-4 underline-offset-8">
               2nd Source of Income
             </span>{" "}
             होना अनिवार्य है!
@@ -161,7 +161,7 @@ export function DualIncomeOpportunity({
           {/* Golden Takeaway Banner */}
           <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 text-center">
             <p className="text-xs sm:text-sm font-bold text-foreground">
-              💡 <span className="text-amber-500">गोल्डन रूल:</span> जब बैकअप में पैसे आ रहे होते हैं, तो ट्रेडिंग में कभी भी डर या जल्दबाजी नहीं होती। इसी मानसिक आज़ादी से 90% लूज़र ट्रेडर्स एक प्रोफ़िटेबल सुपर वॉरियर बनते हैं!
+              💡 <span className="text-amber-800 dark:text-amber-300 font-black">गोल्डन रूल:</span> जब बैकअप में पैसे आ रहे होते हैं, तो ट्रेडिंग में कभी भी डर या जल्दबाजी नहीं होती। इसी मानसिक आज़ादी से 90% लूज़र ट्रेडर्स एक प्रोफ़िटेबल सुपर वॉरियर बनते हैं!
             </p>
           </div>
 

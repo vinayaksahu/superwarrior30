@@ -28,6 +28,7 @@ import { VerifiedTradesShowcase } from "@/components/funnel/verified-trades-show
 import { DualIncomeOpportunity } from "@/components/funnel/dual-income-opportunity";
 import { getPublicLiveTradesAction } from "@/server/actions/live-trades.actions";
 import { YouTubeLiveTradesShowcase } from "@/components/funnel/youtube-live-trades-showcase";
+import { HeroInteractiveTerminal } from "@/components/home/hero-interactive-terminal";
 
 export const dynamic = "force-dynamic";
 
@@ -88,14 +89,14 @@ export default async function HomePage() {
               </div>
               <Link
                 href="/premium-group"
-                className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500/20 hover:border-amber-400 transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 dark:border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/15 px-3.5 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 hover:text-amber-900 dark:hover:text-amber-200 transition-all shadow-[0_0_12px_rgba(245,158,11,0.12)]"
               >
                 <Users className="h-3.5 w-3.5" />
                 <span>Free Premium Telegram Access — Join Now</span>
                 <ArrowRight className="h-3 w-3" />
               </Link>
               {homepageEnv === "TEST" && (
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/50 bg-amber-500/20 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/50 bg-amber-500/20 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
@@ -127,7 +128,7 @@ export default async function HomePage() {
               </Link>
               <Link
                 href="/premium-group"
-                className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-8 text-sm font-bold text-amber-400 shadow-lg shadow-amber-500/5 transition-all hover:bg-amber-500/20 hover:border-amber-400 hover:text-amber-300"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-amber-500/40 dark:border-amber-500/50 bg-amber-500/10 px-8 text-sm font-bold text-amber-800 dark:text-amber-300 shadow-lg shadow-amber-500/5 transition-all hover:bg-amber-500/20 hover:text-amber-900 dark:hover:text-amber-200"
               >
                 <Users className="h-4 w-4" />
                 Join Community
@@ -140,6 +141,9 @@ export default async function HomePage() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
+
+            {/* Live Market Pulse, Interactive Terminal & Trust Proof */}
+            <HeroInteractiveTerminal />
           </div>
         </div>
       </section>
