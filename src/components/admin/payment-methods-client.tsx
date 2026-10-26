@@ -1247,6 +1247,39 @@ export function PaymentMethodsClient({ initialMethods }: PaymentMethodsClientPro
                       className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
                     />
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                        Fixed USDT / INR Rate (Optional)
+                      </label>
+                      <input
+                        name="exchangeRateINR"
+                        type="number"
+                        step="0.01"
+                        defaultValue={editingMethod?.details?.exchangeRateINR || ""}
+                        placeholder="e.g. 103.00 (Blank = Live P2P)"
+                        className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Leave blank to auto-fetch live Binance/Bybit P2P market selling rate (~102–104 INR).
+                      </p>
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-2">
+                        Blockchain Auto-Approval
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+                        <input
+                          name="autoApproveBlockchain"
+                          type="checkbox"
+                          value="true"
+                          defaultChecked={editingMethod?.details?.autoApproveBlockchain !== false}
+                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span>Auto-verify on BSC & grant instant access</span>
+                      </label>
+                    </div>
+                  </div>
                 </>
               )}
 

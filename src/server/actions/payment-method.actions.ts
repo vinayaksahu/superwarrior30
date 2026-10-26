@@ -21,6 +21,10 @@ export interface PaymentMethodItem {
     branch?: string;
     network?: string;
     walletAddress?: string;
+    exchangeRateINR?: number;
+    autoApproveBlockchain?: boolean;
+    cryptoSymbol?: string;
+    tokenContractAddress?: string;
     // Gateway specific
     provider?: "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | "YOUPI";
     keyId?: string;
@@ -263,6 +267,10 @@ function sanitizePaymentMethodDetailsForClient(
     branch: details.branch,
     network: details.network,
     walletAddress: details.walletAddress,
+    exchangeRateINR: details.exchangeRateINR,
+    autoApproveBlockchain: details.autoApproveBlockchain,
+    cryptoSymbol: details.cryptoSymbol,
+    tokenContractAddress: details.tokenContractAddress,
   };
 }
 
@@ -363,7 +371,7 @@ export async function createPaymentMethodAction(
     return { success: false, message: "Please provide a descriptive title." };
   }
 
-  const details: Record<string, string> = {};
+  const details: Record<string, any> = {};
 
   if (type === "GATEWAY") {
     const provider = (formData.get("provider")?.toString().trim().toUpperCase() || "RAZORPAY") as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | "YOUPI";
@@ -455,9 +463,18 @@ export async function createPaymentMethodAction(
       qrCodeUrl = (await ensureBunnyQrCodeUrl(qrCodeUrl)) || qrCodeUrl;
     }
 
+    const rawRate = formData.get("exchangeRateINR")?.toString().trim();
+    const exchangeRateINR = rawRate && !isNaN(Number(rawRate)) && Number(rawRate) > 0 ? Number(rawRate) : undefined;
+    const autoApproveBlockchain = formData.get("autoApproveBlockchain") !== "false";
+    const tokenContractAddress = formData.get("tokenContractAddress")?.toString().trim() || undefined;
+
     details.network = network;
     details.walletAddress = walletAddress;
     details.qrCodeUrl = qrCodeUrl;
+    details.cryptoSymbol = "USDT";
+    if (exchangeRateINR) details.exchangeRateINR = exchangeRateINR;
+    details.autoApproveBlockchain = autoApproveBlockchain;
+    if (tokenContractAddress) details.tokenContractAddress = tokenContractAddress;
   }
 
   try {
@@ -518,8 +535,8 @@ export async function updatePaymentMethodAction(
     return { success: false, message: "Please provide a descriptive title." };
   }
 
-  const currentDetails = (existing.details as Record<string, string>) || {};
-  const updatedDetails: Record<string, string> = { ...currentDetails };
+  const currentDetails = (existing.details as Record<string, any>) || {};
+  const updatedDetails: Record<string, any> = { ...currentDetails };
 
   if (existing.type === "GATEWAY") {
     const provider = formData.get("provider")?.toString().trim().toUpperCase() as "RAZORPAY" | "PHONEPE" | "CASHFREE" | "PAYTM" | "YOUPI" | undefined;
@@ -579,6 +596,25 @@ export async function updatePaymentMethodAction(
     } else if (qrCodeUrl) {
       qrCodeUrl = (await ensureBunnyQrCodeUrl(qrCodeUrl)) || qrCodeUrl;
     }
+
+    const rawRate = formData.get("exchangeRateINR")?.toString().trim();
+    if (rawRate !== undefined) {
+      if (!rawRate || isNaN(Number(rawRate)) || Number(rawRate) <= 0) {
+        delete updatedDetails.exchangeRateINR;
+      } else {
+        updatedDetails.exchangeRateINR = Number(rawRate);
+      }
+    }
+    const autoApproveRaw = formData.get("autoApproveBlockchain");
+    if (autoApproveRaw !== null && autoApproveRaw !== undefined) {
+      updatedDetails.autoApproveBlockchain = autoApproveRaw !== "false";
+    }
+    const tokenContract = formData.get("tokenContractAddress")?.toString().trim();
+    if (tokenContract !== undefined) {
+      if (tokenContract) updatedDetails.tokenContractAddress = tokenContract;
+      else delete updatedDetails.tokenContractAddress;
+    }
+    updatedDetails.cryptoSymbol = "USDT";
 
     if (network) updatedDetails.network = network;
     if (walletAddress) updatedDetails.walletAddress = walletAddress;

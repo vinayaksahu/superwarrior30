@@ -7,6 +7,7 @@ import { getBrokerPublicConfigAction } from "@/server/actions/broker.actions";
 import { ManualCheckoutClient } from "@/components/checkout/manual-checkout-client";
 import { ensureDatabaseSchemaSync } from "@/lib/db-sync";
 import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
+import { getUsdtInrRate } from "@/lib/crypto/rates";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +206,18 @@ export default async function CheckoutPage({
       return [methods, config, validCoupons, refCoupon] as const;
     });
 
+  // Resolve initial USDT rate server-side for immediate client hydration
+  const cryptoMethod = paymentMethods.find(
+    (m) =>
+      m.type === "CRYPTO" ||
+      m.title.toUpperCase().includes("USDT") ||
+      m.title.toUpperCase().includes("CRYPTO")
+  );
+  const customFixedRate = cryptoMethod?.details?.exchangeRateINR
+    ? Number(cryptoMethod.details.exchangeRateINR)
+    : null;
+  const initialUsdtRate = await getUsdtInrRate(customFixedRate);
+
   return (
     <ManualCheckoutClient
       course={{
@@ -221,6 +234,7 @@ export default async function CheckoutPage({
       isGuest={!user}
       availableCoupons={availableCoupons}
       userReferralCoupon={userReferralCoupon}
+      initialUsdtRate={initialUsdtRate}
     />
   );
 }

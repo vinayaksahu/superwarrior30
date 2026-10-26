@@ -68,6 +68,11 @@ interface ManualCheckoutClientProps {
   isGuest?: boolean;
   availableCoupons?: AvailablePromoCoupon[];
   userReferralCoupon?: UserReferralCoupon | null;
+  initialUsdtRate?: {
+    rate: number;
+    formattedRate: string;
+    source: string;
+  };
 }
 
 declare global {
@@ -85,6 +90,7 @@ export function ManualCheckoutClient({
   isGuest = false,
   availableCoupons = [],
   userReferralCoupon = null,
+  initialUsdtRate,
 }: ManualCheckoutClientProps) {
   const router = useRouter();
   const activeMethods = paymentMethods.filter((m) => m.isActive);
@@ -383,6 +389,65 @@ export function ManualCheckoutClient({
     activeMethods.find((m) => m.id === selectedMethodId) || defaultMethod;
 
   const isGatewaySelected = selectedMethod?.type === "GATEWAY";
+  const isCryptoSelected =
+    selectedMethod?.type === "CRYPTO" ||
+    Boolean(selectedMethod?.title?.toUpperCase().includes("USDT")) ||
+    Boolean(selectedMethod?.title?.toUpperCase().includes("CRYPTO"));
+
+  // Real-time USDT / INR rate state (Binance P2P / Bybit / Admin configured rate)
+  const initialRateVal = initialUsdtRate?.rate || 103.0;
+  const [usdtRateData, setUsdtRateData] = useState<{
+    rate: number;
+    formattedRate: string;
+    source: string;
+    calculatedUsdt: string;
+    isLoading: boolean;
+  }>({
+    rate: initialRateVal,
+    formattedRate: initialUsdtRate?.formattedRate || initialRateVal.toFixed(2),
+    source: initialUsdtRate?.source || "BINANCE_P2P",
+    calculatedUsdt: (finalAmount / initialRateVal).toFixed(4),
+    isLoading: false,
+  });
+
+  const effectiveUsdtAmount = useMemo(() => {
+    if (usdtRateData.calculatedUsdt && usdtRateData.calculatedUsdt !== "0.0000") {
+      return usdtRateData.calculatedUsdt;
+    }
+    const currentRate = usdtRateData.rate || 103.0;
+    return (finalAmount / currentRate).toFixed(4);
+  }, [usdtRateData.calculatedUsdt, usdtRateData.rate, finalAmount]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchRate = async () => {
+      try {
+        setUsdtRateData((prev) => ({ ...prev, isLoading: true }));
+        const res = await fetch(`/api/crypto/rate?inrAmount=${finalAmount}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isCancelled && data.success && data.rate) {
+          const usdt =
+            data.calculation?.usdtFormatted || (finalAmount / data.rate).toFixed(4);
+          setUsdtRateData({
+            rate: data.rate,
+            formattedRate: data.formattedRate || data.rate.toFixed(2),
+            source: data.source,
+            calculatedUsdt: usdt,
+            isLoading: false,
+          });
+        }
+      } catch {
+        if (!isCancelled) {
+          setUsdtRateData((prev) => ({ ...prev, isLoading: false }));
+        }
+      }
+    };
+    fetchRate();
+    return () => {
+      isCancelled = true;
+    };
+  }, [finalAmount]);
 
   // Pre-load Razorpay checkout script
   useEffect(() => {
@@ -967,7 +1032,16 @@ export function ManualCheckoutClient({
     }
 
     if (!utrInput.trim() || utrInput.trim().length < 4) {
-      toast.error("Please enter a valid 12-digit UTR or Transaction Reference ID.");
+      toast.error(
+        isCryptoSelected
+          ? "Please enter your BEP-20 Transaction Hash (TxID) from Trust Wallet / Binance."
+          : "Please enter a valid 12-digit UTR or Transaction Reference ID."
+      );
+      return;
+    }
+
+    if (isCryptoSelected && !utrInput.includes("0x") && utrInput.trim().length < 32) {
+      toast.error("Please enter a valid BEP-20 transaction hash (e.g. 0x...) from your crypto wallet.");
       return;
     }
 
@@ -1003,6 +1077,11 @@ export function ManualCheckoutClient({
       const data = await res.json();
 
       if (res.ok && data.success && data.orderId) {
+        if (data.autoApproved) {
+          toast.success("🎉 USDT Payment verified on BSC blockchain! Course unlocked!");
+          router.push(`/checkout/success/${data.orderId}`);
+          return;
+        }
         toast.success("Order submitted successfully!");
         router.push(`/checkout/success/${data.orderId}`);
         return;
@@ -1086,7 +1165,9 @@ export function ManualCheckoutClient({
                         {method.title}
                       </span>
                       <span className="text-[10px] text-muted-foreground mt-1 truncate w-full">
-                        {method.details?.accountName || method.details?.payeeName || method.type}
+                        {method.type === "CRYPTO" || method.title?.toUpperCase().includes("USDT")
+                          ? `${effectiveUsdtAmount} USDT`
+                          : method.details?.accountName || method.details?.payeeName || method.type}
                       </span>
                     </button>
                   );
@@ -1100,15 +1181,53 @@ export function ManualCheckoutClient({
                     <div>
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
                         {selectedMethod.title}
+                        {isCryptoSelected && (
+                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            BEP-20
+                          </span>
+                        )}
                       </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Pay exactly{" "}
-                        <strong className="text-foreground">{formatCurrency(finalAmount)}</strong>
-                      </p>
+                      {isCryptoSelected ? (
+                        <div className="mt-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl sm:text-2xl font-black text-emerald-400 font-mono tracking-tight">
+                              {effectiveUsdtAmount} USDT
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                copyToClipboard(effectiveUsdtAmount, "usdt_price");
+                              }}
+                              className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                              title="Copy exact USDT amount"
+                            >
+                              {copiedKey === "usdt_price" ? (
+                                <Check className="h-3 w-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                              <span>{copiedKey === "usdt_price" ? "Copied" : "Copy Price"}</span>
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            ≈ {formatCurrency(finalAmount)} &middot; Rate: 1 USDT ≈ ₹{usdtRateData.formattedRate} INR ({usdtRateData.source === "ADMIN_CONFIGURED" ? "Fixed Admin Rate" : "Live Binance/Bybit P2P"})
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Pay exactly{" "}
+                          <strong className="text-foreground">{formatCurrency(finalAmount)}</strong>
+                        </p>
+                      )}
                     </div>
                     {isGatewaySelected ? (
                       <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-bold text-primary">
                         INSTANT ACCESS
+                      </span>
+                    ) : isCryptoSelected ? (
+                      <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-400 flex items-center gap-1 shrink-0 animate-pulse">
+                        <Zap className="h-3 w-3 fill-emerald-400" />
+                        AUTO APPROVAL
                       </span>
                     ) : (
                       <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold text-amber-500">
@@ -1238,10 +1357,32 @@ export function ManualCheckoutClient({
                   )}
 
                   {/* Crypto Wallet Details */}
-                  {selectedMethod.type === "CRYPTO" && (
+                  {isCryptoSelected && (
                     <div className="space-y-4">
+                      {/* Step-by-step guidance banner */}
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                          <Zap className="h-4 w-4" />
+                          <span>How to Pay & Auto-Activate Course</span>
+                        </div>
+                        <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside pl-0.5 leading-relaxed">
+                          <li>
+                            Copy exact amount:{" "}
+                            <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                              {effectiveUsdtAmount} USDT
+                            </span>
+                          </li>
+                          <li>
+                            Send via <strong className="text-foreground">BEP-20 (BNB Smart Chain)</strong> to the Deposit Address below
+                          </li>
+                          <li>
+                            Paste your <strong className="text-foreground">TxnHash (TxID)</strong> in the form &rarr; instantly verified on-chain!
+                          </li>
+                        </ol>
+                      </div>
+
                       {(selectedMethod.details?.qrCodeUrl || selectedMethod.details?.walletAddress) && (
-                        <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background border border-border">
+                        <div className="flex flex-col items-center justify-center p-3.5 rounded-lg bg-background border border-border">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={
@@ -1253,38 +1394,62 @@ export function ManualCheckoutClient({
                             alt={`${selectedMethod.title} QR Code`}
                             className="h-44 w-44 object-contain rounded-lg border bg-white p-1"
                           />
-                          <p className="text-[11px] text-muted-foreground mt-2">
-                            Scan with Binance, Bybit, Trust Wallet, or any Crypto App
+                          <p className="text-[11px] text-muted-foreground mt-2 text-center">
+                            Scan with Trust Wallet, Binance, Bybit, or any Crypto App
                           </p>
                         </div>
                       )}
 
                       <div className="space-y-2 text-xs">
-                        {selectedMethod.details?.network && (
-                          <div className="flex justify-between py-1 border-b border-border/50">
-                            <span className="text-muted-foreground">Network:</span>
-                            <span className="font-bold text-foreground">{selectedMethod.details.network}</span>
+                        <div className="flex items-center justify-between py-1 border-b border-border/50">
+                          <span className="text-muted-foreground">Network:</span>
+                          <span className="font-bold text-foreground font-mono">
+                            {selectedMethod.details?.network || "BEP-20 (BNB Smart Chain)"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between py-1 border-b border-border/50">
+                          <span className="text-muted-foreground">Amount to Send:</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold font-mono text-emerald-400 text-sm">
+                              {effectiveUsdtAmount} USDT
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                copyToClipboard(effectiveUsdtAmount, "crypto_amount");
+                              }}
+                              className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-0.5 text-xs font-medium hover:bg-accent cursor-pointer"
+                              title="Copy USDT amount"
+                            >
+                              {copiedKey === "crypto_amount" ? (
+                                <Check className="h-3 w-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                              <span>{copiedKey === "crypto_amount" ? "Copied" : "Copy"}</span>
+                            </button>
                           </div>
-                        )}
+                        </div>
                         {selectedMethod.details?.walletAddress && (
                           <div className="p-3 rounded-lg bg-background border border-border space-y-1">
                             <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                              Deposit Address
+                              Deposit Address (BEP-20)
                             </span>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono text-xs text-foreground break-all">
+                              <span className="font-mono text-xs text-foreground break-all font-semibold">
                                 {selectedMethod.details.walletAddress}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(selectedMethod.details.walletAddress!, "crypto")}
-                                className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs font-medium hover:bg-accent shrink-0"
+                                className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs font-medium hover:bg-accent shrink-0 cursor-pointer"
                               >
                                 {copiedKey === "crypto" ? (
                                   <Check className="h-3 w-3 text-emerald-400" />
                                 ) : (
                                   <Copy className="h-3 w-3" />
                                 )}
+                                <span>{copiedKey === "crypto" ? "Copied" : "Copy"}</span>
                               </button>
                             </div>
                           </div>
@@ -1768,9 +1933,18 @@ export function ManualCheckoutClient({
 
                 <div className="flex justify-between items-center border-t border-border pt-3 text-sm">
                   <span className="font-bold text-foreground">Total Payable:</span>
-                  <span className="text-xl font-extrabold text-primary">
-                    {formatCurrency(finalAmount)}
-                  </span>
+                  <div className="text-right">
+                    <span className="text-xl font-extrabold text-primary block">
+                      {isCryptoSelected
+                        ? `${effectiveUsdtAmount} USDT`
+                        : formatCurrency(finalAmount)}
+                    </span>
+                    {isCryptoSelected && (
+                      <span className="text-[11px] text-muted-foreground block font-mono">
+                        (≈ {formatCurrency(finalAmount)})
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1912,118 +2086,134 @@ export function ManualCheckoutClient({
                 {!isGatewaySelected && (
                   <>
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-foreground block mb-1.5">
-                        {selectedMethod?.type === "CRYPTO"
-                          ? "Transaction Hash (TxID) *"
-                          : "12-Digit UTR / Transaction Reference ID *"}
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-foreground">
+                          {isCryptoSelected
+                            ? "BEP-20 Transaction Hash (TxnHash / TxID) *"
+                            : "12-Digit UTR / Transaction Reference ID *"}
+                        </label>
+                        {isCryptoSelected && (
+                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            ⚡ Instant Auto-Approval
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
                         value={utrInput}
                         onChange={(e) => setUtrInput(e.target.value)}
                         placeholder={
-                          selectedMethod?.type === "CRYPTO"
-                            ? "Paste your Blockchain TxHash..."
+                          isCryptoSelected
+                            ? "0x... (from Trust Wallet, Binance, or BscScan)"
                             : "e.g. 423984712093"
                         }
                         className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-xs font-mono font-semibold text-foreground focus:border-primary focus:outline-none"
                       />
-                    </div>
-
-                    {/* Payment Screenshot Upload */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                          <ImageIcon className="h-3.5 w-3.5 text-primary" />
-                          Payment Screenshot / Receipt (Recommended)
-                        </label>
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                          PNG, JPG, WEBP (Max 10MB)
-                        </span>
-                      </div>
-
-                      {paymentScreenshotPreview ? (
-                        <div className="relative rounded-xl border border-primary/40 bg-primary/5 p-3 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={paymentScreenshotPreview}
-                              alt="Payment Proof Preview"
-                              className="h-16 w-16 object-cover rounded-lg border border-border shadow-sm shrink-0 bg-background"
-                            />
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-foreground truncate">
-                                {paymentScreenshotFile?.name || "Payment_Screenshot.png"}
-                              </p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {paymentScreenshotFile
-                                  ? `${(paymentScreenshotFile.size / (1024 * 1024)).toFixed(2)} MB`
-                                  : "Attached"}
-                              </p>
-                              <div className="flex items-center gap-1 text-[11px] font-semibold mt-0.5">
-                                {isUploadingScreenshot ? (
-                                  <>
-                                    <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
-                                    <span className="text-amber-400">Uploading screenshot...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                                    <span className="text-emerald-400">Screenshot attached for admin</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={handleRemovePaymentScreenshot}
-                            disabled={isUploadingScreenshot}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-                            title="Remove Screenshot"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-border/80 hover:border-primary/60 rounded-xl p-4 bg-background/50 hover:bg-background/90 transition-all cursor-pointer group">
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/jpg,image/webp"
-                            onChange={handlePaymentScreenshotChange}
-                            className="hidden"
-                          />
-                          <div className="flex flex-col items-center justify-center text-center space-y-1.5">
-                            <div className="p-2.5 rounded-full bg-primary/10 text-primary group-hover:scale-105 transition-transform">
-                              <UploadCloud className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">
-                                Click or drag &amp; drop payment screenshot
-                              </p>
-                              <p className="text-[10px] text-muted-foreground mt-0.5">
-                                Upload UPI/Bank success slip showing UTR or Txn ID for faster admin verification
-                              </p>
-                            </div>
-                          </div>
-                        </label>
+                      {isCryptoSelected && (
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Paste your 66-character BEP-20 transaction hash. Blockchain will verify it automatically and grant immediate course access.
+                        </p>
                       )}
                     </div>
 
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
-                        Additional Notes / Sender Name (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={proofNote}
-                        onChange={(e) => setProofNote(e.target.value)}
-                        placeholder={`e.g. Paid from HDFC Bank account of ${userName || "Student"}`}
-                        className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
-                      />
-                    </div>
+                    {/* ONLY FOR UPI & BANK: Payment Screenshot & Notes (HIDDEN FOR USDT) */}
+                    {!isCryptoSelected && (
+                      <>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                              <ImageIcon className="h-3.5 w-3.5 text-primary" />
+                              Payment Screenshot / Receipt (Recommended)
+                            </label>
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                              PNG, JPG, WEBP (Max 10MB)
+                            </span>
+                          </div>
+
+                          {paymentScreenshotPreview ? (
+                            <div className="relative rounded-xl border border-primary/40 bg-primary/5 p-3 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={paymentScreenshotPreview}
+                                  alt="Payment Proof Preview"
+                                  className="h-16 w-16 object-cover rounded-lg border border-border shadow-sm shrink-0 bg-background"
+                                />
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-foreground truncate">
+                                    {paymentScreenshotFile?.name || "Payment_Screenshot.png"}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {paymentScreenshotFile
+                                      ? `${(paymentScreenshotFile.size / (1024 * 1024)).toFixed(2)} MB`
+                                      : "Attached"}
+                                  </p>
+                                  <div className="flex items-center gap-1 text-[11px] font-semibold mt-0.5">
+                                    {isUploadingScreenshot ? (
+                                      <>
+                                        <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                                        <span className="text-amber-400">Uploading screenshot...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                        <span className="text-emerald-400">Screenshot attached for admin</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleRemovePaymentScreenshot}
+                                disabled={isUploadingScreenshot}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                                title="Remove Screenshot"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex flex-col items-center justify-center border-2 border-dashed border-border/80 hover:border-primary/60 rounded-xl p-4 bg-background/50 hover:bg-background/90 transition-all cursor-pointer group">
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                onChange={handlePaymentScreenshotChange}
+                                className="hidden"
+                              />
+                              <div className="flex flex-col items-center justify-center text-center space-y-1.5">
+                                <div className="p-2.5 rounded-full bg-primary/10 text-primary group-hover:scale-105 transition-transform">
+                                  <UploadCloud className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold text-foreground">
+                                    Click or drag &amp; drop payment screenshot
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    Upload UPI/Bank success slip showing UTR or Txn ID for faster admin verification
+                                  </p>
+                                </div>
+                              </div>
+                            </label>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
+                            Additional Notes / Sender Name (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={proofNote}
+                            onChange={(e) => setProofNote(e.target.value)}
+                            placeholder={`e.g. Paid from HDFC Bank account of ${userName || "Student"}`}
+                            className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
+                          />
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -2088,6 +2278,24 @@ export function ManualCheckoutClient({
                       </>
                     )}
                   </button>
+                ) : isCryptoSelected ? (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !utrInput.trim() || !acceptedPolicies}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Verifying on BSC Blockchain...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 fill-white" />
+                        Verify on Blockchain & Unlock Course
+                      </>
+                    )}
+                  </button>
                 ) : (
                   <button
                     type="submit"
@@ -2113,6 +2321,13 @@ export function ManualCheckoutClient({
                     <>
                       <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                       <span>Instant Access &middot; 256-Bit SSL Encrypted &middot; 100% Safe</span>
+                    </>
+                  ) : isCryptoSelected ? (
+                    <>
+                      <Zap className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-emerald-400 font-semibold">
+                        Instant Auto-Approval &middot; Verified on BNB Smart Chain (BEP-20)
+                      </span>
                     </>
                   ) : (
                     <>

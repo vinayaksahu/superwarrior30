@@ -9,6 +9,9 @@ import { createSession } from "@/lib/auth/session";
 import { getBrokerSettings } from "@/lib/broker/config";
 import { verifyBrokerMemberIdServer } from "@/lib/broker/verification";
 import { validateAndCalculateCouponAction } from "@/server/actions/coupon.actions";
+import { fulfillOrderPayment } from "@/server/actions/order.actions";
+import { verifyBscUsdtPayment, extractTxHash } from "@/lib/crypto/bsc-verifier";
+import { getUsdtInrRate, calculateUsdtAmount } from "@/lib/crypto/rates";
 
 export const dynamic = "force-dynamic";
 
@@ -576,13 +579,126 @@ export async function POST(req: Request) {
     const orderNumber = generateOrderNumber();
     const cleanUtr = utrRef.trim();
 
+    // Check payment method details
+    const paymentMethodRecord = paymentMethodId
+      ? await prisma.systemPaymentMethod.findUnique({
+          where: { id: paymentMethodId },
+        })
+      : null;
+
+    const isCrypto =
+      paymentMethodRecord?.type === "CRYPTO" ||
+      (paymentMethodTitle || "").toUpperCase().includes("USDT") ||
+      (paymentMethodTitle || "").toUpperCase().includes("CRYPTO");
+
+    let cleanTxHash: string | null = null;
+    let cryptoVerificationMetadata: Record<string, any> | null = null;
+    let isCryptoAutoApproved = false;
+
+    if (isCrypto) {
+      cleanTxHash = extractTxHash(cleanUtr);
+      if (!cleanTxHash) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Please enter a valid 66-character BEP-20 Transaction Hash (TxHash / TxID) starting with 0x.",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Replay protection: Check if this TxHash was already used
+      const existingTxOrder = await prisma.order.findFirst({
+        where: {
+          OR: [{ paymentId: cleanTxHash }, { manualPaymentRef: cleanTxHash }],
+        },
+        select: { id: true, userId: true, status: true, orderNumber: true },
+      });
+
+      if (existingTxOrder) {
+        if (existingTxOrder.userId === user.id && existingTxOrder.status === "PAID") {
+          return NextResponse.json({
+            success: true,
+            autoApproved: true,
+            alreadyEnrolled: true,
+            orderId: existingTxOrder.id,
+            orderNumber: existingTxOrder.orderNumber,
+            courseSlug: course.slug,
+            message: "This payment has already been verified and course access is active!",
+          });
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "This transaction hash has already been used for an order. Please submit your unique transaction hash.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const cryptoDetails = (paymentMethodRecord?.details as any) || {};
+      const shouldAutoApprove = cryptoDetails.autoApproveBlockchain !== false;
+
+      if (shouldAutoApprove) {
+        const depositWallet =
+          cryptoDetails.walletAddress || "0x1Ca7cEbF067f1A0fdE2E09a3cf0D90988c53d147";
+        const customRate = cryptoDetails.exchangeRateINR
+          ? Number(cryptoDetails.exchangeRateINR)
+          : null;
+        const rateResult = await getUsdtInrRate(customRate);
+        const { usdtAmount: expectedUsdt } = calculateUsdtAmount(
+          finalPayable,
+          rateResult.rate
+        );
+
+        const verifyResult = await verifyBscUsdtPayment({
+          txHashInput: cleanTxHash,
+          expectedUsdtAmount: expectedUsdt,
+          depositAddress: depositWallet,
+        });
+
+        if (!verifyResult.verified) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                verifyResult.message ||
+                "Failed to verify USDT transaction on the BSC blockchain.",
+            },
+            { status: 400 }
+          );
+        }
+
+        isCryptoAutoApproved = true;
+        cryptoVerificationMetadata = {
+          blockchain: "BSC",
+          network: "BEP-20",
+          txHash: cleanTxHash,
+          fromAddress: verifyResult.fromAddress,
+          depositAddress: verifyResult.toAddress,
+          transferredUsdt: verifyResult.transferredUsdt,
+          expectedUsdt,
+          exchangeRateINR: rateResult.rate,
+          rateSource: rateResult.source,
+          blockNumber: verifyResult.blockNumber,
+          blockTimestamp: verifyResult.timestamp?.toISOString(),
+          verifiedOnChain: true,
+          autoApprovedAt: new Date().toISOString(),
+        };
+      }
+    }
+
+    const effectivePaymentId = cleanTxHash || cleanUtr;
+
     const finalScreenshotUrl =
       (paymentScreenshotUrl || paymentProofUrl || body.proofUrl || "").trim() || null;
 
     const proofData = {
       paymentMethodId: paymentMethodId || "manual",
-      paymentMethodTitle: paymentMethodTitle || "Manual Payment",
-      utrRef: cleanUtr,
+      paymentMethodTitle: paymentMethodTitle || (isCrypto ? "USDT (BEP-20)" : "Manual Payment"),
+      utrRef: effectivePaymentId,
       screenshotUrl: finalScreenshotUrl,
       paymentScreenshotUrl: finalScreenshotUrl,
       proofUrl: finalScreenshotUrl || requestedProofUrl,
@@ -593,6 +709,7 @@ export async function POST(req: Request) {
       customerName: user.name || "Student",
       referralCode: requestedReferralCode || null,
       appliedReferrerId: appliedReferrerId || null,
+      ...(cryptoVerificationMetadata || {}),
     };
 
     let order;
@@ -608,9 +725,9 @@ export async function POST(req: Request) {
           discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
           taxAmount: new Prisma.Decimal("0.00"),
           totalAmount: new Prisma.Decimal(finalPayable.toFixed(2)),
-          paymentProvider: "MANUAL_TRANSFER",
-          paymentId: cleanUtr,
-          manualPaymentRef: cleanUtr,
+          paymentProvider: isCrypto ? "CRYPTO_USDT" : "MANUAL_TRANSFER",
+          paymentId: effectivePaymentId,
+          manualPaymentRef: effectivePaymentId,
           manualPaymentProof: proofData,
           metadata: proofData,
           items: {
@@ -675,6 +792,29 @@ export async function POST(req: Request) {
           },
         },
       });
+    }
+
+    if (isCryptoAutoApproved) {
+      try {
+        await fulfillOrderPayment({
+          orderId: order.id,
+          provider: "CRYPTO_USDT",
+          paymentId: effectivePaymentId,
+          metadata: proofData,
+        });
+
+        return NextResponse.json({
+          success: true,
+          autoApproved: true,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          courseSlug: course.slug,
+          message:
+            "USDT payment successfully verified on BNB Smart Chain! Your course access is unlocked immediately.",
+        });
+      } catch (fulfillErr) {
+        console.error("[Crypto Checkout] fulfillOrderPayment error:", fulfillErr);
+      }
     }
 
     return NextResponse.json({
