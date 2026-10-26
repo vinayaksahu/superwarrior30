@@ -22,6 +22,7 @@ input int             InpMaxSlippagePoints   = 0;              // Max Slippage P
 input int             InpMaxTradeAgeSec      = 5;              // Max Trade Age to Copy (Seconds, 0 = No Limit)
 
 input group "=== 2. Capital Protection & Risk Rules ==="
+input double          InpMinCapital              = 16.0;           // Minimum Capital to Trade ($16.00)
 input double          InpBalanceUnit             = 300.0;          // Balance Unit ($300 = 0.01 Lot)
 input double          InpLotPerUnit              = 0.01;           // Lot increment per unit
 input int             InpMaxOpenTrades           = 2;              // Max concurrent open trades (Strict 2)
@@ -346,7 +347,7 @@ double CalculateLots(string sym, double masterLot)
    if(stepLot <= 0) stepLot = 0.01;
    
    // 1. Core Rule: Every $300 balance = 0.01 Lot (Independent of Master Lots)
-   // Accounts starting from $10 - $299 get 0.01 lot (the broker minimum)
+   // Accounts starting from $16 - $300 use base tier (0.01 lot, max 2 trades, -$15.00 Daily DD)
    // Tier-Locked Recovery Rule: Sizing uses the account's baseline tier (Peak Balance or Initial Deposit).
    // During normal drawdowns (up to 14.9%) and broker fees/commissions, lot size stays locked so recovery is fast.
    // Includes a $25 fee buffer so slight dips below $600 (e.g. $580-$598) NEVER downgrade 0.02 to 0.01.
@@ -478,11 +479,9 @@ void CheckLmsPortalControl()
 
 //+------------------------------------------------------------------+
 //| Calculate Strict Tier-Base Risk Limits                           |
-//| Supports small deposits ($10 - $299) and standard ($300+ units)  |
-//| $10-$299: Proportional 5% Daily DD, 15% Max DD on actual capital |
-//| $300 Tier: Daily DD -$15.00 (5%), Max DD -$45.00 (15%)           |
-//| $600 Tier: Daily DD -$30.00 (5%), Max DD -$90.00 (15%)           |
-//| $900 Tier: Daily DD -$45.00 (5%), Max DD -$135.00 (15%)          |
+//| Base Tier ($16 - $300): 0.01 Lot, 2 Trades, Daily DD -$15.00     |
+//| $600 Tier: 0.02 Lot, 2 Trades, Daily DD -$30.00, Max DD -$90.00  |
+//| $900 Tier: 0.03 Lot, 2 Trades, Daily DD -$45.00, Max DD -$135.00 |
 //+------------------------------------------------------------------+
 void GetTierRiskLimits(double &outTierBase, double &outDailyLimitUsd, double &outMaxLimitUsd, double &outCutoffEquity)
 {
@@ -497,34 +496,22 @@ void GetTierRiskLimits(double &outTierBase, double &outDailyLimitUsd, double &ou
 
    double refBal = MathMax(g_initialDeposit, g_peakBalance);
    
-   if(g_initialDeposit >= InpBalanceUnit)
-   {
-      // Standard Tier-based calculation for >= $300 accounts ($300, $600, $900, ...)
-      // Uses locked units or refBal with $25 fee buffer so normal drawdowns/fees never downgrade tier
-      int units = (int)MathFloor((refBal + 25.0) / InpBalanceUnit);
-      if(units < 1) units = 1;
-      if(units < g_lockedTierUnits) units = g_lockedTierUnits;
-      
-      outTierBase        = units * InpBalanceUnit;
-      // Daily DD limit = 5% of account tier or start-of-day equity
-      double dailyBase   = MathMax(outTierBase, g_startOfDayEquity);
-      outDailyLimitUsd   = dailyBase * (InpDailyDDPercent / 100.0);
-      
-      // Max DD limit = 15% of account initial deposit / tier
-      double maxBase     = MathMax(outTierBase, g_initialDeposit);
-      outMaxLimitUsd     = maxBase * (InpMaxDDPercent / 100.0);
-      outCutoffEquity    = g_initialDeposit - outMaxLimitUsd;
-   }
+   // Tier units ($300 base):
+   // For all accounts from $16 up to $300, base tier is 1 unit ($300):
+   // Lot = 0.01, Max trades = 2, Daily DD limit = -$15.00, Max DD limit = -$45.00
+   // +$25 buffer prevents broker commissions/spreads from downgrading tier ($600 stays 2 units, etc.)
+   int units = (int)MathFloor((refBal + 25.0) / InpBalanceUnit);
+   if(units < 1) units = 1;
+   if(units < g_lockedTierUnits) units = g_lockedTierUnits;
+   
+   outTierBase      = units * InpBalanceUnit;
+   outDailyLimitUsd = units * (InpBalanceUnit * (InpDailyDDPercent / 100.0)); // Exactly $15.00 per unit ($15 for <=$300, $30 for $600, etc.)
+   outMaxLimitUsd   = units * (InpBalanceUnit * (InpMaxDDPercent / 100.0));   // Exactly $45.00 per unit ($45 for <=$300, $90 for $600, etc.)
+   
+   if(g_initialDeposit >= outTierBase)
+      outCutoffEquity = g_initialDeposit - outMaxLimitUsd;
    else
-   {
-      // Sub-$300 small accounts ($10 to $299.99):
-      // Exact proportional risk based on actual capital
-      outTierBase        = g_initialDeposit;
-      double dailyBase   = MathMax(g_startOfDayEquity, curBal);
-      outDailyLimitUsd   = dailyBase * (InpDailyDDPercent / 100.0);
-      outMaxLimitUsd     = g_initialDeposit * (InpMaxDDPercent / 100.0);
-      outCutoffEquity    = g_initialDeposit - outMaxLimitUsd;
-   }
+      outCutoffEquity = MathMax(1.0, g_initialDeposit - outMaxLimitUsd); // Protect small accounts
 }
 
 //+------------------------------------------------------------------+
@@ -553,7 +540,9 @@ void UpdateComment(string extraStatus)
    double dailyDDPct   = (tierBase > 0) ? (todayLossUsd / tierBase) * 100.0 : 0.0;
 
    string statusBadge = "🟢 ACTIVE (Copying Live)";
-   if(g_isPermanentlyStopped)
+   if(balance < InpMinCapital)
+      statusBadge = StringFormat("🔴 INSUFFICIENT CAPITAL (< $%.2f Min)", InpMinCapital);
+   else if(g_isPermanentlyStopped)
       statusBadge = "🔴 PERMANENTLY STOPPED (15% Max DD Breached)";
    else if(g_isDailyLocked)
       statusBadge = "🟡 PAUSED FOR TODAY (5% Daily DD Reached)";
@@ -632,16 +621,9 @@ int OnInit()
       g_isDailyLocked        = false;
       g_riskStopReason       = "";
       
-      // Determine locked tier units on startup with $25 fee buffer
-      if(g_initialDeposit >= InpBalanceUnit)
-      {
-         g_lockedTierUnits = (int)MathFloor((g_initialDeposit + 25.0) / InpBalanceUnit);
-         if(g_lockedTierUnits < 1) g_lockedTierUnits = 1;
-      }
-      else
-      {
-         g_lockedTierUnits = 1;
-      }
+      // Determine locked tier units on startup with $25 fee buffer ($300 base per unit)
+      g_lockedTierUnits = (int)MathFloor((g_initialDeposit + 25.0) / InpBalanceUnit);
+      if(g_lockedTierUnits < 1) g_lockedTierUnits = 1;
       
       GlobalVariableSet(g_gvPrefix + "Deposit", g_initialDeposit);
       GlobalVariableSet(g_gvPrefix + "PeakBal", g_peakBalance);
@@ -749,7 +731,22 @@ bool EnforceAccountRiskGuardian()
    GetTierRiskLimits(tierBase, dailyDDLimitUsd, maxDDLimitUsd, maxDDCutoffEquity);
 
    double currentEquity    = AccountInfoDouble(ACCOUNT_EQUITY);
+   double currentBal       = AccountInfoDouble(ACCOUNT_BALANCE);
    double totalDrawdownUsd = g_initialDeposit - currentEquity;
+
+   // -------------------------------------------------------------
+   // 0. Minimum Required Capital Check ($16.00)
+   // -------------------------------------------------------------
+   if(currentBal < InpMinCapital)
+   {
+      g_riskStopReason = StringFormat("Account Balance ($%.2f) below minimum capital ($%.2f). Trading halted.",
+                                      currentBal, InpMinCapital);
+      if(currentEquity <= 1.0 && PositionsTotal() > 0)
+      {
+         CloseAllPositions(g_riskStopReason);
+      }
+      return false;
+   }
 
    // -------------------------------------------------------------
    // A. Real-time 15% Max Lifetime Drawdown Check (Hard Kill-Switch)
