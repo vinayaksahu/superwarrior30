@@ -198,7 +198,7 @@ double GetCurrentFloatingPnL()
 //+------------------------------------------------------------------+
 void CloseAllCopiedPositions(string reason)
 {
-   PrintFormat("🚨 [PROTECTION TRIGGER] %s. Closing positions immediately to preserve capital!", reason);
+   PrintFormat("🚨 [PROTECTION TRIGGER] %s. Force-closing positions immediately!", reason);
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
       if(posInfo.SelectByIndex(i))
@@ -206,10 +206,32 @@ void CloseAllCopiedPositions(string reason)
          if(!InpFilterMagicForDailyDD || posInfo.Magic() == InpMagicNumber)
          {
             ulong ticket = posInfo.Ticket();
-            if(trade.PositionClose(ticket))
+            string sym   = posInfo.Symbol();
+            
+            SetSafeFilling(sym);
+            trade.SetDeviationInPoints(100);
+            
+            bool closed = trade.PositionClose(ticket);
+            if(!closed)
             {
-               PrintFormat("✅ Closed position #%I64u on %s (P/L: $%.2f)",
-                           ticket, posInfo.Symbol(), posInfo.Profit());
+               trade.SetTypeFilling(ORDER_FILLING_IOC);
+               closed = trade.PositionClose(ticket);
+            }
+            if(!closed)
+            {
+               trade.SetTypeFilling(ORDER_FILLING_FOK);
+               closed = trade.PositionClose(ticket);
+            }
+            if(!closed)
+            {
+               trade.SetTypeFilling(ORDER_FILLING_RETURN);
+               closed = trade.PositionClose(ticket);
+            }
+            
+            if(closed)
+            {
+               PrintFormat("✅ Successfully closed position #%I64u on %s (P/L: $%.2f)",
+                           ticket, sym, posInfo.Profit());
             }
             else
             {
@@ -564,8 +586,11 @@ void ProcessMasterPositions()
          g_isPermanentlyStopped = true;
          g_riskStopReason = StringFormat("15%% Max DD Breached (Loss: -$%.2f >= Limit: -$%.2f). Disconnected from copy trading.", totalDrawdownUsd, maxDDLimitUsd);
          PrintFormat("🛑 [CRITICAL RISK STOP] %s", g_riskStopReason);
-         if(InpEmergencyCloseOnMaxDD && PositionsTotal() > 0)
-            CloseAllCopiedPositions(g_riskStopReason);
+      }
+      // Continuously enforce emergency close if any positions remain open
+      if(InpEmergencyCloseOnMaxDD && PositionsTotal() > 0)
+      {
+         CloseAllCopiedPositions(g_riskStopReason);
       }
       return; // Never open trades again
    }
