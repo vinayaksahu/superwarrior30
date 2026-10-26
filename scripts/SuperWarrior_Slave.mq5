@@ -22,13 +22,15 @@ input int             InpMaxSlippagePoints   = 0;              // Max Slippage P
 input int             InpMaxTradeAgeSec      = 5;              // Max Trade Age to Copy (Seconds, 0 = No Limit)
 
 input group "=== 2. Capital Protection & Risk Rules ==="
-input double          InpBalanceUnit         = 300.0;          // Balance Unit ($300 = 0.01 Lot)
-input double          InpLotPerUnit          = 0.01;           // Lot increment per unit
-input int             InpMaxOpenTrades       = 2;              // Max concurrent open trades (Strict 2)
-input double          InpDailyDDPercent      = 5.0;            // Daily Drawdown Limit (%) -> Pause for Day
-input double          InpMaxDDPercent        = 15.0;           // Max Overall Drawdown Limit (%) -> Permanent Exit
-input bool            InpEmergencyCloseOnMaxDD = true;         // Auto-close open positions if 15% Max DD breached
-input double          InpMaxLotCap           = 5.00;           // Absolute Maximum Lot Ceiling
+input double          InpBalanceUnit             = 300.0;          // Balance Unit ($300 = 0.01 Lot)
+input double          InpLotPerUnit              = 0.01;           // Lot increment per unit
+input int             InpMaxOpenTrades           = 2;              // Max concurrent open trades (Strict 2)
+input double          InpDailyDDPercent          = 5.0;            // Daily Drawdown Limit (%) -> Pause for Day
+input double          InpMaxDDPercent            = 15.0;           // Max Overall Drawdown Limit (%) -> Permanent Exit
+input bool            InpEmergencyCloseOnDailyDD = true;           // Auto-close open positions if 5% Daily DD reached
+input bool            InpEmergencyCloseOnMaxDD   = true;           // Auto-close open positions if 15% Max DD breached
+input bool            InpFilterMagicForDailyDD   = false;          // Filter DD by Magic Number only (false = protect full account)
+input double          InpMaxLotCap               = 5.00;           // Absolute Maximum Lot Ceiling
 
 //--- Objects
 CTrade         trade;
@@ -46,7 +48,7 @@ int            g_copiedCount          = 0;
 double         g_initialDeposit       = 0.0;
 double         g_peakBalance          = 0.0;
 double         g_startOfDayEquity     = 0.0;
-datetime       g_currentDayIndex      = 0;
+datetime       g_currentDayStartTime  = 0;
 bool           g_isDailyLocked        = false;
 bool           g_isPermanentlyStopped = false;
 string         g_riskStopReason       = "";
@@ -89,28 +91,41 @@ void SetSafeFilling(string sym)
 }
 
 //+------------------------------------------------------------------+
+//| Get exact 00:00:00 Broker Server Time for current trading day    |
+//+------------------------------------------------------------------+
+datetime GetStartOfDayTime()
+{
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   dt.hour = 0;
+   dt.min  = 0;
+   dt.sec  = 0;
+   return StructToTime(dt);
+}
+
+//+------------------------------------------------------------------+
 //| Reset Daily Drawdown tracking at 00:00 Broker Server Time        |
 //+------------------------------------------------------------------+
 void CheckDailyReset()
 {
-   datetime today = TimeCurrent() / 86400;
-   if(today != g_currentDayIndex)
+   datetime todayStart = GetStartOfDayTime();
+   if(todayStart != g_currentDayStartTime)
    {
-      g_currentDayIndex  = today;
-      g_startOfDayEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+      g_currentDayStartTime = todayStart;
+      g_startOfDayEquity    = AccountInfoDouble(ACCOUNT_EQUITY);
 
       // Only reset daily lock if account has not breached the 15% Max DD hard stop
       if(!g_isPermanentlyStopped)
       {
          g_isDailyLocked  = false;
          g_riskStopReason = "";
-         PrintFormat("[SW30 Slave] Daily Reset at New Day (00:00). Starting Day Equity: $%.2f. Daily Lock Cleared.", g_startOfDayEquity);
+         PrintFormat("[SW30 Slave] Daily Reset at New Day (00:00 server time). Starting Day Equity: $%.2f. Daily Lock Cleared.", g_startOfDayEquity);
       }
    }
 }
 
 //+------------------------------------------------------------------+
-//| Count active open copied positions for this account              |
+//| Count active open positions to enforce max trade concurrency     |
 //+------------------------------------------------------------------+
 int CountOpenCopiedTrades()
 {
@@ -119,7 +134,7 @@ int CountOpenCopiedTrades()
    {
       if(posInfo.SelectByIndex(i))
       {
-         if(posInfo.Magic() == InpMagicNumber)
+         if(!InpFilterMagicForDailyDD || posInfo.Magic() == InpMagicNumber)
             count++;
       }
    }
@@ -131,8 +146,8 @@ int CountOpenCopiedTrades()
 //+------------------------------------------------------------------+
 double GetTodayRealizedPnL()
 {
-   datetime startOfDayTime = (datetime)(g_currentDayIndex * 86400);
-   datetime now = TimeCurrent();
+   datetime startOfDayTime = (g_currentDayStartTime > 0) ? g_currentDayStartTime : GetStartOfDayTime();
+   datetime now = TimeCurrent() + 60;
 
    if(!HistorySelect(startOfDayTime, now))
       return 0.0;
@@ -146,7 +161,7 @@ double GetTodayRealizedPnL()
       if(dealTicket > 0)
       {
          long magic = HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
-         if(magic == InpMagicNumber)
+         if(!InpFilterMagicForDailyDD || magic == InpMagicNumber)
          {
             long entryType = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
             if(entryType == DEAL_ENTRY_OUT || entryType == DEAL_ENTRY_INOUT)
@@ -171,7 +186,7 @@ double GetCurrentFloatingPnL()
    {
       if(posInfo.SelectByIndex(i))
       {
-         if(posInfo.Magic() == InpMagicNumber)
+         if(!InpFilterMagicForDailyDD || posInfo.Magic() == InpMagicNumber)
             floating += posInfo.Profit() + posInfo.Swap();
       }
    }
@@ -179,18 +194,28 @@ double GetCurrentFloatingPnL()
 }
 
 //+------------------------------------------------------------------+
-//| Emergency Close: Close all positions on 15% Max DD breach        |
+//| Emergency Close: Force-close positions on DD threshold breach    |
 //+------------------------------------------------------------------+
 void CloseAllCopiedPositions(string reason)
 {
-   PrintFormat("🚨 [15%% MAX DD BREACH] %s. Closing all positions immediately to preserve remaining capital!", reason);
+   PrintFormat("🚨 [PROTECTION TRIGGER] %s. Closing positions immediately to preserve capital!", reason);
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
       if(posInfo.SelectByIndex(i))
       {
-         if(posInfo.Magic() == InpMagicNumber)
+         if(!InpFilterMagicForDailyDD || posInfo.Magic() == InpMagicNumber)
          {
-            trade.PositionClose(posInfo.Ticket());
+            ulong ticket = posInfo.Ticket();
+            if(trade.PositionClose(ticket))
+            {
+               PrintFormat("✅ Closed position #%I64u on %s (P/L: $%.2f)",
+                           ticket, posInfo.Symbol(), posInfo.Profit());
+            }
+            else
+            {
+               PrintFormat("❌ Failed to close position #%I64u: retcode=%u (%s)",
+                           ticket, trade.ResultRetcode(), trade.ResultRetcodeDescription());
+            }
          }
       }
    }
@@ -331,13 +356,24 @@ void CheckLmsPortalControl()
 //+------------------------------------------------------------------+
 void GetTierRiskLimits(double &outTierBase, double &outDailyLimitUsd, double &outMaxLimitUsd, double &outCutoffEquity)
 {
+   double curBal = AccountInfoDouble(ACCOUNT_BALANCE);
+   if(g_initialDeposit <= 0) g_initialDeposit = curBal;
+   if(g_startOfDayEquity <= 0) g_startOfDayEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(curBal > g_peakBalance)
+      g_peakBalance = curBal;
+
    double refBal = MathMax(g_initialDeposit, g_peakBalance);
    int units = (int)MathFloor((refBal + 2.0) / InpBalanceUnit);
    if(units < 1) units = 1;
    
    outTierBase        = units * InpBalanceUnit;
-   outDailyLimitUsd   = outTierBase * (InpDailyDDPercent / 100.0);
-   outMaxLimitUsd     = outTierBase * (InpMaxDDPercent / 100.0);
+   // Daily DD limit = 5% of account tier or start-of-day equity
+   double dailyBase   = MathMax(outTierBase, g_startOfDayEquity);
+   outDailyLimitUsd   = dailyBase * (InpDailyDDPercent / 100.0);
+   
+   // Max DD limit = 15% of account initial deposit / tier
+   double maxBase     = MathMax(outTierBase, g_initialDeposit);
+   outMaxLimitUsd     = maxBase * (InpMaxDDPercent / 100.0);
    outCutoffEquity    = g_initialDeposit - outMaxLimitUsd;
 }
 
@@ -416,8 +452,8 @@ int OnInit()
    g_startOfDayEquity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(g_initialDeposit <= 0) g_initialDeposit = AccountInfoDouble(ACCOUNT_EQUITY);
    if(g_startOfDayEquity <= 0) g_startOfDayEquity = g_initialDeposit;
-   g_peakBalance      = g_initialDeposit;
-   g_currentDayIndex  = TimeCurrent() / 86400;
+   g_peakBalance         = g_initialDeposit;
+   g_currentDayStartTime = GetStartOfDayTime();
 
    g_isDailyLocked        = false;
    g_isPermanentlyStopped = false;
@@ -546,10 +582,15 @@ void ProcessMasterPositions()
       if(!g_isDailyLocked)
       {
          g_isDailyLocked  = true;
-         g_riskStopReason = StringFormat("5%% Daily DD Reached (Loss: -$%.2f >= Limit: -$%.2f). Paused for today.", todayLossUsd, dailyDDLimitUsd);
-         PrintFormat("⏸️ [DAILY DD PAUSE] %s", g_riskStopReason);
+         g_riskStopReason = StringFormat("5%% Daily DD Reached (Today Loss: -$%.2f >= Limit: -$%.2f). Paused for today.", todayLossUsd, dailyDDLimitUsd);
+         PrintFormat("🛑 [DAILY DD LIMIT REACHED] %s", g_riskStopReason);
       }
-      // Note: do not return yet; existing positions may still need close synchronization!
+      
+      // Auto-close open positions if enabled so floating loss doesn't worsen beyond 5%
+      if(InpEmergencyCloseOnDailyDD && CountOpenCopiedTrades() > 0)
+      {
+         CloseAllCopiedPositions(StringFormat("5%% Daily DD Reached (-$%.2f / -$%.2f)", todayLossUsd, dailyDDLimitUsd));
+      }
    }
 
    // -------------------------------------------------------------
