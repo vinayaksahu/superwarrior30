@@ -54,6 +54,47 @@ datetime       g_currentDayStartTime  = 0;
 bool           g_isDailyLocked        = false;
 bool           g_isPermanentlyStopped = false;
 string         g_riskStopReason       = "";
+int            g_lockedTierUnits      = 1;
+string         g_gvPrefix             = "";
+
+//+------------------------------------------------------------------+
+//| Get Account Initial Deposit from History Deals                   |
+//+------------------------------------------------------------------+
+double GetAccountInitialDepositFromHistory()
+{
+   if(!HistorySelect(0, TimeCurrent()))
+      return 0.0;
+   int totalDeals = HistoryDealsTotal();
+   double firstDeposit = 0.0;
+   double totalNetDeposit = 0.0;
+   for(int i = 0; i < totalDeals; i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket > 0)
+      {
+         long dealType = HistoryDealGetInteger(ticket, DEAL_TYPE);
+         if(dealType == DEAL_TYPE_BALANCE)
+         {
+            double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT);
+            if(profit > 0)
+            {
+               if(firstDeposit <= 0.0)
+                  firstDeposit = profit;
+               totalNetDeposit += profit;
+            }
+            else if(profit < 0)
+            {
+               totalNetDeposit += profit;
+            }
+         }
+      }
+   }
+   if(totalNetDeposit > 0)
+      return totalNetDeposit;
+   if(firstDeposit > 0)
+      return firstDeposit;
+   return 0.0;
+}
 
 // Skipped Tickets Tracking (Prevents rejected 3rd trades from copying later if trade #1 closes quickly)
 ulong          g_skippedTickets[];
@@ -293,6 +334,7 @@ void CloseAllCopiedPositions(string reason)
 //+------------------------------------------------------------------+
 //| Calculate Lot Size strictly according to account balance         |
 //| Linear Rule: $300 balance = 0.01 lot                             |
+//| Supports accounts from $10 to $300+                              |
 //+------------------------------------------------------------------+
 double CalculateLots(string sym, double masterLot)
 {
@@ -304,17 +346,34 @@ double CalculateLots(string sym, double masterLot)
    if(stepLot <= 0) stepLot = 0.01;
    
    // 1. Core Rule: Every $300 balance = 0.01 Lot (Independent of Master Lots)
+   // Accounts starting from $10 - $299 get 0.01 lot (the broker minimum)
    // Tier-Locked Recovery Rule: Sizing uses the account's baseline tier (Peak Balance or Initial Deposit).
-   // During normal drawdowns (up to 14.9%), lot size stays locked so recovery is fast.
+   // During normal drawdowns (up to 14.9%) and broker fees/commissions, lot size stays locked so recovery is fast.
+   // Includes a $25 fee buffer so slight dips below $600 (e.g. $580-$598) NEVER downgrade 0.02 to 0.01.
    // When account profits and crosses into the next $300 tier, lot size upgrades automatically.
    double curBalance = AccountInfoDouble(ACCOUNT_BALANCE);
    if(curBalance > g_peakBalance)
+   {
       g_peakBalance = curBalance;
+      if(g_gvPrefix != "") GlobalVariableSet(g_gvPrefix + "PeakBal", g_peakBalance);
+   }
       
    double referenceBalance = MathMax(g_initialDeposit, g_peakBalance);
-   double effectiveBalance = referenceBalance + 2.00;
+   double effectiveBalance = referenceBalance + 25.00; // $25 buffer protects against broker commissions/spreads
    int units = (int)MathFloor(effectiveBalance / InpBalanceUnit);
    if(units < 1) units = 1;
+   
+   // Keep locked tier units monotonic (never downgrade during drawdown)
+   if(units > g_lockedTierUnits)
+   {
+      g_lockedTierUnits = units;
+      if(g_gvPrefix != "") GlobalVariableSet(g_gvPrefix + "LockedTier", (double)g_lockedTierUnits);
+   }
+   else if(g_lockedTierUnits > 1)
+   {
+      units = g_lockedTierUnits;
+   }
+   
    double calculated = units * InpLotPerUnit;
    
    // 2. If LMS portal explicitly assigned a fixed lot override, honor it
@@ -418,7 +477,9 @@ void CheckLmsPortalControl()
 }
 
 //+------------------------------------------------------------------+
-//| Calculate Strict Tier-Base ($300 Unit) Risk Limits               |
+//| Calculate Strict Tier-Base Risk Limits                           |
+//| Supports small deposits ($10 - $299) and standard ($300+ units)  |
+//| $10-$299: Proportional 5% Daily DD, 15% Max DD on actual capital |
 //| $300 Tier: Daily DD -$15.00 (5%), Max DD -$45.00 (15%)           |
 //| $600 Tier: Daily DD -$30.00 (5%), Max DD -$90.00 (15%)           |
 //| $900 Tier: Daily DD -$45.00 (5%), Max DD -$135.00 (15%)          |
@@ -429,21 +490,41 @@ void GetTierRiskLimits(double &outTierBase, double &outDailyLimitUsd, double &ou
    if(g_initialDeposit <= 0) g_initialDeposit = curBal;
    if(g_startOfDayEquity <= 0) g_startOfDayEquity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(curBal > g_peakBalance)
+   {
       g_peakBalance = curBal;
+      if(g_gvPrefix != "") GlobalVariableSet(g_gvPrefix + "PeakBal", g_peakBalance);
+   }
 
    double refBal = MathMax(g_initialDeposit, g_peakBalance);
-   int units = (int)MathFloor((refBal + 2.0) / InpBalanceUnit);
-   if(units < 1) units = 1;
    
-   outTierBase        = units * InpBalanceUnit;
-   // Daily DD limit = 5% of account tier or start-of-day equity
-   double dailyBase   = MathMax(outTierBase, g_startOfDayEquity);
-   outDailyLimitUsd   = dailyBase * (InpDailyDDPercent / 100.0);
-   
-   // Max DD limit = 15% of account initial deposit / tier
-   double maxBase     = MathMax(outTierBase, g_initialDeposit);
-   outMaxLimitUsd     = maxBase * (InpMaxDDPercent / 100.0);
-   outCutoffEquity    = g_initialDeposit - outMaxLimitUsd;
+   if(g_initialDeposit >= InpBalanceUnit)
+   {
+      // Standard Tier-based calculation for >= $300 accounts ($300, $600, $900, ...)
+      // Uses locked units or refBal with $25 fee buffer so normal drawdowns/fees never downgrade tier
+      int units = (int)MathFloor((refBal + 25.0) / InpBalanceUnit);
+      if(units < 1) units = 1;
+      if(units < g_lockedTierUnits) units = g_lockedTierUnits;
+      
+      outTierBase        = units * InpBalanceUnit;
+      // Daily DD limit = 5% of account tier or start-of-day equity
+      double dailyBase   = MathMax(outTierBase, g_startOfDayEquity);
+      outDailyLimitUsd   = dailyBase * (InpDailyDDPercent / 100.0);
+      
+      // Max DD limit = 15% of account initial deposit / tier
+      double maxBase     = MathMax(outTierBase, g_initialDeposit);
+      outMaxLimitUsd     = maxBase * (InpMaxDDPercent / 100.0);
+      outCutoffEquity    = g_initialDeposit - outMaxLimitUsd;
+   }
+   else
+   {
+      // Sub-$300 small accounts ($10 to $299.99):
+      // Exact proportional risk based on actual capital
+      outTierBase        = g_initialDeposit;
+      double dailyBase   = MathMax(g_startOfDayEquity, curBal);
+      outDailyLimitUsd   = dailyBase * (InpDailyDDPercent / 100.0);
+      outMaxLimitUsd     = g_initialDeposit * (InpMaxDDPercent / 100.0);
+      outCutoffEquity    = g_initialDeposit - outMaxLimitUsd;
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -514,6 +595,7 @@ int OnInit()
    g_fileName = "SW_Master_Ch" + IntegerToString(InpChannelID) + ".txt";
    g_ctrlJson = "slot_" + IntegerToString(InpSlotNumber) + "_control.json";
    g_ctrlTxt  = "slot_" + IntegerToString(InpSlotNumber) + "_control.txt";
+   g_gvPrefix = "SW_S" + IntegerToString(InpSlotNumber) + "_";
    
    trade.SetExpertMagicNumber(InpMagicNumber);
    trade.SetDeviationInPoints(100);
@@ -521,15 +603,52 @@ int OnInit()
    double curBal = AccountInfoDouble(ACCOUNT_BALANCE);
    double curEq  = AccountInfoDouble(ACCOUNT_EQUITY);
 
-   if(InpResetHighWaterMark || g_initialDeposit <= 0)
+   bool hasSavedGV = (!InpResetHighWaterMark && GlobalVariableCheck(g_gvPrefix + "Deposit") && GlobalVariableCheck(g_gvPrefix + "LockedTier"));
+
+   if(hasSavedGV)
    {
-      g_initialDeposit       = curBal;
+      g_initialDeposit       = GlobalVariableGet(g_gvPrefix + "Deposit");
+      g_peakBalance          = GlobalVariableGet(g_gvPrefix + "PeakBal");
+      g_lockedTierUnits      = (int)GlobalVariableGet(g_gvPrefix + "LockedTier");
+      g_startOfDayEquity     = curEq;
+      g_isPermanentlyStopped = false;
+      g_isDailyLocked        = false;
+      g_riskStopReason       = "";
+      PrintFormat("[SW30 Slave] Restored Persistent Baseline: Deposit $%.2f, Peak $%.2f, Locked Tier Units: %d (%.2f lot)", 
+                  g_initialDeposit, g_peakBalance, g_lockedTierUnits, g_lockedTierUnits * InpLotPerUnit);
+   }
+   else if(InpResetHighWaterMark || g_initialDeposit <= 0)
+   {
+      double depHistory = GetAccountInitialDepositFromHistory();
+      // If history shows deposit close to current balance (within 50% tier), use it to avoid commission dip
+      if(depHistory > 0 && MathAbs(depHistory - curBal) <= (InpBalanceUnit * 0.50))
+         g_initialDeposit = MathMax(depHistory, curBal);
+      else
+         g_initialDeposit = curBal;
+
       g_peakBalance          = curBal;
       g_startOfDayEquity     = curEq;
       g_isPermanentlyStopped = false;
       g_isDailyLocked        = false;
       g_riskStopReason       = "";
-      PrintFormat("[SW30 Slave] High-Water Mark Baseline: Deposit $%.2f, Equity $%.2f", g_initialDeposit, g_startOfDayEquity);
+      
+      // Determine locked tier units on startup with $25 fee buffer
+      if(g_initialDeposit >= InpBalanceUnit)
+      {
+         g_lockedTierUnits = (int)MathFloor((g_initialDeposit + 25.0) / InpBalanceUnit);
+         if(g_lockedTierUnits < 1) g_lockedTierUnits = 1;
+      }
+      else
+      {
+         g_lockedTierUnits = 1;
+      }
+      
+      GlobalVariableSet(g_gvPrefix + "Deposit", g_initialDeposit);
+      GlobalVariableSet(g_gvPrefix + "PeakBal", g_peakBalance);
+      GlobalVariableSet(g_gvPrefix + "LockedTier", (double)g_lockedTierUnits);
+      
+      PrintFormat("[SW30 Slave] High-Water Mark Baseline Set: Deposit $%.2f, Equity $%.2f, Locked Tier Units: %d (%.2f lot)", 
+                  g_initialDeposit, g_startOfDayEquity, g_lockedTierUnits, g_lockedTierUnits * InpLotPerUnit);
    }
    else
    {
