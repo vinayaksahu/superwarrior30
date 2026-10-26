@@ -384,7 +384,7 @@ export function RiskManagerView({ initialData }: RiskManagerViewProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
           {/* Rule 1: LL Rule (Blue left border) */}
-          <div className="rounded-2xl border border-border bg-muted/15 p-4 border-l-4 border-l-blue-500 space-y-1">
+          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-1">
             <h4 className="text-xs font-black text-blue-400">{rules.llRuleTitle}</h4>
             <p className="text-xs text-foreground/90 font-medium leading-relaxed">
               {rules.maxConsecutiveLosses} consecutive losses → stop trading for the day. No exceptions.
@@ -392,7 +392,7 @@ export function RiskManagerView({ initialData }: RiskManagerViewProps) {
           </div>
 
           {/* Rule 2: No Revenge (Red left border) */}
-          <div className="rounded-2xl border border-border bg-muted/15 p-4 border-l-4 border-l-rose-500 space-y-1">
+          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-1">
             <h4 className="text-xs font-black text-rose-400">{rules.noRevengeTitle}</h4>
             <p className="text-xs text-foreground/90 font-medium leading-relaxed">
               {rules.revengeBreakMinutes} min mandatory break after a loss. Trade only when neutral.
@@ -400,7 +400,7 @@ export function RiskManagerView({ initialData }: RiskManagerViewProps) {
           </div>
 
           {/* Rule 3: Max Risk (Green left border) */}
-          <div className="rounded-2xl border border-border bg-muted/15 p-4 border-l-4 border-l-emerald-500 space-y-1">
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1">
             <h4 className="text-xs font-black text-emerald-400">
               Max Risk ${currentRiskDollar.toFixed(2)}
             </h4>

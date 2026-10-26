@@ -107,7 +107,7 @@ export default async function HomePage() {
 
             <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight break-words">
               Master the Markets with{" "}
-              <span className="bg-gradient-to-r from-primary via-emerald-400 to-teal-400 bg-clip-text text-transparent">
+              <span className="text-primary underline decoration-primary/40 decoration-4 underline-offset-8">
                 Institutional Precision
               </span>
             </h1>

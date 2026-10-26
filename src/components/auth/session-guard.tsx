@@ -133,7 +133,7 @@ export function SessionGuard() {
           ) : isDisplaced ? (
             <Smartphone className="h-8 w-8 animate-pulse" />
           ) : isBlocked ? (
-            <ShieldAlert className="h-8 w-8 text-destructive animate-bounce" />
+            <ShieldAlert className="h-8 w-8 text-destructive animate-pulse" />
           ) : (
             <AlertTriangle className="h-8 w-8 text-amber-500" />
           )}

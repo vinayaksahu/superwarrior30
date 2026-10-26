@@ -37,7 +37,7 @@ export function DualIncomeOpportunity({
 
           <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground leading-tight">
             शुरुआत में <span translate="no" className="notranslate">Trading Psychology</span> मजबूत रखने के लिए{" "}
-            <span translate="no" className="notranslate bg-gradient-to-r from-amber-500 via-primary to-emerald-400 bg-clip-text text-transparent">
+            <span translate="no" className="notranslate text-amber-400 underline decoration-amber-500/40 decoration-4 underline-offset-8">
               2nd Source of Income
             </span>{" "}
             होना अनिवार्य है!

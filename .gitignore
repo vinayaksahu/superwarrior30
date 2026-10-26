@@ -47,6 +47,19 @@ src/generated/prisma
 # temporary/scratch
 scratch/
 .agents/
+.agent/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.grok/
+.hermes/
+.kiro/
+.opencode/
+.pi/
+.qoder/
+.rovodev/
+.vibe/
 tmp/
 /public/uploads/
 backup/

@@ -152,7 +152,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
       elements.push(
         <blockquote
           key={`bq-${index++}`}
-          className="my-4 border-l-4 border-primary bg-primary/5 rounded-r-xl py-3 px-4 text-sm italic text-foreground/90"
+          className="my-4 border border-border/60 bg-muted/20 rounded-xl py-3 px-4 text-sm text-foreground/90 leading-relaxed"
         >
           {blockquoteLines.map((l, i) => (
             <p key={i}>{renderInline(l)}</p>

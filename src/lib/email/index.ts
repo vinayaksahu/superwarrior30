@@ -158,7 +158,7 @@ function renderBrandedTemplate({
     }
     .warning-box {
       background-color: rgba(239, 68, 68, 0.08);
-      border-left: 3px solid #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
       padding: 12px 16px;
       border-radius: 6px;
       margin: 20px 0;
