@@ -53,6 +53,38 @@ bool           g_isDailyLocked        = false;
 bool           g_isPermanentlyStopped = false;
 string         g_riskStopReason       = "";
 
+// Skipped Tickets Tracking (Prevents rejected 3rd trades from copying later if trade #1 closes quickly)
+ulong          g_skippedTickets[];
+
+bool IsTicketSkipped(ulong ticket)
+{
+   int size = ArraySize(g_skippedTickets);
+   for(int i = 0; i < size; i++)
+   {
+      if(g_skippedTickets[i] == ticket)
+         return true;
+   }
+   return false;
+}
+
+void MarkTicketSkipped(ulong ticket)
+{
+   if(IsTicketSkipped(ticket))
+      return;
+      
+   int size = ArraySize(g_skippedTickets);
+   if(size >= 500)
+   {
+      ArrayCopy(g_skippedTickets, g_skippedTickets, 0, 1, size - 1);
+      g_skippedTickets[size - 1] = ticket;
+   }
+   else
+   {
+      ArrayResize(g_skippedTickets, size + 1);
+      g_skippedTickets[size] = ticket;
+   }
+}
+
 // Dynamic LMS Portal Control State
 bool           g_isPortalPaused       = false;
 string         g_portalRiskMode       = "AUTO";         // Default: AUTO (Dynamic $300 balance-based sizing)
@@ -740,11 +772,18 @@ void ProcessMasterPositions()
    {
       ulong targetTicket = masterList[m].ticket;
       
+      // If this Master trade was already skipped/rejected, never copy it later!
+      if(IsTicketSkipped(targetTicket))
+         continue;
+
       if(InpMaxTradeAgeSec > 0)
       {
          long age = (long)TimeCurrent() - masterList[m].openTime;
          if(age > InpMaxTradeAgeSec)
+         {
+            MarkTicketSkipped(targetTicket);
             continue;
+         }
       }
       
       bool alreadyCopied = false;
@@ -767,7 +806,9 @@ void ProcessMasterPositions()
       int currentOpenCount = CountOpenCopiedTrades();
       if(currentOpenCount >= InpMaxOpenTrades)
       {
-         PrintFormat("🛡️ [MAX 2 TRADES REACHED] Account already has %d active open positions. Master trade #%d skipped to protect exposure.",
+         // Permanently skip this trade so it does NOT get copied later if trade #1 closes quickly!
+         MarkTicketSkipped(targetTicket);
+         PrintFormat("🛡️ [MAX 2 TRADES REACHED] Account already has %d active open positions. Master trade #%I64u permanently skipped.",
                      currentOpenCount, targetTicket);
          continue; // Reject 3rd trade!
       }
@@ -796,7 +837,8 @@ void ProcessMasterPositions()
          double diffPoints = MathAbs(currentPrice - masterList[m].openPrice) / point;
          if(diffPoints > InpMaxSlippagePoints)
          {
-            Print("⚠️ Slippage exceeded (", diffPoints, " pts > ", InpMaxSlippagePoints, " pts). Skipped #", targetTicket);
+            MarkTicketSkipped(targetTicket);
+            PrintFormat("⚠️ Slippage exceeded (%.1f pts > %d pts). Permanently skipped #%I64u", diffPoints, InpMaxSlippagePoints, targetTicket);
             continue;
          }
       }
