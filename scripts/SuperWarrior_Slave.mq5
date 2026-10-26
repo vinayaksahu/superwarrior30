@@ -30,6 +30,8 @@ input double          InpMaxDDPercent            = 15.0;           // Max Overal
 input bool            InpEmergencyCloseOnDailyDD = true;           // Auto-close open positions if 5% Daily DD reached
 input bool            InpEmergencyCloseOnMaxDD   = true;           // Auto-close open positions if 15% Max DD breached
 input bool            InpFilterMagicForDailyDD   = false;          // Filter DD by Magic Number only (false = protect full account)
+input bool            InpEnforceManualTrades     = true;           // Enforce 2 trades & lot size limit on manual trades
+input bool            InpResetHighWaterMark      = false;          // Reset Baseline / High-Water Mark to current balance
 input double          InpMaxLotCap               = 5.00;           // Absolute Maximum Lot Ceiling
 
 //--- Objects
@@ -226,53 +228,66 @@ double GetCurrentFloatingPnL()
 }
 
 //+------------------------------------------------------------------+
-//| Emergency Close: Force-close positions on DD threshold breach    |
+//| Close a single position with multiple broker filling mode retry  |
 //+------------------------------------------------------------------+
-void CloseAllCopiedPositions(string reason)
+bool CloseSinglePosition(ulong ticket, string reason)
 {
-   PrintFormat("🚨 [PROTECTION TRIGGER] %s. Force-closing positions immediately!", reason);
+   if(!posInfo.SelectByTicket(ticket))
+      return false;
+      
+   string sym = posInfo.Symbol();
+   SetSafeFilling(sym);
+   trade.SetDeviationInPoints(100);
+   
+   bool closed = trade.PositionClose(ticket);
+   if(!closed)
+   {
+      trade.SetTypeFilling(ORDER_FILLING_IOC);
+      closed = trade.PositionClose(ticket);
+   }
+   if(!closed)
+   {
+      trade.SetTypeFilling(ORDER_FILLING_FOK);
+      closed = trade.PositionClose(ticket);
+   }
+   if(!closed)
+   {
+      trade.SetTypeFilling(ORDER_FILLING_RETURN);
+      closed = trade.PositionClose(ticket);
+   }
+   
+   if(closed)
+   {
+      PrintFormat("✅ [CLOSED] Position #%I64u on %s (Reason: %s, P/L: $%.2f)",
+                  ticket, sym, reason, posInfo.Profit());
+   }
+   else
+   {
+      PrintFormat("❌ [CLOSE FAILED] Position #%I64u: retcode=%u (%s)",
+                  ticket, trade.ResultRetcode(), trade.ResultRetcodeDescription());
+   }
+   return closed;
+}
+
+//+------------------------------------------------------------------+
+//| Close ALL positions on the account (Copied + Manual)             |
+//+------------------------------------------------------------------+
+void CloseAllPositions(string reason)
+{
+   PrintFormat("🚨 [PROTECTION TRIGGER] %s. Force-closing ALL positions on account!", reason);
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
       if(posInfo.SelectByIndex(i))
       {
-         if(!InpFilterMagicForDailyDD || posInfo.Magic() == InpMagicNumber)
-         {
-            ulong ticket = posInfo.Ticket();
-            string sym   = posInfo.Symbol();
-            
-            SetSafeFilling(sym);
-            trade.SetDeviationInPoints(100);
-            
-            bool closed = trade.PositionClose(ticket);
-            if(!closed)
-            {
-               trade.SetTypeFilling(ORDER_FILLING_IOC);
-               closed = trade.PositionClose(ticket);
-            }
-            if(!closed)
-            {
-               trade.SetTypeFilling(ORDER_FILLING_FOK);
-               closed = trade.PositionClose(ticket);
-            }
-            if(!closed)
-            {
-               trade.SetTypeFilling(ORDER_FILLING_RETURN);
-               closed = trade.PositionClose(ticket);
-            }
-            
-            if(closed)
-            {
-               PrintFormat("✅ Successfully closed position #%I64u on %s (P/L: $%.2f)",
-                           ticket, sym, posInfo.Profit());
-            }
-            else
-            {
-               PrintFormat("❌ Failed to close position #%I64u: retcode=%u (%s)",
-                           ticket, trade.ResultRetcode(), trade.ResultRetcodeDescription());
-            }
-         }
+         CloseSinglePosition(posInfo.Ticket(), reason);
       }
    }
+}
+
+// Backward compatibility wrapper
+void CloseAllCopiedPositions(string reason)
+{
+   CloseAllPositions(reason);
 }
 
 //+------------------------------------------------------------------+
@@ -466,6 +481,7 @@ void UpdateComment(string extraStatus)
    else if(openTrades >= InpMaxOpenTrades)
       statusBadge = "🔵 MAX CONCURRENT TRADES (2/2 Active)";
 
+   double dailyCutoffEquity = g_startOfDayEquity - dailyDDLimitUsd;
    string hud = "\n" +
       "===============================================================\n" +
       "      SUPERWARRIOR30 SLAVE COPIER v3.50 (RISK GUARDIAN)        \n" +
@@ -480,7 +496,7 @@ void UpdateComment(string extraStatus)
       StringFormat(" Open Positions : %d / %d Allowed (Max 2 Trades)\n", openTrades, InpMaxOpenTrades) +
       StringFormat(" Total Exposure : %.2f Lot  (Max %.2f)\n", currentLot * openTrades, currentLot * InpMaxOpenTrades) +
       "---------------------------------------------------------------\n" +
-      StringFormat(" Daily DD (5%%)  : -$%.2f / -$%.2f Limit (Reset 00:00)\n", todayLossUsd, dailyDDLimitUsd) +
+      StringFormat(" Daily DD (5%%)  : -$%.2f / -$%.2f Limit (Cutoff: $%.2f | Reset 00:00)\n", todayLossUsd, dailyDDLimitUsd, dailyCutoffEquity) +
       StringFormat(" Max DD (15%%)   : -$%.2f / -$%.2f Hard Stop Exit\n", totalDrawdownUsd, maxDDLimitUsd) +
       StringFormat(" 15%% Exit Cutoff: Below $%.2f Equity\n", maxDDCutoffEquity) +
       "---------------------------------------------------------------\n" +
@@ -502,16 +518,25 @@ int OnInit()
    trade.SetExpertMagicNumber(InpMagicNumber);
    trade.SetDeviationInPoints(100);
    
-   g_initialDeposit   = AccountInfoDouble(ACCOUNT_BALANCE);
-   g_startOfDayEquity = AccountInfoDouble(ACCOUNT_EQUITY);
-   if(g_initialDeposit <= 0) g_initialDeposit = AccountInfoDouble(ACCOUNT_EQUITY);
-   if(g_startOfDayEquity <= 0) g_startOfDayEquity = g_initialDeposit;
-   g_peakBalance         = g_initialDeposit;
-   g_currentDayStartTime = GetStartOfDayTime();
+   double curBal = AccountInfoDouble(ACCOUNT_BALANCE);
+   double curEq  = AccountInfoDouble(ACCOUNT_EQUITY);
 
-   g_isDailyLocked        = false;
-   g_isPermanentlyStopped = false;
-   g_riskStopReason       = "";
+   if(InpResetHighWaterMark || g_initialDeposit <= 0)
+   {
+      g_initialDeposit       = curBal;
+      g_peakBalance          = curBal;
+      g_startOfDayEquity     = curEq;
+      g_isPermanentlyStopped = false;
+      g_isDailyLocked        = false;
+      g_riskStopReason       = "";
+      PrintFormat("[SW30 Slave] High-Water Mark Baseline: Deposit $%.2f, Equity $%.2f", g_initialDeposit, g_startOfDayEquity);
+   }
+   else
+   {
+      g_startOfDayEquity = curEq;
+   }
+   
+   g_currentDayStartTime = GetStartOfDayTime();
 
    // Read portal control immediately on init
    CheckLmsPortalControl();
@@ -595,60 +620,117 @@ string MatchSymbol(string masterSym)
 }
 
 //+------------------------------------------------------------------+
-//| Process Master Positions with Strict Risk Protections            |
+//| Enforce Account Risk Guardian (Copied + Manual Trades)           |
 //+------------------------------------------------------------------+
-void ProcessMasterPositions()
+bool EnforceAccountRiskGuardian()
 {
    CheckDailyReset();
 
    double tierBase, dailyDDLimitUsd, maxDDLimitUsd, maxDDCutoffEquity;
    GetTierRiskLimits(tierBase, dailyDDLimitUsd, maxDDLimitUsd, maxDDCutoffEquity);
 
-   // -------------------------------------------------------------
-   // A. Real-time 15% Max Lifetime Drawdown Check (Hard Kill-Switch)
-   // Strict Tier-Base: -$45 for $300 tier, -$90 for $600 tier, -$135 for $900 tier
-   // -------------------------------------------------------------
    double currentEquity    = AccountInfoDouble(ACCOUNT_EQUITY);
    double totalDrawdownUsd = g_initialDeposit - currentEquity;
 
-   if(totalDrawdownUsd >= maxDDLimitUsd || g_isPermanentlyStopped)
+   // -------------------------------------------------------------
+   // A. Real-time 15% Max Lifetime Drawdown Check (Hard Kill-Switch)
+   // Cutoff Equity: < $255 for $300, < $510 for $600, < $765 for $900
+   // -------------------------------------------------------------
+   if(totalDrawdownUsd >= maxDDLimitUsd || currentEquity <= maxDDCutoffEquity || g_isPermanentlyStopped)
    {
       if(!g_isPermanentlyStopped)
       {
          g_isPermanentlyStopped = true;
-         g_riskStopReason = StringFormat("15%% Max DD Breached (Loss: -$%.2f >= Limit: -$%.2f). Disconnected from copy trading.", totalDrawdownUsd, maxDDLimitUsd);
+         g_riskStopReason = StringFormat("15%% Max DD Breached (Loss: -$%.2f >= Limit: -$%.2f, Equity: $%.2f <= Cutoff: $%.2f). Disconnected from copy trading.",
+                                         totalDrawdownUsd, maxDDLimitUsd, currentEquity, maxDDCutoffEquity);
          PrintFormat("🛑 [CRITICAL RISK STOP] %s", g_riskStopReason);
       }
-      // Continuously enforce emergency close if any positions remain open
+      // Force-close ALL positions on the account (Copied + Manual)
       if(InpEmergencyCloseOnMaxDD && PositionsTotal() > 0)
       {
-         CloseAllCopiedPositions(g_riskStopReason);
+         CloseAllPositions(g_riskStopReason);
       }
-      return; // Never open trades again
+      return false; // Trading permanently halted
    }
 
    // -------------------------------------------------------------
    // B. Real-time 5% Daily Drawdown Check (Daily Circuit Breaker)
-   // Strict Tier-Base: -$15 for $300 tier, -$30 for $600 tier, -$45 for $900 tier
+   // Cutoff Equity Today: e.g. $300 - $15 = $285 (at $285/$286 auto-close)
    // -------------------------------------------------------------
-   double todayPnL     = GetTodayRealizedPnL() + GetCurrentFloatingPnL();
-   double todayLossUsd = (todayPnL < 0) ? MathAbs(todayPnL) : 0.0;
+   double todayPnL        = GetTodayRealizedPnL() + GetCurrentFloatingPnL();
+   double todayLossUsd    = (todayPnL < 0) ? MathAbs(todayPnL) : 0.0;
+   double dailyCutoffEq   = g_startOfDayEquity - dailyDDLimitUsd;
 
-   if(todayLossUsd >= dailyDDLimitUsd || g_isDailyLocked)
+   if(todayLossUsd >= dailyDDLimitUsd || currentEquity <= dailyCutoffEq || g_isDailyLocked)
    {
       if(!g_isDailyLocked)
       {
          g_isDailyLocked  = true;
-         g_riskStopReason = StringFormat("5%% Daily DD Reached (Today Loss: -$%.2f >= Limit: -$%.2f). Paused for today.", todayLossUsd, dailyDDLimitUsd);
+         g_riskStopReason = StringFormat("5%% Daily DD Reached (Today Loss: -$%.2f >= Limit: -$%.2f, Equity: $%.2f <= Cutoff: $%.2f). Paused for today.",
+                                         todayLossUsd, dailyDDLimitUsd, currentEquity, dailyCutoffEq);
          PrintFormat("🛑 [DAILY DD LIMIT REACHED] %s", g_riskStopReason);
       }
       
-      // Auto-close open positions if enabled so floating loss doesn't worsen beyond 5%
-      if(InpEmergencyCloseOnDailyDD && CountOpenCopiedTrades() > 0)
+      // Force-close ALL positions on the account (Copied + Manual) so loss cannot exceed 5%
+      if(InpEmergencyCloseOnDailyDD && PositionsTotal() > 0)
       {
-         CloseAllCopiedPositions(StringFormat("5%% Daily DD Reached (-$%.2f / -$%.2f)", todayLossUsd, dailyDDLimitUsd));
+         CloseAllPositions(StringFormat("5%% Daily DD Reached (Equity: $%.2f, Loss: -$%.2f)", currentEquity, todayLossUsd));
+      }
+      return false; // Paused for today
+   }
+
+   // -------------------------------------------------------------
+   // C. Enforce Max 2 Open Trades Across Entire Account (Copied + Manual)
+   // -------------------------------------------------------------
+   if(InpEnforceManualTrades)
+   {
+      int totalOpen = PositionsTotal();
+      if(totalOpen > InpMaxOpenTrades)
+      {
+         // Close newest excess positions that violate the max 2 trades rule
+         for(int i = totalOpen - 1; i >= InpMaxOpenTrades; i--)
+         {
+            if(posInfo.SelectByIndex(i))
+            {
+               ulong ticket = posInfo.Ticket();
+               PrintFormat("🛡️ [RULE VIOLATION] Max %d open trades allowed! Unauthorized position #%I64u closed immediately.",
+                           InpMaxOpenTrades, ticket);
+               CloseSinglePosition(ticket, "Max 2 trades limit exceeded");
+            }
+         }
+      }
+
+      // -------------------------------------------------------------
+      // D. Enforce Lot Sizing on Manual Trades
+      // For $300 -> max 0.01 lot per trade
+      // -------------------------------------------------------------
+      double allowedLot = CalculateLots(_Symbol, 0.01);
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         if(posInfo.SelectByIndex(i))
+         {
+            double posVol = posInfo.Volume();
+            if(posVol > (allowedLot + 0.001))
+            {
+               ulong ticket = posInfo.Ticket();
+               PrintFormat("🚨 [LOT SIZE VIOLATION] Position #%I64u volume %.2f exceeds allowed %.2f lot for this account tier! Force-closing immediately.",
+                           ticket, posVol, allowedLot);
+               CloseSinglePosition(ticket, "Oversized lot violation");
+            }
+         }
       }
    }
+
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| Process Master Positions with Strict Risk Protections            |
+//+------------------------------------------------------------------+
+void ProcessMasterPositions()
+{
+   if(!EnforceAccountRiskGuardian())
+      return;
 
    // -------------------------------------------------------------
    // Read Master positions from shared memory file
@@ -866,11 +948,26 @@ void ProcessMasterPositions()
 }
 
 //+------------------------------------------------------------------+
+//| OnTradeTransaction - Instant reaction to any order/deal          |
+//| Enforces rules immediately when manual or copied trade is placed |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction& trans,
+                        const MqlTradeRequest& request,
+                        const MqlTradeResult& result)
+{
+   if(trans.type == TRADE_TRANSACTION_DEAL_ADD || trans.type == TRADE_TRANSACTION_POSITION)
+   {
+      EnforceAccountRiskGuardian();
+   }
+}
+
+//+------------------------------------------------------------------+
 //| OnTick - Live execution and tick polling                         |
 //+------------------------------------------------------------------+
 void OnTick()
 {
    CheckLmsPortalControl();
+   EnforceAccountRiskGuardian();
    UpdateComment(g_isPermanentlyStopped ? "🛑 PERMANENTLY STOPPED (15% Max DD Breached)" :
                  g_isDailyLocked ? "🟡 PAUSED FOR TODAY (5% Daily DD Reached)" :
                  g_isPortalPaused ? "⏸️ PAUSED via Student Portal" : "Streaming Live (1ms active)");
@@ -883,6 +980,7 @@ void OnTick()
 void OnTimer()
 {
    CheckLmsPortalControl();
+   EnforceAccountRiskGuardian();
    static ulong lastCommentUpdate = 0;
    ulong nowMs = GetTickCount64();
    if(nowMs - lastCommentUpdate > 300) // Update UI comment every 300ms
