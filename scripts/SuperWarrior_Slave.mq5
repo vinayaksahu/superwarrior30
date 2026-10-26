@@ -645,6 +645,9 @@ int OnInit()
    // High-Resolution 1ms Timer
    EventSetMillisecondTimer(1);
    
+   // Automatically hide One-Click Trading panel to protect against accidental manual trades
+   ChartSetInteger(0, CHART_SHOW_ONE_CLICK, false);
+   
    PrintFormat("⚡ SuperWarrior Slave Copier v3.50 ACTIVE | Channel %d | Slot #%d | Sizing: $%.2f = %.2f lot | Max Trades: %d",
                InpChannelID, InpSlotNumber, InpBalanceUnit, InpLotPerUnit, InpMaxOpenTrades);
                
@@ -820,11 +823,11 @@ bool EnforceAccountRiskGuardian()
       // D. Enforce Lot Sizing on Manual Trades
       // For $300 -> max 0.01 lot per trade
       // -------------------------------------------------------------
-      double allowedLot = CalculateLots(_Symbol, 0.01);
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          if(posInfo.SelectByIndex(i))
          {
+            double allowedLot = CalculateLots(posInfo.Symbol(), 0.01);
             double posVol = posInfo.Volume();
             if(posVol > (allowedLot + 0.001))
             {
@@ -1082,6 +1085,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   ChartSetInteger(0, CHART_SHOW_ONE_CLICK, false);
    CheckLmsPortalControl();
    EnforceAccountRiskGuardian();
    UpdateComment(g_isPermanentlyStopped ? "🛑 PERMANENTLY STOPPED (15% Max DD Breached)" :
