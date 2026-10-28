@@ -515,6 +515,37 @@ void GetTierRiskLimits(double &outTierBase, double &outDailyLimitUsd, double &ou
 }
 
 //+------------------------------------------------------------------+
+//| Draw / Delete On-Chart One-Click Fresh Start Button              |
+//+------------------------------------------------------------------+
+void ShowResetButton(bool show)
+{
+   string btnName = "Btn_SW_Reset";
+   if(!show)
+   {
+      ObjectDelete(0, btnName);
+      return;
+   }
+   
+   if(ObjectFind(0, btnName) < 0)
+   {
+      ObjectCreate(0, btnName, OBJ_BUTTON, 0, 0, 0);
+      ObjectSetInteger(0, btnName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, btnName, OBJPROP_XDISTANCE, 20);
+      ObjectSetInteger(0, btnName, OBJPROP_YDISTANCE, 330);
+      ObjectSetInteger(0, btnName, OBJPROP_XSIZE, 260);
+      ObjectSetInteger(0, btnName, OBJPROP_YSIZE, 34);
+      ObjectSetString(0, btnName, OBJPROP_TEXT, "🔄 CLICK TO FRESH START / UNLOCK");
+      ObjectSetString(0, btnName, OBJPROP_FONT, "Arial Bold");
+      ObjectSetInteger(0, btnName, OBJPROP_FONTSIZE, 9);
+      ObjectSetInteger(0, btnName, OBJPROP_COLOR, clrWhite);
+      ObjectSetInteger(0, btnName, OBJPROP_BGCOLOR, C'180,20,20');
+      ObjectSetInteger(0, btnName, OBJPROP_BORDER_COLOR, clrGold);
+      ObjectSetInteger(0, btnName, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, btnName, OBJPROP_SELECTED, false);
+   }
+}
+
+//+------------------------------------------------------------------+
 //| Update Chart Information Display (HUD)                           |
 //+------------------------------------------------------------------+
 void UpdateComment(string extraStatus)
@@ -541,15 +572,34 @@ void UpdateComment(string extraStatus)
 
    string statusBadge = "🟢 ACTIVE (Copying Live)";
    if(balance < InpMinCapital)
+   {
       statusBadge = StringFormat("🔴 INSUFFICIENT CAPITAL (< $%.2f Min)", InpMinCapital);
+      ShowResetButton(false);
+   }
    else if(g_isPermanentlyStopped)
+   {
       statusBadge = "🔴 PERMANENTLY STOPPED (15% Max DD Breached)";
+      ShowResetButton(true);
+   }
    else if(g_isDailyLocked)
+   {
       statusBadge = "🟡 PAUSED FOR TODAY (5% Daily DD Reached)";
+      ShowResetButton(false);
+   }
    else if(g_isPortalPaused)
+   {
       statusBadge = "⏸️ PAUSED (Via LMS Web Portal)";
+      ShowResetButton(false);
+   }
    else if(openTrades >= InpMaxOpenTrades)
+   {
       statusBadge = "🔵 MAX CONCURRENT TRADES (2/2 Active)";
+      ShowResetButton(false);
+   }
+   else
+   {
+      ShowResetButton(false);
+   }
 
    double dailyCutoffEquity = g_startOfDayEquity - dailyDDLimitUsd;
    string hud = "\n" +
@@ -661,7 +711,42 @@ int OnInit()
 void OnDeinit(const int reason)
 {
    EventKillTimer();
+   ShowResetButton(false);
    Comment("");
+}
+
+//+------------------------------------------------------------------+
+//| Chart Event Handler                                              |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+{
+   if(id == CHARTEVENT_OBJECT_CLICK && sparam == "Btn_SW_Reset")
+   {
+      double curBal = AccountInfoDouble(ACCOUNT_BALANCE);
+      double curEq  = AccountInfoDouble(ACCOUNT_EQUITY);
+      
+      g_initialDeposit       = curBal;
+      g_peakBalance          = curBal;
+      g_startOfDayEquity     = curEq;
+      g_isPermanentlyStopped = false;
+      g_isDailyLocked        = false;
+      g_riskStopReason       = "";
+      
+      g_lockedTierUnits = (int)MathFloor((g_initialDeposit + 25.0) / InpBalanceUnit);
+      if(g_lockedTierUnits < 1) g_lockedTierUnits = 1;
+      
+      if(g_gvPrefix != "")
+      {
+         GlobalVariableSet(g_gvPrefix + "Deposit", g_initialDeposit);
+         GlobalVariableSet(g_gvPrefix + "PeakBal", g_peakBalance);
+         GlobalVariableSet(g_gvPrefix + "LockedTier", (double)g_lockedTierUnits);
+      }
+      
+      ShowResetButton(false);
+      ChartRedraw(0);
+      PrintFormat("🔄 [FRESH START] Account baseline reset to current balance $%.2f. Account unlocked!", g_initialDeposit);
+      UpdateComment("🟢 Account Fresh Started & Baseline Reset!");
+   }
 }
 
 //+------------------------------------------------------------------+
