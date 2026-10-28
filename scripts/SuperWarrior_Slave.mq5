@@ -517,7 +517,7 @@ void GetTierRiskLimits(double &outTierBase, double &outDailyLimitUsd, double &ou
 //+------------------------------------------------------------------+
 //| Draw / Delete On-Chart One-Click Fresh Start Button              |
 //+------------------------------------------------------------------+
-void ShowResetButton(bool show)
+void ShowResetButton(bool show, string label = "🔄 CLICK TO FRESH START / UNLOCK")
 {
    string btnName = "Btn_SW_Reset";
    if(!show)
@@ -532,9 +532,8 @@ void ShowResetButton(bool show)
       ObjectSetInteger(0, btnName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
       ObjectSetInteger(0, btnName, OBJPROP_XDISTANCE, 20);
       ObjectSetInteger(0, btnName, OBJPROP_YDISTANCE, 330);
-      ObjectSetInteger(0, btnName, OBJPROP_XSIZE, 260);
+      ObjectSetInteger(0, btnName, OBJPROP_XSIZE, 270);
       ObjectSetInteger(0, btnName, OBJPROP_YSIZE, 34);
-      ObjectSetString(0, btnName, OBJPROP_TEXT, "🔄 CLICK TO FRESH START / UNLOCK");
       ObjectSetString(0, btnName, OBJPROP_FONT, "Arial Bold");
       ObjectSetInteger(0, btnName, OBJPROP_FONTSIZE, 9);
       ObjectSetInteger(0, btnName, OBJPROP_COLOR, clrWhite);
@@ -543,6 +542,7 @@ void ShowResetButton(bool show)
       ObjectSetInteger(0, btnName, OBJPROP_SELECTABLE, false);
       ObjectSetInteger(0, btnName, OBJPROP_SELECTED, false);
    }
+   ObjectSetString(0, btnName, OBJPROP_TEXT, label);
 }
 
 //+------------------------------------------------------------------+
@@ -579,12 +579,12 @@ void UpdateComment(string extraStatus)
    else if(g_isPermanentlyStopped)
    {
       statusBadge = "🔴 PERMANENTLY STOPPED (15% Max DD Breached)";
-      ShowResetButton(true);
+      ShowResetButton(true, "🔄 UNLOCK 15% MAX DD / FRESH START");
    }
    else if(g_isDailyLocked)
    {
       statusBadge = "🟡 PAUSED FOR TODAY (5% Daily DD Reached)";
-      ShowResetButton(false);
+      ShowResetButton(true, "🔄 UNLOCK 5% DAILY DD / RESUME");
    }
    else if(g_isPortalPaused)
    {
