@@ -605,7 +605,8 @@ void UpdateComment(string extraStatus)
       ShowResetButton(false);
    }
 
-   double dailyCutoffEquity = g_startOfDayEquity - dailyDDLimitUsd;
+   double dailyBaseBalance  = (g_initialDeposit > 0) ? g_initialDeposit : balance;
+   double dailyCutoffEquity = dailyBaseBalance - dailyDDLimitUsd;
    string hud = "\n" +
       "===============================================================\n" +
       "      SUPERWARRIOR30 SLAVE COPIER v3.50 (RISK GUARDIAN)        \n" +
@@ -735,7 +736,7 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       
       g_initialDeposit       = curBal;
       g_peakBalance          = curBal;
-      g_startOfDayEquity     = curEq;
+      g_startOfDayEquity     = curBal;
       g_dailyLossStartTime   = TimeCurrent(); // Reset today's PnL tracking from this moment!
       g_isPermanentlyStopped = false;
       g_isDailyLocked        = false;
@@ -870,11 +871,12 @@ bool EnforceAccountRiskGuardian()
    // B. Real-time 5% Daily Drawdown Check (Daily Circuit Breaker)
    // Cutoff Equity Today: e.g. $300 - $15 = $285 (at $285/$286 auto-close)
    // -------------------------------------------------------------
-   double todayPnL        = GetTodayRealizedPnL() + GetCurrentFloatingPnL();
-   double todayLossUsd    = (todayPnL < 0) ? MathAbs(todayPnL) : 0.0;
-   double dailyCutoffEq   = g_startOfDayEquity - dailyDDLimitUsd;
+   double todayPnL          = GetTodayRealizedPnL() + GetCurrentFloatingPnL();
+   double todayLossUsd      = (todayPnL < 0) ? MathAbs(todayPnL) : 0.0;
+   double dailyBaseBalance  = (g_initialDeposit > 0) ? g_initialDeposit : currentBal;
+   double dailyCutoffEq     = dailyBaseBalance - dailyDDLimitUsd;
 
-   if(todayLossUsd >= dailyDDLimitUsd || currentEquity <= dailyCutoffEq || g_isDailyLocked)
+   if(todayLossUsd >= dailyDDLimitUsd || (todayLossUsd > 0 && currentEquity <= dailyCutoffEq) || g_isDailyLocked)
    {
       if(!g_isDailyLocked)
       {
