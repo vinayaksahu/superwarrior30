@@ -63,7 +63,7 @@ jobs:
           cat << 'EOF' > twa-manifest.json
           {
             "packageId": "com.rahultradewarrior.app",
-            "host": "superwarrior30.com",
+            "host": "www.superwarrior30.com",
             "name": "Rahul Trade Warrior Academy",
             "launcherName": "Trade Warrior",
             "themeColor": "#0A0A0C",
@@ -71,14 +71,17 @@ jobs:
             "backgroundColor": "#0A0A0C",
             "enableNotifications": true,
             "startUrl": "/",
-            "iconUrl": "https://superwarrior30.com/icon-512x512.png",
-            "maskableIconUrl": "https://superwarrior30.com/icon-maskable-512x512.png",
+            "iconUrl": "https://www.superwarrior30.com/icon-512x512.png",
+            "maskableIconUrl": "https://www.superwarrior30.com/icon-maskable-512x512.png",
             "appVersionName": "1.0.0",
             "appVersionCode": 1,
             "shortcuts": [],
             "generatorApp": "bubblewrap-cli",
-            "webManifestUrl": "https://superwarrior30.com/manifest.json",
+            "webManifestUrl": "https://www.superwarrior30.com/manifest.webmanifest",
             "fallbackType": "customtabs",
+            "additionalTrustedOrigins": [
+              "https://superwarrior30.com"
+            ],
             "features": {
               "locationDelegation": {
                 "enabled": true
