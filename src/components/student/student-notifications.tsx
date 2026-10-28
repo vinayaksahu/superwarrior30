@@ -379,14 +379,27 @@ export function StudentNotificationBell() {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border/80 bg-muted/20 px-3 py-2 text-center">
+          <div className="border-t border-border/80 bg-muted/20 px-3 py-2 flex items-center justify-between text-[11px] font-bold">
             <Link
               href="/dashboard/journal"
               onClick={() => setIsOpen(false)}
-              className="text-[11px] font-bold text-primary hover:underline inline-flex items-center gap-1"
+              className="text-primary hover:underline inline-flex items-center gap-1"
             >
-              Go to Trading Journal &amp; Economic Calendar <ChevronRight className="h-3 w-3" />
+              Economic Calendar <ChevronRight className="h-3 w-3" />
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("sw30:test-update"));
+                }
+              }}
+              className="text-[10px] text-amber-500 hover:text-amber-400 font-bold px-2 py-0.5 rounded border border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
+              title="Test the live in-app update alert popup & sound"
+            >
+              ⚡ Test Update Alert
+            </button>
           </div>
         </div>
       )}

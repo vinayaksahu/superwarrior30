@@ -2,15 +2,19 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Sparkles, RefreshCw, X } from "lucide-react";
+import { playNotificationSound } from "@/lib/sound/notification-sound";
 
 export function PwaRegister() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [versionTag, setVersionTag] = useState<string>("1.0.1");
+  const [versionTag, setVersionTag] = useState<string>("1.0.2");
   const [dismissed, setDismissed] = useState(false);
   const waitingWorkerRef = useRef<ServiceWorker | null>(null);
 
   // Apply update and reload
   const handleUpdate = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sw30_app_version", versionTag);
+    }
     if (waitingWorkerRef.current) {
       waitingWorkerRef.current.postMessage({ type: "SKIP_WAITING" });
     }
@@ -18,7 +22,7 @@ export function PwaRegister() {
     if (typeof window !== "undefined") {
       window.location.reload();
     }
-  }, []);
+  }, [versionTag]);
 
   // Periodic version checker against /api/app-version
   const checkServerVersion = useCallback(async () => {
@@ -31,6 +35,7 @@ export function PwaRegister() {
         const storedVersion = localStorage.getItem("sw30_app_version");
         if (storedVersion && storedVersion !== data.version) {
           setUpdateAvailable(true);
+          playNotificationSound("general");
         } else if (!storedVersion) {
           localStorage.setItem("sw30_app_version", data.version);
         }
@@ -41,7 +46,23 @@ export function PwaRegister() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof window === "undefined") return;
+
+    // Listen for manual test trigger event
+    const onTestUpdate = () => {
+      setVersionTag("1.0.2");
+      setDismissed(false);
+      setUpdateAvailable(true);
+      playNotificationSound("general");
+    };
+    window.addEventListener("sw30:test-update", onTestUpdate);
+
+    if (!("serviceWorker" in navigator)) {
+      checkServerVersion();
+      return () => {
+        window.removeEventListener("sw30:test-update", onTestUpdate);
+      };
+    }
 
     let refreshHandler: () => void;
 
@@ -53,6 +74,7 @@ export function PwaRegister() {
           if (registration.waiting) {
             waitingWorkerRef.current = registration.waiting;
             setUpdateAvailable(true);
+            playNotificationSound("general");
           }
 
           // 2. Listen for new service worker installation
@@ -68,6 +90,7 @@ export function PwaRegister() {
                 // New content is available; please refresh.
                 waitingWorkerRef.current = newWorker;
                 setUpdateAvailable(true);
+                playNotificationSound("general");
               }
             });
           });
@@ -99,7 +122,7 @@ export function PwaRegister() {
 
     // Auto-reload on controller change (after skipWaiting)
     refreshHandler = () => {
-      // Controller changed, new SW took over
+      // Controller changed
     };
     navigator.serviceWorker.addEventListener("controllerchange", refreshHandler);
 
@@ -113,6 +136,7 @@ export function PwaRegister() {
     checkServerVersion();
 
     return () => {
+      window.removeEventListener("sw30:test-update", onTestUpdate);
       if (typeof window !== "undefined") {
         window.removeEventListener("load", registerSW);
         navigator.serviceWorker.removeEventListener("controllerchange", refreshHandler);

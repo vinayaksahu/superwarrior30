@@ -4,12 +4,12 @@ export const dynamic = "force-dynamic";
 
 // Application version and build metadata
 const APP_METADATA = {
-  version: "1.0.1",
-  versionCode: 2,
+  version: "1.0.2",
+  versionCode: 3,
   minRequiredVersion: "1.0.0",
   title: "Super Warrior 30 / Rahul Trade Warrior Academy",
   apkDownloadUrl: "https://sw30-production-storage-cdn.b-cdn.net/Trade-Warrior.apk",
-  releaseNotes: "Performance improvements, direct login flow, and full-screen Android support.",
+  releaseNotes: "New in-app update notification alert, synthesized audio chimes, and instant reload.",
 };
 
 export async function GET() {
