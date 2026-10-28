@@ -31,11 +31,14 @@ import { DualIncomeOpportunity } from "@/components/funnel/dual-income-opportuni
 import { getPublicLiveTradesAction } from "@/server/actions/live-trades.actions";
 import { YouTubeLiveTradesShowcase } from "@/components/funnel/youtube-live-trades-showcase";
 import { HeroInteractiveTerminal } from "@/components/home/hero-interactive-terminal";
+import { getCurrentUser } from "@/server/dal/auth";
+import { StandaloneAppRedirect } from "@/components/shared/standalone-redirect";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const homepageEnv = await resolvePublicHomepageEnvironment();
+  const currentUser = await getCurrentUser();
 
   // Fetch real published courses with safe fallback respecting homepage environment
   let featuredCourses: Array<{
@@ -75,6 +78,8 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
+      <StandaloneAppRedirect isAuthenticated={!!currentUser} />
+
       {/* 1. Header Navigation */}
       <PublicNavbar isTestMode={homepageEnv === "TEST"} />
 

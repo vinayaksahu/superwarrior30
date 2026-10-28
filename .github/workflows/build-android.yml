@@ -45,7 +45,7 @@ jobs:
               themeColor: "#0a0a0c",
               navigationColor: "#0a0a0c",
               backgroundColor: "#0a0a0c",
-              startUrl: "/",
+              startUrl: "/login?source=pwa",
               iconUrl: "https://www.superwarrior30.com/icon-512x512.png",
               maskableIconUrl: "https://www.superwarrior30.com/icon-maskable-512x512.png",
               webManifestUrl: "https://www.superwarrior30.com/manifest.webmanifest",
