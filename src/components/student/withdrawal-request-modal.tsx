@@ -5,6 +5,7 @@ import { requestWithdrawalAction } from "@/server/actions/wallet.actions";
 import { formatCurrency } from "@/lib/utils";
 import { ArrowDownToLine, Loader2, X, AlertCircle, Building2, Smartphone, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { playIncomeSound } from "@/lib/sound/notification-sound";
 
 interface WithdrawalModalProps {
   availableBalance: number;
@@ -69,6 +70,7 @@ export function WithdrawalRequestModal({
         });
 
         if (res.success) {
+          playIncomeSound();
           toast.success(res.message || "Withdrawal request submitted!");
           onClose();
         } else {

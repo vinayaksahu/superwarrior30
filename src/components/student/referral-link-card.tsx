@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Copy, Check, Share2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { playReferralSound } from "@/lib/sound/notification-sound";
 
 interface ReferralLinkCardProps {
   referralCode: string;
@@ -29,6 +30,7 @@ export function ReferralLinkCard({
   const handleCopyCode = () => {
     navigator.clipboard.writeText(referralCode);
     setCopiedCode(true);
+    playReferralSound();
     toast.success("Affiliate code copied to clipboard!");
     setTimeout(() => setCopiedCode(false), 2500);
   };
@@ -36,6 +38,7 @@ export function ReferralLinkCard({
   const handleCopyLink = () => {
     navigator.clipboard.writeText(currentLink);
     setCopiedLink(true);
+    playReferralSound();
     toast.success("Affiliate link copied to clipboard!");
     setTimeout(() => setCopiedLink(false), 2500);
   };

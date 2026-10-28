@@ -12,9 +12,20 @@ import {
   ExternalLink,
   ChevronRight,
   Info,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { getStudentNotificationsAction } from "@/server/actions/notifications.actions";
 import type { StudentNotificationItem } from "@/types/economic-news";
+import {
+  isSoundEnabled,
+  toggleSound,
+  playIncomeSound,
+  playCourseSound,
+  playTradeProfitSound,
+  playReferralSound,
+  playNotificationSound,
+} from "@/lib/sound/notification-sound";
 
 const STORAGE_KEY_READ = "sw30_read_notifications";
 
@@ -24,7 +35,15 @@ export function StudentNotificationBell() {
   const [readIds, setReadIds] = useState<string[]>([]);
   const [filter, setFilter] = useState<"ALL" | "NEWS" | "UPDATES">("ALL");
   const [isLoading, setIsLoading] = useState(false);
+  const [soundActive, setSoundActive] = useState(true);
   const panelRef = useRef<HTMLDivElement>(null);
+  const knownIdsRef = useRef<string[]>([]);
+  const initialLoadDoneRef = useRef(false);
+
+  // Sync sound preference
+  useEffect(() => {
+    setSoundActive(isSoundEnabled());
+  }, []);
 
   // Load read notifications from localStorage
   useEffect(() => {
@@ -44,6 +63,58 @@ export function StudentNotificationBell() {
     try {
       const res = await getStudentNotificationsAction();
       if (res.success) {
+        // Detect genuinely new incoming notifications
+        if (initialLoadDoneRef.current && res.notifications.length > 0) {
+          const prevIds = new Set(knownIdsRef.current);
+          const newItems = res.notifications.filter(
+            (n) => !prevIds.has(n.id) && !readIds.includes(n.id)
+          );
+
+          if (newItems.length > 0) {
+            const first = newItems[0];
+            const text = (first.title + " " + first.message).toLowerCase();
+
+            if (
+              text.includes("income") ||
+              text.includes("commission") ||
+              text.includes("wallet") ||
+              text.includes("cashback") ||
+              text.includes("payout") ||
+              text.includes("₹") ||
+              text.includes("earned")
+            ) {
+              playIncomeSound();
+            } else if (
+              text.includes("course") ||
+              text.includes("class") ||
+              text.includes("lesson") ||
+              text.includes("video") ||
+              text.includes("homework")
+            ) {
+              playCourseSound();
+            } else if (
+              text.includes("profit") ||
+              text.includes("trade") ||
+              text.includes("copier") ||
+              text.includes("mt5") ||
+              text.includes("pips")
+            ) {
+              playTradeProfitSound();
+            } else if (
+              text.includes("referral") ||
+              text.includes("member") ||
+              text.includes("joined") ||
+              text.includes("team")
+            ) {
+              playReferralSound();
+            } else {
+              playNotificationSound("general");
+            }
+          }
+        }
+
+        initialLoadDoneRef.current = true;
+        knownIdsRef.current = res.notifications.map((n) => n.id);
         setNotifications(res.notifications);
       }
     } catch {
@@ -150,6 +221,31 @@ export function StudentNotificationBell() {
             </div>
 
             <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = toggleSound();
+                  setSoundActive(next);
+                  if (next) playIncomeSound();
+                }}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  soundActive
+                    ? "text-emerald-500 hover:bg-emerald-500/10"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+                title={
+                  soundActive
+                    ? "Notification Sounds: ON (Tap to mute)"
+                    : "Notification Sounds: MUTED (Tap to unmute)"
+                }
+                aria-label="Toggle notification sounds"
+              >
+                {soundActive ? (
+                  <Volume2 className="h-3.5 w-3.5" />
+                ) : (
+                  <VolumeX className="h-3.5 w-3.5" />
+                )}
+              </button>
               {unreadCount > 0 && (
                 <button
                   type="button"

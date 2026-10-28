@@ -37,6 +37,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { playTradeProfitSound } from "@/lib/sound/notification-sound";
 import { cn } from "@/lib/utils";
 import { calculateCopyTradingTier } from "@/lib/copy-trading-risk";
 import {
@@ -385,6 +386,7 @@ export function StudentCopyTradingClient({
       setLogs(freshData.logs as any);
       if (freshData.affiliateInfo) setAffiliateInfo(freshData.affiliateInfo);
       setLastRefreshedAt(freshData.refreshedAt);
+      playTradeProfitSound();
       toast.success("Status refreshed from VPS!");
     } catch {
       toast.error("Failed to refresh status.");
