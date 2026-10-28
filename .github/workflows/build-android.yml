@@ -117,6 +117,7 @@ jobs:
 
       - name: Commit and Push Updated Signed APK & AAB
         uses: stefanzweifel/git-auto-commit-action@v5
+        continue-on-error: true
         with:
           commit_message: "chore(android): update signed APK & AAB to www.superwarrior30.com origin"
           file_pattern: "public/Trade-Warrior.apk apk/Rahul Trade Warrior Academy.apk apk/Rahul Trade Warrior Academy.aab"
