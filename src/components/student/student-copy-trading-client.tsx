@@ -32,6 +32,8 @@ import {
   Check,
   Copy,
   Users,
+  ChevronDown,
+  ChevronUp,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -120,6 +122,106 @@ interface StudentCopyTradingClientProps {
   settings: Record<string, string>;
 }
 
+const COPY_TRADING_FAQS = [
+  {
+    q: "1. What is SuperWarrior30 Copy Trading and how does it work?",
+    a: (
+      <p>
+        High-probability positions executed by our Master Trader on{" "}
+        <strong>Gold (XAUUSD) and Bitcoin (BTC)</strong> are automatically
+        mirrored into your personal account in real-time. There is zero manual
+        effort or screen-watching needed.
+      </p>
+    ),
+  },
+  {
+    q: "2. Which broker is supported and how do I register?",
+    a: (
+      <p>
+        Copy trading is exclusively supported on <strong>GTCFX</strong> under our
+        official IB. You must register your MT5 account under our IB link. The
+        dedicated server for live sync is <strong>GTCFX MT5 - Server 2</strong>.
+      </p>
+    ),
+  },
+  {
+    q: "3. How does the Profit Sharing policy work?",
+    a: (
+      <p>
+        We follow an unmatched student-friendly policy:{" "}
+        <strong>0% profit sharing until your initial capital is 100% recovered!</strong>{" "}
+        Once in net profit, weekly settlements follow a transparent 3-way split:{" "}
+        <strong>70% retained by the Investor</strong>,{" "}
+        <strong>20% to Rahul Trade Warrior Academy</strong>, and{" "}
+        <strong>10% Affiliate Commission</strong> to the partner who referred you.
+      </p>
+    ),
+  },
+  {
+    q: "4. What is the Monthly Fee and do ₹14,999 Course students need to pay?",
+    a: (
+      <p>
+        The standard handling and maintenance fee is <strong>₹1,999 per month</strong>{" "}
+        covering 24/7 dedicated terminal uptime and zero-latency execution.{" "}
+        <strong>Special Exemption:</strong> Students who enrolled in the{" "}
+        <strong>₹14,999 Institutional Masterclass</strong> do NOT pay this fee—they
+        receive <strong>100% FREE Lifetime Handling Fee + AMC!</strong>
+      </p>
+    ),
+  },
+  {
+    q: "5. Are my funds and capital secure?",
+    a: (
+      <p>
+        <strong>Yes, 100% safe.</strong> Your capital remains exclusively in your
+        own GTCFX account. Your <strong>Trading password</strong> is used only for
+        executing copied trades in your terminal. Withdrawals cannot be made from
+        MT5—only you can deposit or withdraw money from your GTCFX client portal.
+      </p>
+    ),
+  },
+  {
+    q: "6. Do I need to keep my laptop or mobile phone powered on 24/7?",
+    a: (
+      <p>
+        <strong>No!</strong> Your copy terminal operates 24/7 on our dedicated
+        cloud infrastructure. Trades copy flawlessly in real-time even when your
+        phone, computer, or internet connection is switched off.
+      </p>
+    ),
+  },
+  {
+    q: "7. What are the essential risk rules I must follow?",
+    a: (
+      <ul className="space-y-1 list-disc list-inside">
+        <li>
+          <strong>Don&apos;t chase during open trade:</strong> Never manually
+          interfere or close trades early.
+        </li>
+        <li>
+          <strong>Patience and consistency:</strong> Allow the tested strategy to
+          perform through complete market cycles.
+        </li>
+        <li>
+          <strong>Risk awareness:</strong> Trading financial markets carries risk.
+          Profits are not guaranteed.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    q: "8. How do I get my GTCFX account link or onboarding assistance?",
+    a: (
+      <p>
+        Connect directly with our team on WhatsApp at{" "}
+        <strong className="text-foreground">+91 95809 57721</strong>. We will
+        guide you step-by-step through account creation under our IB, fund
+        deposit, and live terminal synchronization.
+      </p>
+    ),
+  },
+];
+
 export function StudentCopyTradingClient({
   initialMaster,
   initialSubscription,
@@ -129,6 +231,8 @@ export function StudentCopyTradingClient({
   initialVpsPayments = [],
 }: StudentCopyTradingClientProps) {
   const router = useRouter();
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+  const [showDetailedScaleTable, setShowDetailedScaleTable] = useState(false);
   const [master, setMaster] = useState<MasterData | null>(initialMaster);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(initialSubscription);
   const [logs, setLogs] = useState<TradeLog[]>(initialLogs);
@@ -321,7 +425,7 @@ export function StudentCopyTradingClient({
             className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-accent/60 px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
           >
             <Server className="h-3.5 w-3.5 text-primary" />
-            Cloud VPS
+            Handling Fee
           </Link>
           <button
             onClick={handleRefreshStatus}
@@ -351,7 +455,7 @@ export function StudentCopyTradingClient({
             <div className="space-y-1">
               <h4 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
                 Weekly Profit Sharing Settlement Due (30% USDT)
-                <span className="rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold">
+                <span className="rounded-md bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
                   Monday Cycle Qualification
                 </span>
               </h4>
@@ -381,17 +485,17 @@ export function StudentCopyTradingClient({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-bold text-foreground text-sm">₹14,999 Course VIP Member</span>
-                <span className="rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold">
-                  100% Free Lifetime VPS + AMC
+                <span className="rounded-md bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
+                  100% Free Lifetime Handling Fee + AMC
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Because you are enrolled in the ₹14,999 course, you do NOT need to pay the ₹1,999/month VPS + AMC fee. Your account runs 24/7 on dedicated cloud hosting at <strong>₹0 / month</strong>!
+                Because you are enrolled in the ₹14,999 course, you do NOT need to pay the ₹1,999/month Handling Fee &amp; Maintenance. Your account runs 24/7 on dedicated cloud hosting at <strong>₹0 / month</strong>!
               </p>
             </div>
           </div>
           <div className="text-left sm:text-right sm:border-l sm:border-border/60 sm:pl-4 shrink-0">
-            <div className="text-xs text-muted-foreground">Monthly VPS + AMC Fee</div>
+            <div className="text-xs text-muted-foreground">Monthly Handling Fee</div>
             <div className="text-lg font-bold text-emerald-500">
               ₹0 <span className="text-xs text-muted-foreground line-through font-normal">₹1,999/mo</span>
             </div>
@@ -405,18 +509,18 @@ export function StudentCopyTradingClient({
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold text-foreground text-sm">Dedicated Cloud VPS &amp; AMC Hosting</span>
-                <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-medium">
+                <span className="font-semibold text-foreground text-sm">Terminal Handling Fee &amp; Maintenance</span>
+                <span className="rounded-md bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-medium shrink-0 whitespace-nowrap">
                   Standard Plan
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Standard monthly hosting is ₹1,999/mo. <em>Enrolled ₹14,999 Masterclass students get 100% Free Lifetime VPS + AMC!</em>
+                Standard monthly handling fee is ₹1,999/mo. <em>Enrolled ₹14,999 Masterclass students get 100% Free Lifetime Handling Fee + AMC!</em>
               </p>
             </div>
           </div>
           <div className="text-left sm:text-right sm:border-l sm:border-border/60 sm:pl-4 shrink-0">
-            <div className="text-xs text-muted-foreground">Monthly Fee</div>
+            <div className="text-xs text-muted-foreground">Monthly Handling Fee</div>
             <div className="text-base font-bold text-foreground">₹1,999 / mo</div>
           </div>
         </div>
@@ -432,13 +536,15 @@ export function StudentCopyTradingClient({
                   <ShieldCheck className="h-5 w-5" />
                 </span>
                 <div>
-                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    {master.accountName}
-                    <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-semibold border border-primary/20">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-bold text-foreground">
+                      {master.accountName}
+                    </h2>
+                    <span className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-bold border border-primary/20 shrink-0 whitespace-nowrap">
                       Official Academy Master
                     </span>
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Broker: <span className="font-medium text-foreground">{master.brokerName}</span> • Platform: <span className="font-medium text-foreground">{master.platform}</span> • Server: <span className="font-mono text-xs">{master.serverName}</span>
                   </p>
                 </div>
@@ -516,12 +622,14 @@ export function StudentCopyTradingClient({
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                Copy Trading Capital Protection &amp; Lot Sizing Rules
-                <span className="rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm sm:text-base font-bold text-foreground">
+                  Copy Trading Capital Protection &amp; Lot Sizing Rules
+                </h3>
+                <span className="inline-flex items-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
                   100% Enforced
                 </span>
-              </h3>
+              </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Regardless of the lot size or risk taken on the Master account, your MT5 account strictly executes within these protective risk limits.
               </p>
@@ -533,7 +641,7 @@ export function StudentCopyTradingClient({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
             <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-primary"></span> Fixed Lot by Balance
+              <span className="h-2 w-2 rounded-full bg-primary shrink-0"></span> Fixed Lot by Balance
             </span>
             <div className="font-bold text-foreground text-sm">
               0.01 Lot per $300
@@ -545,7 +653,7 @@ export function StudentCopyTradingClient({
 
           <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
             <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-blue-500"></span> Max Open Trades
+              <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0"></span> Max Open Trades
             </span>
             <div className="font-bold text-foreground text-sm">
               Max 2 Trades Concurrent
@@ -557,7 +665,7 @@ export function StudentCopyTradingClient({
 
           <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
             <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-amber-500"></span> Daily DD Limit (5%)
+              <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0"></span> Daily DD Limit (5%)
             </span>
             <div className="font-bold text-amber-500 text-sm">
               5% Daily Circuit Breaker
@@ -569,7 +677,7 @@ export function StudentCopyTradingClient({
 
           <div className="rounded-lg bg-accent/40 border border-border/60 p-3 space-y-1">
             <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-destructive"></span> Max DD Limit (15%)
+              <span className="h-2 w-2 rounded-full bg-destructive shrink-0"></span> Max DD Limit (15%)
             </span>
             <div className="font-bold text-destructive text-sm">
               15% Hard Exit Limit
@@ -580,71 +688,92 @@ export function StudentCopyTradingClient({
           </div>
         </div>
 
-        {/* Lot Size & DD Scale Table */}
-        <div className="overflow-x-auto rounded-lg border border-border/60">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-accent/60 text-muted-foreground font-semibold text-[11px]">
-              <tr>
-                <th className="py-2.5 px-3">Account Balance</th>
-                <th className="py-2.5 px-3">Lot Per Trade</th>
-                <th className="py-2.5 px-3">Max Open Trades</th>
-                <th className="py-2.5 px-3">Max Lot Exposure</th>
-                <th className="py-2.5 px-3">Daily DD Limit (5%)</th>
-                <th className="py-2.5 px-3">Max DD Exit (15%)</th>
-                <th className="py-2.5 px-3">Cutoff Equity</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40 text-foreground">
-              <tr className="hover:bg-accent/30 transition-colors font-medium">
-                <td className="py-2 px-3 font-mono font-bold text-primary">$300</td>
-                <td className="py-2 px-3 font-mono">0.01 lot</td>
-                <td className="py-2 px-3">2 trades</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">0.02 lot</td>
-                <td className="py-2 px-3 font-mono text-amber-500">-$15.00</td>
-                <td className="py-2 px-3 font-mono text-destructive">-$45.00</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $255.00</td>
-              </tr>
-              <tr className="hover:bg-accent/30 transition-colors font-medium">
-                <td className="py-2 px-3 font-mono font-bold text-primary">$600</td>
-                <td className="py-2 px-3 font-mono">0.02 lot</td>
-                <td className="py-2 px-3">2 trades</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">0.04 lot</td>
-                <td className="py-2 px-3 font-mono text-amber-500">-$30.00</td>
-                <td className="py-2 px-3 font-mono text-destructive">-$90.00</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $510.00</td>
-              </tr>
-              <tr className="hover:bg-accent/30 transition-colors font-medium">
-                <td className="py-2 px-3 font-mono font-bold text-primary">$900</td>
-                <td className="py-2 px-3 font-mono">0.03 lot</td>
-                <td className="py-2 px-3">2 trades</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">0.06 lot</td>
-                <td className="py-2 px-3 font-mono text-amber-500">-$45.00</td>
-                <td className="py-2 px-3 font-mono text-destructive">-$135.00</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $765.00</td>
-              </tr>
-              <tr className="hover:bg-accent/30 transition-colors font-medium">
-                <td className="py-2 px-3 font-mono font-bold text-primary">$1,200</td>
-                <td className="py-2 px-3 font-mono">0.04 lot</td>
-                <td className="py-2 px-3">2 trades</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">0.08 lot</td>
-                <td className="py-2 px-3 font-mono text-amber-500">-$60.00</td>
-                <td className="py-2 px-3 font-mono text-destructive">-$180.00</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $1,020.00</td>
-              </tr>
-              <tr className="hover:bg-accent/30 transition-colors font-medium">
-                <td className="py-2 px-3 font-mono font-bold text-primary">$1,500+</td>
-                <td className="py-2 px-3 font-mono">0.05 lot</td>
-                <td className="py-2 px-3">2 trades</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">0.10 lot</td>
-                <td className="py-2 px-3 font-mono text-amber-500">-$75.00</td>
-                <td className="py-2 px-3 font-mono text-destructive">-$225.00</td>
-                <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $1,275.00</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div className="text-[11px] text-muted-foreground flex items-center justify-between">
-          <span>* Linear Progression: Each <strong>+$300 balance</strong> increments lot size by <strong>+0.01 lot</strong>. Maximum open positions at any time are strictly capped at <strong>2 trades</strong>.</span>
+        {/* Collapsible Lot Size & DD Scale Table */}
+        <div className="border-t border-border/60 pt-2">
+          <button
+            type="button"
+            onClick={() => setShowDetailedScaleTable(!showDetailedScaleTable)}
+            className="flex items-center justify-between w-full text-xs font-semibold text-muted-foreground hover:text-foreground py-1 px-1 transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5">
+              <span>View Detailed Lot &amp; Drawdown Calculation Table</span>
+              <span className="text-[10px] text-muted-foreground/80 font-normal">($300 – $1,500+ tiers)</span>
+            </span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-primary font-medium">
+              {showDetailedScaleTable ? "Hide Table" : "Show Table"}
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", showDetailedScaleTable && "rotate-180")} />
+            </span>
+          </button>
+
+          {showDetailedScaleTable && (
+            <div className="mt-3 space-y-2 animate-in fade-in duration-150">
+              <div className="overflow-x-auto rounded-lg border border-border/60">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-accent/60 text-muted-foreground font-semibold text-[11px]">
+                    <tr>
+                      <th className="py-2.5 px-3">Account Balance</th>
+                      <th className="py-2.5 px-3">Lot Per Trade</th>
+                      <th className="py-2.5 px-3">Max Open Trades</th>
+                      <th className="py-2.5 px-3">Max Lot Exposure</th>
+                      <th className="py-2.5 px-3">Daily DD Limit (5%)</th>
+                      <th className="py-2.5 px-3">Max DD Exit (15%)</th>
+                      <th className="py-2.5 px-3">Cutoff Equity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40 text-foreground">
+                    <tr className="hover:bg-accent/30 transition-colors font-medium">
+                      <td className="py-2 px-3 font-mono font-bold text-primary">$300</td>
+                      <td className="py-2 px-3 font-mono">0.01 lot</td>
+                      <td className="py-2 px-3">2 trades</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">0.02 lot</td>
+                      <td className="py-2 px-3 font-mono text-amber-500">-$15.00</td>
+                      <td className="py-2 px-3 font-mono text-destructive">-$45.00</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $255.00</td>
+                    </tr>
+                    <tr className="hover:bg-accent/30 transition-colors font-medium">
+                      <td className="py-2 px-3 font-mono font-bold text-primary">$600</td>
+                      <td className="py-2 px-3 font-mono">0.02 lot</td>
+                      <td className="py-2 px-3">2 trades</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">0.04 lot</td>
+                      <td className="py-2 px-3 font-mono text-amber-500">-$30.00</td>
+                      <td className="py-2 px-3 font-mono text-destructive">-$90.00</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $510.00</td>
+                    </tr>
+                    <tr className="hover:bg-accent/30 transition-colors font-medium">
+                      <td className="py-2 px-3 font-mono font-bold text-primary">$900</td>
+                      <td className="py-2 px-3 font-mono">0.03 lot</td>
+                      <td className="py-2 px-3">2 trades</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">0.06 lot</td>
+                      <td className="py-2 px-3 font-mono text-amber-500">-$45.00</td>
+                      <td className="py-2 px-3 font-mono text-destructive">-$135.00</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $765.00</td>
+                    </tr>
+                    <tr className="hover:bg-accent/30 transition-colors font-medium">
+                      <td className="py-2 px-3 font-mono font-bold text-primary">$1,200</td>
+                      <td className="py-2 px-3 font-mono">0.04 lot</td>
+                      <td className="py-2 px-3">2 trades</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">0.08 lot</td>
+                      <td className="py-2 px-3 font-mono text-amber-500">-$60.00</td>
+                      <td className="py-2 px-3 font-mono text-destructive">-$180.00</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $1,020.00</td>
+                    </tr>
+                    <tr className="hover:bg-accent/30 transition-colors font-medium">
+                      <td className="py-2 px-3 font-mono font-bold text-primary">$1,500+</td>
+                      <td className="py-2 px-3 font-mono">0.05 lot</td>
+                      <td className="py-2 px-3">2 trades</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">0.10 lot</td>
+                      <td className="py-2 px-3 font-mono text-amber-500">-$75.00</td>
+                      <td className="py-2 px-3 font-mono text-destructive">-$225.00</td>
+                      <td className="py-2 px-3 font-mono text-muted-foreground">&lt; $1,275.00</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                * Linear Progression: Each <strong>+$300 balance</strong> increments lot size by <strong>+0.01 lot</strong>. Maximum open positions at any time are strictly capped at <strong>2 trades</strong>.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1114,180 +1243,108 @@ export function StudentCopyTradingClient({
         )}
       </div>
 
-      {/* Weekly Profit Sharing & Settlement Card */}
-      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-sm">
+      {/* Weekly Settlement & Partner Support Card */}
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
           <div>
-            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-emerald-500" />
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-primary/20 text-primary px-2 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
+                BTC &amp; GOLD TRADING
+              </span>
+              <span className="rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-semibold border border-emerald-500/20 shrink-0 whitespace-nowrap">
+                GTCFX Under Our IB
+              </span>
+            </div>
+            <h3 className="text-sm sm:text-base font-bold text-foreground mt-1 flex items-center gap-1.5">
+              <DollarSign className="h-4 w-4 text-emerald-500 shrink-0" />
               Weekly Profit Sharing Settlement (70 / 20 / 10 in USDT)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              70% Kept in MT5 • 20% Academy Execution • 10% Affiliate Partner. (0% fee charged until initial capital is recovered. Paid in USDT BEP-20).
+              0% fee charged until initial capital is 100% recovered. Settlements run weekly in USDT (BEP-20).
             </p>
           </div>
-          <Link
-            href="/dashboard/copy-trading/settlement"
-            className="rounded-lg bg-primary text-primary-foreground font-bold px-3.5 py-1.5 text-xs shadow hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 self-start sm:self-auto"
-          >
-            Open Settlement Gateway →
-          </Link>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3">
-            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider block">70% Student Share</span>
-            <p className="text-xs text-muted-foreground mt-1">Kept directly in your MT5 trading balance.</p>
-          </div>
-          <div className="rounded-lg bg-primary/10 border border-primary/30 p-3">
-            <span className="text-[10px] font-bold text-primary uppercase tracking-wider block">20% Academy Share</span>
-            <p className="text-xs text-muted-foreground mt-1">Platform management &amp; master execution.</p>
-          </div>
-          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
-            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block">10% Affiliate Share</span>
-            <p className="text-xs text-muted-foreground mt-1">Credited directly to referring partner wallet.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SuperWarrior30 Copy Trading Highlights & Official FAQ (English) */}
-      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-6">
-        {/* Banner from Poster */}
-        <div className="rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-amber-500/5 border border-primary/20 p-4 sm:p-5">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="rounded bg-primary/20 text-primary px-2 py-0.5 text-[11px] font-bold">
-                  BTC &amp; GOLD TRADING
-                </span>
-                <span className="rounded bg-emerald-500/15 text-emerald-500 px-2 py-0.5 text-[11px] font-semibold border border-emerald-500/20">
-                  GTCFX Under Our IB
-                </span>
-              </div>
-              <h3 className="text-base sm:text-lg font-bold text-foreground">
-                SuperWarrior30 Copy Trading • Follow Expert Trades In Your Own Account
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Ideal for individuals who don&apos;t have time for live trading or cannot follow signal channels continuously.
-              </p>
-            </div>
-
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <a
               href="https://wa.me/919580957721?text=Hi%20SuperWarrior30,%20I%20want%20to%20start%20Copy%20Trading%20in%20GTCFX"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-xs font-semibold shadow transition-colors shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 text-xs font-semibold shadow transition-colors shrink-0"
             >
-              <MessageCircle className="h-4 w-4" />
-              <span>WhatsApp: +91 95809 57721</span>
+              <MessageCircle className="h-3.5 w-3.5" />
+              <span>WhatsApp Support</span>
             </a>
-          </div>
 
-          {/* 4 Feature Badges from Poster */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3 border-t border-border/50 text-[11px]">
-            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
-              <span className="text-muted-foreground block text-[10px]">Execution:</span>
-              <strong className="text-foreground">In Your Own Trading Account</strong>
-            </div>
-            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
-              <span className="text-muted-foreground block text-[10px]">Manual Effort:</span>
-              <strong className="text-foreground">100% Automated (Zero Copying)</strong>
-            </div>
-            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
-              <span className="text-muted-foreground block text-[10px]">Profit Sharing:</span>
-              <strong className="text-emerald-500">70% / 20% / 10% (0% till capital recovered)</strong>
-            </div>
-            <div className="rounded-lg bg-background/60 border border-border/40 p-2.5">
-              <span className="text-muted-foreground block text-[10px]">Monthly VPS + AMC Fee:</span>
-              <strong className={affiliateInfo?.has14999Course ? "text-emerald-500 font-bold" : "text-foreground"}>
-                {affiliateInfo?.has14999Course ? "₹0 / Free (Course VIP)" : "₹1,999 / month"}
-              </strong>
-            </div>
+            <Link
+              href="/dashboard/copy-trading/settlement"
+              className="rounded-lg bg-primary text-primary-foreground font-bold px-3 py-1.5 text-xs shadow hover:bg-primary/90 transition-colors inline-flex items-center gap-1 shrink-0"
+            >
+              Settlement Gateway →
+            </Link>
           </div>
         </div>
 
-        {/* FAQ Grid */}
-        <div>
-          <h3 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4">
-            <HelpCircle className="h-4 w-4 text-primary" />
+        {/* 3 Shares Pills */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-2.5">
+            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">70% Student Share</span>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Kept directly in your MT5 trading balance.</p>
+          </div>
+          <div className="rounded-lg bg-primary/10 border border-primary/30 p-2.5">
+            <span className="text-[10px] font-bold text-primary uppercase tracking-wider block">20% Academy Share</span>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Platform management &amp; master execution.</p>
+          </div>
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-2.5">
+            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">10% Affiliate Share</span>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Credited directly to referring partner wallet.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Frequently Asked Questions (Interactive Accordion Dropdown) */}
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between border-b border-border/60 pb-3">
+          <h3 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-primary shrink-0" />
             Frequently Asked Questions &amp; Copy Trading Rules
           </h3>
+          <span className="text-xs text-muted-foreground font-medium">
+            {COPY_TRADING_FAQS.length} Questions
+          </span>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                1. What is SuperWarrior30 Copy Trading and how does it work?
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                High-probability positions executed by our Master Trader on <strong>Gold (XAUUSD) and Bitcoin (BTC)</strong> are automatically mirrored into your personal account in real-time. There is zero manual effort or screen-watching needed.
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                2. Which broker is supported and how do I register?
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                Copy trading is exclusively supported on <strong>GTCFX</strong> under our official IB. You must register your MT5 account under our IB link. The dedicated server for live sync is <strong>GTCFX MT5 - Server 2</strong>.
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                3. How does the Profit Sharing policy work?
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                We follow an unmatched student-friendly policy: <strong>0% profit sharing until your initial capital is 100% recovered!</strong> Once in net profit, weekly settlements follow a transparent 3-way split: <strong>70% retained by the Investor</strong>, <strong>20% to Rahul Trade Warrior Academy</strong>, and <strong>10% Affiliate Commission</strong> to the partner who referred you.
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                4. What is the Monthly Fee and do ₹14,999 Course students need to pay?
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                The standard fee is <strong>₹1,999 per month</strong> covering high-speed Cloud VPS hosting, 24/7 terminal uptime, and zero-latency execution. <strong>Special Exemption:</strong> Students who enrolled in the <strong>₹14,999 Institutional Masterclass</strong> do NOT pay this fee—they receive <strong>100% FREE Lifetime VPS + AMC hosting!</strong>
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                5. Are my funds and capital secure?
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                <strong>Yes, 100% safe.</strong> Your capital remains exclusively in your own GTCFX account. Your <strong>Trading password</strong> is used only for executing copied trades in your terminal. Withdrawals cannot be made from MT5—only you can deposit or withdraw money from your GTCFX client portal.
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                6. Do I need to keep my laptop or mobile phone powered on 24/7?
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                <strong>No!</strong> Your copy terminal operates 24/7 on our dedicated cloud VPS cluster. Trades copy flawlessly in real-time even when your phone, computer, or internet connection is switched off.
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                7. What are the essential risk rules I must follow?
-              </h4>
-              <ul className="text-muted-foreground space-y-1 list-disc list-inside">
-                <li><strong>Don&apos;t chase during open trade:</strong> Never manually interfere or close trades early.</li>
-                <li><strong>Patience and consistency:</strong> Allow the tested strategy to perform through complete market cycles.</li>
-                <li><strong>Risk awareness:</strong> Trading financial markets carries risk. Profits are not guaranteed.</li>
-              </ul>
-            </div>
-
-            <div className="rounded-lg bg-accent/30 border border-border/40 p-4 space-y-1.5">
-              <h4 className="font-semibold text-foreground">
-                8. How do I get my GTCFX account link or onboarding assistance?
-              </h4>
-              <p className="text-muted-foreground leading-relaxed">
-                Connect directly with our team on WhatsApp at <strong className="text-foreground">+91 95809 57721</strong>. We will guide you step-by-step through account creation under our IB, fund deposit, and live terminal synchronization.
-              </p>
-            </div>
-          </div>
+        <div className="space-y-2 pt-1">
+          {COPY_TRADING_FAQS.map((faq, idx) => {
+            const isOpen = openFaqIndex === idx;
+            return (
+              <div
+                key={idx}
+                className="rounded-xl border border-border/60 bg-muted/20 overflow-hidden transition-colors"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+                  className="w-full flex items-center justify-between p-3 sm:p-3.5 text-left transition-colors hover:bg-muted/50 cursor-pointer"
+                  aria-expanded={isOpen}
+                >
+                  <span className="text-xs sm:text-sm font-semibold text-foreground pr-2">
+                    {faq.q}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                      isOpen && "rotate-180 text-primary"
+                    )}
+                  />
+                </button>
+                {isOpen && (
+                  <div className="px-3 pb-3 sm:px-3.5 sm:pb-3.5 pt-0 text-xs text-muted-foreground leading-relaxed border-t border-border/40 animate-in fade-in duration-150">
+                    <div className="pt-2">{faq.a}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1324,16 +1381,16 @@ export function StudentCopyTradingClient({
                     <Server className="h-6 w-6" />
                   </div>
                   <div className="space-y-1">
-                    <h4 className="text-sm font-bold text-foreground">Dedicated Cloud VPS Hosting Required</h4>
+                    <h4 className="text-sm font-bold text-foreground">Terminal Handling Fee &amp; Maintenance Required</h4>
                     <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                      Each student account requires a dedicated isolated Cloud VPS (₹1,999/month) to run and copy trades 24/7 without terminal downtime. (₹14,999 Course students get 1st year free).
+                      Each student account requires terminal maintenance &amp; handling fee (₹1,999/month) to run and copy trades 24/7 without terminal downtime. (₹14,999 Course students get 1st year free).
                     </p>
                   </div>
                   <Link
                     href="/dashboard/copy-trading/checkout"
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-5 py-2.5 text-xs font-bold shadow hover:bg-primary/90 transition-colors"
                   >
-                    <CreditCard className="h-4 w-4" /> Pay ₹1,999 VPS Hosting Fee &amp; Unlock Form →
+                    <CreditCard className="h-4 w-4" /> Pay ₹1,999 Handling Fee &amp; Unlock Form →
                   </Link>
                 </div>
               ) : affiliateInfo?.hostingStatus?.isOneYearExempt ? (
@@ -1343,7 +1400,7 @@ export function StudentCopyTradingClient({
                     <div>
                       <span className="font-bold text-foreground text-xs block">₹14,999 Course VIP Member</span>
                       <span className="text-[11px] text-muted-foreground">
-                        1-Year Free Dedicated Cloud VPS Hosting ({affiliateInfo.hostingStatus.exemptionDaysRemaining} days remaining)
+                        1-Year Free Handling Fee &amp; Maintenance ({affiliateInfo.hostingStatus.exemptionDaysRemaining} days remaining)
                       </span>
                     </div>
                   </div>
@@ -1356,7 +1413,7 @@ export function StudentCopyTradingClient({
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                     <div>
-                      <span className="font-bold text-foreground text-xs block">Dedicated Cloud VPS Active</span>
+                      <span className="font-bold text-foreground text-xs block">Handling Fee &amp; Maintenance Active</span>
                       <span className="text-[11px] text-muted-foreground">
                         Valid till {affiliateInfo.hostingStatus.vpsPaymentExpiresAt ? new Date(affiliateInfo.hostingStatus.vpsPaymentExpiresAt).toLocaleDateString("en-IN") : "Active period"}
                       </span>

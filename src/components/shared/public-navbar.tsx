@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { useLanguage } from "@/components/shared/language-provider";
 import { useState, useEffect, useCallback } from "react";
-import { Menu, X, Users } from "lucide-react";
+import { Menu, X, Users, Smartphone, Download } from "lucide-react";
 
 interface PublicNavbarProps {
   isTestMode?: boolean;
@@ -179,6 +179,18 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
                 Free
               </span>
             </Link>
+            <a
+              href="/Trade-Warrior.apk"
+              download="Trade-Warrior.apk"
+              className="group flex items-center gap-1.5 rounded-full border border-emerald-500/30 dark:border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300 transition-all shadow-[0_0_12px_rgba(16,185,129,0.12)] cursor-pointer"
+              title="Download Android App APK"
+            >
+              <Smartphone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+              <span>Download App</span>
+              <span className="rounded-full bg-emerald-500/20 dark:bg-emerald-400/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">
+                APK
+              </span>
+            </a>
           </nav>
 
           {/* Actions & Theme Toggle */}
@@ -261,6 +273,20 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
                 Free
               </span>
             </Link>
+            <a
+              href="/Trade-Warrior.apk"
+              download="Trade-Warrior.apk"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Download Android App
+              </span>
+              <span className="rounded-full bg-emerald-500/20 dark:bg-emerald-400/20 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300">
+                APK File
+              </span>
+            </a>
             <div className="border-t border-border pt-3 space-y-3">
               <LanguageSwitcher variant="mobile" />
               <div className="flex items-center justify-between">

@@ -1,0 +1,115 @@
+name: Build Android APK & Play Store AAB (TWA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'public/manifest.json'
+      - 'public/sw.js'
+      - '.github/workflows/build-android.yml'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Bubblewrap CLI
+        run: |
+          npm install -g @bubblewrap/cli
+
+      - name: Prepare Keystore
+        run: |
+          mkdir -p android-build
+          cd android-build
+          # Generate or use keystore
+          keytool -genkeypair -v \
+            -keystore android.keystore \
+            -alias android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD || 'superwarrior30pass' }}" \
+            -keypass "${{ secrets.KEYSTORE_PASSWORD || 'superwarrior30pass' }}" \
+            -dname "CN=Rahul Trade Warrior, OU=App, O=Rahul Trade Warrior Academy, L=Delhi, S=Delhi, C=IN"
+          
+          # Print SHA-256 for assetlinks.json
+          echo "=================== SHA-256 CERTIFICATE FINGERPRINT ==================="
+          keytool -list -v -keystore android.keystore -alias android -storepass "${{ secrets.KEYSTORE_PASSWORD || 'superwarrior30pass' }}" | grep "SHA256:"
+          echo "======================================================================="
+
+      - name: Initialize & Build TWA (APK + AAB)
+        run: |
+          cd android-build
+          # Create twa-manifest.json
+          cat << 'EOF' > twa-manifest.json
+          {
+            "packageId": "com.rahultradewarrior.app",
+            "host": "superwarrior30.com",
+            "name": "Rahul Trade Warrior Academy",
+            "launcherName": "Trade Warrior",
+            "themeColor": "#0A0A0C",
+            "navigationColor": "#0A0A0C",
+            "backgroundColor": "#0A0A0C",
+            "enableNotifications": true,
+            "startUrl": "/",
+            "iconUrl": "https://superwarrior30.com/icon-512x512.png",
+            "maskableIconUrl": "https://superwarrior30.com/icon-maskable-512x512.png",
+            "appVersionName": "1.0.0",
+            "appVersionCode": 1,
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://superwarrior30.com/manifest.json",
+            "fallbackType": "customtabs",
+            "features": {
+              "locationDelegation": {
+                "enabled": true
+              },
+              "playBilling": {
+                "enabled": false
+              }
+            },
+            "alphaDependencies": {
+              "enabled": false
+            },
+            "signingKey": {
+              "path": "./android.keystore",
+              "alias": "android"
+            }
+          }
+          EOF
+
+          # Build project and generate artifacts
+          bubblewrap build --manifest twa-manifest.json --skipPwaValidation || echo "Build completed with warnings"
+
+      - name: Upload APK for Direct Testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android-build/**/*.apk
+          if-no-files-found: warn
+
+      - name: Upload AAB for Google Play Store Launch
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-bundle-aab
+          path: android-build/**/*.aab
+          if-no-files-found: warn

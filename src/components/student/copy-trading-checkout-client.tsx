@@ -104,13 +104,13 @@ export function CopyTradingCheckoutClient({
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
           <Zap className="h-4 w-4" />
-          Dedicated Cloud VPS Gate
+          Handling Fee &amp; Account Setup
         </div>
         <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">
-          Cloud VPS Hosting &amp; Copy Trading Registration
+          Handling Fee &amp; Copy Trading Registration
         </h1>
         <p className="text-sm text-muted-foreground">
-          Each student account requires an isolated Cloud VPS execution terminal to mirror master trades 24/7 without terminal downtime.
+          Each student account requires a dedicated execution handling &amp; maintenance setup to mirror master trades 24/7 without terminal downtime.
         </p>
       </div>
 
@@ -129,11 +129,11 @@ export function CopyTradingCheckoutClient({
               <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
                 ₹14,999 Mentorship Course Benefit
                 {hostingStatus.isOneYearExempt ? (
-                  <span className="rounded-full bg-emerald-500/20 text-emerald-500 px-2.5 py-0.5 text-[10px] font-bold">
+                  <span className="rounded-md bg-emerald-500/20 text-emerald-500 px-2.5 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
                     1-Year Free Active
                   </span>
                 ) : (
-                  <span className="rounded-full bg-amber-500/20 text-amber-500 px-2.5 py-0.5 text-[10px] font-bold">
+                  <span className="rounded-md bg-amber-500/20 text-amber-500 px-2.5 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
                     1-Year Period Expired
                   </span>
                 )}
@@ -141,7 +141,7 @@ export function CopyTradingCheckoutClient({
               {hostingStatus.isOneYearExempt ? (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    As an enrolled student of the ₹14,999 Course, your dedicated Cloud VPS hosting and AMC charge is <strong>100% Free for 1 Year</strong> from your enrollment date!
+                    As an enrolled student of the ₹14,999 Course, your dedicated Handling Fee &amp; AMC charge is <strong>100% Free for 1 Year</strong> from your enrollment date!
                   </p>
                   <div className="pt-2 flex items-center gap-4 text-xs font-semibold text-emerald-500">
                     <span>⏳ {hostingStatus.exemptionDaysRemaining} Days Remaining</span>
@@ -156,7 +156,7 @@ export function CopyTradingCheckoutClient({
                 </>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Your 1-year complimentary Cloud VPS hosting benefit has completed. To continue copying trades, please renew your monthly VPS hosting below (₹1,999/month).
+                  Your 1-year complimentary Handling Fee benefit has completed. To continue copying trades, please renew your monthly handling fee below (₹1,999/month).
                 </p>
               )}
             </div>
@@ -170,9 +170,9 @@ export function CopyTradingCheckoutClient({
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
             <div>
-              <p className="text-xs font-bold text-foreground">Dedicated VPS Active</p>
+              <p className="text-xs font-bold text-foreground">Handling Fee &amp; Maintenance Active</p>
               <p className="text-[11px] text-muted-foreground">
-                Your monthly Cloud VPS subscription is active until {hostingStatus.vpsPaymentExpiresAt ? new Date(hostingStatus.vpsPaymentExpiresAt).toLocaleDateString("en-IN") : "active period"}.
+                Your monthly subscription is active until {hostingStatus.vpsPaymentExpiresAt ? new Date(hostingStatus.vpsPaymentExpiresAt).toLocaleDateString("en-IN") : "active period"}.
               </p>
             </div>
           </div>
@@ -393,7 +393,7 @@ export function CopyTradingCheckoutClient({
             <div className="space-y-2 border-b border-border/60 pb-3 text-xs">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Service</span>
-                <span className="font-semibold text-foreground">Dedicated Cloud VPS</span>
+                <span className="font-semibold text-foreground">Terminal Handling &amp; Maintenance</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Billing Cycle</span>

@@ -185,10 +185,10 @@ export default async function StudentDashboardPage() {
       </div>
 
       {/* Enrolled Courses & Continue Learning Section */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-        <div className="flex items-center justify-between border-b border-border pb-4">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-sm space-y-5 sm:space-y-6">
+        <div className="flex items-center justify-between border-b border-border pb-3 sm:pb-4">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Continue Learning</h2>
+            <h2 className="text-base sm:text-lg font-bold text-foreground">Continue Learning</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Pick up right where you left off
             </p>
@@ -293,7 +293,7 @@ export default async function StudentDashboardPage() {
             {enrolledCourses.map((course) => (
               <div
                 key={course.courseId}
-                className="flex flex-col justify-between rounded-xl border border-border/80 bg-background/60 p-5 transition-colors hover:border-primary/40 hover:bg-background"
+                className="flex flex-col justify-between rounded-xl border border-border/80 bg-background/60 p-4 sm:p-5 transition-colors hover:border-primary/40 hover:bg-background"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -305,7 +305,7 @@ export default async function StudentDashboardPage() {
                     </span>
                   </div>
 
-                  <h3 className="font-bold text-foreground line-clamp-1">
+                  <h3 className="font-bold text-foreground text-sm sm:text-base line-clamp-1">
                     {course.courseTitle}
                   </h3>
 
@@ -317,18 +317,20 @@ export default async function StudentDashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-muted-foreground">
+                <div className="mt-4 pt-3 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center justify-between sm:justify-start gap-2">
                     {course.progressPercentage >= 100 ? (
-                      <span className="text-emerald-500 font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Completed
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Completed
                       </span>
                     ) : (
-                      "In Progress"
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                        In Progress ({course.progressPercentage}%)
+                      </span>
                     )}
-                  </span>
+                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2 shrink-0 w-full sm:w-auto">
                     <CourseAffiliateShareButton
                       courseId={course.courseId}
                       courseTitle={course.courseTitle}
@@ -342,10 +344,10 @@ export default async function StudentDashboardPage() {
                           ? `/learn/${course.courseSlug}/${course.nextLessonId}`
                           : `/learn/${course.courseSlug}`
                       }
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 active:scale-95 transition-all text-center whitespace-nowrap"
                     >
-                      <PlayCircle className="h-3.5 w-3.5" />
-                      {course.progressPercentage > 0 ? "Resume" : "Start"}
+                      <PlayCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>{course.progressPercentage > 0 ? "Resume" : "Start"}</span>
                     </Link>
                   </div>
                 </div>

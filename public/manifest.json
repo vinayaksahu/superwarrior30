@@ -16,6 +16,23 @@
     "finance",
     "business"
   ],
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Rahul Trade Warrior Academy"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Trade Warrior Mobile App"
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192x192.png",

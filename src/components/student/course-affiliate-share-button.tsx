@@ -78,7 +78,7 @@ Referral Code: ${referralCode}`;
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400 shadow-xs hover:bg-amber-500/20 hover:border-amber-400 active:scale-95 transition-all cursor-pointer"
+        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-500 dark:text-amber-400 shadow-xs hover:bg-amber-500/20 hover:border-amber-400 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
         title="Share course with your affiliate link and earn commissions"
       >
         <Gift className="h-3.5 w-3.5" />

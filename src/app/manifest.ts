@@ -7,10 +7,15 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Master professional trading with Rahul Trade Warrior Academy. Learn | Trade | Earn with expert mentorship and proven trading systems.",
     start_url: "/",
     id: "/",
+    scope: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#0a0a0c",
     theme_color: "#0a0a0c",
+    lang: "en",
+    dir: "ltr",
+    categories: ["education", "finance", "business"],
+    prefer_related_applications: false,
     icons: [
       {
         src: "/icon-192x192.png",
@@ -35,6 +40,22 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
+      },
+    ],
+    screenshots: [
+      {
+        src: "/logo.png",
+        sizes: "512x512",
+        type: "image/png",
+        form_factor: "wide",
+        label: "Rahul Trade Warrior Academy",
+      },
+      {
+        src: "/icon-512x512.png",
+        sizes: "512x512",
+        type: "image/png",
+        form_factor: "narrow",
+        label: "Trade Warrior Mobile App",
       },
     ],
   };
