@@ -52,6 +52,8 @@ double         g_initialDeposit       = 0.0;
 double         g_peakBalance          = 0.0;
 double         g_startOfDayEquity     = 0.0;
 datetime       g_currentDayStartTime  = 0;
+datetime       g_dailyLossStartTime   = 0;
+datetime       g_lastResetDay         = 0;
 bool           g_isDailyLocked        = false;
 bool           g_isPermanentlyStopped = false;
 string         g_riskStopReason       = "";
@@ -185,9 +187,11 @@ datetime GetStartOfDayTime()
 void CheckDailyReset()
 {
    datetime todayStart = GetStartOfDayTime();
-   if(todayStart != g_currentDayStartTime)
+   if(todayStart != g_lastResetDay)
    {
+      g_lastResetDay        = todayStart;
       g_currentDayStartTime = todayStart;
+      g_dailyLossStartTime  = todayStart;
       g_startOfDayEquity    = AccountInfoDouble(ACCOUNT_EQUITY);
 
       // Only reset daily lock if account has not breached the 15% Max DD hard stop
@@ -222,7 +226,7 @@ int CountOpenCopiedTrades()
 //+------------------------------------------------------------------+
 double GetTodayRealizedPnL()
 {
-   datetime startOfDayTime = (g_currentDayStartTime > 0) ? g_currentDayStartTime : GetStartOfDayTime();
+   datetime startOfDayTime = (g_dailyLossStartTime > 0) ? g_dailyLossStartTime : GetStartOfDayTime();
    datetime now = TimeCurrent() + 60;
 
    if(!HistorySelect(startOfDayTime, now))
@@ -667,6 +671,7 @@ int OnInit()
 
       g_peakBalance          = curBal;
       g_startOfDayEquity     = curEq;
+      g_dailyLossStartTime   = TimeCurrent();
       g_isPermanentlyStopped = false;
       g_isDailyLocked        = false;
       g_riskStopReason       = "";
@@ -688,6 +693,9 @@ int OnInit()
    }
    
    g_currentDayStartTime = GetStartOfDayTime();
+   g_lastResetDay        = GetStartOfDayTime();
+   if(g_dailyLossStartTime <= 0)
+      g_dailyLossStartTime = GetStartOfDayTime();
 
    // Read portal control immediately on init
    CheckLmsPortalControl();
@@ -728,6 +736,7 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       g_initialDeposit       = curBal;
       g_peakBalance          = curBal;
       g_startOfDayEquity     = curEq;
+      g_dailyLossStartTime   = TimeCurrent(); // Reset today's PnL tracking from this moment!
       g_isPermanentlyStopped = false;
       g_isDailyLocked        = false;
       g_riskStopReason       = "";
@@ -744,8 +753,8 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       
       ShowResetButton(false);
       ChartRedraw(0);
-      PrintFormat("🔄 [FRESH START] Account baseline reset to current balance $%.2f. Account unlocked!", g_initialDeposit);
-      UpdateComment("🟢 Account Fresh Started & Baseline Reset!");
+      PrintFormat("🔄 [FRESH START / UNLOCK] Account baseline reset to current balance $%.2f. Daily loss reset from now. Account unlocked!", g_initialDeposit);
+      UpdateComment("🟢 Account Fresh Started & Unlocked!");
    }
 }
 
