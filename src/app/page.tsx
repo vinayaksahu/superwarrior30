@@ -19,6 +19,8 @@ import {
   Flame,
   Zap,
   Users,
+  Smartphone,
+  Download,
 } from "lucide-react";
 import { resolvePublicHomepageEnvironment, withEnvironmentContext } from "@/lib/env-context";
 import { getApprovedTestimonialsAction } from "@/server/actions/testimonial.actions";
@@ -83,6 +85,15 @@ export default async function HomePage() {
         <div className="container mx-auto px-4 sm:px-6">
           <div className="mx-auto max-w-4xl text-center space-y-6">
             <div className="flex flex-wrap items-center justify-center gap-2">
+              <a
+                href="/Trade-Warrior.apk"
+                download="Trade-Warrior.apk"
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/20 transition-all shadow-[0_0_12px_rgba(16,185,129,0.15)] cursor-pointer"
+              >
+                <Smartphone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Download Android App (APK)</span>
+                <Download className="h-3 w-3" />
+              </a>
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary">
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Professional Trading Mentorship & Masterclasses</span>
@@ -118,7 +129,18 @@ export default async function HomePage() {
               curated strategies, and systematic risk management designed to elevate your trading execution.
             </p>
 
-            <div className="pt-2 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="pt-2 flex flex-col items-center justify-center gap-3 sm:flex-row flex-wrap">
+              <a
+                href="/Trade-Warrior.apk"
+                download="Trade-Warrior.apk"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/15 px-6 text-sm font-bold text-emerald-800 dark:text-emerald-300 shadow-lg shadow-emerald-500/5 transition-all hover:bg-emerald-500/20 hover:text-emerald-900 dark:hover:text-emerald-200 hover:scale-[1.02] cursor-pointer"
+              >
+                <Smartphone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Download Android App</span>
+                <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  APK
+                </span>
+              </a>
               <Link
                 href="/courses"
                 className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-8 text-sm font-bold text-primary-foreground shadow-xl transition-all hover:bg-primary/90"

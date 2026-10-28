@@ -11,6 +11,11 @@ interface LanguageSwitcherProps {
 }
 
 export function LanguageSwitcher({ variant = "header", className }: LanguageSwitcherProps) {
+  // Hidden across the entire platform as per user request
+  return null;
+}
+
+export function _UnusedLanguageSwitcher({ variant = "header", className }: LanguageSwitcherProps) {
   const { currentLanguage, setLanguage, isLoaded } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

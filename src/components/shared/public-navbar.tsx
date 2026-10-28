@@ -195,7 +195,6 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
 
           {/* Actions & Theme Toggle */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            <LanguageSwitcher variant="header" />
             <ThemeToggle />
 
             <Link
@@ -287,8 +286,7 @@ export function PublicNavbar({ isTestMode = false }: PublicNavbarProps) {
                 APK File
               </span>
             </a>
-            <div className="border-t border-border pt-3 space-y-3">
-              <LanguageSwitcher variant="mobile" />
+            <div className="border-t border-border pt-3">
               <div className="flex items-center justify-between">
                 <Link
                   href="/login"

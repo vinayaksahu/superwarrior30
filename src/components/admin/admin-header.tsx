@@ -35,9 +35,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { LanguageSwitcher } from "@/components/shared/language-switcher";
-
-import { EnvironmentSwitcher } from "@/components/admin/environment-switcher";
 import type { AppEnvironment } from "@/lib/env-context";
 
 interface AdminHeaderProps {
@@ -149,16 +146,6 @@ export function AdminHeader({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-          <EnvironmentSwitcher
-            currentEnvironment={currentEnvironment || "LIVE"}
-            isSuperAdmin={isSuper}
-            isStaffAdmin={!isSuper}
-            staffTestingAllowed={staffTestingAllowed}
-            initialVisibilityScope={testVisibilityScope}
-          />
-          <div className="hidden sm:inline-block">
-            <LanguageSwitcher variant="header" />
-          </div>
           <ThemeToggle />
           <div className="text-right hidden sm:block">
             <p className="text-xs sm:text-sm font-semibold text-foreground">
@@ -243,9 +230,8 @@ export function AdminHeader({
               })}
             </nav>
 
-            {/* Mobile Drawer Footer: Language & Logout */}
-            <div className="border-t border-border/80 pt-3 mt-3 space-y-2.5">
-              <LanguageSwitcher variant="mobile" />
+            {/* Mobile Drawer Footer: Logout */}
+            <div className="border-t border-border/80 pt-3 mt-3">
 
               <form action={logoutAction} className="w-full">
                 <button

@@ -128,9 +128,6 @@ export function StudentHeader({
             >
               {t("nav_browse_catalog", "Browse Courses")}
             </Link>
-            <div className="hidden sm:inline-block">
-              <LanguageSwitcher variant="header" />
-            </div>
             <ThemeToggle />
             <StudentNotificationBell />
             <div className="text-right hidden sm:flex items-center gap-2">
@@ -247,11 +244,6 @@ export function StudentHeader({
                 </Link>
               </div>
             </nav>
-
-            {/* Language & Theme Controls */}
-            <div className="border-t border-border/80 pt-3 mt-3 space-y-2">
-              <LanguageSwitcher variant="mobile" />
-            </div>
 
             {/* Logout Button */}
             <div className="border-t border-border/80 pt-3 mt-3">

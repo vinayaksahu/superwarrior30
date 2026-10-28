@@ -3,7 +3,6 @@ import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { LanguageProvider } from "@/components/shared/language-provider";
-import { GlobalFloatingLanguageWidget } from "@/components/shared/global-floating-language-widget";
 import { SessionGuard } from "@/components/auth/session-guard";
 import { MaintenanceGuard } from "@/components/shared/maintenance-guard";
 import { PwaRegister } from "@/components/shared/pwa-register";
@@ -77,7 +76,6 @@ export default function RootLayout({
               {children}
             </MaintenanceGuard>
             <SessionGuard />
-            <GlobalFloatingLanguageWidget />
             <PwaRegister />
             <Toaster richColors position="top-right" />
           </LanguageProvider>
