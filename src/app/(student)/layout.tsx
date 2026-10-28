@@ -3,6 +3,7 @@ import { requireAuth } from "@/server/dal/auth";
 import { prisma } from "@/lib/prisma";
 import { StudentNav } from "@/components/student/student-nav";
 import { StudentHeader } from "@/components/student/student-header";
+import { StudentMobileFooterNav } from "@/components/student/student-mobile-footer-nav";
 import { StudentTopAlertBanner } from "@/components/student/student-notifications";
 import { getMemberMenuSettingsAction } from "@/server/actions/member-menu.actions";
 
@@ -46,7 +47,7 @@ export default async function StudentLayout({
         isCommunityMember={isCommunityMember}
         visibilityMap={visibilityMap}
       />
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl pb-24 lg:pb-6">
         <div className="flex flex-col gap-6 lg:flex-row min-w-0">
           <StudentNav
             isCommunityMember={isCommunityMember}
@@ -55,6 +56,11 @@ export default async function StudentLayout({
           <main className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
+      <StudentMobileFooterNav
+        user={user}
+        isCommunityMember={isCommunityMember}
+        visibilityMap={visibilityMap}
+      />
     </div>
   );
 }
