@@ -107,6 +107,15 @@ jobs:
           $APKSIGNER verify --print-certs "apk/Rahul Trade Warrior Academy.apk"
           echo "========================================================="
 
+      - name: Deploy Signed APK to Bunny CDN
+        run: |
+          echo "Deploying signed APK to Bunny CDN Storage..."
+          curl -s -f -X PUT "https://storage.bunnycdn.com/sw30-production-storage/Trade-Warrior.apk" \
+            -H "AccessKey: 16c236b4-469e-43af-8b056420205b-ed39-416c" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @"apk/Rahul Trade Warrior Academy.apk"
+          echo "Successfully uploaded to Bunny CDN!"
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
