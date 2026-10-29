@@ -166,7 +166,7 @@ const COPY_TRADING_FAQS = [
         covering 24/7 dedicated terminal uptime and zero-latency execution.{" "}
         <strong>Special Exemption:</strong> Students who enrolled in the{" "}
         <strong>₹14,999 Institutional Masterclass</strong> do NOT pay this fee—they
-        receive <strong>100% FREE Lifetime Handling Fee + AMC!</strong>
+        receive <strong>100% FREE 1-Year Handling Fee &amp; AMC!</strong>
       </p>
     ),
   },
@@ -435,13 +435,16 @@ export function StudentCopyTradingClient({
             <DollarSign className="h-3.5 w-3.5" />
             Weekly Settlement
           </Link>
-          <Link
-            href="/dashboard/copy-trading/checkout"
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-accent/60 px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
-          >
-            <Server className="h-3.5 w-3.5 text-primary" />
-            Handling Fee
-          </Link>
+          {/* Hide Handling Fee button while user has 1-year free handling fee or active fee status */}
+          {!affiliateInfo?.hostingStatus?.isOneYearExempt && !affiliateInfo?.hostingStatus?.hasActiveVpsPayment && (
+            <Link
+              href="/dashboard/copy-trading/checkout"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-accent/60 px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent transition-colors"
+            >
+              <Server className="h-3.5 w-3.5 text-primary" />
+              Handling Fee
+            </Link>
+          )}
         </div>
       </div>
 
@@ -473,22 +476,27 @@ export function StudentCopyTradingClient({
         </div>
       )}
 
-      {/* Course VIP Fee Exemption Benefit Banner */}
-      {affiliateInfo?.has14999Course ? (
-        <div className="rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-primary/10 to-emerald-500/10 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Course 1-Year Free Fee Benefit Banner */}
+      {affiliateInfo?.hostingStatus?.isOneYearExempt ? (
+        <div className="rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 via-primary/10 to-amber-500/10 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0 shadow-inner">
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shrink-0 shadow-inner">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-bold text-foreground text-sm">₹14,999 Course VIP Member</span>
+                <span className="font-bold text-foreground text-sm">₹14,999 Mentorship Course Benefit</span>
                 <span className="rounded-md bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
-                  100% Free Lifetime Handling Fee + AMC
+                  1-Year Free Active
                 </span>
+                {affiliateInfo?.hostingStatus?.exemptionDaysRemaining !== undefined && (
+                  <span className="rounded-md bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
+                    ⏳ {affiliateInfo.hostingStatus.exemptionDaysRemaining} Days Remaining
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Because you are enrolled in the ₹14,999 course, you do NOT need to pay the ₹1,999/month Handling Fee &amp; Maintenance. Your account runs 24/7 on dedicated cloud hosting at <strong>₹0 / month</strong>!
+                As an enrolled student of the ₹14,999 Course, your dedicated Handling Fee &amp; AMC charge is <strong>100% Free for 1 Year</strong> from your enrollment date! Your account runs 24/7 on dedicated cloud hosting at <strong>₹0 / month</strong>.
               </p>
             </div>
           </div>
@@ -497,6 +505,33 @@ export function StudentCopyTradingClient({
             <div className="text-lg font-bold text-emerald-500">
               ₹0 <span className="text-xs text-muted-foreground line-through font-normal">₹1,999/mo</span>
             </div>
+          </div>
+        </div>
+      ) : affiliateInfo?.has14999Course ? (
+        <div className="rounded-xl border border-amber-500/40 bg-card p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+              <Server className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-foreground text-sm">₹14,999 Course 1-Year Free Period Expired</span>
+                <span className="rounded-md bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
+                  1-Year Completed
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your 1-year complimentary Handling Fee benefit has completed. Standard monthly fee is ₹1,999/mo to keep copy trading active.
+              </p>
+            </div>
+          </div>
+          <div className="text-left sm:text-right sm:border-l sm:border-border/60 sm:pl-4 shrink-0">
+            <Link
+              href="/dashboard/copy-trading/checkout"
+              className="rounded-lg bg-primary text-primary-foreground font-bold px-3 py-1.5 text-xs shadow hover:bg-primary/90 transition-colors inline-flex items-center gap-1"
+            >
+              Pay Handling Fee →
+            </Link>
           </div>
         </div>
       ) : (
@@ -513,7 +548,7 @@ export function StudentCopyTradingClient({
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Standard monthly handling fee is ₹1,999/mo. <em>Enrolled ₹14,999 Masterclass students get 100% Free Lifetime Handling Fee + AMC!</em>
+                Standard monthly handling fee is ₹1,999/mo. <em>Enrolled ₹14,999 Masterclass students get 100% Free 1-Year Handling Fee &amp; AMC!</em>
               </p>
             </div>
           </div>
@@ -961,11 +996,11 @@ export function StudentCopyTradingClient({
 
           <div className="rounded-lg bg-background/80 border border-border/60 p-3">
             <span className="text-muted-foreground text-[11px] block">Your Hosting Fee</span>
-            <strong className={cn("text-base font-bold mt-0.5 block", affiliateInfo?.has14999Course ? "text-emerald-500" : "text-foreground")}>
-              {affiliateInfo?.has14999Course ? "₹0 (VIP Exempt)" : "₹1,999 / mo"}
+            <strong className={cn("text-base font-bold mt-0.5 block", (affiliateInfo?.hostingStatus?.isOneYearExempt || affiliateInfo?.hostingStatus?.hasActiveVpsPayment) ? "text-emerald-500" : "text-foreground")}>
+              {affiliateInfo?.hostingStatus?.isOneYearExempt ? "₹0 (1-Yr Free Active)" : affiliateInfo?.hostingStatus?.hasActiveVpsPayment ? "₹0 (Active)" : "₹1,999 / mo"}
             </strong>
             <span className="text-[10px] text-muted-foreground">
-              {affiliateInfo?.has14999Course ? "₹14,999 Course Benefit" : "Standard Plan"}
+              {affiliateInfo?.hostingStatus?.isOneYearExempt ? "₹14,999 1-Year Benefit" : "Standard Plan"}
             </span>
           </div>
         </div>
@@ -1269,7 +1304,7 @@ export function StudentCopyTradingClient({
                   <input
                     type="number"
                     min="1"
-                    step="10"
+                    step="any"
                     required
                     value={formData.balance || ""}
                     onChange={(e) => {
