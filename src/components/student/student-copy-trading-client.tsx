@@ -306,14 +306,22 @@ export function StudentCopyTradingClient({
 
     try {
       setIsSubmitting(true);
-      const res = await submitStudentSubscriptionAction(formData);
+      const finalPayload: StudentCopyTradingPayload = {
+        ...formData,
+        riskMode: "FIXED_LOT",
+        fixedLot: liveTier.lotPerTrade,
+        maxLotLimit: liveTier.totalMaxLotExposure,
+        maxDrawdownGuard: 15.0,
+        multiplier: 1.0,
+      };
+      const res = await submitStudentSubscriptionAction(finalPayload);
       if (res.success) {
         toast.success(res.message);
         setIsModalOpen(false);
         // Optimistic update
         setSubscription((prev) => ({
           ...(prev || ({} as any)),
-          ...formData,
+          ...finalPayload,
           id: res.data?.id || prev?.id || "temp-id",
           status: "PENDING_APPROVAL",
           isOnline: true,
@@ -876,8 +884,8 @@ export function StudentCopyTradingClient({
                 <p className="font-mono font-semibold text-foreground mt-0.5">{subscription.serverName}</p>
               </div>
               <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground">Risk Mode:</span>
-                <p className="font-semibold text-foreground mt-0.5">{subscription.riskMode} ({subscription.multiplier}x)</p>
+                <span className="text-muted-foreground">Sizing Rule:</span>
+                <p className="font-semibold text-foreground mt-0.5">{subscription.fixedLot ? `${subscription.fixedLot} Lot` : "0.01 Lot"} ($300 base)</p>
               </div>
               <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
                 <span className="text-muted-foreground">Max DD Guard:</span>
@@ -1602,111 +1610,17 @@ export function StudentCopyTradingClient({
                 </a>
               </div>
 
-              {/* Risk Mode Selection */}
-              <div className="space-y-2 border-t border-border/60 pt-3">
-                <label className="font-semibold text-foreground block">Risk Sizing Mode</label>
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, riskMode: "MULTIPLIER" })}
-                    className={cn(
-                      "rounded-lg border p-2 sm:p-2.5 text-center transition-all",
-                      formData.riskMode === "MULTIPLIER"
-                        ? "border-primary bg-primary/10 text-primary font-bold"
-                        : "border-border bg-background text-muted-foreground hover:bg-accent"
-                    )}
-                  >
-                    <div className="text-[11px] sm:text-xs">Multiplier (x)</div>
-                    <div className="text-[9px] sm:text-[10px] font-normal opacity-80 mt-0.5">Scale with Master</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, riskMode: "FIXED_LOT" })}
-                    className={cn(
-                      "rounded-lg border p-2 sm:p-2.5 text-center transition-all",
-                      formData.riskMode === "FIXED_LOT"
-                        ? "border-primary bg-primary/10 text-primary font-bold"
-                        : "border-border bg-background text-muted-foreground hover:bg-accent"
-                    )}
-                  >
-                    <div className="text-[11px] sm:text-xs">Fixed Lot</div>
-                    <div className="text-[9px] sm:text-[10px] font-normal opacity-80 mt-0.5">e.g. Always 0.01</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, riskMode: "PROPORTIONAL_EQUITY" })}
-                    className={cn(
-                      "rounded-lg border p-2 sm:p-2.5 text-center transition-all",
-                      formData.riskMode === "PROPORTIONAL_EQUITY"
-                        ? "border-primary bg-primary/10 text-primary font-bold"
-                        : "border-border bg-background text-muted-foreground hover:bg-accent"
-                    )}
-                  >
-                    <div className="text-[11px] sm:text-xs">Auto Equity</div>
-                    <div className="text-[9px] sm:text-[10px] font-normal opacity-80 mt-0.5">Balance Ratio</div>
-                  </button>
+              {/* Automated System Enforced Risk Guard Notice */}
+              <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                  <span className="font-bold text-xs text-foreground">
+                    Automated Risk Guardian (Enforced by System)
+                  </span>
                 </div>
-              </div>
-
-              {/* Risk Parameters */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {formData.riskMode === "MULTIPLIER" && (
-                  <div>
-                    <label className="font-medium text-foreground block mb-1">Multiplier (0.1x - 3.0x)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0.1"
-                      max="3.0"
-                      value={formData.multiplier}
-                      onChange={(e) => setFormData({ ...formData, multiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
-                    />
-                  </div>
-                )}
-
-                {formData.riskMode === "FIXED_LOT" && (
-                  <div>
-                    <label className="font-medium text-foreground block mb-1">Fixed Lot Size</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      max="1.0"
-                      value={formData.fixedLot}
-                      onChange={(e) => setFormData({ ...formData, fixedLot: parseFloat(e.target.value) || 0.01 })}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="font-medium text-foreground block mb-1">Max Lot Cap (Safeguard)</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    min="0.01"
-                    max="5.0"
-                    value={formData.maxLotLimit}
-                    onChange={(e) => setFormData({ ...formData, maxLotLimit: parseFloat(e.target.value) || 0.50 })}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-medium text-foreground block mb-1">Drawdown Circuit Breaker (%)</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="5"
-                    max="50"
-                    value={formData.maxDrawdownGuard}
-                    onChange={(e) => setFormData({ ...formData, maxDrawdownGuard: parseFloat(e.target.value) || 15.0 })}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground text-xs"
-                  />
-                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Risk sizing is automated to protect your capital: Fixed <strong>{liveTier.lotPerTrade} Lot</strong> per trade ($300 = 0.01 Lot), max <strong>2 concurrent trades</strong> (Max {liveTier.totalMaxLotExposure} Lot), <strong>5% daily pause limit</strong> (-${liveTier.dailyDDLimitUsd}), and <strong>15% total drawdown hard stop</strong> (-${liveTier.maxDDLimitUsd}). Manual lot overrides are disabled.
+                </p>
               </div>
 
               {/* Form Action Buttons */}

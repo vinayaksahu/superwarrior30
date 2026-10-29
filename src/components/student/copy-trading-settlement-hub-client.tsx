@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { CopyTradingAffiliateInfo } from "@/server/actions/copy-trading.actions";
 import { verifyAndSubmitBlockchainSettlementAction } from "@/server/actions/copy-trading.actions";
+import { DynamicQrCode } from "@/components/ui/qr-code";
 
 interface SettlementHubClientProps {
   invoices: any[];
@@ -70,9 +71,10 @@ export function CopyTradingSettlementHubClient({
   const affiliateShareUsd = currentInvoice?.affiliateShareUsd || Number((activeProfitUsd * 0.10).toFixed(2));
   const academyShareUsd = currentInvoice?.academyShareUsd || Number((activeProfitUsd - investorShareUsd - affiliateShareUsd).toFixed(2));
   const totalAmountDueUsd = currentInvoice?.totalAmountDueUsd || Number((academyShareUsd + affiliateShareUsd).toFixed(2));
+  const activeDepositAddress = currentInvoice?.depositAddress || DEPOSIT_ADDRESS;
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(DEPOSIT_ADDRESS);
+    navigator.clipboard.writeText(activeDepositAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -344,11 +346,12 @@ export function CopyTradingSettlementHubClient({
             <div className="rounded-xl border border-border/80 bg-background/60 p-4 sm:p-5 space-y-4">
               <div className="flex flex-col sm:flex-row items-center gap-5">
                 {/* QR Code */}
-                <div className="shrink-0 rounded-xl border border-border bg-white p-2.5 shadow-sm">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${DEPOSIT_ADDRESS}`}
+                <div className="shrink-0 rounded-xl border border-border bg-white p-2.5 shadow-sm flex items-center justify-center">
+                  <DynamicQrCode
+                    value={activeDepositAddress}
+                    size={144}
                     alt="USDT BEP-20 Deposit QR"
-                    className="h-36 w-36 object-contain"
+                    className="w-36 h-36"
                   />
                 </div>
 
@@ -367,7 +370,7 @@ export function CopyTradingSettlementHubClient({
                     <span className="text-[10px] text-muted-foreground block text-left">Deposit Address:</span>
                     <div className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2">
                       <span className="font-mono text-xs font-bold text-foreground break-all select-all text-left">
-                        {DEPOSIT_ADDRESS}
+                        {activeDepositAddress}
                       </span>
                       <button
                         type="button"
