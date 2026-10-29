@@ -245,6 +245,7 @@ export function StudentCopyTradingClient({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
   const [invoices, setInvoices] = useState<any[]>(initialInvoices);
   const [vpsPayments, setVpsPayments] = useState<any[]>(initialVpsPayments);
 
@@ -301,6 +302,10 @@ export function StudentCopyTradingClient({
     }
     if (!formData.balance || formData.balance <= 0) {
       toast.error("Please enter a valid initial balance.");
+      return;
+    }
+    if (!agreedTerms) {
+      toast.error("Please accept the copy trading terms: Don't chase trades during copy trading.");
       return;
     }
 
@@ -437,25 +442,8 @@ export function StudentCopyTradingClient({
             <Server className="h-3.5 w-3.5 text-primary" />
             Handling Fee
           </Link>
-          <button
-            onClick={handleRefreshStatus}
-            disabled={isRefreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
-            title="Fetch latest status from server"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-            {isRefreshing ? "Refreshing..." : "Refresh Status"}
-          </button>
         </div>
       </div>
-
-      {/* Last Refreshed Timestamp */}
-      {lastRefreshedAt && (
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          <span>Last refreshed: {new Date(lastRefreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-        </div>
-      )}
 
       {/* Pending Weekly Settlement Alert Banner (USDT Blockchain Gateway) */}
       {invoices.some((inv: any) => inv.status === "PENDING") && (
@@ -536,91 +524,143 @@ export function StudentCopyTradingClient({
         </div>
       )}
 
-      {/* Master Trader Performance Showcase */}
-      {master && (
-        <div className="rounded-xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/5 p-5 sm:p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/60 pb-5">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-primary/20 text-primary p-1.5 font-bold">
-                  <ShieldCheck className="h-5 w-5" />
+      {/* Not Connected State: Prominent Connect Button as in Image 2 */}
+      {(!subscription || subscription.status === "DISCONNECTED") && (
+        <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center sm:text-left">
+            <h3 className="text-base font-bold text-foreground flex items-center justify-center sm:justify-start gap-2">
+              <Zap className="h-4 w-4 text-amber-500 fill-amber-500" />
+              Automated MT5 Cloud Copy Trading
+            </h3>
+            <p className="text-xs text-muted-foreground max-w-xl">
+              Connect your GTCFX MT5 trading account. Our dedicated Cloud VPS slot will automatically copy Gold &amp; Forex trades with strictly enforced risk rules.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenConnectModal}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-6 py-3.5 text-sm sm:text-base shadow-md transition-all active:scale-[0.98] cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <Zap className="h-5 w-5 fill-black text-black" />
+            Connect My GTCFX MT5 Account
+          </button>
+        </div>
+      )}
+
+      {/* Connected State: Disclaimer & Status Card */}
+      {subscription && subscription.status !== "DISCONNECTED" && (
+        <div className="space-y-4">
+          {/* Important Rule Disclaimer: Don't chase during copy trading */}
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                ⚠️ Important Rule: Don&apos;t chase during copy trading
+                <span className="rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold">
+                  Enforced Rule
                 </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base sm:text-lg font-bold text-foreground">
-                      {master.accountName}
-                    </h2>
-                    <span className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-bold border border-primary/20 shrink-0 whitespace-nowrap">
-                      Official Academy Master
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Please do not manually open/close trades, chase market price spikes, or interfere with copied positions on this MT5 account. All trading entries, lot allocations ($300 = 0.01 Lot), 5% daily pauses, and 15% overall hard stops are automatically managed by the SuperWarrior Risk Guardian. Manual intervention can disrupt risk synchronization.
+              </p>
+            </div>
+          </div>
+
+          {/* Account Status Card */}
+          {subscription.status === "PENDING_APPROVAL" ? (
+            <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Clock className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-foreground">
+                      Account Status: Pending Approval
+                    </h4>
+                    <span className="rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold">
+                      Under Review
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Broker: <span className="font-medium text-foreground">{master.brokerName}</span> • Platform: <span className="font-medium text-foreground">{master.platform}</span> • Server: <span className="font-mono text-xs">{master.serverName}</span>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Your MT5 credentials for login <span className="font-mono font-semibold text-foreground">#{subscription.accountNumber}</span> ({subscription.brokerName} - {subscription.serverName}) have been recorded. Admin is setting up your isolated terminal slot on the Cloud VPS. You will be notified as soon as sync is live!
                   </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="rounded-lg border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground hover:bg-accent shrink-0 shadow-sm"
+              >
+                Modify Details
+              </button>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-lg bg-background/80 border border-border/60 px-3 py-1.5 text-xs">
-                <span className="text-muted-foreground">Min Capital: </span>
-                <span className="font-bold text-foreground">${master.minCapitalUsd}</span>
+          ) : subscription.status === "REJECTED" ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 sm:p-5 flex items-start justify-between gap-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-destructive">
+                    Connection Request Rejected
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    Reason: {subscription.rejectionReason || "Invalid login credentials or unsupported server. Please check your MT5 details."}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg bg-background/80 border border-border/60 px-3 py-1.5 text-xs">
-                <span className="text-muted-foreground">Risk Profile: </span>
-                <span className="font-bold text-emerald-500">{master.riskLevel}</span>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-xs font-semibold hover:bg-primary/90 shrink-0"
+              >
+                Re-submit Credentials
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <span className="text-xs font-bold text-foreground">
+                    Connected MT5 Account: <span className="font-mono text-primary">#{subscription.accountNumber}</span> ({subscription.brokerName} - {subscription.serverName})
+                  </span>
+                  <span className="rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold">
+                    {subscription.status === "ACTIVE" ? "🟢 Copying Live" : "🟡 Paused"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTogglePause}
+                    disabled={isActionPending}
+                    className="rounded-lg border border-border bg-accent/60 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+                  >
+                    {subscription.status === "ACTIVE" ? "Pause Copying" : "Resume Copying"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(true)}
+                    className="rounded-lg border border-border bg-accent/60 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+                  >
+                    Modify
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    disabled={isActionPending}
+                    className="rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20"
+                    title="Disconnect Account"
+                  >
+                    <Unlink className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
+                <div>Balance: <strong className="text-foreground font-mono">${subscription.balance.toFixed(2)}</strong></div>
+                <div>Sizing Rule: <strong className="text-primary font-mono">{subscription.fixedLot || 0.01} Lot</strong></div>
+                <div>Daily DD Pause: <strong className="text-amber-500 font-mono">5% (-${calculateCopyTradingTier(subscription.balance).dailyDDLimitUsd})</strong></div>
+                <div>Hard Stop Exit: <strong className="text-destructive font-mono">15% (${calculateCopyTradingTier(subscription.balance).cutoffEquity})</strong></div>
               </div>
             </div>
-          </div>
-
-          {/* Strategy description */}
-          {master.strategyDescription && (
-            <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-              <span className="font-semibold text-foreground">Strategy: </span>
-              {master.strategyDescription}
-            </p>
           )}
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-5">
-            <div className="rounded-lg bg-background/60 border border-border/60 p-3">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Win Rate</div>
-              <div className="text-xl font-bold text-emerald-500 mt-1 flex items-baseline gap-1">
-                {master.winRate}%
-                <span className="text-[10px] text-muted-foreground font-normal">verified</span>
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-background/60 border border-border/60 p-3">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Monthly ROI</div>
-              <div className="text-xl font-bold text-emerald-500 mt-1 flex items-baseline gap-1">
-                +{master.roiMonthly}%
-                <ArrowUpRight className="h-4 w-4 text-emerald-500 inline" />
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-background/60 border border-border/60 p-3">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Profit Factor</div>
-              <div className="text-xl font-bold text-foreground mt-1">
-                {master.profitFactor}x
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-background/60 border border-border/60 p-3">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Max Drawdown</div>
-              <div className="text-xl font-bold text-amber-500 mt-1 flex items-baseline gap-1">
-                {master.maxDrawdown}%
-                <span className="text-[10px] text-muted-foreground font-normal">strict</span>
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-background/60 border border-border/60 p-3 col-span-2 sm:col-span-1">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Total Trades</div>
-              <div className="text-xl font-bold text-foreground mt-1">
-                {master.totalTrades}
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -787,285 +827,6 @@ export function StudentCopyTradingClient({
         </div>
       </div>
 
-      {/* Student Account Connection Status Card */}
-      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
-          <div>
-            <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-primary" />
-              My Connected MT4 / MT5 Terminal
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Cloud execution status and terminal slot allocated on the Academy VPS cluster.
-            </p>
-          </div>
-
-          {subscription && (
-            <div className="flex flex-wrap items-center gap-2">
-              {subscription.status === "ACTIVE" && (
-                <button
-                  onClick={handleTogglePause}
-                  disabled={isActionPending}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-500 hover:bg-amber-500/20 transition-colors"
-                >
-                  <Pause className="h-3.5 w-3.5" /> Pause Copying
-                </button>
-              )}
-
-              {subscription.status === "PAUSED" && (
-                <button
-                  onClick={handleTogglePause}
-                  disabled={isActionPending}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-500 hover:bg-emerald-500/20 transition-colors"
-                >
-                  <Play className="h-3.5 w-3.5" /> Resume Copying
-                </button>
-              )}
-
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-accent/60 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-              >
-                Modify Settings
-              </button>
-
-              <button
-                onClick={handleDisconnect}
-                disabled={isActionPending}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20 transition-colors"
-                title="Disconnect Account"
-              >
-                <Unlink className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Status Content */}
-        {!subscription || subscription.status === "DISCONNECTED" ? (
-          <div className="py-8 text-center max-w-md mx-auto space-y-4">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Share2 className="h-7 w-7" />
-            </div>
-            <div>
-              <h4 className="text-base font-semibold text-foreground">No Trading Account Connected</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                Connect your GTCFX MT5 account under our IB. Our dedicated high-speed cloud VPS will copy all Gold &amp; BTC trades automatically with zero manual effort.
-              </p>
-            </div>
-            <button
-              onClick={handleOpenConnectModal}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
-            >
-              <Zap className="h-4 w-4" /> Connect My GTCFX MT5 Account
-            </button>
-          </div>
-        ) : subscription.status === "PENDING_APPROVAL" ? (
-          <div className="py-6 space-y-4">
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3">
-              <Clock className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <div className="font-semibold text-sm text-foreground">
-                  Connection Request Under Review (Slot Allocation in Progress)
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your MT5 credentials for account <span className="font-mono font-medium text-foreground">#{subscription.accountNumber}</span> ({subscription.brokerName}) have been recorded. Admin is setting up a lightweight isolated terminal on our dedicated Cloud Trading VPS. You will be notified as soon as sync is live!
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground">Broker:</span>
-                <p className="font-semibold text-foreground mt-0.5">{subscription.brokerName}</p>
-              </div>
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground">Server:</span>
-                <p className="font-mono font-semibold text-foreground mt-0.5">{subscription.serverName}</p>
-              </div>
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground">Sizing Rule:</span>
-                <p className="font-semibold text-foreground mt-0.5">{subscription.fixedLot ? `${subscription.fixedLot} Lot` : "0.01 Lot"} ($300 base)</p>
-              </div>
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground">Max DD Guard:</span>
-                <p className="font-semibold text-foreground mt-0.5">{subscription.maxDrawdownGuard}%</p>
-              </div>
-            </div>
-          </div>
-        ) : subscription.status === "REJECTED" ? (
-          <div className="py-6 space-y-4">
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <div className="font-semibold text-sm text-destructive">
-                  Account Connection Rejected
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Reason: {subscription.rejectionReason || "Invalid login credentials or unsupported server. Please check your details."}
-                </p>
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="mt-2 text-xs font-semibold text-primary underline hover:text-primary/80"
-                >
-                  Update Credentials & Re-submit
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="py-4 space-y-4">
-            {/* Active Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground text-xs">Status:</span>
-                <div className="flex items-center gap-1.5 mt-1 font-semibold text-xs">
-                  {subscription.status === "ACTIVE" ? (
-                    <>
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span className="text-emerald-500">Actively Copying</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                      <span className="text-amber-500">Paused</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground text-xs">VPS Slot:</span>
-                <p className="font-semibold text-foreground text-xs mt-1">
-                  Slot #{subscription.vpsSlotNumber || "1"} ({subscription.vpsNode?.replace(/Oracle-Ampere-|Oracle-/gi, "Cloud-") || "Dedicated-Node1"})
-                </p>
-              </div>
-
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground text-xs">Latency / Ping:</span>
-                <p className="font-semibold text-emerald-500 text-xs mt-1 flex items-center gap-1">
-                  <Zap className="h-3 w-3" /> {subscription.latencyMs} ms
-                </p>
-              </div>
-
-              <div className="rounded-lg bg-accent/40 border border-border/40 p-3">
-                <span className="text-muted-foreground text-xs">Risk & Lot Size:</span>
-                <p className="font-semibold text-foreground text-xs mt-1">
-                  {calculateCopyTradingTier(subscription.balance).lotPerTrade} Lot / trade
-                </p>
-                <span className="text-[10px] text-muted-foreground block">Max 2 trades ({calculateCopyTradingTier(subscription.balance).totalMaxLotExposure} total)</span>
-              </div>
-            </div>
-
-            {/* Account Info Pill */}
-            <div className="rounded-lg bg-card border border-border/80 p-3 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                <span className="text-muted-foreground">MT5 Login:</span>
-                <span className="font-mono font-semibold text-foreground">#{subscription.accountNumber}</span>
-                <span className="text-muted-foreground text-[11px]">({subscription.brokerName} - {subscription.serverName})</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-muted-foreground pt-1 sm:pt-0 border-t sm:border-t-0 border-border/40">
-                <span>Balance: <strong className="text-foreground">${subscription.balance.toFixed(2)}</strong></span>
-                <span>Equity: <strong className="text-foreground">${subscription.equity.toFixed(2)}</strong></span>
-                <span>Daily DD Limit: <strong className="text-amber-500">5% (-${calculateCopyTradingTier(subscription.balance).dailyDDLimitUsd})</strong></span>
-                <span>Max DD Cutoff: <strong className="text-destructive">15% (${calculateCopyTradingTier(subscription.balance).cutoffEquity})</strong></span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Live Copied Trade Execution History */}
-      <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm">
-        <div className="flex items-center justify-between border-b border-border/60 pb-4">
-          <div>
-            <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Live Trade Execution Stream
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Real-time trades mirrored from Rahul Master Account to your terminal.
-            </p>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {logs.length} trades recorded
-          </span>
-        </div>
-
-        {logs.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground text-xs">
-            No trades executed yet. When Master opens a position on Gold (XAUUSD) or Forex, it will appear here in real-time.
-          </div>
-        ) : (
-          <div className="overflow-x-auto mt-4 -mx-5 px-5 sm:mx-0 sm:px-0">
-            <table className="w-full min-w-[680px] text-left text-xs">
-              <thead className="border-b border-border/60 text-muted-foreground uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="py-2.5 px-3">Ticket</th>
-                  <th className="py-2.5 px-3">Symbol</th>
-                  <th className="py-2.5 px-3">Type</th>
-                  <th className="py-2.5 px-3">Lot</th>
-                  <th className="py-2.5 px-3">Open Price</th>
-                  <th className="py-2.5 px-3">Close Price</th>
-                  <th className="py-2.5 px-3">Profit / PnL</th>
-                  <th className="py-2.5 px-3">Ping</th>
-                  <th className="py-2.5 px-3">Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {logs.map((log) => {
-                  const isProfit = log.profit >= 0;
-                  return (
-                    <tr key={log.id} className="hover:bg-accent/30 transition-colors">
-                      <td className="py-2.5 px-3 font-mono text-muted-foreground">#{log.tradeTicket}</td>
-                      <td className="py-2.5 px-3 font-bold text-foreground">{log.symbol}</td>
-                      <td className="py-2.5 px-3">
-                        <span
-                          className={cn(
-                            "rounded px-2 py-0.5 font-semibold text-[10px]",
-                            log.orderType === "BUY"
-                              ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                              : "bg-rose-500/10 text-rose-500 border border-rose-500/20"
-                          )}
-                        >
-                          {log.orderType}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-foreground">
-                        {log.copiedLots || log.masterLots}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-muted-foreground">
-                        {log.childOpenPrice?.toFixed(2) || log.masterOpenPrice.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-muted-foreground">
-                        {log.childClosePrice?.toFixed(2) || log.masterClosePrice?.toFixed(2) || "OPEN"}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span
-                          className={cn(
-                            "font-bold font-mono",
-                            isProfit ? "text-emerald-500" : "text-rose-500"
-                          )}
-                        >
-                          {isProfit ? `+$${log.profit.toFixed(2)}` : `-$${Math.abs(log.profit).toFixed(2)}`}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground font-mono">
-                        {log.latencyMs}ms
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {new Date(log.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       {/* Copy Trading Affiliate & Weekly Settlement Program */}
       <div className="rounded-xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
@@ -1222,6 +983,7 @@ export function StudentCopyTradingClient({
                     <th className="py-2 px-3">Student Name</th>
                     <th className="py-2 px-3">Email</th>
                     <th className="py-2 px-3">Joined On</th>
+                    <th className="py-2 px-3 text-right">Commission ($)</th>
                     <th className="py-2 px-3 text-right">Copy Trading Status</th>
                   </tr>
                 </thead>
@@ -1232,6 +994,9 @@ export function StudentCopyTradingClient({
                       <td className="py-2 px-3 text-muted-foreground">{u.email}</td>
                       <td className="py-2 px-3 text-muted-foreground">
                         {new Date(u.joinedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-amber-500">
+                        ${(u.commissionUsd ?? 0).toFixed(2)}
                       </td>
                       <td className="py-2 px-3 text-right">
                         {u.isCopying ? (
@@ -1623,6 +1388,26 @@ export function StudentCopyTradingClient({
                 </p>
               </div>
 
+              {/* Copy Trading Terms & Conditions Checkbox */}
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 space-y-2">
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={agreedTerms}
+                    onChange={(e) => setAgreedTerms(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-amber-500 text-amber-500 focus:ring-amber-500 cursor-pointer accent-amber-500 shrink-0"
+                  />
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-foreground block">
+                      I agree to Copy Trading Terms &amp; Conditions (Don&apos;t chase during copy trading)
+                    </span>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      I understand and agree that all trades are managed automatically by the SuperWarrior Risk Guardian. I will <strong>not manually enter, modify, or close trades</strong> or chase market prices on this MT5 account while copy trading is active.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
               {/* Form Action Buttons */}
               <div className="sticky bottom-0 bg-card pt-4 border-t border-border/60 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 sm:gap-3 shrink-0">
                 <button
@@ -1634,7 +1419,7 @@ export function StudentCopyTradingClient({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !agreedTerms}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
                   {isSubmitting ? (
