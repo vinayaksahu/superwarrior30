@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { AdminNotificationBell } from "@/components/admin/admin-notifications";
+import { useAdminNotifications } from "@/contexts/admin-notifications-context";
 import type { AppEnvironment } from "@/lib/env-context";
 
 interface AdminHeaderProps {
@@ -123,6 +125,39 @@ export function AdminHeader({
 
   const permsSet = new Set(user.permissions || []);
 
+  const { counts } = useAdminNotifications();
+
+  const getLinkBadge = (href: string) => {
+    switch (href) {
+      case "/admin/orders":
+        return counts.pendingOrders > 0
+          ? { count: counts.pendingOrders, color: "bg-amber-500/20 text-amber-500 border border-amber-500/30" }
+          : null;
+      case "/admin/withdrawals":
+        return counts.pendingWithdrawals > 0
+          ? { count: counts.pendingWithdrawals, color: "bg-rose-500/20 text-rose-500 border border-rose-500/30" }
+          : null;
+      case "/admin/copy-trading":
+        return counts.pendingDeposits > 0
+          ? { count: counts.pendingDeposits, color: "bg-blue-500/20 text-blue-500 border border-blue-500/30" }
+          : null;
+      case "/admin/homework":
+        return counts.pendingHomework > 0
+          ? { count: counts.pendingHomework, color: "bg-purple-500/20 text-purple-500 border border-purple-500/30" }
+          : null;
+      case "/admin/support":
+        return counts.openTickets > 0
+          ? { count: counts.openTickets, color: "bg-purple-500/20 text-purple-500 border border-purple-500/30" }
+          : null;
+      case "/admin/community":
+        return counts.pendingCommunity > 0
+          ? { count: counts.pendingCommunity, color: "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" }
+          : null;
+      default:
+        return null;
+    }
+  };
+
   const visibleLinks = mobileNavLinks.filter((link) => {
     if (isSuper) return true;
     if (!link.requiredPermission) return true;
@@ -145,7 +180,8 @@ export function AdminHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <AdminNotificationBell />
           <ThemeToggle />
           <div className="text-right hidden sm:block">
             <p className="text-xs sm:text-sm font-semibold text-foreground">
@@ -211,20 +247,34 @@ export function AdminHeader({
                     ? pathname === "/admin"
                     : pathname === link.href || pathname.startsWith(`${link.href}/`);
 
+                const badge = getLinkBadge(link.href);
+
                 return (
                   <Link
                     key={link.href}
                     href={link.href}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                      "flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                       isActive
                         ? "bg-primary text-primary-foreground font-bold"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     )}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span>{link.label}</span>
+                    <div className="flex items-center gap-3 min-w-0 truncate">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{link.label}</span>
+                    </div>
+                    {badge && (
+                      <span
+                        className={cn(
+                          "rounded-md px-1.5 py-0.2 text-[10px] font-black shrink-0 shadow-xs",
+                          isActive ? "bg-black/20 text-primary-foreground" : badge.color
+                        )}
+                      >
+                        {badge.count}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
