@@ -157,13 +157,13 @@ export function PwaRegister() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h4 className="text-sm font-bold tracking-tight">Naya Update Available!</h4>
+              <h4 className="text-sm font-bold tracking-tight">New Update Available!</h4>
               <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-black uppercase text-primary">
                 v{versionTag}
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-              Super Warrior 30 / Trade Warrior Academy me naye updates aur improvements ready hain. Turant reload karke update karein!
+              A new update is available with latest features and improvements. Reload now to apply changes!
             </p>
             <div className="mt-3 flex items-center gap-2">
               <button
@@ -179,7 +179,7 @@ export function PwaRegister() {
                 onClick={() => setDismissed(true)}
                 className="inline-flex items-center justify-center rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted cursor-pointer"
               >
-                Baad me
+                Later
               </button>
             </div>
           </div>
