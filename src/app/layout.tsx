@@ -52,6 +52,9 @@ export const metadata: Metadata = {
     ],
     shortcut: "/favicon.ico",
   },
+  other: {
+    "google-adsense-account": "ca-pub-1320621258501016",
+  },
 };
 
 export default function RootLayout({
@@ -61,6 +64,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+      <head>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1320621258501016"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${inter.className} antialiased bg-background text-foreground`}>
         <ThemeProvider
           attribute="class"

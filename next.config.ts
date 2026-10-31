@@ -2,14 +2,14 @@ import type { NextConfig } from "next";
 
 const cspHeader = `
   default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://iframe.mediadelivery.net https://cdnjs.cloudflare.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://iframe.mediadelivery.net https://cdnjs.cloudflare.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://adservice.google.com https://www.googletagservices.com;
   worker-src 'self' blob: https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' blob: data: https://*.b-cdn.net https://*.bunnycdn.com https://*.r2.cloudflarestorage.com https://api.qrserver.com https://i.ytimg.com https://img.youtube.com;
+  img-src 'self' blob: data: https://*.b-cdn.net https://*.bunnycdn.com https://*.r2.cloudflarestorage.com https://api.qrserver.com https://i.ytimg.com https://img.youtube.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com;
   font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self' blob: data: https://video.bunnycdn.com https://*.b-cdn.net https://*.bunnycdn.com https://*.mediadelivery.net https://api.razorpay.com https://checkout.razorpay.com https://*.upstash.io https://cdnjs.cloudflare.com;
+  connect-src 'self' blob: data: https://video.bunnycdn.com https://*.b-cdn.net https://*.bunnycdn.com https://*.mediadelivery.net https://api.razorpay.com https://checkout.razorpay.com https://*.upstash.io https://cdnjs.cloudflare.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://adservice.google.com;
   media-src 'self' blob: data: https://*.b-cdn.net https://*.bunnycdn.com https://*.mediadelivery.net;
-  frame-src 'self' blob: data: https://iframe.mediadelivery.net https://*.mediadelivery.net https://checkout.razorpay.com https://api.razorpay.com https://www.youtube.com https://www.youtube-nocookie.com;
+  frame-src 'self' blob: data: https://iframe.mediadelivery.net https://*.mediadelivery.net https://checkout.razorpay.com https://api.razorpay.com https://www.youtube.com https://www.youtube-nocookie.com https://googleads.g.doubleclick.net https://*.googlesyndication.com https://pagead2.googlesyndication.com https://tpc.googlesyndication.com;
   object-src 'self' blob: data:;
   base-uri 'self';
   form-action 'self';
